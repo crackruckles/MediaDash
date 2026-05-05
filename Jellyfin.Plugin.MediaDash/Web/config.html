@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head><title>MediaDash Settings</title></head>
+<body>
+<div id="MediaDashConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-select,emby-checkbox">
+  <div data-role="content">
+    <div class="content-primary">
+
+      <div class="verticalSection">
+        <h2 class="sectionTitle">MediaDash — Settings</h2>
+        <p class="fieldDescription">Configure the paths and service names for your setup. All fields are optional — leave blank to disable the associated feature.</p>
+      </div>
+
+      <form id="MediaDashConfigForm">
+
+        <!-- Paths -->
+        <div class="verticalSection">
+          <h3 class="sectionTitle">Paths</h3>
+
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="MediaRootPath">Media Root Path</label>
+            <input type="text" id="MediaRootPath" name="MediaRootPath" class="emby-input" />
+            <div class="fieldDescription">Root directory of your media storage, used for disk usage stats. Example: /mnt/media</div>
+          </div>
+
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="ReencodeLogPath">Re-encode Log Path</label>
+            <input type="text" id="ReencodeLogPath" name="ReencodeLogPath" class="emby-input" />
+            <div class="fieldDescription">Full path to the re-encoder log file. Example: /var/log/reencode_bdremux.log</div>
+          </div>
+
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="StripLogPath">Strip Tracks Log Path</label>
+            <input type="text" id="StripLogPath" name="StripLogPath" class="emby-input" />
+            <div class="fieldDescription">Full path to the track-stripping log file. Example: /var/log/strip_tracks.log</div>
+          </div>
+
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="DupesReportPath">Dupes Report Path</label>
+            <input type="text" id="DupesReportPath" name="DupesReportPath" class="emby-input" />
+            <div class="fieldDescription">Full path to the duplicate-detection JSON report. Example: /var/log/find_dupes_report.json</div>
+          </div>
+
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="EncodeStatusDir">Encode Status Directory</label>
+            <input type="text" id="EncodeStatusDir" name="EncodeStatusDir" class="emby-input" />
+            <div class="fieldDescription">Directory containing per-worker slot JSON files. Example: /tmp/encode_status</div>
+          </div>
+
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="ReencodeStateFile">Re-encode State File</label>
+            <input type="text" id="ReencodeStateFile" name="ReencodeStateFile" class="emby-input" />
+            <div class="fieldDescription">JSON file tracking which files have been processed. Example: /var/lib/reencode/processed.json</div>
+          </div>
+
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="PauseFlagPath">Pause Flag Path</label>
+            <input type="text" id="PauseFlagPath" name="PauseFlagPath" class="emby-input" />
+            <div class="fieldDescription">Touch this file to pause encoding; delete it to resume. Example: /tmp/reencode_pause</div>
+          </div>
+
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="ForceFlagPath">Force-Resume Flag Path</label>
+            <input type="text" id="ForceFlagPath" name="ForceFlagPath" class="emby-input" />
+            <div class="fieldDescription">Touch this file to force-resume past quiet hours. Example: /tmp/reencode_force</div>
+          </div>
+
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="DupesScanScript">Dupes Scan Script</label>
+            <input type="text" id="DupesScanScript" name="DupesScanScript" class="emby-input" />
+            <div class="fieldDescription">Full path to the find_dupes.py script. Example: /root/scripts/find_dupes.py</div>
+          </div>
+        </div>
+
+        <!-- Services -->
+        <div class="verticalSection">
+          <h3 class="sectionTitle">Service Names</h3>
+
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="ReencodeServiceName">Re-encoder systemd Service</label>
+            <input type="text" id="ReencodeServiceName" name="ReencodeServiceName" class="emby-input" />
+            <div class="fieldDescription">Service name passed to systemctl start. Example: reencode-bdremux</div>
+          </div>
+
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="StripServiceName">Strip Tracks systemd Service</label>
+            <input type="text" id="StripServiceName" name="StripServiceName" class="emby-input" />
+            <div class="fieldDescription">Service name passed to systemctl start. Example: strip-tracks</div>
+          </div>
+        </div>
+
+        <!-- Process detection -->
+        <div class="verticalSection">
+          <h3 class="sectionTitle">Process Detection</h3>
+
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="ReencodeProcessName">Re-encoder Process Name</label>
+            <input type="text" id="ReencodeProcessName" name="ReencodeProcessName" class="emby-input" />
+            <div class="fieldDescription">Substring to match in /proc/*/cmdline to detect an active encode. Example: reencode_bdremux</div>
+          </div>
+
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="StripProcessName">Strip Tracks Process Name</label>
+            <input type="text" id="StripProcessName" name="StripProcessName" class="emby-input" />
+            <div class="fieldDescription">Substring to match in /proc/*/cmdline to detect active stripping. Example: strip_tracks</div>
+          </div>
+        </div>
+
+        <!-- Quiet Hours -->
+        <div class="verticalSection">
+          <h3 class="sectionTitle">Quiet Hours</h3>
+
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="QuietHoursStart">Quiet Hours Start (0–23)</label>
+            <input type="number" id="QuietHoursStart" name="QuietHoursStart" min="0" max="23" class="emby-input" />
+            <div class="fieldDescription">Hour when encoding should pause. This is stored in the plugin config and read by your scripts via the status API.</div>
+          </div>
+
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="QuietHoursEnd">Quiet Hours End (0–23)</label>
+            <input type="number" id="QuietHoursEnd" name="QuietHoursEnd" min="0" max="23" class="emby-input" />
+            <div class="fieldDescription">Hour when encoding should resume.</div>
+          </div>
+        </div>
+
+        <!-- Video extensions -->
+        <div class="verticalSection">
+          <h3 class="sectionTitle">Queue Scanner</h3>
+
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="VideoExtensions">Video Extensions</label>
+            <input type="text" id="VideoExtensions" name="VideoExtensions" class="emby-input" />
+            <div class="fieldDescription">Comma-separated list of file extensions to scan for the encode queue. Example: .mkv,.mp4,.avi,.m2ts</div>
+          </div>
+
+          <div class="inputContainer">
+            <label class="inputLabel inputLabelUnfocused" for="SkipCodecs">Skip Codecs</label>
+            <input type="text" id="SkipCodecs" name="SkipCodecs" class="emby-input" />
+            <div class="fieldDescription">Comma-separated codec names that are already done (not counted in queue). Example: hevc,av1</div>
+          </div>
+        </div>
+
+        <div class="verticalSection">
+          <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+            <span>Save</span>
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+</div>
+
+<script type="text/javascript">
+(function () {
+  var pluginId = '4a5c8f2e-1b3d-4e6f-9a2c-7d8e0f1b3c5a';
+
+  ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+    var fields = [
+      'MediaRootPath','ReencodeLogPath','StripLogPath','DupesReportPath',
+      'EncodeStatusDir','ReencodeStateFile','PauseFlagPath','ForceFlagPath',
+      'DupesScanScript','ReencodeServiceName','StripServiceName',
+      'ReencodeProcessName','StripProcessName',
+      'QuietHoursStart','QuietHoursEnd','VideoExtensions','SkipCodecs'
+    ];
+    fields.forEach(function (f) {
+      var el = document.getElementById(f);
+      if (el && config[f] !== undefined) el.value = config[f];
+    });
+  });
+
+  document.getElementById('MediaDashConfigForm')
+    .addEventListener('submit', function (e) {
+      e.preventDefault();
+      ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+        var fields = [
+          'MediaRootPath','ReencodeLogPath','StripLogPath','DupesReportPath',
+          'EncodeStatusDir','ReencodeStateFile','PauseFlagPath','ForceFlagPath',
+          'DupesScanScript','ReencodeServiceName','StripServiceName',
+          'ReencodeProcessName','StripProcessName',
+          'VideoExtensions','SkipCodecs'
+        ];
+        fields.forEach(function (f) {
+          var el = document.getElementById(f);
+          if (el) config[f] = el.value;
+        });
+        config.QuietHoursStart = parseInt(document.getElementById('QuietHoursStart').value) || 8;
+        config.QuietHoursEnd   = parseInt(document.getElementById('QuietHoursEnd').value)   || 16;
+        ApiClient.updatePluginConfiguration(pluginId, config).then(function () {
+          Dashboard.processPluginConfigurationUpdateResult();
+        });
+      });
+    });
+})();
+</script>
+</body>
+</html>

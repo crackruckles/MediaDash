@@ -1,0 +1,101 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore Jellyfin.Plugin.MediaDash/Jellyfin.Plugin.MediaDash.csproj
+
+      - name: Build (Release)
+        run: |
+          dotnet build Jellyfin.Plugin.MediaDash/Jellyfin.Plugin.MediaDash.csproj \
+            --configuration Release \
+            --no-restore \
+            -o build/
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Package plugin zip
+        run: |
+          mkdir -p dist
+          cp build/Jellyfin.Plugin.MediaDash.dll dist/
+          cp meta.json dist/
+          cd dist && zip -j ../mediadash_${{ steps.version.outputs.VERSION }}.zip ./*
+
+      - name: Compute MD5 checksum
+        id: checksum
+        run: |
+          CHECKSUM=$(md5sum mediadash_${{ steps.version.outputs.VERSION }}.zip | awk '{print $1}')
+          echo "CHECKSUM=$CHECKSUM" >> $GITHUB_OUTPUT
+
+      - name: Update manifest.json
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          CHECKSUM=${{ steps.checksum.outputs.CHECKSUM }}
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          REPO="${{ github.repository }}"
+
+          python3 - << PYEOF
+          import json, os
+
+          version    = os.environ.get('VERSION',   '$VERSION')
+          checksum   = os.environ.get('CHECKSUM',  '$CHECKSUM')
+          timestamp  = os.environ.get('TIMESTAMP', '$TIMESTAMP')
+          repo       = os.environ.get('REPO',      '$REPO')
+
+          with open('manifest.json') as f:
+              manifest = json.load(f)
+
+          new_entry = {
+              "version":   version + '.0' if version.count('.') < 3 else version,
+              "changelog": f"See https://github.com/{repo}/releases/tag/v{version}",
+              "targetAbi": "10.11.0.0",
+              "sourceUrl": f"https://github.com/{repo}/releases/download/v{version}/mediadash_{version}.zip",
+              "checksum":  checksum,
+              "timestamp": timestamp,
+          }
+
+          # Prepend new version (newest first)
+          manifest[0]['versions'].insert(0, new_entry)
+
+          with open('manifest.json', 'w') as f:
+              json.dump(manifest, f, indent=2)
+          print(f"manifest.json updated — version {version}, checksum {checksum}")
+          PYEOF
+        env:
+          VERSION:   ${{ steps.version.outputs.VERSION }}
+          CHECKSUM:  ${{ steps.checksum.outputs.CHECKSUM }}
+          TIMESTAMP: ${{ steps.version.outputs.TIMESTAMP }}
+          REPO:      ${{ github.repository }}
+
+      - name: Commit updated manifest
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add manifest.json
+          git commit -m "chore: update manifest for ${{ github.ref_name }}" || echo "No changes"
+          git push origin HEAD:main
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: mediadash_${{ steps.version.outputs.VERSION }}.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

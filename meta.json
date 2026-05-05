@@ -1,0 +1,10 @@
+{
+  "id": "4a5c8f2e-1b3d-4e6f-9a2c-7d8e0f1b3c5a",
+  "name": "MediaDash",
+  "overview": "Media processing dashboard — re-encode queue, track stripping, duplicate detection, live stream monitor and system metrics.",
+  "description": "MediaDash gives Jellyfin admins a built-in dashboard showing the status of background media processing tasks. Configure log paths, flag files and service names in the plugin settings to match your own setup.",
+  "owner": "crackruckles",
+  "category": "General",
+  "imageUrl": "https://raw.githubusercontent.com/crackruckles/jellyfin-plugin-mediadash/main/images/logo.png",
+  "versions": []
+}
