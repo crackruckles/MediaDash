@@ -68,35 +68,40 @@ public sealed class MediaDashService
     public IReadOnlyList<DriveStats> GetDrives()
     {
         var dirs = GetMediaDirectories();
-        var seen = new HashSet<string>();
-        var result = new List<DriveStats>();
+        // Also always include the filesystem root so there's always something to show
+        var candidates = dirs.Concat(new[] { "/" }).ToList();
+        var seenMount = new HashSet<string>();
+        var result    = new List<DriveStats>();
 
-        foreach (var dir in dirs)
+        foreach (var dir in candidates)
         {
+            // Walk up until we hit a path that actually exists
             var path = dir;
-            // Walk up until we find a directory that exists
             while (!string.IsNullOrEmpty(path) && !Directory.Exists(path))
                 path = Path.GetDirectoryName(path) ?? string.Empty;
-
             if (string.IsNullOrEmpty(path)) continue;
 
             try
             {
-                // Get the mount point (unique device) using DriveInfo
-                var di = new DriveInfo(path);
+                var di    = new DriveInfo(path);
                 var mount = di.RootDirectory.FullName;
-                if (!seen.Add(mount)) continue;   // already reported this drive
+                if (!seenMount.Add(mount)) continue;   // already reported
 
-                var total  = (double)di.TotalSize;
-                var free   = (double)di.AvailableFreeSpace;
-                var used   = total - free;
+                var total = (double)di.TotalSize;
+                var free  = (double)di.AvailableFreeSpace;
+                var used  = total - free;
+
+                // Label: use the configured library path when available,
+                // otherwise fall back to the mount point
+                var label = (dir == "/" || dir == mount) ? mount : dir;
+
                 result.Add(new DriveStats(
-                    Mount:    mount,
-                    Label:    dir,          // user-friendly: show the configured dir
-                    TotalGb:  Math.Round(total / 1e9, 1),
-                    UsedGb:   Math.Round(used  / 1e9, 1),
-                    FreeGb:   Math.Round(free  / 1e9, 1),
-                    Pct:      Math.Round(used  / total * 100, 1)));
+                    Mount:   mount,
+                    Label:   label,
+                    TotalGb: Math.Round(total / 1e9, 1),
+                    UsedGb:  Math.Round(used  / 1e9, 1),
+                    FreeGb:  Math.Round(free  / 1e9, 1),
+                    Pct:     Math.Round(used  / total * 100, 1)));
             }
             catch (Exception ex)
             {

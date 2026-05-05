@@ -10,7 +10,7 @@
 #MediaDashPage *{box-sizing:border-box}
 
 /* tabs */
-#MediaDashPage .tabs{display:flex;border-bottom:1px solid var(--br);margin-bottom:1.5em;padding-top:.5em}
+#MediaDashPage .tabs{display:flex;border-bottom:1px solid var(--br);margin-bottom:1.5em;padding-top:1.75em}
 #MediaDashPage .tab{padding:.75em 1.5em;font-size:.9em;font-weight:500;color:var(--t2);background:none;border:none;border-bottom:3px solid transparent;margin-bottom:-1px;cursor:pointer;min-height:44px;transition:color .15s,border-color .15s}
 #MediaDashPage .tab:hover{color:var(--t)}
 #MediaDashPage .tab.on{color:var(--b);border-bottom-color:var(--b)}
@@ -108,6 +108,8 @@
 }
 #MediaDashPage input[type=text]:focus,#MediaDashPage input[type=number]:focus,
 #MediaDashPage select:focus,#MediaDashPage textarea:focus{border-color:var(--b)}
+#MediaDashPage select option{background:#1a1a2e;color:rgba(255,255,255,.87);}
+#MediaDashPage select{color:rgba(255,255,255,.87);}
 #MediaDashPage textarea{max-width:520px;resize:vertical;min-height:80px;font-family:var(--mo)}
 #MediaDashPage .hint{font-size:.73em;color:var(--t2);margin-top:.3em;line-height:1.4}
 #MediaDashPage .btn-row{display:flex;flex-wrap:wrap;gap:.65em;margin-bottom:.85em}
@@ -466,14 +468,25 @@ var BASE='/mediadash/api';
 
 // ── Auth ─────────────────────────────────────────────────────────────
 function ah(){
-  if(window.ApiClient)
-    return{'X-Emby-Authorization':'MediaBrowser Client="MediaDash",Device="Web",DeviceId="mediadash",Version="1.0.0",Token="'+ApiClient.accessToken()+'"'};
+  if(window.ApiClient){
+    var t=ApiClient.accessToken()||'';
+    var sid=typeof ApiClient.serverId==='function'?ApiClient.serverId():'';
+    return{
+      'X-Emby-Authorization':
+        'MediaBrowser Client="MediaDash", Device="Jellyfin Web", DeviceId="mediadash-plugin-1", Version="1.0.6", Token="'+t+'"',
+      'X-Emby-Token': t
+    };
+  }
   return{};
 }
 async function api(p,o){
   o=o||{};
-  var h=Object.assign({'Content-Type':'application/json'},ah(),o.headers||{});
-  try{var r=await fetch(BASE+p,Object.assign({},o,{headers:h}));return r.ok?r.json():{};} catch{return{};}
+  var h=Object.assign({'Content-Type':'application/json','Accept':'application/json'},ah(),o.headers||{});
+  try{
+    var r=await fetch(BASE+p,Object.assign({},o,{headers:h}));
+    if(r.status===401||r.status===403)return{_auth_error:true};
+    return r.ok?r.json():{};
+  } catch(e){console.warn('MediaDash API error',p,e);return{};}
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────
@@ -572,10 +585,19 @@ async function loadDrives(){
     c.innerHTML='<div style="font-size:.82em;color:var(--t2)">No storage data — configure media directories in Settings.</div>';
     return;
   }
-  c.innerHTML=drives.map(function(d){
+  // Deduplicate by mount point, prefer non-root mounts
+  var seen={};
+  var deduped=drives.filter(function(d){
+    if(seen[d.mount])return false;
+    seen[d.mount]=true;
+    return true;
+  });
+  c.innerHTML=deduped.map(function(d){
     var col=driveCol(d.pct);
+    // Use a friendly label: show the label path, or mount if label==mount
+    var name=d.label===d.mount?d.mount:d.label;
     return '<div class="drive">'+
-      '<div class="drive-hd"><span class="drive-name">'+d.label+'</span><span class="drive-sz">'+d.usedGb+'GB / '+d.totalGb+'GB ('+d.pct+'%)</span></div>'+
+      '<div class="drive-hd"><span class="drive-name" title="'+d.mount+'">'+name+'</span><span class="drive-sz">'+d.usedGb+'GB / '+d.totalGb+'GB ('+d.pct+'%)</span></div>'+
       '<div class="drive-track"><div class="drive-fill" style="width:'+d.pct+'%;background:'+col+'"></div></div>'+
       '<div class="drive-free">'+d.freeGb+'GB free</div>'+
     '</div>';
@@ -603,7 +625,8 @@ async function loadSummary(){
 // ── Performance ───────────────────────────────────────────────────────
 async function loadMetrics(){
   var m=await api('/metrics');
-  if(!m||(!m.cpuPct&&m.cpuPct!==0))return;
+  if(!m||m._auth_error){console.warn('MediaDash: metrics auth failed');return;}
+  if(!m.cpuPct&&m.cpuPct!==0)return;
   setText('p-cpu',m.cpuPct+'%'); setText('p-gpu',m.gpuPct+'%'); setText('p-mem',m.memPct+'%');
   g('p-gpu-bar').style.width=m.gpuPct+'%'; setText('p-gpu-v',m.gpuPct+'%');
   var vp=m.vramTotalMb>0?Math.round(m.vramUsedMb/m.vramTotalMb*100):0;
@@ -655,8 +678,19 @@ async function loadConfig(){
   if(g('cfg-keep-first')) g('cfg-keep-first').checked=cfg.AlwaysKeepFirstAudio!==false;
   if(g('cfg-keep-commentary')) g('cfg-keep-commentary').checked=!!cfg.KeepCommentaryTracks;
 
-  // Dirs
-  if(g('cfg-dirs')&&cfg.MediaDirectories) g('cfg-dirs').value=cfg.MediaDirectories;
+  // Dirs — pre-fill from Jellyfin libraries if not configured
+  if(g('cfg-dirs')){
+    if(cfg.MediaDirectories&&cfg.MediaDirectories.trim()){
+      g('cfg-dirs').value=cfg.MediaDirectories;
+    } else {
+      // Auto-populate from Jellyfin library paths
+      var libs=await api('/libraries');
+      if(Array.isArray(libs)&&libs.length){
+        var paths=[...new Set(libs.map(function(l){return l.path;}).filter(Boolean))];
+        g('cfg-dirs').value=paths.join('\n');
+      }
+    }
+  }
 
   // Services
   if(g('cfg-enc-svc'))    g('cfg-enc-svc').value=cfg.ReencodeServiceName||'';
