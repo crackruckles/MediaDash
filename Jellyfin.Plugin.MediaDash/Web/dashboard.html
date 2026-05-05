@@ -1,995 +1,779 @@
 <div id="MediaDashPage" data-role="page" class="page type-interior pluginConfigurationPage">
 <style>
-#MediaDashPage {
-  --jblue: #00a4dc;
-  --jgreen: #4caf50;
-  --jamber: #ff9800;
-  --jred:   #f44336;
-  --surf:   rgba(255,255,255,0.06);
-  --bord:   rgba(255,255,255,0.12);
-  --txt:    rgba(255,255,255,0.87);
-  --txt2:   rgba(255,255,255,0.55);
-  --mono:   'Courier New', monospace;
+#MediaDashPage{
+  --b:#00a4dc;--g:#4caf50;--a:#ff9800;--r:#f44336;
+  --s:rgba(255,255,255,.06);--br:rgba(255,255,255,.12);
+  --t:rgba(255,255,255,.87);--t2:rgba(255,255,255,.55);
+  --mo:'Courier New',monospace;
+  font-size:14px;
 }
-#MediaDashPage * { box-sizing: border-box; }
+#MediaDashPage *{box-sizing:border-box}
 
-/* ── Tab bar ────────────────────────────────────────────────────────── */
-#MediaDashPage .j-tabs {
-  display: flex;
-  border-bottom: 1px solid var(--bord);
-  margin: 0 0 1.5em;
-  padding-top: 0.5em;   /* clear Jellyfin header overlap */
-}
-#MediaDashPage .j-tab {
-  padding: 0.75em 1.5em;
-  font-size: 0.9em;
-  font-weight: 500;
-  color: var(--txt2);
-  background: none;
-  border: none;
-  border-bottom: 3px solid transparent;
-  margin-bottom: -1px;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-  min-height: 44px;        /* easy tap target */
-  user-select: none;
-}
-#MediaDashPage .j-tab:hover  { color: var(--txt); }
-#MediaDashPage .j-tab.active { color: var(--jblue); border-bottom-color: var(--jblue); }
+/* tabs */
+#MediaDashPage .tabs{display:flex;border-bottom:1px solid var(--br);margin-bottom:1.5em;padding-top:.5em}
+#MediaDashPage .tab{padding:.75em 1.5em;font-size:.9em;font-weight:500;color:var(--t2);background:none;border:none;border-bottom:3px solid transparent;margin-bottom:-1px;cursor:pointer;min-height:44px;transition:color .15s,border-color .15s}
+#MediaDashPage .tab:hover{color:var(--t)}
+#MediaDashPage .tab.on{color:var(--b);border-bottom-color:var(--b)}
+#MediaDashPage .panel{display:none;padding:0 1.5em 3em}
+#MediaDashPage .panel.on{display:block}
 
-/* ── Panel ──────────────────────────────────────────────────────────── */
-#MediaDashPage .j-panel { display: none; padding: 0 1.5em 2em; }
-#MediaDashPage .j-panel.active { display: block; }
+/* layout helpers */
+#MediaDashPage .sec{margin-bottom:1.75em}
+#MediaDashPage .sec-lbl{font-size:.7em;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--t2);margin-bottom:.65em}
+#MediaDashPage .card{background:var(--s);border:1px solid var(--br);border-radius:4px;padding:1.25em;margin-bottom:.85em}
+#MediaDashPage .card:last-child{margin-bottom:0}
 
-/* ── Cards & sections ───────────────────────────────────────────────── */
-#MediaDashPage .j-section {
-  margin-bottom: 1.5em;
-}
-#MediaDashPage .j-section-label {
-  font-size: 0.72em;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--txt2);
-  margin-bottom: 0.75em;
-}
-#MediaDashPage .j-card {
-  background: var(--surf);
-  border: 1px solid var(--bord);
-  border-radius: 4px;
-  padding: 1.25em;
-  margin-bottom: 1em;
-}
+/* stat tiles */
+#MediaDashPage .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:.85em}
+@media(max-width:680px){#MediaDashPage .tiles{grid-template-columns:repeat(2,1fr)}}
+#MediaDashPage .tile-lbl{font-size:.75em;color:var(--t2);margin-bottom:.3em}
+#MediaDashPage .tile-val{font-size:1.75em;font-weight:600;line-height:1}
+#MediaDashPage .tile-val.b{color:var(--b)}
+#MediaDashPage .tile-val.g{color:var(--g)}
+#MediaDashPage .tile-val.a{color:var(--a)}
+#MediaDashPage .tile-sub{font-size:.72em;color:var(--t2);margin-top:.3em}
 
-/* ── Stat grid ──────────────────────────────────────────────────────── */
-#MediaDashPage .j-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1em;
-  margin-bottom: 1.25em;
-}
-@media (max-width: 700px) {
-  #MediaDashPage .j-stats { grid-template-columns: repeat(2, 1fr); }
-}
-#MediaDashPage .j-stat-label {
-  font-size: 0.75em;
-  color: var(--txt2);
-  margin-bottom: 0.3em;
-}
-#MediaDashPage .j-stat-value {
-  font-size: 1.75em;
-  font-weight: 600;
-  line-height: 1;
-  color: var(--txt);
-}
-#MediaDashPage .j-stat-value.blue  { color: var(--jblue);  }
-#MediaDashPage .j-stat-value.green { color: var(--jgreen); }
-#MediaDashPage .j-stat-value.amber { color: var(--jamber); }
-#MediaDashPage .j-stat-sub {
-  font-size: 0.73em;
-  color: var(--txt2);
-  margin-top: 0.3em;
-}
+/* status badges */
+#MediaDashPage .badges{display:flex;gap:.5em;flex-wrap:wrap;margin-bottom:1.25em}
+#MediaDashPage .badge{display:inline-flex;align-items:center;gap:.4em;padding:.35em .9em;border-radius:20px;font-size:.8em;font-weight:500}
+#MediaDashPage .bi{background:rgba(255,255,255,.08);color:var(--t2)}
+#MediaDashPage .ba{background:rgba(76,175,80,.15);color:var(--g)}
+#MediaDashPage .bq{background:rgba(255,152,0,.15);color:var(--a)}
+#MediaDashPage .bp{background:rgba(244,67,54,.15);color:var(--r)}
+#MediaDashPage .bs{background:rgba(0,164,220,.15);color:var(--b)}
+#MediaDashPage .dot{width:7px;height:7px;border-radius:50%;background:currentColor;animation:blink 1.8s ease-in-out infinite;display:inline-block}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
 
-/* ── Status badges ──────────────────────────────────────────────────── */
-#MediaDashPage .j-badges {
-  display: flex;
-  gap: 0.5em;
-  flex-wrap: wrap;
-  margin-bottom: 1.25em;
-}
-#MediaDashPage .j-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4em;
-  padding: 0.35em 0.9em;
-  border-radius: 20px;
-  font-size: 0.8em;
-  font-weight: 500;
-}
-#MediaDashPage .b-idle   { background: rgba(255,255,255,0.08); color: var(--txt2); }
-#MediaDashPage .b-active { background: rgba(76,175,80,0.15);   color: var(--jgreen); }
-#MediaDashPage .b-quiet  { background: rgba(255,152,0,0.15);   color: var(--jamber); }
-#MediaDashPage .b-paused { background: rgba(244,67,54,0.15);   color: var(--jred); }
-#MediaDashPage .b-stream { background: rgba(0,164,220,0.15);   color: var(--jblue); }
-#MediaDashPage .j-dot {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: currentColor;
-  animation: jdot 1.8s ease-in-out infinite;
-}
-@keyframes jdot { 0%,100%{opacity:1} 50%{opacity:0.25} }
+/* progress / encode */
+#MediaDashPage .enc-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:.5em}
+#MediaDashPage .enc-chip{font-size:.72em;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--t2)}
+#MediaDashPage .enc-spd{font-size:.72em;color:var(--t2);font-family:var(--mo)}
+#MediaDashPage .enc-name{font-size:.9em;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:.2em}
+#MediaDashPage .enc-sub{font-size:.72em;color:var(--t2);margin-bottom:.9em}
+#MediaDashPage .enc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.65em;margin-bottom:.85em}
+@media(max-width:580px){#MediaDashPage .enc-grid{grid-template-columns:repeat(2,1fr)}}
+#MediaDashPage .ec{background:rgba(255,255,255,.04);border-radius:4px;padding:.5em .65em}
+#MediaDashPage .ec-lbl{font-size:.62em;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--t2);margin-bottom:.18em}
+#MediaDashPage .ec-val{font-size:.9em;font-weight:600;font-family:var(--mo)}
+#MediaDashPage .pb-wrap{display:flex;align-items:center;gap:.65em}
+#MediaDashPage .pb-track{flex:1;height:5px;background:var(--br);border-radius:3px;overflow:hidden}
+#MediaDashPage .pb-fill{height:100%;background:var(--b);border-radius:3px;transition:width .8s ease}
+#MediaDashPage .pb-pct{font-size:.82em;font-weight:600;color:var(--b);font-family:var(--mo);min-width:44px;text-align:right}
+#MediaDashPage .pb-foot{display:flex;justify-content:space-between;font-size:.7em;color:var(--t2);font-family:var(--mo);margin-top:.4em}
+#MediaDashPage .enc-idle{border-left:3px solid var(--br);opacity:.55}
+#MediaDashPage .enc-active{border-left:3px solid var(--b)}
 
-/* ── Encode progress card ───────────────────────────────────────────── */
-#MediaDashPage .j-encode-card {
-  border-left: 3px solid var(--jblue);
-}
-#MediaDashPage .j-encode-card.idle {
-  border-left-color: var(--bord);
-  opacity: 0.55;
-}
-#MediaDashPage .j-encode-title {
-  font-size: 0.9em;
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-bottom: 0.2em;
-}
-#MediaDashPage .j-encode-sub {
-  font-size: 0.73em;
-  color: var(--txt2);
-  margin-bottom: 1em;
-}
-#MediaDashPage .j-encode-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.75em;
-  margin-bottom: 0.9em;
-}
-@media (max-width: 600px) {
-  #MediaDashPage .j-encode-grid { grid-template-columns: repeat(2, 1fr); }
-}
-#MediaDashPage .j-enc-cell {
-  background: rgba(255,255,255,0.04);
-  border-radius: 4px;
-  padding: 0.5em 0.7em;
-}
-#MediaDashPage .j-enc-cell-label {
-  font-size: 0.65em;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--txt2);
-  margin-bottom: 0.2em;
-}
-#MediaDashPage .j-enc-cell-value {
-  font-size: 0.95em;
-  font-weight: 600;
-  font-family: var(--mono);
-}
-#MediaDashPage .j-pbar-wrap {
-  display: flex;
-  align-items: center;
-  gap: 0.75em;
-}
-#MediaDashPage .j-pbar-track {
-  flex: 1;
-  height: 5px;
-  background: var(--bord);
-  border-radius: 3px;
-  overflow: hidden;
-}
-#MediaDashPage .j-pbar-fill {
-  height: 100%;
-  background: var(--jblue);
-  border-radius: 3px;
-  transition: width 0.8s ease;
-}
-#MediaDashPage .j-pbar-pct {
-  font-size: 0.82em;
-  font-weight: 600;
-  color: var(--jblue);
-  font-family: var(--mono);
-  min-width: 44px;
-  text-align: right;
-}
-#MediaDashPage .j-pbar-foot {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.71em;
-  color: var(--txt2);
-  font-family: var(--mono);
-  margin-top: 0.4em;
-}
+/* drives */
+#MediaDashPage .drive{margin-bottom:1em}
+#MediaDashPage .drive:last-child{margin-bottom:0}
+#MediaDashPage .drive-hd{display:flex;justify-content:space-between;font-size:.82em;margin-bottom:.35em}
+#MediaDashPage .drive-name{font-weight:500}
+#MediaDashPage .drive-sz{color:var(--t2);font-family:var(--mo)}
+#MediaDashPage .drive-track{height:6px;background:var(--br);border-radius:3px;overflow:hidden}
+#MediaDashPage .drive-fill{height:100%;border-radius:3px;transition:width .6s}
+#MediaDashPage .drive-free{font-size:.72em;color:var(--t2);margin-top:.3em}
 
-/* ── Storage bars ───────────────────────────────────────────────────── */
-#MediaDashPage .j-drive {
-  margin-bottom: 1.1em;
-}
-#MediaDashPage .j-drive:last-child { margin-bottom: 0; }
-#MediaDashPage .j-drive-header {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.82em;
-  margin-bottom: 0.35em;
-}
-#MediaDashPage .j-drive-name { font-weight: 500; color: var(--txt); }
-#MediaDashPage .j-drive-size { color: var(--txt2); font-family: var(--mono); }
-#MediaDashPage .j-drive-track {
-  height: 6px;
-  background: var(--bord);
-  border-radius: 3px;
-  overflow: hidden;
-}
-#MediaDashPage .j-drive-fill {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.6s;
-}
+/* streams */
+#MediaDashPage .stream-row{display:flex;align-items:center;gap:.75em;padding:.55em 0;border-bottom:1px solid rgba(255,255,255,.05)}
+#MediaDashPage .stream-row:last-child{border-bottom:none}
+#MediaDashPage .av{width:32px;height:32px;border-radius:50%;background:rgba(0,164,220,.18);color:var(--b);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85em;flex-shrink:0}
+#MediaDashPage .si{flex:1;min-width:0}
+#MediaDashPage .st{font-size:.84em;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#MediaDashPage .ss{font-size:.72em;color:var(--t2)}
+#MediaDashPage .sp{font-size:.78em;font-weight:600;color:var(--g)}
 
-/* ── Streams ────────────────────────────────────────────────────────── */
-#MediaDashPage .j-stream-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75em;
-  padding: 0.6em 0;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-}
-#MediaDashPage .j-stream-row:last-child { border-bottom: none; }
-#MediaDashPage .j-avatar {
-  width: 32px; height: 32px; border-radius: 50%;
-  background: rgba(0,164,220,0.18);
-  color: var(--jblue);
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 0.85em;
-  flex-shrink: 0;
-}
-#MediaDashPage .j-stream-info { flex: 1; min-width: 0; }
-#MediaDashPage .j-stream-title {
-  font-size: 0.85em; font-weight: 500;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-#MediaDashPage .j-stream-sub { font-size: 0.72em; color: var(--txt2); }
-#MediaDashPage .j-stream-pct { font-size: 0.78em; font-weight: 600; color: var(--jgreen); }
+/* perf */
+#MediaDashPage .perf-grid{display:grid;grid-template-columns:1fr 1fr;gap:.85em;margin-bottom:.85em}
+@media(max-width:600px){#MediaDashPage .perf-grid{grid-template-columns:1fr}}
+#MediaDashPage .perf-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:.85em}
+#MediaDashPage .perf-ttl{font-size:.7em;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--t2)}
+#MediaDashPage .perf-val{font-size:1.5em;font-weight:600;font-family:var(--mo)}
+#MediaDashPage .br-row{display:flex;align-items:center;gap:.6em;margin-bottom:.4em}
+#MediaDashPage .br-lbl{font-size:.7em;color:var(--t2);font-family:var(--mo);min-width:55px}
+#MediaDashPage .br-track{flex:1;height:5px;background:var(--br);border-radius:3px;overflow:hidden}
+#MediaDashPage .br-fill{height:100%;border-radius:3px;transition:width .4s}
+#MediaDashPage .br-val{font-size:.7em;color:var(--t2);font-family:var(--mo);min-width:40px;text-align:right}
+#MediaDashPage .chips{display:flex;gap:.5em;flex-wrap:wrap;margin-top:.85em}
+#MediaDashPage .chip{padding:.2em .6em;background:rgba(255,255,255,.07);border-radius:3px;font-size:.72em;font-family:var(--mo)}
+#MediaDashPage .sep{height:1px;background:var(--br);margin:1em 0}
 
-/* ── Perf bars ──────────────────────────────────────────────────────── */
-#MediaDashPage .j-perf-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1em;
-  margin-bottom: 1em;
+/* settings */
+#MediaDashPage .fld{margin-bottom:1.25em}
+#MediaDashPage .lbl{display:block;font-size:.84em;color:var(--t2);font-weight:500;margin-bottom:.4em}
+#MediaDashPage input[type=text],#MediaDashPage input[type=number],
+#MediaDashPage select,#MediaDashPage textarea{
+  width:100%;max-width:420px;padding:.6em .85em;
+  background:rgba(255,255,255,.06);border:1px solid var(--br);border-radius:4px;
+  color:var(--t);font-size:.87em;outline:none;
 }
-@media (max-width: 600px) {
-  #MediaDashPage .j-perf-grid { grid-template-columns: 1fr; }
-}
-#MediaDashPage .j-perf-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.85em;
-}
-#MediaDashPage .j-perf-title {
-  font-size: 0.72em;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--txt2);
-}
-#MediaDashPage .j-perf-value {
-  font-size: 1.5em;
-  font-weight: 600;
-  font-family: var(--mono);
-}
-#MediaDashPage .j-bar-row {
-  display: flex;
-  align-items: center;
-  gap: 0.6em;
-  margin-bottom: 0.4em;
-}
-#MediaDashPage .j-bar-lbl {
-  font-size: 0.7em; color: var(--txt2);
-  font-family: var(--mono); min-width: 52px;
-}
-#MediaDashPage .j-bar-track {
-  flex: 1; height: 5px;
-  background: var(--bord); border-radius: 3px; overflow: hidden;
-}
-#MediaDashPage .j-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s; }
-#MediaDashPage .j-bar-val {
-  font-size: 0.7em; color: var(--txt2);
-  font-family: var(--mono); min-width: 38px; text-align: right;
-}
-#MediaDashPage .j-chips {
-  display: flex; gap: 0.5em; flex-wrap: wrap; margin-top: 0.85em;
-}
-#MediaDashPage .j-chip {
-  padding: 0.2em 0.6em;
-  background: rgba(255,255,255,0.06);
-  border-radius: 3px;
-  font-size: 0.72em;
-  font-family: var(--mono);
-}
+#MediaDashPage input[type=text]:focus,#MediaDashPage input[type=number]:focus,
+#MediaDashPage select:focus,#MediaDashPage textarea:focus{border-color:var(--b)}
+#MediaDashPage textarea{max-width:520px;resize:vertical;min-height:80px;font-family:var(--mo)}
+#MediaDashPage .hint{font-size:.73em;color:var(--t2);margin-top:.3em;line-height:1.4}
+#MediaDashPage .btn-row{display:flex;flex-wrap:wrap;gap:.65em;margin-bottom:.85em}
+#MediaDashPage input[type=checkbox]{width:auto;max-width:none;margin-right:.5em}
+#MediaDashPage .chk-row{display:flex;align-items:center;gap:.5em;margin-bottom:.65em;font-size:.87em}
 
-/* ── Settings ───────────────────────────────────────────────────────── */
-#MediaDashPage .j-field {
-  margin-bottom: 1.25em;
-}
-#MediaDashPage .j-label {
-  display: block;
-  font-size: 0.83em;
-  color: var(--txt2);
-  margin-bottom: 0.4em;
-  font-weight: 500;
-}
-#MediaDashPage .j-input,
-#MediaDashPage .j-select {
-  width: 100%;
-  max-width: 360px;
-  padding: 0.6em 0.85em;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid var(--bord);
-  border-radius: 4px;
-  color: var(--txt);
-  font-size: 0.88em;
-  outline: none;
-}
-#MediaDashPage .j-input:focus,
-#MediaDashPage .j-select:focus  { border-color: var(--jblue); }
-#MediaDashPage .j-hint {
-  font-size: 0.73em;
-  color: var(--txt2);
-  margin-top: 0.3em;
-}
-#MediaDashPage .j-textarea {
-  width: 100%;
-  max-width: 500px;
-  padding: 0.6em 0.85em;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid var(--bord);
-  border-radius: 4px;
-  color: var(--txt);
-  font-size: 0.82em;
-  font-family: var(--mono);
-  outline: none;
-  resize: vertical;
-  min-height: 90px;
-}
-#MediaDashPage .j-sep {
-  height: 1px;
-  background: var(--bord);
-  margin: 1.5em 0;
-}
-#MediaDashPage .j-btn-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75em;
-  margin-bottom: 0.75em;
-}
+/* sched viz */
+#MediaDashPage .sched{display:flex;gap:2px;height:20px;margin:.5em 0 .35em}
+#MediaDashPage .sh{flex:1;border-radius:2px}
+#MediaDashPage .sched-lbls{display:flex;justify-content:space-between;font-size:.65em;color:var(--t2);font-family:var(--mo);margin-bottom:.85em}
 
-/* ── Sched viz ──────────────────────────────────────────────────────── */
-#MediaDashPage .j-sched {
-  display: flex;
-  gap: 2px;
-  height: 20px;
-  margin: 0.5em 0 0.3em;
-}
-#MediaDashPage .j-sched-h { flex: 1; border-radius: 2px; }
-#MediaDashPage .j-sched-lbls {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.65em;
-  color: var(--txt2);
-  font-family: var(--mono);
-  margin-bottom: 0.75em;
-}
+/* settings two-col on wide screens */
+#MediaDashPage .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:1em}
+@media(max-width:750px){#MediaDashPage .settings-grid{grid-template-columns:1fr}}
 
-/* ── Toast ──────────────────────────────────────────────────────────── */
-#MediaDashPage .j-toast {
-  position: fixed;
-  bottom: 1.5em;
-  right: 1.5em;
-  padding: 0.65em 1.1em;
-  background: #222;
-  border: 1px solid rgba(255,255,255,0.15);
-  border-radius: 4px;
-  font-size: 0.82em;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s;
-  z-index: 9999;
-}
-#MediaDashPage .j-toast.show { opacity: 1; }
+/* toast */
+#MediaDashPage .toast{position:fixed;bottom:1.5em;right:1.5em;padding:.65em 1.1em;background:#222;border:1px solid var(--br);border-radius:4px;font-size:.82em;opacity:0;pointer-events:none;transition:opacity .2s;z-index:9999}
+#MediaDashPage .toast.on{opacity:1}
 </style>
 
 <div>
   <!-- Tab bar -->
-  <div class="j-tabs">
-    <button class="j-tab active" data-tab="overview">Overview</button>
-    <button class="j-tab" data-tab="perf">Performance</button>
-    <button class="j-tab" data-tab="settings">Settings</button>
+  <div class="tabs">
+    <button class="tab on"  data-tab="overview">Overview</button>
+    <button class="tab"     data-tab="perf">Performance</button>
+    <button class="tab"     data-tab="settings">Settings</button>
   </div>
 
-  <!-- ═══════════════════════════════ OVERVIEW ═══════════════════════════════ -->
-  <div class="j-panel active" id="jt-overview">
+  <!-- ═══════════ OVERVIEW ═══════════ -->
+  <div class="panel on" id="pt-overview">
 
-    <!-- Status row -->
-    <div class="j-badges">
-      <div id="j-status-badge" class="j-badge b-idle">Idle</div>
-      <div id="j-quiet-badge"  class="j-badge b-quiet" style="display:none">Quiet hours</div>
-      <div id="j-pause-badge"  class="j-badge b-paused" style="display:none">Paused</div>
-      <div id="j-stream-badge" class="j-badge b-stream" style="display:none"><span class="j-dot"></span><span id="j-stream-lbl"></span></div>
+    <div class="badges">
+      <div id="b-status" class="badge bi">Idle</div>
+      <div id="b-quiet"  class="badge bq" style="display:none">Quiet hours</div>
+      <div id="b-pause"  class="badge bp" style="display:none">Paused</div>
+      <div id="b-stream" class="badge bs" style="display:none"><span class="dot"></span><span id="b-stream-lbl"></span></div>
     </div>
 
-    <!-- Active encode -->
-    <div class="j-section">
-      <div class="j-section-label">Current task</div>
-      <div class="j-card j-encode-card idle" id="j-enc-card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5em">
-          <span id="j-enc-chip" style="font-size:0.75em;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--txt2)">No task running</span>
-          <span id="j-enc-speed" style="font-size:0.75em;color:var(--txt2);font-family:var(--mono)"></span>
+    <!-- Current task -->
+    <div class="sec">
+      <div class="sec-lbl">Current task</div>
+      <div class="card enc-idle" id="enc-card">
+        <div class="enc-hd"><span class="enc-chip" id="enc-chip">No task running</span><span class="enc-spd" id="enc-spd"></span></div>
+        <div class="enc-name" id="enc-name">Encoder is idle</div>
+        <div class="enc-sub"  id="enc-sub">Waiting for the next scheduled window</div>
+        <div class="enc-grid">
+          <div class="ec"><div class="ec-lbl">Source</div><div class="ec-val" id="enc-src">–</div></div>
+          <div class="ec"><div class="ec-lbl">Output so far</div><div class="ec-val" id="enc-out">–</div></div>
+          <div class="ec"><div class="ec-lbl">Est. final</div><div class="ec-val" id="enc-fin">–</div></div>
+          <div class="ec"><div class="ec-lbl">Est. saving</div><div class="ec-val" id="enc-sav">–</div></div>
         </div>
-        <div class="j-encode-title" id="j-enc-name">Encoder is idle</div>
-        <div class="j-encode-sub"  id="j-enc-meta">Waiting for next scheduled window</div>
-        <div class="j-encode-grid">
-          <div class="j-enc-cell"><div class="j-enc-cell-label">Source</div><div class="j-enc-cell-value" id="j-enc-src">–</div></div>
-          <div class="j-enc-cell"><div class="j-enc-cell-label">Output so far</div><div class="j-enc-cell-value" id="j-enc-out">–</div></div>
-          <div class="j-enc-cell"><div class="j-enc-cell-label">Est. final</div><div class="j-enc-cell-value" id="j-enc-fin">–</div></div>
-          <div class="j-enc-cell"><div class="j-enc-cell-label">Est. saving</div><div class="j-enc-cell-value" id="j-enc-sav">–</div></div>
+        <div class="pb-wrap">
+          <div class="pb-track"><div class="pb-fill" id="enc-bar" style="width:0%"></div></div>
+          <div class="pb-pct" id="enc-pct">0%</div>
         </div>
-        <div class="j-pbar-wrap">
-          <div class="j-pbar-track"><div class="j-pbar-fill" id="j-enc-bar" style="width:0%"></div></div>
-          <div class="j-pbar-pct"  id="j-enc-pct">0%</div>
-        </div>
-        <div class="j-pbar-foot">
-          <span id="j-enc-elapsed"></span>
-          <span id="j-enc-remaining"></span>
-        </div>
+        <div class="pb-foot"><span id="enc-elapsed"></span><span id="enc-eta"></span></div>
       </div>
     </div>
 
     <!-- Active streams -->
-    <div class="j-section" id="j-streams-section" style="display:none">
-      <div class="j-section-label" style="color:var(--jgreen)">Active streams</div>
-      <div class="j-card" id="j-streams-list"></div>
+    <div class="sec" id="streams-sec" style="display:none">
+      <div class="sec-lbl" style="color:var(--g)">Active streams</div>
+      <div class="card" id="streams-list"></div>
     </div>
 
     <!-- Storage -->
-    <div class="j-section">
-      <div class="j-section-label">Storage</div>
-      <div class="j-card" id="j-drives-card">
-        <div style="font-size:0.82em;color:var(--txt2)">Loading…</div>
-      </div>
+    <div class="sec">
+      <div class="sec-lbl">Storage</div>
+      <div class="card" id="drives-card"><div style="color:var(--t2);font-size:.82em">Loading…</div></div>
     </div>
 
-    <!-- Summary stats -->
-    <div class="j-section">
-      <div class="j-section-label">Processing summary</div>
-      <div class="j-stats">
-        <div class="j-card">
-          <div class="j-stat-label">Files re-encoded</div>
-          <div class="j-stat-value blue" id="j-st-encoded">–</div>
-          <div class="j-stat-sub" id="j-st-encoded-sub">–</div>
-        </div>
-        <div class="j-card">
-          <div class="j-stat-label">Space saved (encode)</div>
-          <div class="j-stat-value green" id="j-st-encsaved">–</div>
-          <div class="j-stat-sub" id="j-st-remaining">– in queue</div>
-        </div>
-        <div class="j-card">
-          <div class="j-stat-label">Tracks stripped</div>
-          <div class="j-stat-value" id="j-st-stripped">–</div>
-          <div class="j-stat-sub" id="j-st-stripsaved">–</div>
-        </div>
+    <!-- Summary -->
+    <div class="sec">
+      <div class="sec-lbl">Processing summary</div>
+      <div class="tiles">
+        <div class="card"><div class="tile-lbl">Files re-encoded</div><div class="tile-val b" id="ov-enc">–</div><div class="tile-sub" id="ov-enc-sub">–</div></div>
+        <div class="card"><div class="tile-lbl">Space saved (encode)</div><div class="tile-val g" id="ov-enc-sv">–</div><div class="tile-sub" id="ov-remaining">–</div></div>
+        <div class="card"><div class="tile-lbl">Tracks stripped</div><div class="tile-val" id="ov-strip">–</div><div class="tile-sub" id="ov-strip-sv">–</div></div>
       </div>
     </div>
 
   </div>
 
-  <!-- ═══════════════════════════════ PERFORMANCE ══════════════════════════════ -->
-  <div class="j-panel" id="jt-perf">
-
-    <div class="j-perf-grid">
-      <!-- CPU -->
-      <div class="j-card">
-        <div class="j-perf-header">
-          <span class="j-perf-title">CPU</span>
-          <span class="j-perf-value" id="j-cpu-pct" style="color:var(--jblue)">–%</span>
+  <!-- ═══════════ PERFORMANCE ═══════════ -->
+  <div class="panel" id="pt-perf">
+    <div class="perf-grid">
+      <div class="card">
+        <div class="perf-hd">
+          <span class="perf-ttl">CPU</span>
+          <span class="perf-val" id="p-cpu" style="color:var(--b)">–%</span>
         </div>
-        <div id="j-core-bars"></div>
-        <div class="j-chips">
-          <span class="j-chip" id="j-cpu-temp">CPU: –°C</span>
-        </div>
+        <div id="core-bars"></div>
+        <div class="chips"><span class="chip" id="p-cpu-t">CPU –°C</span></div>
       </div>
-      <!-- GPU -->
-      <div class="j-card">
-        <div class="j-perf-header">
-          <span class="j-perf-title">GPU</span>
-          <span class="j-perf-value" id="j-gpu-pct" style="color:#ce93d8">–%</span>
+      <div class="card">
+        <div class="perf-hd">
+          <span class="perf-ttl">GPU</span>
+          <span class="perf-val" id="p-gpu" style="color:#ce93d8">–%</span>
         </div>
-        <div class="j-bar-row">
-          <div class="j-bar-lbl">GPU</div>
-          <div class="j-bar-track"><div class="j-bar-fill" id="j-gpu-bar" style="background:#9c27b0;width:0%"></div></div>
-          <div class="j-bar-val" id="j-gpu-val">–</div>
-        </div>
-        <div class="j-bar-row">
-          <div class="j-bar-lbl">VRAM</div>
-          <div class="j-bar-track"><div class="j-bar-fill" id="j-vram-bar" style="background:var(--jblue);width:0%"></div></div>
-          <div class="j-bar-val" id="j-vram-val">–</div>
-        </div>
-        <div class="j-chips">
-          <span class="j-chip" id="j-gpu-temp">GPU: –°C</span>
-          <span class="j-chip" id="j-vram-detail">VRAM –/–</span>
-        </div>
+        <div class="br-row"><div class="br-lbl">GPU</div><div class="br-track"><div class="br-fill" id="p-gpu-bar" style="background:#9c27b0;width:0%"></div></div><div class="br-val" id="p-gpu-v">–</div></div>
+        <div class="br-row"><div class="br-lbl">VRAM</div><div class="br-track"><div class="br-fill" id="p-vram-bar" style="background:var(--b);width:0%"></div></div><div class="br-val" id="p-vram-v">–</div></div>
+        <div class="chips"><span class="chip" id="p-gpu-t">GPU –°C</span><span class="chip" id="p-vram-d">VRAM –/–</span></div>
       </div>
     </div>
-
-    <div class="j-perf-grid">
-      <!-- Memory -->
-      <div class="j-card">
-        <div class="j-perf-header">
-          <span class="j-perf-title">Memory</span>
-          <span class="j-perf-value" id="j-mem-pct" style="color:var(--jamber)">–%</span>
+    <div class="perf-grid">
+      <div class="card">
+        <div class="perf-hd">
+          <span class="perf-ttl">Memory</span>
+          <span class="perf-val" id="p-mem" style="color:var(--a)">–%</span>
         </div>
-        <div class="j-bar-row">
-          <div class="j-bar-lbl">RAM</div>
-          <div class="j-bar-track"><div class="j-bar-fill" id="j-mem-bar" style="background:var(--jamber);width:0%"></div></div>
-          <div class="j-bar-val" id="j-mem-val">–</div>
-        </div>
-        <div class="j-chips"><span class="j-chip" id="j-mem-detail">– / –</span></div>
+        <div class="br-row"><div class="br-lbl">RAM</div><div class="br-track"><div class="br-fill" id="p-mem-bar" style="background:var(--a);width:0%"></div></div><div class="br-val" id="p-mem-v">–</div></div>
+        <div class="chips"><span class="chip" id="p-mem-d">– / –</span></div>
       </div>
-      <!-- Disk I/O -->
-      <div class="j-card">
-        <div class="j-perf-header">
-          <span class="j-perf-title">Disk I/O</span>
-          <span class="j-chip" id="j-nvme-temp">NVMe: –°C</span>
+      <div class="card">
+        <div class="perf-hd">
+          <span class="perf-ttl">Disk I/O</span>
+          <span class="chip" id="p-nvme-t">NVMe –°C</span>
         </div>
-        <div class="j-bar-row">
-          <div class="j-bar-lbl">Read</div>
-          <div class="j-bar-track"><div class="j-bar-fill" style="width:100%;background:var(--jblue)"></div></div>
-          <div class="j-bar-val" id="j-disk-r">–</div>
-        </div>
-        <div class="j-bar-row">
-          <div class="j-bar-lbl">Write</div>
-          <div class="j-bar-track"><div class="j-bar-fill" style="width:100%;background:var(--jgreen)"></div></div>
-          <div class="j-bar-val" id="j-disk-w">–</div>
-        </div>
+        <div class="br-row"><div class="br-lbl">Read</div><div class="br-track"><div class="br-fill" style="width:100%;background:var(--b)"></div></div><div class="br-val" id="p-dr">–</div></div>
+        <div class="br-row"><div class="br-lbl">Write</div><div class="br-track"><div class="br-fill" style="width:100%;background:var(--g)"></div></div><div class="br-val" id="p-dw">–</div></div>
       </div>
     </div>
-
   </div>
 
-  <!-- ═══════════════════════════════ SETTINGS ════════════════════════════════ -->
-  <div class="j-panel" id="jt-settings">
+  <!-- ═══════════ SETTINGS ═══════════ -->
+  <div class="panel" id="pt-settings">
 
-    <!-- Process controls -->
-    <div class="j-section">
-      <div class="j-section-label">Encoder controls</div>
-      <div class="j-card">
-        <div class="j-btn-row">
-          <button is="emby-button" class="raised emby-button" onclick="jPause()">⏸ Pause</button>
-          <button is="emby-button" class="raised emby-button" onclick="jResume()">▶ Resume</button>
-          <button is="emby-button" class="raised emby-button" onclick="jRun('reencode-bdremux')">▶ Run re-encoder now</button>
-          <button is="emby-button" class="raised emby-button" onclick="jRun('strip-tracks')">▶ Run strip tracks now</button>
+    <!-- Controls -->
+    <div class="sec">
+      <div class="sec-lbl">Controls</div>
+      <div class="card">
+        <div class="btn-row">
+          <button is="emby-button" class="raised emby-button" onclick="doPause()">⏸ Pause</button>
+          <button is="emby-button" class="raised emby-button" onclick="doResume()">▶ Resume</button>
+        </div>
+        <div class="btn-row" id="run-btns">
+          <!-- Populated from config — only shown if services are configured -->
         </div>
       </div>
     </div>
 
-    <!-- Encode settings -->
-    <div class="j-section">
-      <div class="j-section-label">Encode settings</div>
-      <div class="j-card">
+    <div class="settings-grid">
 
-        <div class="j-field">
-          <label class="j-label">Encode method</label>
-          <select class="j-select" id="j-enc-method">
-            <option value="vaapi">VAAPI (AMD/Intel GPU — recommended)</option>
-            <option value="nvenc">NVENC (NVIDIA GPU)</option>
-            <option value="software">Software (CPU only — slowest)</option>
-          </select>
-          <div class="j-hint">Requires matching hardware. VAAPI is used on your AMD Ryzen 6900HX.</div>
+      <div>
+        <!-- Encoder -->
+        <div class="sec">
+          <div class="sec-lbl">Encoder</div>
+          <div class="card">
+            <div class="fld">
+              <label class="lbl">Hardware acceleration</label>
+              <select id="cfg-method">
+                <option value="vaapi">VAAPI (AMD / Intel GPU)</option>
+                <option value="nvenc">NVENC (NVIDIA GPU)</option>
+                <option value="qsv">QuickSync (Intel)</option>
+                <option value="software">Software / CPU only</option>
+              </select>
+              <div class="hint">VAAPI works on most Linux systems with AMD or Intel graphics.</div>
+            </div>
+            <div class="fld">
+              <label class="lbl">Target codec</label>
+              <select id="cfg-codec">
+                <option value="hevc">H.265 / HEVC — best compression</option>
+                <option value="h264">H.264 / AVC — maximum compatibility</option>
+                <option value="av1">AV1 — best quality, very slow</option>
+              </select>
+            </div>
+            <div class="fld">
+              <label class="lbl">Quality (CQP)</label>
+              <input type="number" id="cfg-quality" min="12" max="40" style="max-width:120px">
+              <div class="hint">Lower = better quality, larger file. 22 is a good default. 18 = near-lossless.</div>
+            </div>
+            <div class="fld">
+              <label class="lbl">Concurrent workers</label>
+              <input type="number" id="cfg-workers" min="1" max="8" style="max-width:120px">
+              <div class="hint">How many files to encode at once. Start with 1 and increase if your hardware can handle it.</div>
+            </div>
+            <div class="fld">
+              <label class="lbl">VAAPI / DRM device path</label>
+              <input type="text" id="cfg-vaapi">
+              <div class="hint">Usually /dev/dri/renderD128 on AMD/Intel. Leave blank for NVENC or software.</div>
+            </div>
+            <div class="fld">
+              <label class="lbl">File types to process (comma-separated extensions)</label>
+              <input type="text" id="cfg-exts">
+            </div>
+            <div class="fld">
+              <label class="lbl">Codecs to skip — already efficient (comma-separated)</label>
+              <input type="text" id="cfg-skip">
+              <div class="hint">Files already in these codecs will not be re-encoded. Example: hevc,av1</div>
+            </div>
+            <button is="emby-button" class="raised emby-button" onclick="saveEncoder()">Save encoder settings</button>
+          </div>
         </div>
+      </div>
 
-        <div class="j-field">
-          <label class="j-label">Target codec</label>
-          <select class="j-select" id="j-enc-codec">
-            <option value="hevc">H.265 / HEVC (best compression)</option>
-            <option value="h264">H.264 / AVC (maximum compatibility)</option>
-            <option value="av1">AV1 (best quality, very slow)</option>
-          </select>
+      <div>
+        <!-- Track stripping -->
+        <div class="sec">
+          <div class="sec-lbl">Track stripping</div>
+          <div class="card">
+            <div class="chk-row">
+              <input type="checkbox" id="cfg-strip-en">
+              <label for="cfg-strip-en">Enable track stripping</label>
+            </div>
+            <div class="hint" style="margin-bottom:1em">When enabled, unwanted audio and subtitle tracks are removed from files based on the language preferences below.</div>
+            <div class="fld">
+              <label class="lbl">Keep audio languages</label>
+              <input type="text" id="cfg-audio-lang">
+              <div class="hint">ISO 639-2 codes, comma-separated. Example: <code>eng,jpn</code> — leave blank to keep all audio tracks.</div>
+            </div>
+            <div class="fld">
+              <label class="lbl">Keep subtitle languages</label>
+              <input type="text" id="cfg-sub-lang">
+              <div class="hint">ISO 639-2 codes, comma-separated. Example: <code>eng</code> — leave blank to keep all subtitles.</div>
+            </div>
+            <div class="chk-row">
+              <input type="checkbox" id="cfg-keep-first">
+              <label for="cfg-keep-first">Always keep the first audio track (prevents files losing all audio)</label>
+            </div>
+            <div class="chk-row">
+              <input type="checkbox" id="cfg-keep-commentary">
+              <label for="cfg-keep-commentary">Keep commentary / description tracks</label>
+            </div>
+            <button is="emby-button" class="raised emby-button" onclick="saveLanguages()">Save language settings</button>
+          </div>
         </div>
+      </div>
 
-        <div class="j-field">
-          <label class="j-label">Quality (CQP — lower = better quality, larger file)</label>
-          <input class="j-input" type="number" id="j-enc-quality" min="16" max="35" value="22">
-          <div class="j-hint">22 is a good default. 18 = near-lossless. 28 = smaller files.</div>
+    </div><!-- end settings-grid -->
+
+    <!-- Libraries -->
+    <div class="sec">
+      <div class="sec-lbl">Media directories to process</div>
+      <div class="card">
+        <div class="fld">
+          <label class="lbl">Directories (one per line)</label>
+          <textarea id="cfg-dirs" rows="4"></textarea>
+          <div class="hint">One directory per line. Leave blank to use all directories from your Jellyfin libraries (detected automatically).</div>
         </div>
-
-        <div class="j-field">
-          <label class="j-label">Concurrent encode workers</label>
-          <input class="j-input" type="number" id="j-enc-workers" min="1" max="4" value="2">
-          <div class="j-hint">How many files to encode simultaneously. 2 is recommended for your hardware.</div>
-        </div>
-
-        <button is="emby-button" class="raised emby-button" onclick="jSaveEncodeSettings()">Save encode settings</button>
+        <div id="jellyfin-libs" style="margin-bottom:1em"></div>
+        <button is="emby-button" class="raised emby-button" onclick="saveLibraries()">Save directories</button>
       </div>
     </div>
 
-    <!-- Library paths -->
-    <div class="j-section">
-      <div class="j-section-label">Library paths to process</div>
-      <div class="j-card">
-        <div class="j-field">
-          <label class="j-label">Media directories (one per line)</label>
-          <textarea class="j-textarea" id="j-lib-paths" rows="4"></textarea>
-          <div class="j-hint">The encoder and track stripper will scan these directories for video files.</div>
+    <!-- Services / scripts -->
+    <div class="sec">
+      <div class="sec-lbl">External scripts / services</div>
+      <div class="card">
+        <div class="hint" style="margin-bottom:1em">
+          MediaDash can trigger external scripts and services on your system. Enter the systemd service names
+          (passed to <code>systemctl start</code>) or leave blank to hide the buttons.
         </div>
-        <div class="j-field">
-          <label class="j-label">Skip codecs (already efficient — comma separated)</label>
-          <input class="j-input" type="text" id="j-skip-codecs" value="hevc,av1">
-          <div class="j-hint">Files already in these codecs will be skipped.</div>
+        <div class="settings-grid">
+          <div class="fld">
+            <label class="lbl">Re-encoder service name</label>
+            <input type="text" id="cfg-enc-svc">
+            <div class="hint">Example: <code>reencode-video</code></div>
+          </div>
+          <div class="fld">
+            <label class="lbl">Strip-tracks service name</label>
+            <input type="text" id="cfg-strip-svc">
+            <div class="hint">Example: <code>strip-tracks</code></div>
+          </div>
+          <div class="fld">
+            <label class="lbl">Re-encoder process name (for detection)</label>
+            <input type="text" id="cfg-enc-proc">
+            <div class="hint">Substring to look for in running processes. Example: <code>reencode</code></div>
+          </div>
+          <div class="fld">
+            <label class="lbl">Strip-tracks process name (for detection)</label>
+            <input type="text" id="cfg-strip-proc">
+          </div>
+          <div class="fld">
+            <label class="lbl">Pause flag file path</label>
+            <input type="text" id="cfg-pause-flag">
+            <div class="hint">Your encode script should poll for this file and pause when it exists.</div>
+          </div>
+          <div class="fld">
+            <label class="lbl">Force-resume flag file path</label>
+            <input type="text" id="cfg-force-flag">
+          </div>
         </div>
-        <button is="emby-button" class="raised emby-button" onclick="jSaveLibraries()">Save library settings</button>
+        <div class="settings-grid">
+          <div class="fld">
+            <label class="lbl">Encode status directory</label>
+            <input type="text" id="cfg-status-dir">
+            <div class="hint">Directory containing <code>slot_0.json</code>, <code>slot_1.json</code> … written by your encode script for live progress.</div>
+          </div>
+          <div class="fld">
+            <label class="lbl">Processed state file</label>
+            <input type="text" id="cfg-state-file">
+            <div class="hint">JSON file tracking which files have already been encoded.</div>
+          </div>
+          <div class="fld">
+            <label class="lbl">Re-encode log file</label>
+            <input type="text" id="cfg-enc-log">
+          </div>
+          <div class="fld">
+            <label class="lbl">Strip-tracks log file</label>
+            <input type="text" id="cfg-strip-log">
+          </div>
+          <div class="fld">
+            <label class="lbl">Duplicate report file</label>
+            <input type="text" id="cfg-dupe-report">
+            <div class="hint">JSON report generated by your dupe-detection script.</div>
+          </div>
+          <div class="fld">
+            <label class="lbl">Dupe scan script path</label>
+            <input type="text" id="cfg-dupe-script">
+          </div>
+        </div>
+        <button is="emby-button" class="raised emby-button" onclick="saveServices()">Save service settings</button>
       </div>
     </div>
 
     <!-- Quiet hours -->
-    <div class="j-section">
-      <div class="j-section-label">Quiet hours — encoding pauses during this window</div>
-      <div class="j-card">
-        <div class="j-sched-lbls"><span>12am</span><span>6am</span><span>12pm</span><span>6pm</span><span>12am</span></div>
-        <div class="j-sched" id="j-sched-viz"></div>
-        <div style="display:flex;gap:0.6em;align-items:center;font-size:0.72em;color:var(--txt2);margin-bottom:1.1em">
-          <div style="width:11px;height:11px;border-radius:2px;background:rgba(255,152,0,0.2);border:1px solid var(--jamber)"></div>Paused
-          <div style="width:11px;height:11px;border-radius:2px;background:rgba(76,175,80,0.2);border:1px solid var(--jgreen);margin-left:0.4em"></div>Active
+    <div class="sec">
+      <div class="sec-lbl">Quiet hours</div>
+      <div class="card">
+        <div style="font-size:.84em;color:var(--t2);margin-bottom:.85em">
+          Encoding pauses during this window. Useful for overnight runs or when you want uninterrupted streams.
         </div>
-        <div class="j-field">
-          <label class="j-label">Pause at (hour, 0–23)</label>
-          <input class="j-input" type="number" min="0" max="23" id="j-ps" value="8" oninput="jSchedPrev()">
+        <div class="sched-lbls"><span>12am</span><span>6am</span><span>12pm</span><span>6pm</span><span>12am</span></div>
+        <div class="sched" id="sched-viz"></div>
+        <div style="display:flex;gap:.6em;align-items:center;font-size:.72em;color:var(--t2);margin-bottom:1em">
+          <div style="width:11px;height:11px;border-radius:2px;background:rgba(255,152,0,.2);border:1px solid var(--a)"></div>Paused
+          <div style="width:11px;height:11px;border-radius:2px;background:rgba(76,175,80,.2);border:1px solid var(--g);margin-left:.4em"></div>Active
         </div>
-        <div class="j-field">
-          <label class="j-label">Resume at (hour, 0–23)</label>
-          <input class="j-input" type="number" min="0" max="23" id="j-pe" value="16" oninput="jSchedPrev()">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1em;max-width:400px">
+          <div class="fld">
+            <label class="lbl">Pause at (0–23)</label>
+            <input type="number" id="cfg-ps" min="0" max="23" oninput="schedPrev()">
+          </div>
+          <div class="fld">
+            <label class="lbl">Resume at (0–23)</label>
+            <input type="number" id="cfg-pe" min="0" max="23" oninput="schedPrev()">
+          </div>
         </div>
-        <button is="emby-button" class="raised emby-button" onclick="jSaveSched()">Save schedule</button>
+        <div class="chk-row">
+          <input type="checkbox" id="cfg-pause-streams">
+          <label for="cfg-pause-streams">Also pause when Jellyfin streams are active</label>
+        </div>
+        <button is="emby-button" class="raised emby-button" onclick="saveSched()">Save schedule</button>
       </div>
     </div>
 
-  </div>
+  </div><!-- end settings panel -->
 </div>
 
-<div class="j-toast" id="j-toast"></div>
+<div class="toast" id="toast"></div>
 
 <script>
-(function () {
-var BASE = '/mediadash/api';
+(function(){
+var PLUGIN_ID='4a5c8f2e-1b3d-4e6f-9a2c-7d8e0f1b3c5a';
+var BASE='/mediadash/api';
 
-function authH() {
-  if (window.ApiClient) {
-    return { 'X-Emby-Authorization':
-      'MediaBrowser Client="MediaDash",Device="Web",DeviceId="mediadash",Version="1.0.0",Token="' + ApiClient.accessToken() + '"' };
-  }
-  return {};
+// ── Auth ─────────────────────────────────────────────────────────────
+function ah(){
+  if(window.ApiClient)
+    return{'X-Emby-Authorization':'MediaBrowser Client="MediaDash",Device="Web",DeviceId="mediadash",Version="1.0.0",Token="'+ApiClient.accessToken()+'"'};
+  return{};
 }
-async function api(path, opts) {
-  opts = opts || {};
-  var h = Object.assign({ 'Content-Type': 'application/json' }, authH(), opts.headers || {});
-  try {
-    var r = await fetch(BASE + path, Object.assign({}, opts, { headers: h }));
-    if (!r.ok) return {};
-    return await r.json();
-  } catch (e) { return {}; }
-}
-function toast(msg, col) {
-  var t = document.getElementById('j-toast');
-  t.textContent = msg;
-  t.style.borderColor = col === 'green' ? '#4caf50' : col === 'red' ? '#f44336' : '#00a4dc';
-  t.classList.add('show');
-  setTimeout(function () { t.classList.remove('show'); }, 2800);
+async function api(p,o){
+  o=o||{};
+  var h=Object.assign({'Content-Type':'application/json'},ah(),o.headers||{});
+  try{var r=await fetch(BASE+p,Object.assign({},o,{headers:h}));return r.ok?r.json():{};} catch{return{};}
 }
 
-// ── Tab switching ────────────────────────────────────────────────────
-document.querySelectorAll('#MediaDashPage .j-tab').forEach(function (btn) {
-  btn.addEventListener('click', function () {
-    document.querySelectorAll('#MediaDashPage .j-tab').forEach(function (b) { b.classList.remove('active'); });
-    document.querySelectorAll('#MediaDashPage .j-panel').forEach(function (p) { p.classList.remove('active'); });
-    btn.classList.add('active');
-    document.getElementById('jt-' + btn.dataset.tab).classList.add('active');
+// ── Toast ─────────────────────────────────────────────────────────────
+function toast(m,c){
+  var t=document.getElementById('toast');
+  t.textContent=m;
+  t.style.borderColor=c==='g'?'#4caf50':c==='r'?'#f44336':'#00a4dc';
+  t.classList.add('on');
+  setTimeout(function(){t.classList.remove('on');},2800);
+}
+
+// ── Tabs ─────────────────────────────────────────────────────────────
+document.querySelectorAll('#MediaDashPage .tab').forEach(function(b){
+  b.addEventListener('click',function(){
+    document.querySelectorAll('#MediaDashPage .tab').forEach(function(x){x.classList.remove('on');});
+    document.querySelectorAll('#MediaDashPage .panel').forEach(function(x){x.classList.remove('on');});
+    b.classList.add('on');
+    document.getElementById('pt-'+b.dataset.tab).classList.add('on');
   });
 });
 
 // ── Helpers ──────────────────────────────────────────────────────────
-function fG(gb) { return gb >= 1 ? gb.toFixed(1) + 'GB' : Math.round(gb * 1024) + 'MB'; }
-function fM(mb) { return mb >= 1024 ? (mb / 1024).toFixed(1) + 'GB' : mb + 'MB'; }
-function fS(s) {
-  if (!s) return '';
-  var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sc = s % 60;
-  return h > 0 ? h + 'h ' + m + 'm' : m > 0 ? m + 'm ' + sc + 's' : sc + 's';
-}
-function driveColor(pct) {
-  return pct > 90 ? '#f44336' : pct > 75 ? '#ff9800' : '#00a4dc';
-}
+function fG(g){return g>=1?g.toFixed(1)+'GB':Math.round(g*1024)+'MB';}
+function fM(m){return m>=1024?(m/1024).toFixed(1)+'GB':m+'MB';}
+function fS(s){if(!s)return'';var h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=s%60;return h?h+'h '+m+'m':m?m+'m '+sc+'s':sc+'s';}
+function driveCol(p){return p>90?'#f44336':p>75?'#ff9800':'#00a4dc';}
+function g(id){return document.getElementById(id);}
+function setText(id,v){var el=g(id);if(el)el.textContent=v;}
 
-// ── Status + streams ─────────────────────────────────────────────────
-async function loadStatus() {
-  var s = await api('/status');
-  if (!s.schedule) return;
-
-  // Badge
-  var sb = document.getElementById('j-status-badge');
-  if (s.encodingActive || s.strippingActive) {
-    sb.className = 'j-badge b-active';
-    sb.innerHTML = '<span class="j-dot"></span> ' + (s.encodingActive ? 'Encoding' : 'Stripping tracks');
-  } else if (s.paused) {
-    sb.className = 'j-badge b-paused'; sb.textContent = 'Paused';
-  } else {
-    sb.className = 'j-badge b-idle'; sb.textContent = 'Idle';
-  }
-  document.getElementById('j-quiet-badge').style.display = s.inQuietHours ? 'flex' : 'none';
-  document.getElementById('j-pause-badge').style.display = s.paused ? 'flex' : 'none';
-
-  // Streams
-  var streams = s.jellyfinStreams || [];
-  var streamBadge = document.getElementById('j-stream-badge');
-  var streamsSection = document.getElementById('j-streams-section');
-  if (streams.length) {
-    streamBadge.style.display = 'flex';
-    document.getElementById('j-stream-lbl').textContent = streams.length + ' stream' + (streams.length > 1 ? 's' : '');
-    streamsSection.style.display = '';
-    document.getElementById('j-streams-list').innerHTML = streams.map(function (st) {
-      return '<div class="j-stream-row">' +
-        '<div class="j-avatar">' + (st.user || '?').charAt(0).toUpperCase() + '</div>' +
-        '<div class="j-stream-info">' +
-          '<div class="j-stream-title">' + (st.series ? st.series + ' — ' : '') + st.title + '</div>' +
-          '<div class="j-stream-sub">' + st.user + ' · ' + st.client + '</div>' +
-        '</div>' +
-        '<span class="j-stream-pct">' + st.progressPct + '%</span>' +
-        '</div>';
+// ── Status ────────────────────────────────────────────────────────────
+async function loadStatus(){
+  var s=await api('/status');
+  if(!s||!s.schedule)return;
+  var bs=g('b-status');
+  if(s.encodingActive||s.strippingActive){
+    bs.className='badge ba';
+    bs.innerHTML='<span class="dot"></span> '+(s.encodingActive?'Encoding':'Stripping tracks');
+  } else {bs.className='badge bi';bs.textContent='Idle';}
+  g('b-quiet').style.display=s.inQuietHours?'flex':'none';
+  g('b-pause').style.display=s.paused?'flex':'none';
+  var st=s.jellyfinStreams||[];
+  var sb=g('b-stream');
+  if(st.length){
+    sb.style.display='flex';
+    g('b-stream-lbl').textContent=st.length+' stream'+(st.length>1?'s':'');
+    g('streams-sec').style.display='';
+    g('streams-list').innerHTML=st.map(function(x){
+      return '<div class="stream-row"><div class="av">'+(x.user||'?').charAt(0).toUpperCase()+'</div>'+
+        '<div class="si"><div class="st">'+(x.series?x.series+' — ':'')+x.title+'</div>'+
+        '<div class="ss">'+x.user+' · '+x.client+'</div></div>'+
+        '<span class="sp">'+x.progressPct+'%</span></div>';
     }).join('');
-  } else {
-    streamBadge.style.display = 'none';
-    streamsSection.style.display = 'none';
-  }
-
-  // Sync settings tab schedule
-  if (s.schedule) {
-    document.getElementById('j-ps').value = s.schedule.pauseStart;
-    document.getElementById('j-pe').value = s.schedule.pauseEnd;
-    jSchedPrev();
+  } else {sb.style.display='none';g('streams-sec').style.display='none';}
+  if(s.schedule){
+    g('cfg-ps').value=s.schedule.pauseStart;
+    g('cfg-pe').value=s.schedule.pauseEnd;
+    schedPrev();
   }
 }
 
-// ── Encode progress ──────────────────────────────────────────────────
-async function loadEncode() {
-  var e = await api('/encode_status');
-  var card = document.getElementById('j-enc-card');
-  if (!e.active) {
-    card.className = 'j-card j-encode-card idle';
-    document.getElementById('j-enc-chip').textContent = 'No task running';
-    document.getElementById('j-enc-name').textContent = 'Encoder is idle';
-    document.getElementById('j-enc-meta').textContent = 'Waiting for next scheduled window';
-    document.getElementById('j-enc-speed').textContent = '';
-    ['j-enc-src','j-enc-out','j-enc-fin','j-enc-sav'].forEach(function(id){document.getElementById(id).textContent='–';});
-    document.getElementById('j-enc-bar').style.width = '0%';
-    document.getElementById('j-enc-pct').textContent = '0%';
-    document.getElementById('j-enc-elapsed').textContent = '';
-    document.getElementById('j-enc-remaining').textContent = '';
+// ── Encode status ─────────────────────────────────────────────────────
+async function loadEncode(){
+  var e=await api('/encode_status');
+  var card=g('enc-card');
+  if(!e||!e.active){
+    card.className='card enc-idle';
+    setText('enc-chip','No task running'); setText('enc-spd','');
+    setText('enc-name','Encoder is idle');
+    setText('enc-sub','Waiting for the next scheduled window');
+    ['enc-src','enc-out','enc-fin','enc-sav'].forEach(function(id){setText(id,'–');});
+    g('enc-bar').style.width='0%'; setText('enc-pct','0%');
+    setText('enc-elapsed',''); setText('enc-eta','');
     return;
   }
-  card.className = 'j-card j-encode-card';
-  document.getElementById('j-enc-chip').textContent = (e.codec || 'h264').toUpperCase() + ' → H.265';
-  document.getElementById('j-enc-name').textContent = e.name || '–';
-  document.getElementById('j-enc-meta').textContent = 'Started at ' + (e.startedAt || '–') + (e.worker != null ? ' · Worker ' + e.worker : '');
-  document.getElementById('j-enc-speed').textContent = (e.speed && e.speed !== 'N/A') ? e.speed : '';
-  document.getElementById('j-enc-src').textContent = e.sourceGb ? e.sourceGb + ' GB' : '–';
-  document.getElementById('j-enc-out').textContent = e.tmpSizeGb > 0 ? e.tmpSizeGb + ' GB' : '–';
-  document.getElementById('j-enc-fin').textContent = e.estFinalGb > 0 ? e.estFinalGb + ' GB' : (e.pct < 3 ? '…' : '–');
-  document.getElementById('j-enc-sav').textContent = (e.estSavingGb || 0) > 0 ? e.estSavingGb.toFixed(1) + ' GB' : (e.pct < 3 ? '…' : '–');
-  var p = e.pct || 0;
-  document.getElementById('j-enc-bar').style.width = p + '%';
-  document.getElementById('j-enc-pct').textContent = p.toFixed(1) + '%';
-  document.getElementById('j-enc-elapsed').textContent = e.elapsedS ? 'Elapsed ' + fS(e.elapsedS) : '';
-  // Estimate time remaining
-  if (p > 2 && e.elapsedS) {
-    var estTotal = e.elapsedS / (p / 100);
-    var remaining = Math.max(0, Math.round(estTotal - e.elapsedS));
-    document.getElementById('j-enc-remaining').textContent = fS(remaining) + ' remaining';
-  } else {
-    document.getElementById('j-enc-remaining').textContent = '';
+  card.className='card enc-active';
+  setText('enc-chip',(e.codec||'?').toUpperCase()+' → '+(e.targetCodec||'H.265'));
+  setText('enc-spd',(e.speed&&e.speed!=='N/A')?e.speed:'');
+  setText('enc-name',e.name||'–');
+  setText('enc-sub','Started '+( e.startedAt||'–')+(e.worker!=null?' · Worker '+e.worker:''));
+  setText('enc-src',e.sourceGb?e.sourceGb+' GB':'–');
+  setText('enc-out',e.tmpSizeGb>0?e.tmpSizeGb+' GB':'–');
+  setText('enc-fin',e.estFinalGb>0?e.estFinalGb+' GB':e.pct<3?'…':'–');
+  setText('enc-sav',(e.estSavingGb||0)>0?e.estSavingGb.toFixed(1)+' GB saved':e.pct<3?'…':'–');
+  var p=e.pct||0;
+  g('enc-bar').style.width=p+'%'; setText('enc-pct',p.toFixed(1)+'%');
+  setText('enc-elapsed',e.elapsedS?'Elapsed '+fS(e.elapsedS):'');
+  if(p>2&&e.elapsedS){var eta=Math.max(0,Math.round(e.elapsedS/(p/100)-e.elapsedS));setText('enc-eta',fS(eta)+' remaining');}
+  else setText('enc-eta','');
+}
+
+// ── Storage ───────────────────────────────────────────────────────────
+async function loadDrives(){
+  var drives=await api('/drives');
+  var c=g('drives-card');
+  if(!Array.isArray(drives)||!drives.length){
+    c.innerHTML='<div style="font-size:.82em;color:var(--t2)">No storage data — configure media directories in Settings.</div>';
+    return;
+  }
+  c.innerHTML=drives.map(function(d){
+    var col=driveCol(d.pct);
+    return '<div class="drive">'+
+      '<div class="drive-hd"><span class="drive-name">'+d.label+'</span><span class="drive-sz">'+d.usedGb+'GB / '+d.totalGb+'GB ('+d.pct+'%)</span></div>'+
+      '<div class="drive-track"><div class="drive-fill" style="width:'+d.pct+'%;background:'+col+'"></div></div>'+
+      '<div class="drive-free">'+d.freeGb+'GB free</div>'+
+    '</div>';
+  }).join('');
+}
+
+// ── Processing summary ────────────────────────────────────────────────
+async function loadSummary(){
+  var re=await api('/reencode'),strip=await api('/strip'),rem=await api('/encode_remaining');
+  if(Array.isArray(re)){
+    var done=re.filter(function(f){return f.status==='done';});
+    var sv=done.reduce(function(s,f){return s+(f.savedGb||0);},0);
+    setText('ov-enc',done.length);
+    setText('ov-enc-sv',sv.toFixed(1)+'GB');
+  }
+  if(Array.isArray(rem))setText('ov-remaining',rem.length+' file'+(rem.length===1?'':'s')+' in queue');
+  if(Array.isArray(strip)){
+    var sp=strip.filter(function(f){return f.status==='processed';});
+    var smb=strip.reduce(function(s,f){return s+(f.savedMb||0);},0);
+    setText('ov-strip',sp.length);
+    setText('ov-strip-sv',smb>=1024?(smb/1024).toFixed(1)+'GB saved':Math.round(smb)+'MB saved');
   }
 }
 
-// ── Storage — driven by Jellyfin library paths ───────────────────────
-async function loadStorage() {
-  var disk = await api('/disk');
-  // Also pull status to get library info from config
-  var cfg = await api('/status');
-  var container = document.getElementById('j-drives-card');
-
-  // Use the single disk endpoint for now (plugin reads MediaRootPath)
-  // Show one bar per unique drive mount
-  if (disk.totalGb) {
-    var pct = disk.pct || 0;
-    var col = driveColor(pct);
-    container.innerHTML =
-      '<div class="j-drive">' +
-        '<div class="j-drive-header">' +
-          '<span class="j-drive-name">Media Storage</span>' +
-          '<span class="j-drive-size">' + disk.usedGb + ' GB used of ' + disk.totalGb + ' GB (' + pct + '%)</span>' +
-        '</div>' +
-        '<div class="j-drive-track"><div class="j-drive-fill" style="width:' + pct + '%;background:' + col + '"></div></div>' +
-        '<div style="font-size:0.72em;color:var(--txt2);margin-top:0.3em">' + disk.freeGb + ' GB free</div>' +
-      '</div>';
-  } else {
-    container.innerHTML = '<div style="font-size:0.82em;color:var(--txt2)">Storage data unavailable — check Media Root Path in plugin settings.</div>';
+// ── Performance ───────────────────────────────────────────────────────
+async function loadMetrics(){
+  var m=await api('/metrics');
+  if(!m||(!m.cpuPct&&m.cpuPct!==0))return;
+  setText('p-cpu',m.cpuPct+'%'); setText('p-gpu',m.gpuPct+'%'); setText('p-mem',m.memPct+'%');
+  g('p-gpu-bar').style.width=m.gpuPct+'%'; setText('p-gpu-v',m.gpuPct+'%');
+  var vp=m.vramTotalMb>0?Math.round(m.vramUsedMb/m.vramTotalMb*100):0;
+  g('p-vram-bar').style.width=vp+'%'; setText('p-vram-v',vp+'%');
+  setText('p-vram-d',fM(m.vramUsedMb)+' / '+fM(m.vramTotalMb));
+  g('p-mem-bar').style.width=m.memPct+'%'; setText('p-mem-v',m.memPct+'%');
+  setText('p-mem-d',fM(m.memUsedMb)+' / '+fM(m.memTotalMb));
+  if(m.temps){
+    if(m.temps.cpu!=null)  setText('p-cpu-t', 'CPU: '+m.temps.cpu+'°C');
+    if(m.temps.gpu!=null)  setText('p-gpu-t', 'GPU: '+m.temps.gpu+'°C');
+    if(m.temps.nvme!=null) setText('p-nvme-t','NVMe: '+m.temps.nvme+'°C');
   }
-}
-
-// ── Processing summary ───────────────────────────────────────────────
-async function loadSummary() {
-  var re = await api('/reencode');
-  var strip = await api('/strip');
-  var remaining = await api('/encode_remaining');
-
-  if (Array.isArray(re)) {
-    var done = re.filter(function(f){return f.status==='done';});
-    var saved = done.reduce(function(s,f){return s+(f.savedGb||0);},0);
-    document.getElementById('j-st-encoded').textContent = done.length;
-    document.getElementById('j-st-encoded-sub').textContent = done.length === 1 ? '1 file' : done.length + ' files';
-    document.getElementById('j-st-encsaved').textContent = saved.toFixed(1) + 'GB';
-  }
-  if (Array.isArray(remaining)) {
-    document.getElementById('j-st-remaining').textContent = remaining.length + ' file' + (remaining.length === 1 ? '' : 's') + ' remaining';
-  }
-  if (Array.isArray(strip)) {
-    var sproc = strip.filter(function(f){return f.status==='processed';});
-    var smb = strip.reduce(function(s,f){return s+(f.savedMb||0);},0);
-    document.getElementById('j-st-stripped').textContent = sproc.length;
-    document.getElementById('j-st-stripsaved').textContent = smb >= 1024 ? (smb/1024).toFixed(1)+'GB saved' : Math.round(smb)+'MB saved';
-  }
-}
-
-// ── Performance ──────────────────────────────────────────────────────
-async function loadMetrics() {
-  var m = await api('/metrics');
-  if (!m.cpuPct && m.cpuPct !== 0) return;
-
-  document.getElementById('j-cpu-pct').textContent = m.cpuPct + '%';
-  document.getElementById('j-gpu-pct').textContent = m.gpuPct + '%';
-  document.getElementById('j-mem-pct').textContent = m.memPct + '%';
-
-  document.getElementById('j-gpu-bar').style.width = m.gpuPct + '%';
-  document.getElementById('j-gpu-val').textContent = m.gpuPct + '%';
-
-  var vp = m.vramTotalMb > 0 ? Math.round(m.vramUsedMb / m.vramTotalMb * 100) : 0;
-  document.getElementById('j-vram-bar').style.width = vp + '%';
-  document.getElementById('j-vram-val').textContent = vp + '%';
-  document.getElementById('j-vram-detail').textContent = fM(m.vramUsedMb) + ' / ' + fM(m.vramTotalMb);
-
-  document.getElementById('j-mem-bar').style.width = m.memPct + '%';
-  document.getElementById('j-mem-val').textContent = m.memPct + '%';
-  document.getElementById('j-mem-detail').textContent = fM(m.memUsedMb) + ' / ' + fM(m.memTotalMb);
-
-  if (m.temps) {
-    if (m.temps.cpu  != null) document.getElementById('j-cpu-temp').textContent  = 'CPU: '  + m.temps.cpu  + '°C';
-    if (m.temps.gpu  != null) document.getElementById('j-gpu-temp').textContent  = 'GPU: '  + m.temps.gpu  + '°C';
-    if (m.temps.nvme != null) document.getElementById('j-nvme-temp').textContent = 'NVMe: ' + m.temps.nvme + '°C';
-  }
-
-  var dr = m.diskReadGb;
-  var dw = m.diskWriteGb;
-  document.getElementById('j-disk-r').textContent = dr >= 1000 ? (dr/1000).toFixed(1)+'TB' : dr+'GB';
-  document.getElementById('j-disk-w').textContent = dw >= 1000 ? (dw/1000).toFixed(1)+'TB' : dw+'GB';
-
-  // Per-core CPU bars
-  if (m.perCore && m.perCore.length) {
-    document.getElementById('j-core-bars').innerHTML = m.perCore.map(function (p, i) {
-      return '<div class="j-bar-row">' +
-        '<div class="j-bar-lbl">Core ' + i + '</div>' +
-        '<div class="j-bar-track"><div class="j-bar-fill" style="background:var(--jblue);width:' + p + '%"></div></div>' +
-        '<div class="j-bar-val">' + p + '%</div></div>';
+  var dr=m.diskReadGb, dw=m.diskWriteGb;
+  setText('p-dr',dr>=1000?(dr/1000).toFixed(1)+'TB':dr+'GB');
+  setText('p-dw',dw>=1000?(dw/1000).toFixed(1)+'TB':dw+'GB');
+  if(m.perCore&&m.perCore.length)
+    g('core-bars').innerHTML=m.perCore.map(function(p,i){
+      return '<div class="br-row"><div class="br-lbl">Core '+i+'</div><div class="br-track"><div class="br-fill" style="background:var(--b);width:'+p+'%"></div></div><div class="br-val">'+p+'%</div></div>';
     }).join('');
-  }
 }
 
-// ── Settings — load config defaults ─────────────────────────────────
-async function loadConfig() {
-  if (!window.ApiClient) return;
-  try {
-    var cfg = await new Promise(function(res) {
-      ApiClient.getPluginConfiguration('4a5c8f2e-1b3d-4e6f-9a2c-7d8e0f1b3c5a').then(res);
-    });
-    if (cfg.VideoExtensions) {
-      // Show media paths from config
-      var paths = (cfg.MediaRootPath || '').split(',').map(function(p){return p.trim();}).filter(Boolean);
-      document.getElementById('j-lib-paths').value = paths.join('\n');
-    }
-    if (cfg.SkipCodecs) document.getElementById('j-skip-codecs').value = cfg.SkipCodecs;
-    if (cfg.QuietHoursStart != null) { document.getElementById('j-ps').value = cfg.QuietHoursStart; }
-    if (cfg.QuietHoursEnd   != null) { document.getElementById('j-pe').value = cfg.QuietHoursEnd;   }
-    jSchedPrev();
-  } catch (e) {}
-}
-
-// ── Schedule visualiser ──────────────────────────────────────────────
-window.jSchedPrev = function () {
-  var ps = parseInt(document.getElementById('j-ps').value) || 8;
-  var pe = parseInt(document.getElementById('j-pe').value) || 16;
-  document.getElementById('j-sched-viz').innerHTML = Array.from({ length: 24 }, function (_, i) {
-    var q = ps < pe ? (i >= ps && i < pe) : (i >= ps || i < pe);
-    return '<div class="j-sched-h" style="background:' +
-      (q ? 'rgba(255,152,0,0.3);border:1px solid var(--jamber)' : 'rgba(76,175,80,0.2);border:1px solid var(--jgreen)') +
-      '" title="' + i + ':00"></div>';
+// ── Schedule viz ──────────────────────────────────────────────────────
+window.schedPrev=function(){
+  var ps=parseInt(g('cfg-ps').value)||0,pe=parseInt(g('cfg-pe').value)||0;
+  g('sched-viz').innerHTML=Array.from({length:24},function(_,i){
+    var q=ps<pe?(i>=ps&&i<pe):(i>=ps||i<pe);
+    return '<div class="sh" style="background:'+(q?'rgba(255,152,0,.3);border:1px solid var(--a)':'rgba(76,175,80,.2);border:1px solid var(--g)')+'" title="'+i+':00"></div>';
   }).join('');
 };
 
-// ── Actions ──────────────────────────────────────────────────────────
-window.jPause  = async function () { await api('/pause',  { method: 'POST', body: '{}' }); toast('Encoding paused', 'amber'); loadStatus(); };
-window.jResume = async function () { await api('/resume', { method: 'POST', body: '{}' }); toast('Resuming encoder', 'green'); setTimeout(loadStatus, 800); setTimeout(loadEncode, 2000); };
-window.jRun    = async function (s) {
-  var r = await api('/run', { method: 'POST', body: JSON.stringify({ script: s }) });
-  r.ok ? toast('Started: ' + s) : toast('Failed to start ' + s, 'red');
-  setTimeout(loadStatus, 1500);
-};
+// ── Config: load ──────────────────────────────────────────────────────
+async function loadConfig(){
+  if(!window.ApiClient)return;
+  var cfg=await new Promise(function(res){ApiClient.getPluginConfiguration(PLUGIN_ID).then(res).catch(function(){res({});});});
 
-window.jSaveSched = async function () {
-  var r = await api('/schedule', {
-    method: 'POST',
-    body: JSON.stringify({
-      pauseStart: parseInt(document.getElementById('j-ps').value),
-      pauseEnd:   parseInt(document.getElementById('j-pe').value)
-    })
-  });
-  r.ok ? toast('Schedule saved', 'green') : toast('Failed to save', 'red');
-};
+  // Encoder
+  var em=g('cfg-method'); if(em&&cfg.EncodeMethod) em.value=cfg.EncodeMethod;
+  var ec=g('cfg-codec');  if(ec&&cfg.TargetCodec)  ec.value=cfg.TargetCodec;
+  if(g('cfg-quality')&&cfg.EncodeQuality!=null) g('cfg-quality').value=cfg.EncodeQuality;
+  if(g('cfg-workers')&&cfg.EncodeWorkers!=null) g('cfg-workers').value=cfg.EncodeWorkers;
+  if(g('cfg-vaapi')) g('cfg-vaapi').value=cfg.VaapiDevice||'';
+  if(g('cfg-exts'))  g('cfg-exts').value=cfg.VideoExtensions||'';
+  if(g('cfg-skip'))  g('cfg-skip').value=cfg.SkipCodecs||'';
 
-window.jSaveEncodeSettings = function () {
-  if (!window.ApiClient) { toast('ApiClient not available', 'red'); return; }
-  ApiClient.getPluginConfiguration('4a5c8f2e-1b3d-4e6f-9a2c-7d8e0f1b3c5a').then(function (cfg) {
-    cfg.EncodeMethod  = document.getElementById('j-enc-method').value;
-    cfg.EncodeCodec   = document.getElementById('j-enc-codec').value;
-    cfg.EncodeQuality = parseInt(document.getElementById('j-enc-quality').value) || 22;
-    cfg.EncodeWorkers = parseInt(document.getElementById('j-enc-workers').value) || 2;
-    ApiClient.updatePluginConfiguration('4a5c8f2e-1b3d-4e6f-9a2c-7d8e0f1b3c5a', cfg).then(function () {
-      toast('Encode settings saved', 'green');
-    });
-  });
-};
+  // Languages
+  if(g('cfg-strip-en')) g('cfg-strip-en').checked=!!cfg.EnableTrackStripping;
+  if(g('cfg-audio-lang')) g('cfg-audio-lang').value=cfg.KeepAudioLanguages||'';
+  if(g('cfg-sub-lang'))   g('cfg-sub-lang').value=cfg.KeepSubtitleLanguages||'';
+  if(g('cfg-keep-first')) g('cfg-keep-first').checked=cfg.AlwaysKeepFirstAudio!==false;
+  if(g('cfg-keep-commentary')) g('cfg-keep-commentary').checked=!!cfg.KeepCommentaryTracks;
 
-window.jSaveLibraries = function () {
-  if (!window.ApiClient) { toast('ApiClient not available', 'red'); return; }
-  ApiClient.getPluginConfiguration('4a5c8f2e-1b3d-4e6f-9a2c-7d8e0f1b3c5a').then(function (cfg) {
-    var paths = document.getElementById('j-lib-paths').value
-      .split('\n').map(function(p){return p.trim();}).filter(Boolean);
-    cfg.MediaRootPath = paths[0] || cfg.MediaRootPath;   // primary path for disk stats
-    cfg.SkipCodecs    = document.getElementById('j-skip-codecs').value;
-    ApiClient.updatePluginConfiguration('4a5c8f2e-1b3d-4e6f-9a2c-7d8e0f1b3c5a', cfg).then(function () {
-      toast('Library settings saved', 'green');
-    });
-  });
-};
+  // Dirs
+  if(g('cfg-dirs')&&cfg.MediaDirectories) g('cfg-dirs').value=cfg.MediaDirectories;
 
-// ── Init ─────────────────────────────────────────────────────────────
-function init() {
-  loadStatus();
-  loadEncode();
-  loadStorage();
-  loadSummary();
-  loadMetrics();
-  loadConfig();
-  jSchedPrev();
+  // Services
+  if(g('cfg-enc-svc'))    g('cfg-enc-svc').value=cfg.ReencodeServiceName||'';
+  if(g('cfg-strip-svc'))  g('cfg-strip-svc').value=cfg.StripServiceName||'';
+  if(g('cfg-enc-proc'))   g('cfg-enc-proc').value=cfg.ReencodeProcessName||'';
+  if(g('cfg-strip-proc')) g('cfg-strip-proc').value=cfg.StripProcessName||'';
+  if(g('cfg-pause-flag')) g('cfg-pause-flag').value=cfg.PauseFlagPath||'';
+  if(g('cfg-force-flag')) g('cfg-force-flag').value=cfg.ForceFlagPath||'';
+  if(g('cfg-status-dir')) g('cfg-status-dir').value=cfg.EncodeStatusDir||'';
+  if(g('cfg-state-file')) g('cfg-state-file').value=cfg.ReencodeStateFile||'';
+  if(g('cfg-enc-log'))    g('cfg-enc-log').value=cfg.ReencodeLogPath||'';
+  if(g('cfg-strip-log'))  g('cfg-strip-log').value=cfg.StripLogPath||'';
+  if(g('cfg-dupe-report')) g('cfg-dupe-report').value=cfg.DupesReportPath||'';
+  if(g('cfg-dupe-script')) g('cfg-dupe-script').value=cfg.DupesScanScript||'';
 
-  setInterval(loadStatus,  15000);
-  setInterval(loadEncode,   5000);
-  setInterval(loadMetrics,  4000);
-  setInterval(loadStorage, 60000);
-  setInterval(loadSummary, 60000);
+  // Schedule
+  if(g('cfg-ps')&&cfg.QuietHoursStart!=null) g('cfg-ps').value=cfg.QuietHoursStart;
+  if(g('cfg-pe')&&cfg.QuietHoursEnd  !=null) g('cfg-pe').value=cfg.QuietHoursEnd;
+  if(g('cfg-pause-streams')) g('cfg-pause-streams').checked=cfg.PauseDuringStreams!==false;
+  schedPrev();
+
+  // Run buttons — only show if service is configured
+  var rbDiv=g('run-btns'); rbDiv.innerHTML='';
+  if(cfg.ReencodeServiceName)
+    rbDiv.innerHTML+='<button is="emby-button" class="raised emby-button" onclick="doRun(\'reencode\')">▶ Run re-encoder now</button> ';
+  if(cfg.StripServiceName)
+    rbDiv.innerHTML+='<button is="emby-button" class="raised emby-button" onclick="doRun(\'strip\')">▶ Run strip tracks now</button>';
+
+  // Show Jellyfin library paths as helper text
+  var libs=await api('/libraries');
+  if(Array.isArray(libs)&&libs.length){
+    g('jellyfin-libs').innerHTML='<div style="font-size:.78em;color:var(--t2);margin-bottom:.5em">Your Jellyfin libraries (used automatically if directories above are blank):</div>'+
+      libs.map(function(l){return'<div style="font-size:.75em;font-family:var(--mo);color:var(--t2);padding:.15em 0">'+l.name+' — '+l.path+'</div>';}).join('');
+  }
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
-} else {
-  setTimeout(init, 0);
+// ── Save functions ────────────────────────────────────────────────────
+function withCfg(fn){
+  if(!window.ApiClient){toast('Not connected to Jellyfin','r');return;}
+  ApiClient.getPluginConfiguration(PLUGIN_ID).then(function(cfg){fn(cfg);}).catch(function(){toast('Failed to load config','r');});
 }
+function saveCfg(cfg){
+  ApiClient.updatePluginConfiguration(PLUGIN_ID,cfg).then(function(){toast('Saved','g');}).catch(function(){toast('Save failed','r');});
+}
+
+window.saveEncoder=function(){withCfg(function(cfg){
+  cfg.EncodeMethod   = g('cfg-method').value;
+  cfg.TargetCodec    = g('cfg-codec').value;
+  cfg.EncodeQuality  = parseInt(g('cfg-quality').value)||22;
+  cfg.EncodeWorkers  = parseInt(g('cfg-workers').value)||1;
+  cfg.VaapiDevice    = g('cfg-vaapi').value.trim();
+  cfg.VideoExtensions= g('cfg-exts').value.trim();
+  cfg.SkipCodecs     = g('cfg-skip').value.trim();
+  saveCfg(cfg);
+});};
+
+window.saveLanguages=function(){withCfg(function(cfg){
+  cfg.EnableTrackStripping  = g('cfg-strip-en').checked;
+  cfg.KeepAudioLanguages    = g('cfg-audio-lang').value.trim();
+  cfg.KeepSubtitleLanguages = g('cfg-sub-lang').value.trim();
+  cfg.AlwaysKeepFirstAudio  = g('cfg-keep-first').checked;
+  cfg.KeepCommentaryTracks  = g('cfg-keep-commentary').checked;
+  saveCfg(cfg);
+});};
+
+window.saveLibraries=function(){withCfg(function(cfg){
+  cfg.MediaDirectories=g('cfg-dirs').value;
+  saveCfg(cfg);
+});};
+
+window.saveServices=function(){withCfg(function(cfg){
+  cfg.ReencodeServiceName  = g('cfg-enc-svc').value.trim();
+  cfg.StripServiceName     = g('cfg-strip-svc').value.trim();
+  cfg.ReencodeProcessName  = g('cfg-enc-proc').value.trim();
+  cfg.StripProcessName     = g('cfg-strip-proc').value.trim();
+  cfg.PauseFlagPath        = g('cfg-pause-flag').value.trim();
+  cfg.ForceFlagPath        = g('cfg-force-flag').value.trim();
+  cfg.EncodeStatusDir      = g('cfg-status-dir').value.trim();
+  cfg.ReencodeStateFile    = g('cfg-state-file').value.trim();
+  cfg.ReencodeLogPath      = g('cfg-enc-log').value.trim();
+  cfg.StripLogPath         = g('cfg-strip-log').value.trim();
+  cfg.DupesReportPath      = g('cfg-dupe-report').value.trim();
+  cfg.DupesScanScript      = g('cfg-dupe-script').value.trim();
+  saveCfg(cfg);
+});};
+
+window.saveSched=async function(){
+  var r=await api('/schedule',{method:'POST',body:JSON.stringify({
+    pauseStart:parseInt(g('cfg-ps').value)||0,
+    pauseEnd:parseInt(g('cfg-pe').value)||0
+  })});
+  withCfg(function(cfg){
+    cfg.PauseDuringStreams=g('cfg-pause-streams').checked;
+    saveCfg(cfg);
+  });
+  if(r.ok)toast('Schedule saved','g'); else toast('Failed','r');
+};
+
+window.doPause  =async function(){await api('/pause', {method:'POST',body:'{}'});toast('Paused','a');loadStatus();};
+window.doResume =async function(){await api('/resume',{method:'POST',body:'{}'});toast('Resuming','g');setTimeout(loadStatus,800);setTimeout(loadEncode,2000);};
+window.doRun    =async function(s){
+  var r=await api('/run',{method:'POST',body:JSON.stringify({script:s})});
+  r.ok?toast('Started','g'):toast(r.error||'Service not configured — check Settings','r');
+  setTimeout(loadStatus,1500);
+};
+
+// ── Init ──────────────────────────────────────────────────────────────
+function init(){
+  loadStatus(); loadEncode(); loadDrives(); loadSummary(); loadMetrics(); loadConfig();
+  schedPrev();
+  setInterval(loadStatus, 15000);
+  setInterval(loadEncode,  5000);
+  setInterval(loadMetrics, 4000);
+  setInterval(loadDrives, 60000);
+  setInterval(loadSummary,60000);
+}
+document.readyState==='loading'?document.addEventListener('DOMContentLoaded',init):setTimeout(init,0);
 })();
 </script>
 </div>
