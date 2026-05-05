@@ -41,12 +41,8 @@ jobs:
           cp meta.json dist/
           cd dist && zip -j ../mediadash_${{ steps.version.outputs.VERSION }}.0.zip ./*
 
-      - name: Compute checksum
-        id: checksum
-        run: |
-          echo "CHECKSUM=$(md5sum mediadash_${{ steps.version.outputs.VERSION }}.0.zip | awk '{print $1}')" >> $GITHUB_OUTPUT
-
-      - name: Create release
+      - name: Create release and upload zip
+        id: release
         uses: softprops/action-gh-release@v2
         with:
           files: mediadash_${{ steps.version.outputs.VERSION }}.0.zip
@@ -54,7 +50,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update manifest
+      - name: Compute checksum from GitHub download
+        # Download the asset back from GitHub — this is what Jellyfin will receive,
+        # so this is the checksum we must record in the manifest.
+        id: checksum
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          REPO="${{ github.repository }}"
+          ASSET_URL="https://github.com/${REPO}/releases/download/v${VERSION}/mediadash_${VERSION}.0.zip"
+          echo "Downloading from: $ASSET_URL"
+          curl -sL "$ASSET_URL" -o /tmp/downloaded_asset.zip
+          CHECKSUM=$(md5sum /tmp/downloaded_asset.zip | awk '{print $1}')
+          echo "CHECKSUM=$CHECKSUM" >> $GITHUB_OUTPUT
+          echo "Checksum: $CHECKSUM"
+
+      - name: Update manifest.json
         env:
           VERSION: ${{ steps.version.outputs.VERSION }}
           CHECKSUM: ${{ steps.checksum.outputs.CHECKSUM }}
@@ -62,23 +72,24 @@ jobs:
         run: |
           python3 - << 'PYEOF'
           import json, os
-          v = os.environ['VERSION']
-          c = os.environ['CHECKSUM']
-          r = os.environ['REPO']
           from datetime import datetime, timezone
-          ts = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-          with open('manifest.json') as f:
+          v = os.environ["VERSION"]
+          c = os.environ["CHECKSUM"]
+          r = os.environ["REPO"]
+          ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          with open("manifest.json") as f:
               m = json.load(f)
-          m[0]['versions'].insert(0, {
-              'version': v + '.0',
-              'changelog': f'See https://github.com/{r}/releases/tag/v{v}',
-              'targetAbi': '10.11.0.0',
-              'sourceUrl': f'https://github.com/{r}/releases/download/v{v}/mediadash_{v}.0.zip',
-              'checksum': c,
-              'timestamp': ts,
+          m[0]["versions"].insert(0, {
+              "version": v + ".0",
+              "changelog": f"See https://github.com/{r}/releases/tag/v{v}",
+              "targetAbi": "10.11.0.0",
+              "sourceUrl": f"https://github.com/{r}/releases/download/v{v}/mediadash_{v}.0.zip",
+              "checksum": c,
+              "timestamp": ts,
           })
-          with open('manifest.json', 'w') as f:
+          with open("manifest.json", "w") as f:
               json.dump(m, f, indent=2)
+          print(f"manifest.json updated: version={v} checksum={c}")
           PYEOF
 
       - name: Commit manifest
