@@ -1,12 +1,21 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>MediaDash</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<div id="MediaDashPage" data-role="page" class="page type-interior pluginConfigurationPage" style="background:var(--md-bg,#0d0f12);color:var(--md-text,#e2e8f0);font-family:'Inter',sans-serif;height:100%;overflow:hidden">
 <style>
+/* MediaDash scoped styles */
+#MediaDashPage {
+  --bg:#0d0f12;--surface:#13161a;--surface2:#1a1e24;--surface3:#21262e;
+  --border:#232830;--border2:#2d3540;
+  --text:#e2e8f0;--text2:#94a3b8;--text3:#4a5568;
+  --blue:#3b82f6;--blue-dim:rgba(59,130,246,0.12);
+  --green:#10b981;--green-dim:rgba(16,185,129,0.12);
+  --amber:#f59e0b;--amber-dim:rgba(245,158,11,0.12);
+  --red:#ef4444;--red-dim:rgba(239,68,68,0.12);
+  --purple:#8b5cf6;--purple-dim:rgba(139,92,246,0.12);
+  --cyan:#06b6d4;--cyan-dim:rgba(6,182,212,0.12);
+  --r:6px;--r2:10px;
+  --font:'Inter',sans-serif;--mono:'IBM Plex Mono',monospace;
+}
+
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
   --bg:#0d0f12;--surface:#13161a;--surface2:#1a1e24;--surface3:#21262e;
@@ -21,8 +30,8 @@
   --r:6px;--r2:10px;
   --font:'Inter',sans-serif;--mono:'IBM Plex Mono',monospace;
 }
-html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.5}
-#app{display:grid;height:100vh;grid-template-rows:56px 1fr;overflow:hidden}
+#MediaDashPage{height:calc(100vh - 60px);overflow:hidden;font-size:14px;line-height:1.5}
+#MediaDashPage .md-app{display:grid;height:calc(100vh - 60px);grid-template-rows:56px 1fr;overflow:hidden}
 .layout{display:grid;grid-template-columns:220px 1fr;height:calc(100vh - 56px);overflow:hidden}
 .sidebar{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:1rem 0}
 .nav-group-label{font-size:0.68rem;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;padding:0.5rem 1.25rem 0.25rem}
@@ -151,10 +160,9 @@ tr:hover td{background:var(--surface2)}
 .scan-banner{background:var(--surface);border:1px solid var(--border2);border-radius:var(--r2);padding:1.5rem;text-align:center;margin-bottom:1.25rem}
 .scan-banner-title{font-size:0.9rem;font-weight:500;margin-bottom:0.4rem}
 .scan-banner-sub{font-size:0.78rem;color:var(--text3);font-family:var(--mono);margin-bottom:1rem}
+
 </style>
-</head>
-<body>
-<div id="app">
+<div id="app" class="md-app">
   <div class="topbar">
     <div class="topbar-logo">Media<span>Dash</span></div>
     <div class="topbar-right">
@@ -437,8 +445,8 @@ tr:hover td{background:var(--surface2)}
 </div>
 
 <div class="toast" id="toast"></div>
-
 <script>
+
 // ── Auth: get Jellyfin API token from the page context ──────────────────────
 // When served via Jellyfin, window.ApiClient is available and provides auth.
 function getAuthHeader() {
@@ -812,6 +820,6 @@ if (document.readyState === 'loading') {
 } else {
   init();
 }
+
 </script>
-</body>
-</html>
+</div>
