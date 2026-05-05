@@ -5,12 +5,12 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Jellyfin.Plugin.MediaDash;
 
-/// <summary>Registers MediaDash services into Jellyfin's DI container.</summary>
 public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
 {
     public void RegisterServices(IServiceCollection serviceCollection,
                                  IServerApplicationHost applicationHost)
     {
         serviceCollection.AddSingleton<MediaDashService>();
+        serviceCollection.AddSingleton<FileExplorerService>();
     }
 }

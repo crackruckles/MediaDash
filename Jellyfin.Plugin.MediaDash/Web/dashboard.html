@@ -128,6 +128,52 @@
 /* toast */
 #MediaDashPage .toast{position:fixed;bottom:1.5em;right:1.5em;padding:.65em 1.1em;background:#222;border:1px solid var(--br);border-radius:4px;font-size:.82em;opacity:0;pointer-events:none;transition:opacity .2s;z-index:9999}
 #MediaDashPage .toast.on{opacity:1}
+
+/* ── File explorer ───────────────────────────────────────────────── */
+#MediaDashPage .lib-btns{display:flex;flex-direction:column;gap:.5em;margin-bottom:1.25em}
+#MediaDashPage .lib-row{display:flex;align-items:center;justify-content:space-between;padding:.65em 1em;background:var(--s);border:1px solid var(--br);border-radius:4px}
+#MediaDashPage .lib-row-name{font-size:.85em;font-weight:500}
+#MediaDashPage .lib-row-path{font-size:.72em;color:var(--t2);font-family:var(--mo)}
+#MediaDashPage .fs-wrap{display:none}
+#MediaDashPage .fs-wrap.on{display:block}
+#MediaDashPage .breadcrumb{display:flex;align-items:center;flex-wrap:wrap;gap:.25em;margin-bottom:1em;font-size:.82em}
+#MediaDashPage .bc-seg{color:var(--b);cursor:pointer;text-decoration:none}
+#MediaDashPage .bc-seg:hover{text-decoration:underline}
+#MediaDashPage .bc-sep{color:var(--t2)}
+#MediaDashPage .fs-toolbar{display:flex;align-items:center;gap:.5em;margin-bottom:.85em;flex-wrap:wrap}
+#MediaDashPage .fs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.6em}
+#MediaDashPage .fs-item{background:var(--s);border:1px solid var(--br);border-radius:4px;padding:.75em;cursor:pointer;position:relative;user-select:none;transition:border-color .12s}
+#MediaDashPage .fs-item:hover{border-color:var(--b)}
+#MediaDashPage .fs-item.selected{border-color:var(--b);background:rgba(0,164,220,.1)}
+#MediaDashPage .fs-item-icon{font-size:1.5em;margin-bottom:.3em}
+#MediaDashPage .fs-item-name{font-size:.78em;font-weight:500;word-break:break-word;line-height:1.3}
+#MediaDashPage .fs-item-meta{font-size:.68em;color:var(--t2);font-family:var(--mo);margin-top:.2em}
+#MediaDashPage .fs-empty{text-align:center;padding:2.5em;color:var(--t2);font-size:.82em}
+#MediaDashPage .fs-status{font-size:.78em;color:var(--t2);margin-bottom:.65em}
+#MediaDashPage .ctx-menu{position:fixed;background:#1e1e2e;border:1px solid var(--br);border-radius:4px;padding:.3em 0;z-index:9999;min-width:160px;box-shadow:0 4px 16px rgba(0,0,0,.4)}
+#MediaDashPage .ctx-item{padding:.5em 1em;font-size:.82em;cursor:pointer;white-space:nowrap}
+#MediaDashPage .ctx-item:hover{background:rgba(255,255,255,.08)}
+#MediaDashPage .ctx-item.danger{color:var(--r)}
+#MediaDashPage .ctx-sep{height:1px;background:var(--br);margin:.2em 0}
+#MediaDashPage .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9998;display:flex;align-items:center;justify-content:center}
+#MediaDashPage .modal{background:#1e1e2e;border:1px solid var(--br);border-radius:6px;padding:1.5em;min-width:320px;max-width:500px;z-index:9999}
+#MediaDashPage .modal-title{font-size:.95em;font-weight:600;margin-bottom:1em}
+#MediaDashPage .modal-btns{display:flex;justify-content:flex-end;gap:.5em;margin-top:1.25em}
+#MediaDashPage .modal input[type=text]{width:100%;max-width:none}
+/* ── Auto-sort ───────────────────────────────────────────────────── */
+#MediaDashPage .sort-lib-row{display:flex;align-items:center;justify-content:space-between;padding:.65em 1em;background:var(--s);border:1px solid var(--br);border-radius:4px;margin-bottom:.5em}
+#MediaDashPage .sort-candidate{background:var(--s);border:1px solid var(--br);border-radius:4px;margin-bottom:.75em;overflow:hidden}
+#MediaDashPage .sort-candidate-hd{display:flex;align-items:center;justify-content:space-between;padding:.85em 1em;background:rgba(255,255,255,.03);cursor:pointer}
+#MediaDashPage .sort-candidate-hd:hover{background:rgba(255,255,255,.06)}
+#MediaDashPage .sort-title{font-size:.87em;font-weight:500}
+#MediaDashPage .sort-meta{display:flex;gap:.5em;align-items:center;flex-shrink:0}
+#MediaDashPage .sort-body{display:none;padding:.5em 0}
+#MediaDashPage .sort-body.on{display:block}
+#MediaDashPage .sort-folder{display:flex;align-items:center;gap:.75em;padding:.5em 1em;border-top:1px solid rgba(255,255,255,.05)}
+#MediaDashPage .sort-folder-info{flex:1;min-width:0}
+#MediaDashPage .sort-folder-name{font-size:.82em;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#MediaDashPage .sort-folder-path{font-size:.72em;color:var(--t2);font-family:var(--mo);word-break:break-all}
+#MediaDashPage .sort-folder-count{font-size:.72em;color:var(--t2);font-family:var(--mo);white-space:nowrap}
 </style>
 
 <div>
@@ -135,6 +181,8 @@
   <div class="tabs">
     <button class="tab on"  data-tab="overview">Overview</button>
     <button class="tab"     data-tab="perf">Performance</button>
+    <button class="tab"     data-tab="files">Files</button>
+    <button class="tab"     data-tab="sort">Auto-sort</button>
     <button class="tab"     data-tab="settings">Settings</button>
   </div>
 
@@ -420,6 +468,11 @@
             <label class="lbl">Dupe scan script path</label>
             <input type="text" id="cfg-dupe-script">
           </div>
+          <div class="fld">
+            <label class="lbl">TMDB API key</label>
+            <input type="text" id="cfg-tmdb-key" autocomplete="off">
+            <div class="hint">Required for Auto-sort. Get a free key at <a href="https://www.themoviedb.org/settings/api" target="_blank" style="color:var(--b)">themoviedb.org/settings/api</a></div>
+          </div>
         </div>
         <button is="emby-button" class="raised emby-button" onclick="saveServices()">Save service settings</button>
       </div>
@@ -457,6 +510,85 @@
     </div>
 
   </div><!-- end settings panel -->
+
+  <!-- ═══════════ FILES ═══════════ -->
+  <div class="panel" id="pt-files">
+
+    <div id="fs-lib-section">
+      <div class="sec-lbl">Choose a library to explore</div>
+      <div class="lib-btns" id="fs-lib-btns">
+        <div style="font-size:.82em;color:var(--t2)">Loading libraries…</div>
+      </div>
+    </div>
+
+    <div class="fs-wrap" id="fs-browser">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75em">
+        <button is="emby-button" class="emby-button" onclick="fsBack()">← Libraries</button>
+        <div style="font-size:.78em;color:var(--t2)" id="fs-status"></div>
+      </div>
+
+      <div class="breadcrumb" id="fs-breadcrumb"></div>
+
+      <div class="fs-toolbar">
+        <button is="emby-button" class="raised emby-button" onclick="fsPaste()" id="fs-paste-btn" style="display:none">📋 Paste here</button>
+        <button is="emby-button" class="raised emby-button" onclick="fsCancelClip()" id="fs-cancel-btn" style="display:none">✕ Cancel</button>
+        <div id="fs-clipboard-lbl" style="font-size:.78em;color:var(--b)"></div>
+        <div style="flex:1"></div>
+        <div id="fs-sel-info" style="font-size:.78em;color:var(--t2)"></div>
+      </div>
+
+      <div class="fs-grid" id="fs-grid"></div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════ AUTO-SORT ═══════════ -->
+  <div class="panel" id="pt-sort">
+
+    <div style="font-size:.84em;color:var(--t2);margin-bottom:1.25em">
+      Auto-sort scans your library for folders containing the same content (matched by IMDB ID via TMDB).
+      It merges duplicate folders into one — keeping whichever folder has the most files as the canonical name.
+      <strong>A preview is always shown before anything is moved.</strong>
+    </div>
+
+    <div id="sort-lib-section">
+      <div class="sec-lbl">Choose a library to scan</div>
+      <div id="sort-lib-btns">
+        <div style="font-size:.82em;color:var(--t2)">Loading libraries…</div>
+      </div>
+    </div>
+
+    <div id="sort-results" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1em">
+        <button is="emby-button" class="emby-button" onclick="sortBack()">← Libraries</button>
+        <div id="sort-scanning" style="font-size:.82em;color:var(--b);display:none">
+          <span class="dot"></span> Scanning… this may take a few minutes
+        </div>
+      </div>
+
+      <div id="sort-summary" class="card" style="margin-bottom:1.25em;display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-size:.85em;font-weight:500" id="sort-summary-txt">–</div>
+            <div style="font-size:.75em;color:var(--t2);margin-top:.2em" id="sort-summary-sub"></div>
+          </div>
+          <button is="emby-button" class="raised emby-button" id="sort-merge-all-btn"
+            onclick="sortMergeAll()" style="display:none">Merge all</button>
+        </div>
+      </div>
+
+      <div id="sort-errors" style="display:none;margin-bottom:1em">
+        <div class="sec-lbl" style="color:var(--a)">Warnings</div>
+        <div class="card" id="sort-errors-list" style="font-size:.78em;font-family:var(--mo);color:var(--a)"></div>
+      </div>
+
+      <div id="sort-candidates-list"></div>
+      <div id="sort-empty" class="fs-empty" style="display:none">No duplicate folders found — your library is already well organised!</div>
+      <div id="sort-loading" class="fs-empty">Run a scan to find duplicates.</div>
+    </div>
+
+  </div>
+
 </div>
 
 <div class="toast" id="toast"></div>
@@ -705,6 +837,7 @@ async function loadConfig(){
   if(g('cfg-strip-log'))  g('cfg-strip-log').value=cfg.StripLogPath||'';
   if(g('cfg-dupe-report')) g('cfg-dupe-report').value=cfg.DupesReportPath||'';
   if(g('cfg-dupe-script')) g('cfg-dupe-script').value=cfg.DupesScanScript||'';
+  if(g('cfg-tmdb-key'))    g('cfg-tmdb-key').value=cfg.TmdbApiKey||'';
 
   // Schedule
   if(g('cfg-ps')&&cfg.QuietHoursStart!=null) g('cfg-ps').value=cfg.QuietHoursStart;
@@ -774,6 +907,7 @@ window.saveServices=function(){withCfg(function(cfg){
   cfg.StripLogPath         = g('cfg-strip-log').value.trim();
   cfg.DupesReportPath      = g('cfg-dupe-report').value.trim();
   cfg.DupesScanScript      = g('cfg-dupe-script').value.trim();
+  cfg.TmdbApiKey           = g('cfg-tmdb-key').value.trim();
   saveCfg(cfg);
 });};
 
@@ -800,6 +934,7 @@ window.doRun    =async function(s){
 // ── Init ──────────────────────────────────────────────────────────────
 function init(){
   loadStatus(); loadEncode(); loadDrives(); loadSummary(); loadMetrics(); loadConfig();
+  loadFsLibraries();
   schedPrev();
   setInterval(loadStatus, 15000);
   setInterval(loadEncode,  5000);
@@ -807,6 +942,331 @@ function init(){
   setInterval(loadDrives, 60000);
   setInterval(loadSummary,60000);
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// FILE EXPLORER
+// ═══════════════════════════════════════════════════════════════════
+
+var fsRoot=null, fsCurrent=null, fsClipboard=null, fsClipOp=null;
+
+async function loadFsLibraries(){
+  var libs=await api('/libraries');
+  var container=g('fs-lib-btns');
+  var sortContainer=g('sort-lib-btns');
+  if(!Array.isArray(libs)||!libs.length){
+    container.innerHTML='<div style="font-size:.82em;color:var(--t2)">No libraries configured.</div>';
+    sortContainer.innerHTML=container.innerHTML;
+    return;
+  }
+  // Deduplicate by path
+  var seen=new Set();
+  var unique=libs.filter(function(l){if(seen.has(l.path))return false;seen.add(l.path);return true;});
+
+  container.innerHTML=unique.map(function(l){
+    return '<div class="lib-row">'+
+      '<div><div class="lib-row-name">'+l.name+'</div><div class="lib-row-path">'+l.path+'</div></div>'+
+      '<button is="emby-button" class="raised emby-button" onclick="fsOpen('+JSON.stringify(l.path)+')">Browse</button>'+
+    '</div>';
+  }).join('');
+
+  sortContainer.innerHTML=unique.map(function(l){
+    return '<div class="sort-lib-row">'+
+      '<div><div class="lib-row-name">'+l.name+'</div><div class="lib-row-path">'+l.path+'</div></div>'+
+      '<button is="emby-button" class="raised emby-button" onclick="sortOpen('+JSON.stringify(l.path)+')">Scan for duplicates</button>'+
+    '</div>';
+  }).join('');
+}
+
+function fsBack(){
+  fsRoot=null; fsCurrent=null;
+  g('fs-lib-section').style.display='';
+  g('fs-browser').className='fs-wrap';
+  fsCancelClip();
+}
+
+async function fsOpen(root,path){
+  fsRoot=root;
+  fsCurrent=path||root;
+  g('fs-lib-section').style.display='none';
+  g('fs-browser').className='fs-wrap on';
+  await fsRender(fsCurrent);
+}
+
+async function fsRender(path){
+  fsCurrent=path;
+  setText('fs-status','Loading…');
+  var r=await api('/fs/list?path='+encodeURIComponent(path));
+  if(r._auth_error||r.error){setText('fs-status','Error: '+(r.error||'Auth failed'));return;}
+
+  // Breadcrumb
+  var bc=g('fs-breadcrumb'); bc.innerHTML='';
+  (r.breadcrumbs||[]).forEach(function(seg,i){
+    var name=i===0?'📁 '+seg.split('/').pop()||seg:seg.split('/').pop()||seg;
+    var sp=document.createElement('span');
+    sp.className='bc-seg'; sp.textContent=name; sp.title=seg;
+    sp.onclick=function(){fsRender(seg);};
+    bc.appendChild(sp);
+    if(i<(r.breadcrumbs.length-1)){
+      var sep=document.createElement('span');
+      sep.className='bc-sep'; sep.textContent=' / ';
+      bc.appendChild(sep);
+    }
+  });
+
+  setText('fs-status',(r.dirs.length+r.files.length)+' items');
+
+  var grid=g('fs-grid'); grid.innerHTML='';
+  // Dirs first
+  (r.dirs||[]).forEach(function(d){
+    var el=document.createElement('div');
+    el.className='fs-item'; el.dataset.path=d.path; el.dataset.type='dir';
+    el.innerHTML='<div class="fs-item-icon">📁</div>'+
+      '<div class="fs-item-name">'+esc(d.name)+'</div>'+
+      '<div class="fs-item-meta">Folder</div>';
+    el.ondblclick=function(){fsRender(d.path);};
+    el.onclick=function(e){fsSelect(el,e);};
+    el.oncontextmenu=function(e){e.preventDefault();fsCtx(e,d.path,d.type,d.name);};
+    grid.appendChild(el);
+  });
+  // Files
+  (r.files||[]).forEach(function(f){
+    var icon=fsIcon(f.ext);
+    var el=document.createElement('div');
+    el.className='fs-item'; el.dataset.path=f.path; el.dataset.type='file';
+    el.innerHTML='<div class="fs-item-icon">'+icon+'</div>'+
+      '<div class="fs-item-name">'+esc(f.name)+'</div>'+
+      '<div class="fs-item-meta">'+f.sizeFmt+' · '+f.modified+'</div>';
+    el.onclick=function(e){fsSelect(el,e);};
+    el.oncontextmenu=function(e){e.preventDefault();fsCtx(e,f.path,f.type,f.name);};
+    grid.appendChild(el);
+  });
+  if(!r.dirs.length&&!r.files.length)
+    grid.innerHTML='<div class="fs-empty">Empty folder</div>';
+}
+
+function fsIcon(ext){
+  var video=['.mkv','.mp4','.avi','.mov','.m2ts','.ts','.wmv','.flv','.webm'];
+  var sub=['.srt','.ass','.ssa','.sup','.vtt'];
+  var img=['.jpg','.jpeg','.png','.webp','.gif','.bmp'];
+  if(video.includes(ext))return'🎬';
+  if(sub.includes(ext))return'💬';
+  if(img.includes(ext))return'🖼';
+  if(ext==='.nfo')return'📄';
+  return'📄';
+}
+
+var fsSelected=[];
+function fsSelect(el,e){
+  if(!e.ctrlKey&&!e.metaKey&&!e.shiftKey){
+    document.querySelectorAll('#fs-grid .fs-item').forEach(function(x){x.classList.remove('selected');});
+    fsSelected=[];
+  }
+  el.classList.toggle('selected');
+  var path=el.dataset.path;
+  if(el.classList.contains('selected'))fsSelected.push(path);
+  else fsSelected=fsSelected.filter(function(p){return p!==path;});
+  setText('fs-sel-info',fsSelected.length?fsSelected.length+' selected':'');
+}
+
+// Context menu
+var _ctxMenu=null;
+function fsCtx(e,path,type,name){
+  fsCloseCtx();
+  var menu=document.createElement('div');
+  menu.className='ctx-menu';
+  menu.style.left=e.clientX+'px'; menu.style.top=e.clientY+'px';
+  menu.innerHTML=
+    '<div class="ctx-item" onclick="fsRename('+JSON.stringify(path)+','+JSON.stringify(name)+')">✏️ Rename</div>'+
+    '<div class="ctx-item" onclick="fsClip('+JSON.stringify(path)+','move')">✂️ Cut</div>'+
+    '<div class="ctx-item" onclick="fsClip('+JSON.stringify(path)+','copy')">📋 Copy</div>'+
+    '<div class="ctx-sep"></div>'+
+    '<div class="ctx-item danger" onclick="fsDeletePrompt('+JSON.stringify(path)+','+JSON.stringify(name)+','+JSON.stringify(type)+')">🗑 Delete</div>';
+  document.getElementById('MediaDashPage').appendChild(menu);
+  _ctxMenu=menu;
+  setTimeout(function(){document.addEventListener('click',fsCloseCtx,{once:true});},0);
+}
+function fsCloseCtx(){if(_ctxMenu){_ctxMenu.remove();_ctxMenu=null;}}
+
+// Clipboard
+function fsClip(path,op){
+  fsClipboard=path; fsClipOp=op;
+  g('fs-paste-btn').style.display='';
+  g('fs-cancel-btn').style.display='';
+  setText('fs-clipboard-lbl',(op==='move'?'✂️ Cut:':'📋 Copy: ')+path.split('/').pop());
+  fsCloseCtx();
+}
+window.fsCancelClip=function(){
+  fsClipboard=null; fsClipOp=null;
+  g('fs-paste-btn').style.display='none';
+  g('fs-cancel-btn').style.display='none';
+  setText('fs-clipboard-lbl','');
+};
+window.fsPaste=async function(){
+  if(!fsClipboard||!fsCurrent)return;
+  var r=await api('/fs/'+(fsClipOp==='move'?'move':'copy'),{
+    method:'POST',body:JSON.stringify({sourcePath:fsClipboard,destDir:fsCurrent})});
+  if(r.ok){toast((fsClipOp==='move'?'Moved':'Copied')+' successfully','g');fsCancelClip();fsRender(fsCurrent);}
+  else toast('Failed: '+(r.error||'unknown'),'r');
+};
+
+// Rename
+window.fsRename=async function(path,currentName){
+  fsCloseCtx();
+  var newName=prompt('Rename to:',currentName);
+  if(!newName||newName===currentName)return;
+  var r=await api('/fs/rename',{method:'POST',body:JSON.stringify({path,newName})});
+  if(r.ok){toast('Renamed','g');fsRender(fsCurrent);}
+  else toast('Rename failed: '+(r.error||'unknown'),'r');
+};
+
+// Delete
+window.fsDeletePrompt=async function(path,name,type){
+  fsCloseCtx();
+  var msg=type==='dir'
+    ? 'Delete folder "'+name+'" and ALL its contents? This cannot be undone.'
+    : 'Delete file "'+name+'"? This cannot be undone.';
+  if(!confirm(msg))return;
+  var r=await api('/fs/delete',{method:'POST',body:JSON.stringify({path})});
+  if(r.ok){toast('Deleted','g');fsRender(fsCurrent);}
+  else toast('Delete failed: '+(r.error||'unknown'),'r');
+};
+
+function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+
+// ═══════════════════════════════════════════════════════════════════
+// AUTO-SORT
+// ═══════════════════════════════════════════════════════════════════
+
+var sortLibRoot=null, sortPreviewData=null;
+
+function sortBack(){
+  sortLibRoot=null; sortPreviewData=null;
+  g('sort-lib-section').style.display='';
+  g('sort-results').style.display='none';
+}
+
+async function sortOpen(root){
+  sortLibRoot=root;
+  g('sort-lib-section').style.display='none';
+  g('sort-results').style.display='';
+  g('sort-loading').textContent='Run a scan to find duplicates.';
+  g('sort-summary').style.display='none';
+  g('sort-errors').style.display='none';
+  g('sort-empty').style.display='none';
+  g('sort-candidates-list').innerHTML='';
+  await sortScan();
+}
+
+async function sortScan(){
+  if(!sortLibRoot)return;
+  var tmdbEl=g('cfg-tmdb-key');
+  if(!tmdbEl||!tmdbEl.value.trim()){
+    toast('Set your TMDB API key in Settings first','r');
+    return;
+  }
+  g('sort-scanning').style.display='flex';
+  g('sort-loading').textContent='Scanning… writing IMDB markers (this may take a few minutes for large libraries)';
+
+  // Step 1: write IMDB markers
+  var scan=await api('/sort/scan',{method:'POST',body:JSON.stringify({path:sortLibRoot})});
+  if(!scan.ok){toast('Scan failed: '+(scan.error||'?'),'r');g('sort-scanning').style.display='none';return;}
+
+  // Step 2: build preview
+  var preview=await api('/sort/preview',{method:'POST',body:JSON.stringify({path:sortLibRoot})});
+  g('sort-scanning').style.display='none';
+
+  if(preview._auth_error){toast('Auth error — try refreshing','r');return;}
+  sortPreviewData=preview;
+  renderSortPreview(preview);
+}
+
+function renderSortPreview(preview){
+  var cands=preview.candidates||[];
+
+  // Summary
+  if(cands.length){
+    setText('sort-summary-txt',cands.length+' group'+(cands.length>1?'s':'')+' of duplicate folders found');
+    setText('sort-summary-sub','Merging will consolidate '+preview.totalFolders+' folders into '+cands.length);
+    g('sort-merge-all-btn').style.display='';
+    g('sort-summary').style.display='';
+    g('sort-empty').style.display='none';
+  } else {
+    g('sort-summary').style.display='none';
+    g('sort-empty').style.display='block';
+  }
+
+  // Errors
+  if(preview.errors&&preview.errors.length){
+    g('sort-errors').style.display='';
+    g('sort-errors-list').innerHTML=preview.errors.map(function(e){return'<div>'+esc(e)+'</div>';}).join('');
+  }
+
+  setText('sort-loading','');
+
+  // Candidate cards
+  g('sort-candidates-list').innerHTML=cands.map(function(c,i){
+    var id='sc-'+i;
+    var typeChip=c.type==='tv'
+      ? '<span style="background:rgba(156,39,176,.2);color:#ce93d8;padding:.15em .5em;border-radius:3px;font-size:.68em;font-weight:600">TV</span>'
+      : '<span style="background:rgba(0,164,220,.2);color:var(--b);padding:.15em .5em;border-radius:3px;font-size:.68em;font-weight:600">Movie</span>';
+    var yearStr=c.year>0?' ('+c.year+')':'';
+    var folders=c.groups.map(function(f){
+      return '<div class="sort-folder">'+
+        '<div class="sort-folder-info">'+
+          '<div class="sort-folder-name">'+(f.isCanonical?'⭐ ':'')+esc(f.name)+'</div>'+
+          '<div class="sort-folder-path">'+esc(f.path)+'</div>'+
+        '</div>'+
+        '<div class="sort-folder-count">'+f.fileCount+' file'+(f.fileCount!==1?'s':'')+
+          (f.isCanonical?' · <span style="color:var(--g)">KEEP</span>':' · <span style="color:var(--a)">MERGE IN</span>')+
+        '</div></div>';
+    }).join('');
+    return '<div class="sort-candidate">'+
+      '<div class="sort-candidate-hd" onclick="sortToggle(''+id+'')">'+
+        '<div class="sort-title">'+typeChip+' '+esc(c.title)+yearStr+
+          '<span style="font-size:.72em;color:var(--t2);font-family:var(--mo);margin-left:.5em">'+c.imdbId+'</span>'+
+        '</div>'+
+        '<div class="sort-meta">'+
+          '<span style="font-size:.75em;color:var(--t2)">'+c.groups.length+' folders</span>'+
+          '<button is="emby-button" class="raised emby-button" style="font-size:.75em;padding:.25em .75em" '+
+            'onclick="event.stopPropagation();sortMerge('+JSON.stringify(c.imdbId)+','+JSON.stringify(c.title)+')">Merge</button>'+
+        '</div>'+
+      '</div>'+
+      '<div class="sort-body" id="'+id+'">'+folders+'</div>'+
+    '</div>';
+  }).join('');
+}
+
+window.sortToggle=function(id){g(id).classList.toggle('on');};
+
+window.sortMerge=async function(imdbId,title){
+  if(!confirm('Merge all folders for "'+title+'" into the one with the most files? This will move files and cannot be easily undone.'))return;
+  var r=await api('/sort/execute',{method:'POST',body:JSON.stringify({libraryRoot:sortLibRoot,imdbId})});
+  if(r.ok){toast('Merged successfully — library refresh triggered','g');triggerLibraryScan();await sortScan();}
+  else toast('Merge failed: '+(r.error||'unknown'),'r');
+};
+
+window.sortMergeAll=async function(){
+  var cands=sortPreviewData&&sortPreviewData.candidates||[];
+  if(!cands.length)return;
+  if(!confirm('Merge ALL '+cands.length+' duplicate groups? Files will be moved into the canonical folder for each group.'))return;
+  var failed=0;
+  for(var i=0;i<cands.length;i++){
+    var c=cands[i];
+    var r=await api('/sort/execute',{method:'POST',body:JSON.stringify({libraryRoot:sortLibRoot,imdbId:c.imdbId})});
+    if(!r.ok)failed++;
+  }
+  if(failed===0){toast('All groups merged — triggering library scan','g');triggerLibraryScan();}
+  else toast(failed+' group(s) failed — check individual results','r');
+  await sortScan();
+};
+
+async function triggerLibraryScan(){
+  if(!window.ApiClient)return;
+  try{
+    await ApiClient.ajax({type:'POST',url:ApiClient.getUrl('Library/Refresh')});
+  } catch(e){console.warn('Library refresh failed',e);}
+}
+
 document.readyState==='loading'?document.addEventListener('DOMContentLoaded',init):setTimeout(init,0);
 })();
 </script>

@@ -132,4 +132,11 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>Whether to also pause when Jellyfin streams are active.</summary>
     public bool PauseDuringStreams { get; set; } = true;
+
+    // ── TMDB ──────────────────────────────────────────────────────────────
+    /// <summary>
+    /// TMDB API key — used for auto-sort IMDB lookups.
+    /// Get a free key at https://www.themoviedb.org/settings/api
+    /// </summary>
+    public string TmdbApiKey { get; set; } = string.Empty;
 }
