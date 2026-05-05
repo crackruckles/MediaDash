@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/images/logo.png",
     "versions": [
       {
+        "version": "1.0.7.0",
+        "changelog": "Bug fixes: tab bar, select colors, auth, drives, library pre-fill.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v1.0.7/mediadash_1.0.7.0.zip",
+        "checksum": "cfe04436a8a65cd4380ccd6bd804ebfd",
+        "timestamp": "2026-05-05T11:52:08Z"
+      },
+      {
         "version": "1.0.6.0",
         "changelog": "Public-ready release. No hardcoded paths. GPU/CPU auto-detect. Language config. Library auto-detect.",
         "targetAbi": "10.11.0.0",
