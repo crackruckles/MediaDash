@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/images/logo.png",
     "versions": [
       {
+        "version": "1.0.3.0",
+        "changelog": "New logo. Dashboard and settings pages now work correctly inside Jellyfin.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v1.0.3/mediadash_1.0.3.0.zip",
+        "checksum": "b0e7fcdf92688e879b2d0104238f453c",
+        "timestamp": "2026-05-05T06:16:38Z"
+      },
+      {
         "version": "1.0.2.0",
         "changelog": "Fix: dashboard page now renders correctly inside Jellyfin (page fragment restructure).",
         "targetAbi": "10.11.0.0",
