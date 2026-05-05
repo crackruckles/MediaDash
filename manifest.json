@@ -1,6 +1,6 @@
 [
   {
-    "id": "4a5c8f2e-1b3d-4e6f-9a2c-7d8e0f1b3c5a",
+    "guid": "4a5c8f2e-1b3d-4e6f-9a2c-7d8e0f1b3c5a",
     "name": "MediaDash",
     "overview": "Media processing dashboard for Jellyfin admins.",
     "description": "MediaDash gives Jellyfin admins a built-in dashboard showing the status of background media processing tasks (re-encoding, track stripping, duplicate detection) alongside live stream monitoring and system performance metrics. All paths and service names are configurable via the plugin settings page.",
