@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using Jellyfin.Plugin.MediaDash.Configuration;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
@@ -42,25 +43,31 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     /// <inheritdoc />
     public IEnumerable<PluginPageInfo> GetPages()
     {
-        // The dashboard HTML is embedded as a resource in the DLL.
-        // Jellyfin serves it at /web/configurationpage?name=mediadash-dashboard
+        var ns = GetType().Namespace;
+
+        // Config page — Name must match plugin Name exactly so Jellyfin
+        // shows the Settings button on the plugin card.
         yield return new PluginPageInfo
         {
-            Name = "mediadash-dashboard",
-            EmbeddedResourcePath =
-                $"{GetType().Namespace}.Web.dashboard.html",
+            Name = Name,
+            EmbeddedResourcePath = string.Format(
+                CultureInfo.InvariantCulture,
+                "{0}.Web.config.html",
+                ns),
+        };
+
+        // Dashboard page — accessible at /web/configurationpage?name=MediaDashDashboard
+        yield return new PluginPageInfo
+        {
+            Name = "MediaDashDashboard",
+            EmbeddedResourcePath = string.Format(
+                CultureInfo.InvariantCulture,
+                "{0}.Web.dashboard.html",
+                ns),
             EnableInMainMenu = true,
             MenuSection = "server",
             MenuIcon = "bar_chart",
             DisplayName = "MediaDash",
-        };
-
-        // Configuration page served at Plugins → MediaDash → Settings
-        yield return new PluginPageInfo
-        {
-            Name = "mediadash-config",
-            EmbeddedResourcePath =
-                $"{GetType().Namespace}.Web.config.html",
         };
     }
 }
