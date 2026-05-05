@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/images/logo.png",
     "versions": [
       {
+        "version": "1.0.5.0",
+        "changelog": "Simplified 3-tab UI. Settings: encode method, codec, quality, workers, library paths.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v1.0.5/mediadash_1.0.5.0.zip",
+        "checksum": "f4071fcc4383511e6b790c832236a48d",
+        "timestamp": "2026-05-05T08:53:13Z"
+      },
+      {
         "version": "1.0.4.0",
         "changelog": "Redesigned UI \u2014 no sidebar, tab navigation, Jellyfin-native styling.",
         "targetAbi": "10.11.0.0",
