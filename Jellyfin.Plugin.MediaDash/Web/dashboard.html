@@ -1,399 +1,995 @@
 <div id="MediaDashPage" data-role="page" class="page type-interior pluginConfigurationPage">
 <style>
-#MediaDashPage{--md-blue:#00a4dc;--md-green:#4caf50;--md-amber:#ff9800;--md-red:#f44336;--md-surface:rgba(255,255,255,0.05);--md-border:rgba(255,255,255,0.1);--md-text:rgba(255,255,255,0.87);--md-text2:rgba(255,255,255,0.54);--md-mono:'Courier New',monospace;font-size:14px}
-#MediaDashPage *{box-sizing:border-box}
-#MediaDashPage .md-wrap{padding:1.5em}
-#MediaDashPage .md-tabs{display:flex;gap:0;margin-bottom:1.5em;border-bottom:1px solid var(--md-border);flex-wrap:wrap}
-#MediaDashPage .md-tab{padding:0.65em 1.25em;cursor:pointer;font-size:0.85em;font-weight:500;color:var(--md-text2);border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color 0.15s,border-color 0.15s}
-#MediaDashPage .md-tab:hover{color:var(--md-text)}
-#MediaDashPage .md-tab.active{color:var(--md-blue);border-bottom-color:var(--md-blue)}
-#MediaDashPage .md-panel{display:none}
-#MediaDashPage .md-panel.active{display:block}
-#MediaDashPage .md-section-title{font-size:0.7em;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--md-text2);margin:1.5em 0 0.75em}
-#MediaDashPage .md-grid{display:grid;gap:1em;margin-bottom:1.25em}
-#MediaDashPage .md-grid-4{grid-template-columns:repeat(4,1fr)}
-#MediaDashPage .md-grid-3{grid-template-columns:repeat(3,1fr)}
-#MediaDashPage .md-grid-2{grid-template-columns:repeat(2,1fr)}
-@media(max-width:900px){#MediaDashPage .md-grid-4{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:600px){#MediaDashPage .md-grid-4,#MediaDashPage .md-grid-3,#MediaDashPage .md-grid-2{grid-template-columns:1fr}}
-#MediaDashPage .md-card{background:var(--md-surface);border-radius:4px;border:1px solid var(--md-border);padding:1.25em}
-#MediaDashPage .md-stat-label{font-size:0.75em;color:var(--md-text2);margin-bottom:0.3em}
-#MediaDashPage .md-stat-value{font-size:1.7em;font-weight:600;line-height:1;color:var(--md-text)}
-#MediaDashPage .md-stat-sub{font-size:0.72em;color:var(--md-text2);margin-top:0.3em;font-family:var(--md-mono)}
-#MediaDashPage .md-stat-value.blue{color:var(--md-blue)}
-#MediaDashPage .md-stat-value.green{color:var(--md-green)}
-#MediaDashPage .md-stat-value.amber{color:var(--md-amber)}
-#MediaDashPage .md-disk-track{height:5px;background:var(--md-border);border-radius:3px;overflow:hidden;margin:0.75em 0 0.5em}
-#MediaDashPage .md-disk-fill{height:100%;background:var(--md-blue);border-radius:3px;transition:width 0.6s}
-#MediaDashPage .md-disk-legend{display:flex;gap:1.25em;font-size:0.75em;color:var(--md-text2)}
-#MediaDashPage .md-disk-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle}
-#MediaDashPage .md-encode-card{background:var(--md-surface);border:1px solid var(--md-border);border-radius:4px;padding:1.25em;border-left:3px solid var(--md-blue);margin-bottom:1em}
-#MediaDashPage .md-encode-card.idle{border-left-color:var(--md-border);opacity:0.6}
-#MediaDashPage .md-encode-name{font-size:0.9em;font-weight:500;margin-bottom:0.2em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#MediaDashPage .md-encode-meta{font-size:0.72em;color:var(--md-text2);font-family:var(--md-mono);margin-bottom:0.85em}
-#MediaDashPage .md-encode-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:0.75em;margin-bottom:0.85em}
-#MediaDashPage .md-encode-stat{background:rgba(255,255,255,0.04);border-radius:4px;padding:0.5em 0.65em}
-#MediaDashPage .md-encode-stat-label{font-size:0.65em;font-weight:600;color:var(--md-text2);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.2em}
-#MediaDashPage .md-encode-stat-value{font-size:0.95em;font-weight:600;font-family:var(--md-mono)}
-#MediaDashPage .md-progress-wrap{display:flex;align-items:center;gap:0.75em}
-#MediaDashPage .md-progress-track{flex:1;height:5px;background:var(--md-border);border-radius:3px;overflow:hidden}
-#MediaDashPage .md-progress-fill{height:100%;background:var(--md-blue);border-radius:3px;transition:width 0.8s ease}
-#MediaDashPage .md-progress-pct{font-size:0.82em;font-weight:600;color:var(--md-blue);font-family:var(--md-mono);min-width:42px;text-align:right}
-#MediaDashPage .md-progress-foot{display:flex;justify-content:space-between;margin-top:0.4em;font-size:0.7em;color:var(--md-text2);font-family:var(--md-mono)}
-#MediaDashPage .md-streams-list{display:flex;flex-direction:column;gap:0.5em;margin-top:0.75em}
-#MediaDashPage .md-stream-row{display:flex;align-items:center;padding:0.6em 0.85em;background:rgba(255,255,255,0.04);border-radius:4px;gap:0.75em}
-#MediaDashPage .md-stream-avatar{width:30px;height:30px;border-radius:50%;background:rgba(0,164,220,0.2);color:var(--md-blue);display:flex;align-items:center;justify-content:center;font-size:0.8em;font-weight:700;flex-shrink:0}
-#MediaDashPage .md-stream-info{flex:1;min-width:0}
-#MediaDashPage .md-stream-title{font-size:0.83em;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#MediaDashPage .md-stream-sub{font-size:0.72em;color:var(--md-text2);font-family:var(--md-mono)}
-#MediaDashPage .md-stream-pct{font-size:0.78em;font-weight:600;color:var(--md-green);font-family:var(--md-mono)}
-#MediaDashPage .md-chip{display:inline-flex;align-items:center;padding:0.18em 0.55em;border-radius:3px;font-size:0.72em;font-weight:500}
-#MediaDashPage .chip-blue{background:rgba(0,164,220,0.15);color:var(--md-blue)}
-#MediaDashPage .chip-green{background:rgba(76,175,80,0.15);color:var(--md-green)}
-#MediaDashPage .chip-amber{background:rgba(255,152,0,0.15);color:var(--md-amber)}
-#MediaDashPage .chip-red{background:rgba(244,67,54,0.15);color:var(--md-red)}
-#MediaDashPage .chip-gray{background:rgba(255,255,255,0.08);color:var(--md-text2)}
-#MediaDashPage .chip-purple{background:rgba(156,39,176,0.15);color:#ce93d8}
-#MediaDashPage table{width:100%;border-collapse:collapse}
-#MediaDashPage th{padding:0.55em 0.85em;text-align:left;font-size:0.68em;font-weight:600;color:var(--md-text2);text-transform:uppercase;letter-spacing:0.07em;border-bottom:1px solid var(--md-border);white-space:nowrap}
-#MediaDashPage td{padding:0.6em 0.85em;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.82em}
-#MediaDashPage tr:last-child td{border-bottom:none}
-#MediaDashPage tr:hover td{background:rgba(255,255,255,0.03)}
-#MediaDashPage .td-name{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#MediaDashPage .td-mono{font-family:var(--md-mono);color:var(--md-text2)}
-#MediaDashPage .td-saved{color:var(--md-green);font-weight:600;font-family:var(--md-mono)}
-#MediaDashPage .tbl-wrap{overflow-x:auto}
-#MediaDashPage .md-empty{text-align:center;padding:2.5em;color:var(--md-text2);font-family:var(--md-mono);font-size:0.82em}
-#MediaDashPage .md-bar-row{display:flex;align-items:center;gap:0.6em;margin-bottom:0.4em}
-#MediaDashPage .md-bar-label{font-size:0.7em;color:var(--md-text2);font-family:var(--md-mono);min-width:55px}
-#MediaDashPage .md-bar-track{flex:1;height:5px;background:var(--md-border);border-radius:3px;overflow:hidden}
-#MediaDashPage .md-bar-fill{height:100%;border-radius:3px;transition:width 0.4s}
-#MediaDashPage .md-bar-val{font-size:0.7em;color:var(--md-text2);font-family:var(--md-mono);min-width:40px;text-align:right}
-#MediaDashPage .md-chip-temp{display:inline-flex;align-items:center;gap:0.3em;padding:0.2em 0.6em;border-radius:3px;font-size:0.72em;font-family:var(--md-mono);background:rgba(255,255,255,0.06)}
-#MediaDashPage .md-sep{height:1px;background:var(--md-border);margin:1em 0}
-#MediaDashPage .md-sched-viz{display:flex;gap:2px;height:18px;margin:0.6em 0 0.3em}
-#MediaDashPage .md-sched-hour{flex:1;border-radius:2px}
-#MediaDashPage .md-sched-labels{display:flex;justify-content:space-between;font-size:0.65em;color:var(--md-text2);font-family:var(--md-mono)}
-#MediaDashPage .md-ctrl-row{display:flex;flex-wrap:wrap;gap:0.75em;margin-bottom:0.85em}
-#MediaDashPage .md-form-row{display:grid;grid-template-columns:180px 110px 1fr;align-items:center;gap:0.75em;margin-bottom:0.75em}
-#MediaDashPage .md-form-label{font-size:0.83em;color:var(--md-text2)}
-#MediaDashPage .md-input{padding:0.5em 0.75em;background:rgba(255,255,255,0.06);border:1px solid var(--md-border);border-radius:4px;color:var(--md-text);font-family:var(--md-mono);font-size:0.82em;outline:none;width:100%}
-#MediaDashPage .md-input:focus{border-color:var(--md-blue)}
-#MediaDashPage .md-form-hint{font-size:0.72em;color:var(--md-text2);font-family:var(--md-mono)}
-#MediaDashPage .md-dupe-group{background:var(--md-surface);border:1px solid var(--md-border);border-radius:4px;margin-bottom:0.6em;overflow:hidden}
-#MediaDashPage .md-dupe-header{display:flex;align-items:center;justify-content:space-between;padding:0.75em 1em;background:rgba(255,255,255,0.03);cursor:pointer;gap:0.75em}
-#MediaDashPage .md-dupe-header:hover{background:rgba(255,255,255,0.06)}
-#MediaDashPage .md-dupe-title{font-size:0.85em;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
-#MediaDashPage .md-dupe-meta{display:flex;align-items:center;gap:0.5em;flex-shrink:0}
-#MediaDashPage .md-dupe-body{display:none;padding:0.25em 0}
-#MediaDashPage .md-dupe-body.open{display:block}
-#MediaDashPage .md-dupe-file{display:flex;align-items:flex-start;gap:0.75em;padding:0.5em 1em;border-top:1px solid rgba(255,255,255,0.05)}
-#MediaDashPage .md-dupe-file-path{font-size:0.75em;font-family:var(--md-mono);color:var(--md-text2);word-break:break-all;line-height:1.4}
-#MediaDashPage .md-dupe-file-size{font-size:0.72em;font-family:var(--md-mono);margin-top:0.15em}
-#MediaDashPage .md-search{flex:1;max-width:280px;padding:0.48em 0.85em;background:rgba(255,255,255,0.06);border:1px solid var(--md-border);border-radius:4px;color:var(--md-text);font-family:var(--md-mono);font-size:0.8em;outline:none}
-#MediaDashPage .md-search:focus{border-color:var(--md-blue)}
-#MediaDashPage .md-select{padding:0.48em 0.75em;background:rgba(255,255,255,0.06);border:1px solid var(--md-border);border-radius:4px;color:var(--md-text2);font-size:0.8em;outline:none;cursor:pointer}
-#MediaDashPage .md-toolbar{display:flex;align-items:center;gap:0.75em;margin-bottom:1em;flex-wrap:wrap}
-#MediaDashPage .md-count{font-size:0.78em;color:var(--md-text2);font-family:var(--md-mono)}
-#MediaDashPage .md-status-row{display:flex;align-items:center;gap:0.6em;flex-wrap:wrap;margin-bottom:1.25em}
-#MediaDashPage .md-badge{display:inline-flex;align-items:center;gap:0.35em;padding:0.3em 0.8em;border-radius:20px;font-size:0.78em;font-weight:500}
-#MediaDashPage .badge-idle{background:rgba(255,255,255,0.08);color:var(--md-text2)}
-#MediaDashPage .badge-active{background:rgba(76,175,80,0.15);color:var(--md-green)}
-#MediaDashPage .badge-quiet{background:rgba(255,152,0,0.15);color:var(--md-amber)}
-#MediaDashPage .badge-paused{background:rgba(244,67,54,0.15);color:var(--md-red)}
-#MediaDashPage .md-pulse{width:6px;height:6px;border-radius:50%;background:currentColor;animation:mdblink 1.8s ease-in-out infinite;display:inline-block}
-@keyframes mdblink{0%,100%{opacity:1}50%{opacity:0.3}}
-#MediaDashPage .md-toast-el{position:fixed;bottom:1.5em;right:1.5em;padding:0.65em 1em;background:#222;border:1px solid rgba(255,255,255,0.15);border-radius:4px;font-size:0.82em;opacity:0;pointer-events:none;transition:opacity 0.2s;z-index:9999;font-family:var(--md-mono)}
-#MediaDashPage .md-toast-el.show{opacity:1}
+#MediaDashPage {
+  --jblue: #00a4dc;
+  --jgreen: #4caf50;
+  --jamber: #ff9800;
+  --jred:   #f44336;
+  --surf:   rgba(255,255,255,0.06);
+  --bord:   rgba(255,255,255,0.12);
+  --txt:    rgba(255,255,255,0.87);
+  --txt2:   rgba(255,255,255,0.55);
+  --mono:   'Courier New', monospace;
+}
+#MediaDashPage * { box-sizing: border-box; }
+
+/* ── Tab bar ────────────────────────────────────────────────────────── */
+#MediaDashPage .j-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--bord);
+  margin: 0 0 1.5em;
+  padding-top: 0.5em;   /* clear Jellyfin header overlap */
+}
+#MediaDashPage .j-tab {
+  padding: 0.75em 1.5em;
+  font-size: 0.9em;
+  font-weight: 500;
+  color: var(--txt2);
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  min-height: 44px;        /* easy tap target */
+  user-select: none;
+}
+#MediaDashPage .j-tab:hover  { color: var(--txt); }
+#MediaDashPage .j-tab.active { color: var(--jblue); border-bottom-color: var(--jblue); }
+
+/* ── Panel ──────────────────────────────────────────────────────────── */
+#MediaDashPage .j-panel { display: none; padding: 0 1.5em 2em; }
+#MediaDashPage .j-panel.active { display: block; }
+
+/* ── Cards & sections ───────────────────────────────────────────────── */
+#MediaDashPage .j-section {
+  margin-bottom: 1.5em;
+}
+#MediaDashPage .j-section-label {
+  font-size: 0.72em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--txt2);
+  margin-bottom: 0.75em;
+}
+#MediaDashPage .j-card {
+  background: var(--surf);
+  border: 1px solid var(--bord);
+  border-radius: 4px;
+  padding: 1.25em;
+  margin-bottom: 1em;
+}
+
+/* ── Stat grid ──────────────────────────────────────────────────────── */
+#MediaDashPage .j-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1em;
+  margin-bottom: 1.25em;
+}
+@media (max-width: 700px) {
+  #MediaDashPage .j-stats { grid-template-columns: repeat(2, 1fr); }
+}
+#MediaDashPage .j-stat-label {
+  font-size: 0.75em;
+  color: var(--txt2);
+  margin-bottom: 0.3em;
+}
+#MediaDashPage .j-stat-value {
+  font-size: 1.75em;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--txt);
+}
+#MediaDashPage .j-stat-value.blue  { color: var(--jblue);  }
+#MediaDashPage .j-stat-value.green { color: var(--jgreen); }
+#MediaDashPage .j-stat-value.amber { color: var(--jamber); }
+#MediaDashPage .j-stat-sub {
+  font-size: 0.73em;
+  color: var(--txt2);
+  margin-top: 0.3em;
+}
+
+/* ── Status badges ──────────────────────────────────────────────────── */
+#MediaDashPage .j-badges {
+  display: flex;
+  gap: 0.5em;
+  flex-wrap: wrap;
+  margin-bottom: 1.25em;
+}
+#MediaDashPage .j-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.35em 0.9em;
+  border-radius: 20px;
+  font-size: 0.8em;
+  font-weight: 500;
+}
+#MediaDashPage .b-idle   { background: rgba(255,255,255,0.08); color: var(--txt2); }
+#MediaDashPage .b-active { background: rgba(76,175,80,0.15);   color: var(--jgreen); }
+#MediaDashPage .b-quiet  { background: rgba(255,152,0,0.15);   color: var(--jamber); }
+#MediaDashPage .b-paused { background: rgba(244,67,54,0.15);   color: var(--jred); }
+#MediaDashPage .b-stream { background: rgba(0,164,220,0.15);   color: var(--jblue); }
+#MediaDashPage .j-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: currentColor;
+  animation: jdot 1.8s ease-in-out infinite;
+}
+@keyframes jdot { 0%,100%{opacity:1} 50%{opacity:0.25} }
+
+/* ── Encode progress card ───────────────────────────────────────────── */
+#MediaDashPage .j-encode-card {
+  border-left: 3px solid var(--jblue);
+}
+#MediaDashPage .j-encode-card.idle {
+  border-left-color: var(--bord);
+  opacity: 0.55;
+}
+#MediaDashPage .j-encode-title {
+  font-size: 0.9em;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 0.2em;
+}
+#MediaDashPage .j-encode-sub {
+  font-size: 0.73em;
+  color: var(--txt2);
+  margin-bottom: 1em;
+}
+#MediaDashPage .j-encode-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75em;
+  margin-bottom: 0.9em;
+}
+@media (max-width: 600px) {
+  #MediaDashPage .j-encode-grid { grid-template-columns: repeat(2, 1fr); }
+}
+#MediaDashPage .j-enc-cell {
+  background: rgba(255,255,255,0.04);
+  border-radius: 4px;
+  padding: 0.5em 0.7em;
+}
+#MediaDashPage .j-enc-cell-label {
+  font-size: 0.65em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--txt2);
+  margin-bottom: 0.2em;
+}
+#MediaDashPage .j-enc-cell-value {
+  font-size: 0.95em;
+  font-weight: 600;
+  font-family: var(--mono);
+}
+#MediaDashPage .j-pbar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+}
+#MediaDashPage .j-pbar-track {
+  flex: 1;
+  height: 5px;
+  background: var(--bord);
+  border-radius: 3px;
+  overflow: hidden;
+}
+#MediaDashPage .j-pbar-fill {
+  height: 100%;
+  background: var(--jblue);
+  border-radius: 3px;
+  transition: width 0.8s ease;
+}
+#MediaDashPage .j-pbar-pct {
+  font-size: 0.82em;
+  font-weight: 600;
+  color: var(--jblue);
+  font-family: var(--mono);
+  min-width: 44px;
+  text-align: right;
+}
+#MediaDashPage .j-pbar-foot {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.71em;
+  color: var(--txt2);
+  font-family: var(--mono);
+  margin-top: 0.4em;
+}
+
+/* ── Storage bars ───────────────────────────────────────────────────── */
+#MediaDashPage .j-drive {
+  margin-bottom: 1.1em;
+}
+#MediaDashPage .j-drive:last-child { margin-bottom: 0; }
+#MediaDashPage .j-drive-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82em;
+  margin-bottom: 0.35em;
+}
+#MediaDashPage .j-drive-name { font-weight: 500; color: var(--txt); }
+#MediaDashPage .j-drive-size { color: var(--txt2); font-family: var(--mono); }
+#MediaDashPage .j-drive-track {
+  height: 6px;
+  background: var(--bord);
+  border-radius: 3px;
+  overflow: hidden;
+}
+#MediaDashPage .j-drive-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.6s;
+}
+
+/* ── Streams ────────────────────────────────────────────────────────── */
+#MediaDashPage .j-stream-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  padding: 0.6em 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+#MediaDashPage .j-stream-row:last-child { border-bottom: none; }
+#MediaDashPage .j-avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: rgba(0,164,220,0.18);
+  color: var(--jblue);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.85em;
+  flex-shrink: 0;
+}
+#MediaDashPage .j-stream-info { flex: 1; min-width: 0; }
+#MediaDashPage .j-stream-title {
+  font-size: 0.85em; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#MediaDashPage .j-stream-sub { font-size: 0.72em; color: var(--txt2); }
+#MediaDashPage .j-stream-pct { font-size: 0.78em; font-weight: 600; color: var(--jgreen); }
+
+/* ── Perf bars ──────────────────────────────────────────────────────── */
+#MediaDashPage .j-perf-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1em;
+  margin-bottom: 1em;
+}
+@media (max-width: 600px) {
+  #MediaDashPage .j-perf-grid { grid-template-columns: 1fr; }
+}
+#MediaDashPage .j-perf-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.85em;
+}
+#MediaDashPage .j-perf-title {
+  font-size: 0.72em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--txt2);
+}
+#MediaDashPage .j-perf-value {
+  font-size: 1.5em;
+  font-weight: 600;
+  font-family: var(--mono);
+}
+#MediaDashPage .j-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  margin-bottom: 0.4em;
+}
+#MediaDashPage .j-bar-lbl {
+  font-size: 0.7em; color: var(--txt2);
+  font-family: var(--mono); min-width: 52px;
+}
+#MediaDashPage .j-bar-track {
+  flex: 1; height: 5px;
+  background: var(--bord); border-radius: 3px; overflow: hidden;
+}
+#MediaDashPage .j-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s; }
+#MediaDashPage .j-bar-val {
+  font-size: 0.7em; color: var(--txt2);
+  font-family: var(--mono); min-width: 38px; text-align: right;
+}
+#MediaDashPage .j-chips {
+  display: flex; gap: 0.5em; flex-wrap: wrap; margin-top: 0.85em;
+}
+#MediaDashPage .j-chip {
+  padding: 0.2em 0.6em;
+  background: rgba(255,255,255,0.06);
+  border-radius: 3px;
+  font-size: 0.72em;
+  font-family: var(--mono);
+}
+
+/* ── Settings ───────────────────────────────────────────────────────── */
+#MediaDashPage .j-field {
+  margin-bottom: 1.25em;
+}
+#MediaDashPage .j-label {
+  display: block;
+  font-size: 0.83em;
+  color: var(--txt2);
+  margin-bottom: 0.4em;
+  font-weight: 500;
+}
+#MediaDashPage .j-input,
+#MediaDashPage .j-select {
+  width: 100%;
+  max-width: 360px;
+  padding: 0.6em 0.85em;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--bord);
+  border-radius: 4px;
+  color: var(--txt);
+  font-size: 0.88em;
+  outline: none;
+}
+#MediaDashPage .j-input:focus,
+#MediaDashPage .j-select:focus  { border-color: var(--jblue); }
+#MediaDashPage .j-hint {
+  font-size: 0.73em;
+  color: var(--txt2);
+  margin-top: 0.3em;
+}
+#MediaDashPage .j-textarea {
+  width: 100%;
+  max-width: 500px;
+  padding: 0.6em 0.85em;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--bord);
+  border-radius: 4px;
+  color: var(--txt);
+  font-size: 0.82em;
+  font-family: var(--mono);
+  outline: none;
+  resize: vertical;
+  min-height: 90px;
+}
+#MediaDashPage .j-sep {
+  height: 1px;
+  background: var(--bord);
+  margin: 1.5em 0;
+}
+#MediaDashPage .j-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75em;
+  margin-bottom: 0.75em;
+}
+
+/* ── Sched viz ──────────────────────────────────────────────────────── */
+#MediaDashPage .j-sched {
+  display: flex;
+  gap: 2px;
+  height: 20px;
+  margin: 0.5em 0 0.3em;
+}
+#MediaDashPage .j-sched-h { flex: 1; border-radius: 2px; }
+#MediaDashPage .j-sched-lbls {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.65em;
+  color: var(--txt2);
+  font-family: var(--mono);
+  margin-bottom: 0.75em;
+}
+
+/* ── Toast ──────────────────────────────────────────────────────────── */
+#MediaDashPage .j-toast {
+  position: fixed;
+  bottom: 1.5em;
+  right: 1.5em;
+  padding: 0.65em 1.1em;
+  background: #222;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 4px;
+  font-size: 0.82em;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  z-index: 9999;
+}
+#MediaDashPage .j-toast.show { opacity: 1; }
 </style>
 
-<div class="md-wrap">
-
-  <div class="md-tabs">
-    <button class="md-tab active" data-tab="overview">Overview</button>
-    <button class="md-tab" data-tab="strip">Track Stripping</button>
-    <button class="md-tab" data-tab="reencode">Re-encoding</button>
-    <button class="md-tab" data-tab="dupes">Duplicates</button>
-    <button class="md-tab" data-tab="perf">Performance</button>
-    <button class="md-tab" data-tab="settings">Settings</button>
+<div>
+  <!-- Tab bar -->
+  <div class="j-tabs">
+    <button class="j-tab active" data-tab="overview">Overview</button>
+    <button class="j-tab" data-tab="perf">Performance</button>
+    <button class="j-tab" data-tab="settings">Settings</button>
   </div>
 
-  <!-- OVERVIEW -->
-  <div class="md-panel active" id="md-tab-overview">
-    <div class="md-status-row">
-      <div id="md-status-badge" class="md-badge badge-idle"><span id="md-status-txt">Idle</span></div>
-      <div id="md-quiet-badge" class="md-badge badge-quiet" style="display:none">Quiet hours</div>
-      <div id="md-pause-badge" class="md-badge badge-paused" style="display:none">Paused</div>
-      <div id="md-stream-badge" class="md-badge" style="display:none;background:rgba(76,175,80,0.15);color:var(--md-green)"><span class="md-pulse"></span><span id="md-stream-badge-txt"></span></div>
+  <!-- ═══════════════════════════════ OVERVIEW ═══════════════════════════════ -->
+  <div class="j-panel active" id="jt-overview">
+
+    <!-- Status row -->
+    <div class="j-badges">
+      <div id="j-status-badge" class="j-badge b-idle">Idle</div>
+      <div id="j-quiet-badge"  class="j-badge b-quiet" style="display:none">Quiet hours</div>
+      <div id="j-pause-badge"  class="j-badge b-paused" style="display:none">Paused</div>
+      <div id="j-stream-badge" class="j-badge b-stream" style="display:none"><span class="j-dot"></span><span id="j-stream-lbl"></span></div>
     </div>
 
-    <div id="md-encode-card" class="md-encode-card idle">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5em">
-        <span style="font-size:0.7em;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--md-text2)">Re-encode progress</span>
-        <span id="md-ep-chip" class="md-chip chip-gray">Idle</span>
-      </div>
-      <div class="md-encode-name" id="md-ep-name">No encode running</div>
-      <div class="md-encode-meta" id="md-ep-meta">Waiting for next scheduled window</div>
-      <div class="md-encode-stats">
-        <div class="md-encode-stat"><div class="md-encode-stat-label">Source</div><div class="md-encode-stat-value" id="md-ep-source">–</div></div>
-        <div class="md-encode-stat"><div class="md-encode-stat-label">Output</div><div class="md-encode-stat-value" id="md-ep-current">–</div></div>
-        <div class="md-encode-stat"><div class="md-encode-stat-label">Est. final</div><div class="md-encode-stat-value" id="md-ep-final">–</div></div>
-        <div class="md-encode-stat"><div class="md-encode-stat-label">Est. saving</div><div class="md-encode-stat-value" id="md-ep-saving">–</div></div>
-      </div>
-      <div class="md-progress-wrap">
-        <div class="md-progress-track"><div class="md-progress-fill" id="md-ep-bar" style="width:0%"></div></div>
-        <div class="md-progress-pct" id="md-ep-pct">0%</div>
-      </div>
-      <div class="md-progress-foot"><span id="md-ep-elapsed">–</span><span id="md-ep-speed"></span></div>
-    </div>
-
-    <div class="md-card" style="margin-bottom:1em">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:0.5em">
-        <span style="font-size:0.7em;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--md-text2)">Storage</span>
-        <span style="font-size:0.78em;color:var(--md-text2);font-family:var(--md-mono)" id="md-disk-nums">–</span>
-      </div>
-      <div class="md-disk-track"><div class="md-disk-fill" id="md-disk-fill" style="width:0%"></div></div>
-      <div class="md-disk-legend">
-        <span><span class="md-disk-dot" style="background:var(--md-blue)"></span><span id="md-disk-used-lbl">Used</span></span>
-        <span><span class="md-disk-dot" style="background:rgba(255,255,255,0.15)"></span><span id="md-disk-free-lbl">Free</span></span>
-      </div>
-    </div>
-
-    <div class="md-grid md-grid-4" style="margin-bottom:1em">
-      <div class="md-card"><div class="md-stat-label">Files Stripped</div><div class="md-stat-value blue" id="md-ov-processed">–</div><div class="md-stat-sub">track stripped</div></div>
-      <div class="md-card"><div class="md-stat-label">Space Freed (strip)</div><div class="md-stat-value green" id="md-ov-strip-saved">–</div><div class="md-stat-sub">audio/sub removal</div></div>
-      <div class="md-card"><div class="md-stat-label">Re-encoded</div><div class="md-stat-value" id="md-ov-reencoded">–</div><div class="md-stat-sub">files completed</div></div>
-      <div class="md-card"><div class="md-stat-label">Space Freed (encode)</div><div class="md-stat-value green" id="md-ov-encode-saved">–</div><div class="md-stat-sub">codec conversion</div></div>
-    </div>
-    <div class="md-grid md-grid-4">
-      <div class="md-card"><div class="md-stat-label">Dupe Groups</div><div class="md-stat-value" id="md-ov-dupes">–</div><div class="md-stat-sub">by IMDB ID</div></div>
-      <div class="md-card"><div class="md-stat-label">Reclaimable</div><div class="md-stat-value green" id="md-ov-dupes-wasted">–</div><div class="md-stat-sub">from duplicates</div></div>
-      <div class="md-card"><div class="md-stat-label">Encodes Remaining</div><div class="md-stat-value amber" id="md-ov-remaining">–</div><div class="md-stat-sub" id="md-ov-remaining-sub">in queue</div></div>
-      <div class="md-card"><div class="md-stat-label">Activity</div><div class="md-stat-value" id="md-ov-activity" style="font-size:1rem;padding-top:0.2em">–</div><div class="md-stat-sub" id="md-ov-activity-sub"></div></div>
-    </div>
-
-    <div id="md-streams-section" style="display:none;margin-top:1em">
-      <div class="md-section-title" style="color:var(--md-green)">● Active Streams</div>
-      <div id="md-stream-list" class="md-streams-list"></div>
-    </div>
-  </div>
-
-  <!-- STRIP -->
-  <div class="md-panel" id="md-tab-strip">
-    <div class="md-toolbar">
-      <input class="md-search" id="md-strip-q" placeholder="Search filename…" oninput="mdRenderStrip()">
-      <select class="md-select" id="md-strip-f" onchange="mdRenderStrip()">
-        <option value="all">All files</option><option value="processed">Modified</option><option value="clean">Already clean</option>
-      </select>
-      <span class="md-count" id="md-strip-count"></span>
-    </div>
-    <div class="tbl-wrap"><table><thead><tr><th>Filename</th><th>Audio removed</th><th>Subs removed</th><th>Saved</th><th>Status</th></tr></thead>
-    <tbody id="md-strip-tbody"><tr><td colspan="5" class="md-empty">Loading…</td></tr></tbody></table></div>
-  </div>
-
-  <!-- REENCODE -->
-  <div class="md-panel" id="md-tab-reencode">
-    <div class="md-toolbar">
-      <input class="md-search" id="md-re-q" placeholder="Search filename…" oninput="mdRenderRe()">
-      <select class="md-select" id="md-re-f" onchange="mdRenderRe()">
-        <option value="all">All</option><option value="done">Done</option><option value="encoding">In progress</option><option value="failed">Failed</option>
-      </select>
-      <span class="md-count" id="md-re-count"></span>
-    </div>
-    <div class="tbl-wrap"><table><thead><tr><th>Filename</th><th>Codec</th><th>Before</th><th>After</th><th>Saved</th><th>Time</th><th>Status</th></tr></thead>
-    <tbody id="md-re-tbody"><tr><td colspan="7" class="md-empty">Loading…</td></tr></tbody></table></div>
-  </div>
-
-  <!-- DUPES -->
-  <div class="md-panel" id="md-tab-dupes">
-    <div class="md-grid md-grid-4" style="margin-bottom:1.25em">
-      <div class="md-card"><div class="md-stat-label">Groups</div><div class="md-stat-value" id="md-d-groups">–</div><div class="md-stat-sub">unique titles</div></div>
-      <div class="md-card"><div class="md-stat-label">Reclaimable</div><div class="md-stat-value green" id="md-d-wasted">–</div><div class="md-stat-sub">space to recover</div></div>
-      <div class="md-card"><div class="md-stat-label">Movies</div><div class="md-stat-value" id="md-d-movies">–</div></div>
-      <div class="md-card"><div class="md-stat-label">TV Episodes</div><div class="md-stat-value" id="md-d-episodes">–</div></div>
-    </div>
-    <div class="md-card" style="margin-bottom:1.25em;text-align:center;padding:1.5em">
-      <div style="font-size:0.9em;font-weight:500;margin-bottom:0.35em">Duplicate detection</div>
-      <div style="font-size:0.78em;color:var(--md-text2);margin-bottom:1em" id="md-dupes-last-scan">No scan on record</div>
-      <button is="emby-button" class="raised emby-button" id="md-scan-btn" onclick="mdRunDupeScan()">Run scan now</button>
-      <button is="emby-button" class="raised emby-button" id="md-delete-all-btn" onclick="mdDeleteAllDupes()" style="display:none;margin-left:0.5em">Delete All Duplicates</button>
-    </div>
-    <div class="md-toolbar">
-      <input class="md-search" id="md-dupes-q" placeholder="Search title or path…" oninput="mdRenderDupes()">
-      <select class="md-select" id="md-dupes-type-f" onchange="mdRenderDupes()">
-        <option value="all">All types</option><option value="Movie">Movies</option><option value="Episode">TV Episodes</option>
-      </select>
-      <span class="md-count" id="md-dupes-count"></span>
-    </div>
-    <div id="md-dupes-list"></div>
-    <div id="md-dupes-empty" class="md-empty" style="display:none">No duplicates found</div>
-    <div id="md-dupes-loading" class="md-empty">Loading…</div>
-  </div>
-
-  <!-- PERFORMANCE -->
-  <div class="md-panel" id="md-tab-perf">
-    <div class="md-grid md-grid-2">
-      <div class="md-card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.85em">
-          <span style="font-size:0.7em;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--md-text2)">CPU</span>
-          <span id="md-cpu-pct" style="font-size:1.4em;font-weight:600;color:var(--md-blue)">–%</span>
+    <!-- Active encode -->
+    <div class="j-section">
+      <div class="j-section-label">Current task</div>
+      <div class="j-card j-encode-card idle" id="j-enc-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5em">
+          <span id="j-enc-chip" style="font-size:0.75em;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--txt2)">No task running</span>
+          <span id="j-enc-speed" style="font-size:0.75em;color:var(--txt2);font-family:var(--mono)"></span>
         </div>
-        <div id="md-core-bars"></div>
-        <div class="md-sep"></div>
-        <span class="md-chip-temp" id="md-cpu-temp">CPU –°C</span>
-      </div>
-      <div class="md-card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.85em">
-          <span style="font-size:0.7em;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--md-text2)">GPU</span>
-          <span id="md-gpu-pct" style="font-size:1.4em;font-weight:600;color:#ce93d8">–%</span>
+        <div class="j-encode-title" id="j-enc-name">Encoder is idle</div>
+        <div class="j-encode-sub"  id="j-enc-meta">Waiting for next scheduled window</div>
+        <div class="j-encode-grid">
+          <div class="j-enc-cell"><div class="j-enc-cell-label">Source</div><div class="j-enc-cell-value" id="j-enc-src">–</div></div>
+          <div class="j-enc-cell"><div class="j-enc-cell-label">Output so far</div><div class="j-enc-cell-value" id="j-enc-out">–</div></div>
+          <div class="j-enc-cell"><div class="j-enc-cell-label">Est. final</div><div class="j-enc-cell-value" id="j-enc-fin">–</div></div>
+          <div class="j-enc-cell"><div class="j-enc-cell-label">Est. saving</div><div class="j-enc-cell-value" id="j-enc-sav">–</div></div>
         </div>
-        <div class="md-bar-row"><div class="md-bar-label">GPU</div><div class="md-bar-track"><div class="md-bar-fill" id="md-gpu-bar" style="background:#9c27b0;width:0%"></div></div><div class="md-bar-val" id="md-gpu-val">–%</div></div>
-        <div class="md-bar-row"><div class="md-bar-label">VRAM</div><div class="md-bar-track"><div class="md-bar-fill" id="md-vram-bar" style="background:var(--md-blue);width:0%"></div></div><div class="md-bar-val" id="md-vram-val">–%</div></div>
-        <div class="md-sep"></div>
-        <span class="md-chip-temp" id="md-vram-detail">VRAM –/– MB</span>&nbsp;
-        <span class="md-chip-temp" id="md-gpu-temp">GPU –°C</span>
+        <div class="j-pbar-wrap">
+          <div class="j-pbar-track"><div class="j-pbar-fill" id="j-enc-bar" style="width:0%"></div></div>
+          <div class="j-pbar-pct"  id="j-enc-pct">0%</div>
+        </div>
+        <div class="j-pbar-foot">
+          <span id="j-enc-elapsed"></span>
+          <span id="j-enc-remaining"></span>
+        </div>
       </div>
     </div>
-    <div class="md-grid md-grid-2">
-      <div class="md-card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.85em">
-          <span style="font-size:0.7em;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--md-text2)">Memory</span>
-          <span id="md-mem-pct" style="font-size:1.4em;font-weight:600;color:var(--md-amber)">–%</span>
-        </div>
-        <div class="md-bar-row"><div class="md-bar-label">RAM</div><div class="md-bar-track"><div class="md-bar-fill" id="md-mem-bar" style="background:var(--md-amber);width:0%"></div></div><div class="md-bar-val" id="md-mem-val">–%</div></div>
-        <div style="margin-top:0.85em;font-size:0.75em;color:var(--md-text2);font-family:var(--md-mono)" id="md-mem-detail">– / –</div>
-      </div>
-      <div class="md-card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.85em">
-          <span style="font-size:0.7em;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--md-text2)">Disk I/O</span>
-          <span class="md-chip-temp" id="md-nvme-temp">NVMe –°C</span>
-        </div>
-        <div class="md-bar-row"><div class="md-bar-label">Read</div><div class="md-bar-track"><div class="md-bar-fill" style="width:100%;background:var(--md-blue)"></div></div><div class="md-bar-val" id="md-disk-r">–</div></div>
-        <div class="md-bar-row"><div class="md-bar-label">Write</div><div class="md-bar-track"><div class="md-bar-fill" style="width:100%;background:var(--md-green)"></div></div><div class="md-bar-val" id="md-disk-w">–</div></div>
+
+    <!-- Active streams -->
+    <div class="j-section" id="j-streams-section" style="display:none">
+      <div class="j-section-label" style="color:var(--jgreen)">Active streams</div>
+      <div class="j-card" id="j-streams-list"></div>
+    </div>
+
+    <!-- Storage -->
+    <div class="j-section">
+      <div class="j-section-label">Storage</div>
+      <div class="j-card" id="j-drives-card">
+        <div style="font-size:0.82em;color:var(--txt2)">Loading…</div>
       </div>
     </div>
+
+    <!-- Summary stats -->
+    <div class="j-section">
+      <div class="j-section-label">Processing summary</div>
+      <div class="j-stats">
+        <div class="j-card">
+          <div class="j-stat-label">Files re-encoded</div>
+          <div class="j-stat-value blue" id="j-st-encoded">–</div>
+          <div class="j-stat-sub" id="j-st-encoded-sub">–</div>
+        </div>
+        <div class="j-card">
+          <div class="j-stat-label">Space saved (encode)</div>
+          <div class="j-stat-value green" id="j-st-encsaved">–</div>
+          <div class="j-stat-sub" id="j-st-remaining">– in queue</div>
+        </div>
+        <div class="j-card">
+          <div class="j-stat-label">Tracks stripped</div>
+          <div class="j-stat-value" id="j-st-stripped">–</div>
+          <div class="j-stat-sub" id="j-st-stripsaved">–</div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
-  <!-- SETTINGS -->
-  <div class="md-panel" id="md-tab-settings">
-    <div class="md-section-title">Process Controls</div>
-    <div class="md-card" style="margin-bottom:1.25em">
-      <div class="md-ctrl-row">
-        <button is="emby-button" class="raised emby-button" onclick="mdPause()">⏸ Pause encoding</button>
-        <button is="emby-button" class="raised emby-button" onclick="mdResume()">▶ Resume encoding</button>
+  <!-- ═══════════════════════════════ PERFORMANCE ══════════════════════════════ -->
+  <div class="j-panel" id="jt-perf">
+
+    <div class="j-perf-grid">
+      <!-- CPU -->
+      <div class="j-card">
+        <div class="j-perf-header">
+          <span class="j-perf-title">CPU</span>
+          <span class="j-perf-value" id="j-cpu-pct" style="color:var(--jblue)">–%</span>
+        </div>
+        <div id="j-core-bars"></div>
+        <div class="j-chips">
+          <span class="j-chip" id="j-cpu-temp">CPU: –°C</span>
+        </div>
       </div>
-      <div class="md-ctrl-row">
-        <button is="emby-button" class="raised emby-button" onclick="mdRun('strip-tracks')">▶ Run strip tracks now</button>
-        <button is="emby-button" class="raised emby-button" onclick="mdRun('reencode-bdremux')">▶ Run re-encoder now</button>
+      <!-- GPU -->
+      <div class="j-card">
+        <div class="j-perf-header">
+          <span class="j-perf-title">GPU</span>
+          <span class="j-perf-value" id="j-gpu-pct" style="color:#ce93d8">–%</span>
+        </div>
+        <div class="j-bar-row">
+          <div class="j-bar-lbl">GPU</div>
+          <div class="j-bar-track"><div class="j-bar-fill" id="j-gpu-bar" style="background:#9c27b0;width:0%"></div></div>
+          <div class="j-bar-val" id="j-gpu-val">–</div>
+        </div>
+        <div class="j-bar-row">
+          <div class="j-bar-lbl">VRAM</div>
+          <div class="j-bar-track"><div class="j-bar-fill" id="j-vram-bar" style="background:var(--jblue);width:0%"></div></div>
+          <div class="j-bar-val" id="j-vram-val">–</div>
+        </div>
+        <div class="j-chips">
+          <span class="j-chip" id="j-gpu-temp">GPU: –°C</span>
+          <span class="j-chip" id="j-vram-detail">VRAM –/–</span>
+        </div>
       </div>
     </div>
-    <div class="md-section-title">Quiet Hours</div>
-    <div class="md-card">
-      <div style="font-size:0.82em;color:var(--md-text2);margin-bottom:0.75em">Encoding pauses during this window to avoid impacting streams.</div>
-      <div class="md-sched-labels"><span>12am</span><span>6am</span><span>12pm</span><span>6pm</span><span>12am</span></div>
-      <div class="md-sched-viz" id="md-sched-viz"></div>
-      <div style="display:flex;gap:0.5em;align-items:center;font-size:0.72em;color:var(--md-text2);margin-bottom:1.1em">
-        <div style="width:12px;height:12px;border-radius:2px;background:rgba(255,152,0,0.2);border:1px solid var(--md-amber)"></div>Paused
-        <div style="width:12px;height:12px;border-radius:2px;background:rgba(76,175,80,0.2);border:1px solid var(--md-green);margin-left:0.5em"></div>Active
+
+    <div class="j-perf-grid">
+      <!-- Memory -->
+      <div class="j-card">
+        <div class="j-perf-header">
+          <span class="j-perf-title">Memory</span>
+          <span class="j-perf-value" id="j-mem-pct" style="color:var(--jamber)">–%</span>
+        </div>
+        <div class="j-bar-row">
+          <div class="j-bar-lbl">RAM</div>
+          <div class="j-bar-track"><div class="j-bar-fill" id="j-mem-bar" style="background:var(--jamber);width:0%"></div></div>
+          <div class="j-bar-val" id="j-mem-val">–</div>
+        </div>
+        <div class="j-chips"><span class="j-chip" id="j-mem-detail">– / –</span></div>
       </div>
-      <div class="md-form-row"><div class="md-form-label">Pause encoding at</div><input class="md-input" type="number" min="0" max="23" id="md-ps-inp" value="8" oninput="mdPreviewSched()"><div class="md-form-hint">hour (0–23)</div></div>
-      <div class="md-form-row" style="margin-bottom:1em"><div class="md-form-label">Resume encoding at</div><input class="md-input" type="number" min="0" max="23" id="md-pe-inp" value="16" oninput="mdPreviewSched()"><div class="md-form-hint">hour (0–23)</div></div>
-      <button is="emby-button" class="raised emby-button" onclick="mdSaveSchedule()">Save schedule</button>
+      <!-- Disk I/O -->
+      <div class="j-card">
+        <div class="j-perf-header">
+          <span class="j-perf-title">Disk I/O</span>
+          <span class="j-chip" id="j-nvme-temp">NVMe: –°C</span>
+        </div>
+        <div class="j-bar-row">
+          <div class="j-bar-lbl">Read</div>
+          <div class="j-bar-track"><div class="j-bar-fill" style="width:100%;background:var(--jblue)"></div></div>
+          <div class="j-bar-val" id="j-disk-r">–</div>
+        </div>
+        <div class="j-bar-row">
+          <div class="j-bar-lbl">Write</div>
+          <div class="j-bar-track"><div class="j-bar-fill" style="width:100%;background:var(--jgreen)"></div></div>
+          <div class="j-bar-val" id="j-disk-w">–</div>
+        </div>
+      </div>
     </div>
+
   </div>
 
+  <!-- ═══════════════════════════════ SETTINGS ════════════════════════════════ -->
+  <div class="j-panel" id="jt-settings">
+
+    <!-- Process controls -->
+    <div class="j-section">
+      <div class="j-section-label">Encoder controls</div>
+      <div class="j-card">
+        <div class="j-btn-row">
+          <button is="emby-button" class="raised emby-button" onclick="jPause()">⏸ Pause</button>
+          <button is="emby-button" class="raised emby-button" onclick="jResume()">▶ Resume</button>
+          <button is="emby-button" class="raised emby-button" onclick="jRun('reencode-bdremux')">▶ Run re-encoder now</button>
+          <button is="emby-button" class="raised emby-button" onclick="jRun('strip-tracks')">▶ Run strip tracks now</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Encode settings -->
+    <div class="j-section">
+      <div class="j-section-label">Encode settings</div>
+      <div class="j-card">
+
+        <div class="j-field">
+          <label class="j-label">Encode method</label>
+          <select class="j-select" id="j-enc-method">
+            <option value="vaapi">VAAPI (AMD/Intel GPU — recommended)</option>
+            <option value="nvenc">NVENC (NVIDIA GPU)</option>
+            <option value="software">Software (CPU only — slowest)</option>
+          </select>
+          <div class="j-hint">Requires matching hardware. VAAPI is used on your AMD Ryzen 6900HX.</div>
+        </div>
+
+        <div class="j-field">
+          <label class="j-label">Target codec</label>
+          <select class="j-select" id="j-enc-codec">
+            <option value="hevc">H.265 / HEVC (best compression)</option>
+            <option value="h264">H.264 / AVC (maximum compatibility)</option>
+            <option value="av1">AV1 (best quality, very slow)</option>
+          </select>
+        </div>
+
+        <div class="j-field">
+          <label class="j-label">Quality (CQP — lower = better quality, larger file)</label>
+          <input class="j-input" type="number" id="j-enc-quality" min="16" max="35" value="22">
+          <div class="j-hint">22 is a good default. 18 = near-lossless. 28 = smaller files.</div>
+        </div>
+
+        <div class="j-field">
+          <label class="j-label">Concurrent encode workers</label>
+          <input class="j-input" type="number" id="j-enc-workers" min="1" max="4" value="2">
+          <div class="j-hint">How many files to encode simultaneously. 2 is recommended for your hardware.</div>
+        </div>
+
+        <button is="emby-button" class="raised emby-button" onclick="jSaveEncodeSettings()">Save encode settings</button>
+      </div>
+    </div>
+
+    <!-- Library paths -->
+    <div class="j-section">
+      <div class="j-section-label">Library paths to process</div>
+      <div class="j-card">
+        <div class="j-field">
+          <label class="j-label">Media directories (one per line)</label>
+          <textarea class="j-textarea" id="j-lib-paths" rows="4"></textarea>
+          <div class="j-hint">The encoder and track stripper will scan these directories for video files.</div>
+        </div>
+        <div class="j-field">
+          <label class="j-label">Skip codecs (already efficient — comma separated)</label>
+          <input class="j-input" type="text" id="j-skip-codecs" value="hevc,av1">
+          <div class="j-hint">Files already in these codecs will be skipped.</div>
+        </div>
+        <button is="emby-button" class="raised emby-button" onclick="jSaveLibraries()">Save library settings</button>
+      </div>
+    </div>
+
+    <!-- Quiet hours -->
+    <div class="j-section">
+      <div class="j-section-label">Quiet hours — encoding pauses during this window</div>
+      <div class="j-card">
+        <div class="j-sched-lbls"><span>12am</span><span>6am</span><span>12pm</span><span>6pm</span><span>12am</span></div>
+        <div class="j-sched" id="j-sched-viz"></div>
+        <div style="display:flex;gap:0.6em;align-items:center;font-size:0.72em;color:var(--txt2);margin-bottom:1.1em">
+          <div style="width:11px;height:11px;border-radius:2px;background:rgba(255,152,0,0.2);border:1px solid var(--jamber)"></div>Paused
+          <div style="width:11px;height:11px;border-radius:2px;background:rgba(76,175,80,0.2);border:1px solid var(--jgreen);margin-left:0.4em"></div>Active
+        </div>
+        <div class="j-field">
+          <label class="j-label">Pause at (hour, 0–23)</label>
+          <input class="j-input" type="number" min="0" max="23" id="j-ps" value="8" oninput="jSchedPrev()">
+        </div>
+        <div class="j-field">
+          <label class="j-label">Resume at (hour, 0–23)</label>
+          <input class="j-input" type="number" min="0" max="23" id="j-pe" value="16" oninput="jSchedPrev()">
+        </div>
+        <button is="emby-button" class="raised emby-button" onclick="jSaveSched()">Save schedule</button>
+      </div>
+    </div>
+
+  </div>
 </div>
-<div class="md-toast-el" id="md-toast"></div>
+
+<div class="j-toast" id="j-toast"></div>
 
 <script>
-(function(){
-var BASE='/mediadash/api';
-function authH(){if(window.ApiClient){var t=ApiClient.accessToken();return{'X-Emby-Authorization':'MediaBrowser Client="MediaDash",Device="Web",DeviceId="mediadash",Version="1.0.0",Token="'+t+'"'};}return{};}
-async function api(p,o){o=o||{};var h=Object.assign({'Content-Type':'application/json'},authH(),o.headers||{});var r=await fetch(BASE+p,Object.assign({},o,{headers:h}));if(!r.ok)return{};return r.json();}
-function toast(m,t){var el=document.getElementById('md-toast');el.textContent=m;el.style.borderColor=t==='green'?'#4caf50':t==='red'?'#f44336':'#00a4dc';el.classList.add('show');setTimeout(function(){el.classList.remove('show');},2800);}
-document.querySelectorAll('#MediaDashPage .md-tab').forEach(function(b){
-  b.addEventListener('click',function(){
-    document.querySelectorAll('#MediaDashPage .md-tab').forEach(function(x){x.classList.remove('active');});
-    document.querySelectorAll('#MediaDashPage .md-panel').forEach(function(x){x.classList.remove('active');});
-    b.classList.add('active');
-    document.getElementById('md-tab-'+b.dataset.tab).classList.add('active');
+(function () {
+var BASE = '/mediadash/api';
+
+function authH() {
+  if (window.ApiClient) {
+    return { 'X-Emby-Authorization':
+      'MediaBrowser Client="MediaDash",Device="Web",DeviceId="mediadash",Version="1.0.0",Token="' + ApiClient.accessToken() + '"' };
+  }
+  return {};
+}
+async function api(path, opts) {
+  opts = opts || {};
+  var h = Object.assign({ 'Content-Type': 'application/json' }, authH(), opts.headers || {});
+  try {
+    var r = await fetch(BASE + path, Object.assign({}, opts, { headers: h }));
+    if (!r.ok) return {};
+    return await r.json();
+  } catch (e) { return {}; }
+}
+function toast(msg, col) {
+  var t = document.getElementById('j-toast');
+  t.textContent = msg;
+  t.style.borderColor = col === 'green' ? '#4caf50' : col === 'red' ? '#f44336' : '#00a4dc';
+  t.classList.add('show');
+  setTimeout(function () { t.classList.remove('show'); }, 2800);
+}
+
+// ── Tab switching ────────────────────────────────────────────────────
+document.querySelectorAll('#MediaDashPage .j-tab').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    document.querySelectorAll('#MediaDashPage .j-tab').forEach(function (b) { b.classList.remove('active'); });
+    document.querySelectorAll('#MediaDashPage .j-panel').forEach(function (p) { p.classList.remove('active'); });
+    btn.classList.add('active');
+    document.getElementById('jt-' + btn.dataset.tab).classList.add('active');
   });
 });
-function fG(g){return g>=1?g.toFixed(1)+'GB':Math.round(g*1024)+'MB';}
-function fM(m){return m>=1024?(m/1024).toFixed(1)+'GB':m+'MB';}
-function fS(s){if(!s)return'–';var h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=s%60;return h>0?h+'h '+m+'m':m>0?m+'m '+sc+'s':sc+'s';}
-var sD=[],rD=[],dD={groups:[],totalGroups:0};
 
-async function loadDisk(){var d=await api('/disk');if(!d.pct&&d.pct!==0)return;document.getElementById('md-disk-fill').style.width=d.pct+'%';document.getElementById('md-disk-nums').textContent=d.usedGb+'GB / '+d.totalGb+'GB ('+d.pct+'%)';document.getElementById('md-disk-used-lbl').textContent=d.usedGb+'GB used';document.getElementById('md-disk-free-lbl').textContent=d.freeGb+'GB free';}
-
-async function loadStatus(){
-  var s=await api('/status');if(!s.schedule)return;
-  var bd=document.getElementById('md-status-badge');
-  if(s.encodingActive||s.strippingActive){bd.className='md-badge badge-active';bd.innerHTML='<span class="md-pulse"></span> '+(s.encodingActive?'Encoding':'Stripping');}
-  else{bd.className='md-badge badge-idle';bd.innerHTML='Idle';}
-  document.getElementById('md-quiet-badge').style.display=s.inQuietHours?'flex':'none';
-  document.getElementById('md-pause-badge').style.display=s.paused?'flex':'none';
-  var st=s.jellyfinStreams||[];
-  var sb=document.getElementById('md-stream-badge');
-  if(st.length){sb.style.display='flex';document.getElementById('md-stream-badge-txt').textContent=st.length+' stream'+(st.length>1?'s':'');
-    document.getElementById('md-streams-section').style.display='block';
-    document.getElementById('md-stream-list').innerHTML=st.map(function(x){return'<div class="md-stream-row"><div class="md-stream-avatar">'+(x.user||'?').charAt(0).toUpperCase()+'</div><div class="md-stream-info"><div class="md-stream-title">'+(x.series?x.series+' — ':'')+x.title+'</div><div class="md-stream-sub">'+x.user+' · '+x.client+'</div></div><span class="md-stream-pct">'+x.progressPct+'%</span></div>';}).join('');
-  }else{sb.style.display='none';document.getElementById('md-streams-section').style.display='none';}
-  if(s.schedule){document.getElementById('md-ps-inp').value=s.schedule.pauseStart;document.getElementById('md-pe-inp').value=s.schedule.pauseEnd;mdPreviewSched();}
-  var act='–',sub='';
-  if(s.encodingActive){act='Encoding';sub='VAAPI H.265';}else if(s.strippingActive){act='Stripping';sub='Removing tracks';}else if(s.paused){act='Paused';sub='Manually paused';}else if(s.inQuietHours){act='Quiet hours';sub='Resumes '+s.schedule.pauseEnd+':00';}else{act='Idle';sub='Waiting';}
-  document.getElementById('md-ov-activity').textContent=act;document.getElementById('md-ov-activity-sub').textContent=sub;
+// ── Helpers ──────────────────────────────────────────────────────────
+function fG(gb) { return gb >= 1 ? gb.toFixed(1) + 'GB' : Math.round(gb * 1024) + 'MB'; }
+function fM(mb) { return mb >= 1024 ? (mb / 1024).toFixed(1) + 'GB' : mb + 'MB'; }
+function fS(s) {
+  if (!s) return '';
+  var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sc = s % 60;
+  return h > 0 ? h + 'h ' + m + 'm' : m > 0 ? m + 'm ' + sc + 's' : sc + 's';
+}
+function driveColor(pct) {
+  return pct > 90 ? '#f44336' : pct > 75 ? '#ff9800' : '#00a4dc';
 }
 
-async function loadEncodeStatus(){
-  var e=await api('/encode_status');
-  var card=document.getElementById('md-encode-card');
-  var chip=document.getElementById('md-ep-chip');
-  if(!e.active){card.className='md-encode-card idle';chip.className='md-chip chip-gray';chip.textContent='Idle';
-    document.getElementById('md-ep-name').textContent='No encode running';
-    document.getElementById('md-ep-meta').innerHTML='Encoder paused or waiting';
-    ['md-ep-source','md-ep-current','md-ep-final','md-ep-saving'].forEach(function(i){document.getElementById(i).textContent='–';});
-    document.getElementById('md-ep-elapsed').textContent='–';document.getElementById('md-ep-speed').textContent='';
-    document.getElementById('md-ep-bar').style.width='0%';document.getElementById('md-ep-pct').textContent='0%';return;
+// ── Status + streams ─────────────────────────────────────────────────
+async function loadStatus() {
+  var s = await api('/status');
+  if (!s.schedule) return;
+
+  // Badge
+  var sb = document.getElementById('j-status-badge');
+  if (s.encodingActive || s.strippingActive) {
+    sb.className = 'j-badge b-active';
+    sb.innerHTML = '<span class="j-dot"></span> ' + (s.encodingActive ? 'Encoding' : 'Stripping tracks');
+  } else if (s.paused) {
+    sb.className = 'j-badge b-paused'; sb.textContent = 'Paused';
+  } else {
+    sb.className = 'j-badge b-idle'; sb.textContent = 'Idle';
   }
-  card.className='md-encode-card';chip.className='md-chip chip-blue';chip.textContent='Encoding';
-  document.getElementById('md-ep-name').textContent=e.name||'–';
-  document.getElementById('md-ep-meta').textContent=(e.codec||'h264')+' → H.265 · started '+(e.startedAt||'–');
-  document.getElementById('md-ep-source').textContent=e.sourceGb?e.sourceGb+' GB':'–';
-  document.getElementById('md-ep-current').textContent=e.tmpSizeGb>0?e.tmpSizeGb+' GB':'–';
-  document.getElementById('md-ep-final').textContent=e.estFinalGb>0?e.estFinalGb+' GB':e.pct<3?'calculating…':'–';
-  document.getElementById('md-ep-saving').textContent=(e.estSavingGb||0)>0?e.estSavingGb.toFixed(1)+' GB freed':e.pct<3?'calculating…':'–';
-  document.getElementById('md-ep-elapsed').textContent='Elapsed: '+fS(e.elapsedS);
-  document.getElementById('md-ep-speed').textContent=(e.speed&&e.speed!=='N/A')?'Speed: '+e.speed:'';
-  var p=e.pct||0;document.getElementById('md-ep-bar').style.width=p+'%';document.getElementById('md-ep-pct').textContent=p.toFixed(1)+'%';
+  document.getElementById('j-quiet-badge').style.display = s.inQuietHours ? 'flex' : 'none';
+  document.getElementById('j-pause-badge').style.display = s.paused ? 'flex' : 'none';
+
+  // Streams
+  var streams = s.jellyfinStreams || [];
+  var streamBadge = document.getElementById('j-stream-badge');
+  var streamsSection = document.getElementById('j-streams-section');
+  if (streams.length) {
+    streamBadge.style.display = 'flex';
+    document.getElementById('j-stream-lbl').textContent = streams.length + ' stream' + (streams.length > 1 ? 's' : '');
+    streamsSection.style.display = '';
+    document.getElementById('j-streams-list').innerHTML = streams.map(function (st) {
+      return '<div class="j-stream-row">' +
+        '<div class="j-avatar">' + (st.user || '?').charAt(0).toUpperCase() + '</div>' +
+        '<div class="j-stream-info">' +
+          '<div class="j-stream-title">' + (st.series ? st.series + ' — ' : '') + st.title + '</div>' +
+          '<div class="j-stream-sub">' + st.user + ' · ' + st.client + '</div>' +
+        '</div>' +
+        '<span class="j-stream-pct">' + st.progressPct + '%</span>' +
+        '</div>';
+    }).join('');
+  } else {
+    streamBadge.style.display = 'none';
+    streamsSection.style.display = 'none';
+  }
+
+  // Sync settings tab schedule
+  if (s.schedule) {
+    document.getElementById('j-ps').value = s.schedule.pauseStart;
+    document.getElementById('j-pe').value = s.schedule.pauseEnd;
+    jSchedPrev();
+  }
 }
 
-async function loadEncodeRemaining(){var items=await api('/encode_remaining');if(!Array.isArray(items))return;var g=items.reduce(function(s,f){return s+(f.sizeGb||0);},0);document.getElementById('md-ov-remaining').textContent=items.length;document.getElementById('md-ov-remaining-sub').textContent=items.length===0?'queue empty':g.toFixed(1)+'GB queued';}
+// ── Encode progress ──────────────────────────────────────────────────
+async function loadEncode() {
+  var e = await api('/encode_status');
+  var card = document.getElementById('j-enc-card');
+  if (!e.active) {
+    card.className = 'j-card j-encode-card idle';
+    document.getElementById('j-enc-chip').textContent = 'No task running';
+    document.getElementById('j-enc-name').textContent = 'Encoder is idle';
+    document.getElementById('j-enc-meta').textContent = 'Waiting for next scheduled window';
+    document.getElementById('j-enc-speed').textContent = '';
+    ['j-enc-src','j-enc-out','j-enc-fin','j-enc-sav'].forEach(function(id){document.getElementById(id).textContent='–';});
+    document.getElementById('j-enc-bar').style.width = '0%';
+    document.getElementById('j-enc-pct').textContent = '0%';
+    document.getElementById('j-enc-elapsed').textContent = '';
+    document.getElementById('j-enc-remaining').textContent = '';
+    return;
+  }
+  card.className = 'j-card j-encode-card';
+  document.getElementById('j-enc-chip').textContent = (e.codec || 'h264').toUpperCase() + ' → H.265';
+  document.getElementById('j-enc-name').textContent = e.name || '–';
+  document.getElementById('j-enc-meta').textContent = 'Started at ' + (e.startedAt || '–') + (e.worker != null ? ' · Worker ' + e.worker : '');
+  document.getElementById('j-enc-speed').textContent = (e.speed && e.speed !== 'N/A') ? e.speed : '';
+  document.getElementById('j-enc-src').textContent = e.sourceGb ? e.sourceGb + ' GB' : '–';
+  document.getElementById('j-enc-out').textContent = e.tmpSizeGb > 0 ? e.tmpSizeGb + ' GB' : '–';
+  document.getElementById('j-enc-fin').textContent = e.estFinalGb > 0 ? e.estFinalGb + ' GB' : (e.pct < 3 ? '…' : '–');
+  document.getElementById('j-enc-sav').textContent = (e.estSavingGb || 0) > 0 ? e.estSavingGb.toFixed(1) + ' GB' : (e.pct < 3 ? '…' : '–');
+  var p = e.pct || 0;
+  document.getElementById('j-enc-bar').style.width = p + '%';
+  document.getElementById('j-enc-pct').textContent = p.toFixed(1) + '%';
+  document.getElementById('j-enc-elapsed').textContent = e.elapsedS ? 'Elapsed ' + fS(e.elapsedS) : '';
+  // Estimate time remaining
+  if (p > 2 && e.elapsedS) {
+    var estTotal = e.elapsedS / (p / 100);
+    var remaining = Math.max(0, Math.round(estTotal - e.elapsedS));
+    document.getElementById('j-enc-remaining').textContent = fS(remaining) + ' remaining';
+  } else {
+    document.getElementById('j-enc-remaining').textContent = '';
+  }
+}
 
-async function loadStrip(){sD=await api('/strip');if(!Array.isArray(sD))sD=[];var proc=sD.filter(function(f){return f.status==='processed';});var mb=sD.reduce(function(s,f){return s+(f.savedMb||0);},0);document.getElementById('md-ov-processed').textContent=proc.length;document.getElementById('md-ov-strip-saved').textContent=mb>=1024?(mb/1024).toFixed(1)+'GB':Math.round(mb)+'MB';mdRenderStrip();}
-window.mdRenderStrip=function(){var q=document.getElementById('md-strip-q').value.toLowerCase(),f=document.getElementById('md-strip-f').value;var rows=sD.filter(function(r){return(!q||r.name.toLowerCase().includes(q))&&(f==='all'||(f==='processed'?r.status==='processed':r.status==='clean'));});document.getElementById('md-strip-count').textContent=rows.length+' files';var tb=document.getElementById('md-strip-tbody');if(!rows.length){tb.innerHTML='<tr><td colspan="5" class="md-empty">No results</td></tr>';return;}tb.innerHTML=rows.map(function(r){return'<tr><td class="td-name" title="'+r.name+'">'+r.name+'</td><td>'+(r.audioDropped?'<span class="md-chip chip-purple">−'+r.audioDropped+'</span>':'<span class="md-chip chip-gray">–</span>')+'</td><td>'+(r.subsDropped?'<span class="md-chip chip-blue">−'+r.subsDropped+'</span>':'<span class="md-chip chip-gray">–</span>')+'</td><td class="td-mono">'+(r.savedMb?'<span class="td-saved">'+Math.round(r.savedMb)+'MB</span>':'–')+'</td><td>'+(r.status==='processed'?'<span class="md-chip chip-green">done</span>':'<span class="md-chip chip-gray">clean</span>')+'</td></tr>';}).join('');};
+// ── Storage — driven by Jellyfin library paths ───────────────────────
+async function loadStorage() {
+  var disk = await api('/disk');
+  // Also pull status to get library info from config
+  var cfg = await api('/status');
+  var container = document.getElementById('j-drives-card');
 
-async function loadRe(){rD=await api('/reencode');if(!Array.isArray(rD))rD=[];var done=rD.filter(function(f){return f.status==='done';});var sv=done.reduce(function(s,f){return s+(f.savedGb||0);},0);document.getElementById('md-ov-reencoded').textContent=done.length;document.getElementById('md-ov-encode-saved').textContent=sv.toFixed(1)+'GB';mdRenderRe();}
-window.mdRenderRe=function(){var q=document.getElementById('md-re-q').value.toLowerCase(),f=document.getElementById('md-re-f').value;var rows=rD.filter(function(r){return(!q||r.name.toLowerCase().includes(q))&&(f==='all'||r.status===f);});document.getElementById('md-re-count').textContent=rows.length+' files';var tb=document.getElementById('md-re-tbody');if(!rows.length){tb.innerHTML='<tr><td colspan="7" class="md-empty">No results</td></tr>';return;}tb.innerHTML=rows.map(function(r){var sc=r.status==='done'?'chip-green':r.status==='encoding'?'chip-amber':'chip-red';return'<tr><td class="td-name" title="'+r.name+'">'+r.name+'</td><td class="td-mono">'+(r.codec||'–')+'</td><td class="td-mono">'+(r.beforeGb||0).toFixed(1)+'GB</td><td class="td-mono">'+(r.afterGb?r.afterGb.toFixed(1)+'GB':'–')+'</td><td class="td-mono">'+(r.savedGb?'<span class="td-saved">'+r.savedGb.toFixed(1)+'GB</span>':'–')+'</td><td class="td-mono">'+(r.elapsedMin?r.elapsedMin+'min':'–')+'</td><td><span class="md-chip '+sc+'">'+r.status+'</span></td></tr>';}).join('');};
+  // Use the single disk endpoint for now (plugin reads MediaRootPath)
+  // Show one bar per unique drive mount
+  if (disk.totalGb) {
+    var pct = disk.pct || 0;
+    var col = driveColor(pct);
+    container.innerHTML =
+      '<div class="j-drive">' +
+        '<div class="j-drive-header">' +
+          '<span class="j-drive-name">Media Storage</span>' +
+          '<span class="j-drive-size">' + disk.usedGb + ' GB used of ' + disk.totalGb + ' GB (' + pct + '%)</span>' +
+        '</div>' +
+        '<div class="j-drive-track"><div class="j-drive-fill" style="width:' + pct + '%;background:' + col + '"></div></div>' +
+        '<div style="font-size:0.72em;color:var(--txt2);margin-top:0.3em">' + disk.freeGb + ' GB free</div>' +
+      '</div>';
+  } else {
+    container.innerHTML = '<div style="font-size:0.82em;color:var(--txt2)">Storage data unavailable — check Media Root Path in plugin settings.</div>';
+  }
+}
 
-async function loadDupes(){dD=await api('/dupes');if(!dD||!dD.groups)dD={groups:[],totalGroups:0,totalWastedFmt:'0B'};var g=dD.groups||[];var mv=g.filter(function(x){return x.type==='Movie';});var ep=g.filter(function(x){return x.type==='Episode';});document.getElementById('md-ov-dupes').textContent=dD.totalGroups||0;document.getElementById('md-ov-dupes-wasted').textContent=dD.totalWastedFmt||'–';document.getElementById('md-d-groups').textContent=dD.totalGroups||0;document.getElementById('md-d-wasted').textContent=dD.totalWastedFmt||'0B';document.getElementById('md-d-movies').textContent=mv.length;document.getElementById('md-d-episodes').textContent=ep.length;document.getElementById('md-delete-all-btn').style.display=(dD.totalGroups>0)?'':'none';if(dD.generated)document.getElementById('md-dupes-last-scan').textContent='Last scan: '+new Date(dD.generated).toLocaleString();document.getElementById('md-dupes-loading').style.display='none';mdRenderDupes();}
-window.mdRenderDupes=function(){var q=document.getElementById('md-dupes-q').value.toLowerCase(),t=document.getElementById('md-dupes-type-f').value;var groups=(dD.groups||[]).filter(function(g){return(t==='all'||g.type===t)&&(!q||g.title.toLowerCase().includes(q)||g.imdb.includes(q)||(g.duplicates||[]).some(function(d){return d.path.toLowerCase().includes(q);}));});document.getElementById('md-dupes-count').textContent=groups.length+' groups';document.getElementById('md-dupes-empty').style.display=groups.length?'none':'block';document.getElementById('md-dupes-list').innerHTML=groups.map(function(g){var id='mdg-'+g.imdb.replace(/[^a-z0-9]/gi,'');var tc=g.type==='Movie'?'chip-blue':'chip-purple';var keep='<div class="md-dupe-file"><div style="flex-shrink:0;margin-right:0.5em;margin-top:2px"><span class="md-chip chip-green">KEEP</span></div><div><div class="md-dupe-file-path">'+g.keeper.path+'</div><div class="md-dupe-file-size" style="color:var(--md-green)">'+g.keeper.sizeFmt+'</div></div></div>';var dups=(g.duplicates||[]).map(function(d){return'<div class="md-dupe-file"><div style="flex-shrink:0;margin-right:0.5em;margin-top:2px"><span class="md-chip chip-red">DEL</span></div><div><div class="md-dupe-file-path">'+d.path+'</div><div class="md-dupe-file-size" style="color:var(--md-red)">'+d.sizeFmt+'</div></div></div>';}).join('');return'<div class="md-dupe-group"><div class="md-dupe-header" onclick="mdToggleDupe(\''+id+'\')"><div class="md-dupe-title"><span class="md-chip '+tc+'" style="margin-right:0.5em">'+g.type+'</span>'+g.title+'</div><div class="md-dupe-meta"><span class="md-chip chip-amber">'+g.wastedFmt+'</span><span style="font-size:0.75em;color:var(--md-text2)">'+g.fileCount+' files</span><button is="emby-button" class="emby-button" style="font-size:0.72em;padding:0.2em 0.6em" onclick="event.stopPropagation();mdDeleteGroup(\''+g.imdb+'\',\''+g.title.replace(/'/g,"\\'")+'\')">Delete</button></div></div><div class="md-dupe-body" id="'+id+'">'+keep+dups+'</div></div>';}).join('');};
-window.mdToggleDupe=function(id){document.getElementById(id).classList.toggle('open');};
+// ── Processing summary ───────────────────────────────────────────────
+async function loadSummary() {
+  var re = await api('/reencode');
+  var strip = await api('/strip');
+  var remaining = await api('/encode_remaining');
 
-async function loadMetrics(){var m=await api('/metrics');if(!m.cpuPct&&m.cpuPct!==0)return;document.getElementById('md-cpu-pct').textContent=m.cpuPct+'%';document.getElementById('md-gpu-pct').textContent=m.gpuPct+'%';document.getElementById('md-mem-pct').textContent=m.memPct+'%';document.getElementById('md-gpu-bar').style.width=m.gpuPct+'%';document.getElementById('md-gpu-val').textContent=m.gpuPct+'%';var vp=m.vramTotalMb>0?Math.round(m.vramUsedMb/m.vramTotalMb*100):0;document.getElementById('md-vram-bar').style.width=vp+'%';document.getElementById('md-vram-val').textContent=vp+'%';document.getElementById('md-vram-detail').textContent='VRAM '+fM(m.vramUsedMb)+' / '+fM(m.vramTotalMb);document.getElementById('md-mem-bar').style.width=m.memPct+'%';document.getElementById('md-mem-val').textContent=m.memPct+'%';document.getElementById('md-mem-detail').textContent=fM(m.memUsedMb)+' / '+fM(m.memTotalMb);if(m.temps){if(m.temps.cpu!=null)document.getElementById('md-cpu-temp').textContent='CPU '+m.temps.cpu+'°C';if(m.temps.gpu!=null)document.getElementById('md-gpu-temp').textContent='GPU '+m.temps.gpu+'°C';if(m.temps.nvme!=null)document.getElementById('md-nvme-temp').textContent='NVMe '+m.temps.nvme+'°C';}document.getElementById('md-disk-r').textContent=m.diskReadGb>=1000?(m.diskReadGb/1000).toFixed(1)+'TB':m.diskReadGb+'GB';document.getElementById('md-disk-w').textContent=m.diskWriteGb>=1000?(m.diskWriteGb/1000).toFixed(1)+'TB':m.diskWriteGb+'GB';if(m.perCore&&m.perCore.length)document.getElementById('md-core-bars').innerHTML=m.perCore.map(function(p,i){return'<div class="md-bar-row"><div class="md-bar-label">Core '+i+'</div><div class="md-bar-track"><div class="md-bar-fill" style="background:var(--md-blue);width:'+p+'%"></div></div><div class="md-bar-val">'+p+'%</div></div>';}).join('');}
+  if (Array.isArray(re)) {
+    var done = re.filter(function(f){return f.status==='done';});
+    var saved = done.reduce(function(s,f){return s+(f.savedGb||0);},0);
+    document.getElementById('j-st-encoded').textContent = done.length;
+    document.getElementById('j-st-encoded-sub').textContent = done.length === 1 ? '1 file' : done.length + ' files';
+    document.getElementById('j-st-encsaved').textContent = saved.toFixed(1) + 'GB';
+  }
+  if (Array.isArray(remaining)) {
+    document.getElementById('j-st-remaining').textContent = remaining.length + ' file' + (remaining.length === 1 ? '' : 's') + ' remaining';
+  }
+  if (Array.isArray(strip)) {
+    var sproc = strip.filter(function(f){return f.status==='processed';});
+    var smb = strip.reduce(function(s,f){return s+(f.savedMb||0);},0);
+    document.getElementById('j-st-stripped').textContent = sproc.length;
+    document.getElementById('j-st-stripsaved').textContent = smb >= 1024 ? (smb/1024).toFixed(1)+'GB saved' : Math.round(smb)+'MB saved';
+  }
+}
 
-function mdRenderSchedViz(ps,pe){document.getElementById('md-sched-viz').innerHTML=Array.from({length:24},function(_,i){var q=ps<pe?(i>=ps&&i<pe):(i>=ps||i<pe);return'<div class="md-sched-hour" style="background:'+(q?'rgba(255,152,0,0.25);border:1px solid #ff9800':'rgba(76,175,80,0.2);border:1px solid #4caf50')+'" title="'+i+':00"></div>';}).join('');}
-window.mdPreviewSched=function(){mdRenderSchedViz(parseInt(document.getElementById('md-ps-inp').value)||8,parseInt(document.getElementById('md-pe-inp').value)||16);};
-window.mdPause=async function(){await api('/pause',{method:'POST',body:'{}'});toast('Encoding paused','amber');loadStatus();};
-window.mdResume=async function(){await api('/resume',{method:'POST',body:'{}'});toast('Force resuming','green');setTimeout(loadStatus,800);setTimeout(loadEncodeStatus,2000);};
-window.mdRun=async function(s){var r=await api('/run',{method:'POST',body:JSON.stringify({script:s})});r.ok?toast('Started: '+s):toast('Error: '+(r.error||'?'),'red');setTimeout(loadStatus,1500);};
-window.mdSaveSchedule=async function(){var r=await api('/schedule',{method:'POST',body:JSON.stringify({pauseStart:parseInt(document.getElementById('md-ps-inp').value),pauseEnd:parseInt(document.getElementById('md-pe-inp').value)})});r.ok?toast('Schedule saved','green'):toast('Failed','red');};
-window.mdRunDupeScan=async function(){var b=document.getElementById('md-scan-btn');b.disabled=true;b.textContent='Scanning…';var r=await api('/dupes/scan',{method:'POST',body:'{}'});if(r.ok){toast('Scan started','blue');document.getElementById('md-dupes-last-scan').textContent='Scan running…';setTimeout(function(){loadDupes();b.textContent='Run scan now';b.disabled=false;},65000);}else{toast('Scan failed','red');b.textContent='Run scan now';b.disabled=false;}};
-window.mdDeleteGroup=async function(imdb,title){if(!confirm('Delete duplicate copy of "'+title+'"?'))return;var r=await api('/dupes/delete',{method:'POST',body:JSON.stringify({imdb:imdb})});r.ok?toast('Deleted '+r.deleted+' file(s), freed '+r.freedGb.toFixed(1)+'GB','green'):toast('Delete failed','red');if(r.ok)setTimeout(loadDupes,2000);};
-window.mdDeleteAllDupes=async function(){if(!confirm('Delete ALL '+(dD.totalGroups||0)+' duplicate groups? Frees ~'+(dD.totalWastedFmt||'?')+'. Largest file per group is kept.'))return;var b=document.getElementById('md-delete-all-btn');b.disabled=true;b.textContent='Deleting…';var r=await api('/dupes/delete',{method:'POST',body:'{}'});r.ok?toast('Deleted '+r.deleted+' file(s), freed '+r.freedGb.toFixed(1)+'GB','green'):toast('Delete failed','red');b.textContent='Delete All Duplicates';b.disabled=false;if(r.ok)setTimeout(loadDupes,2000);};
+// ── Performance ──────────────────────────────────────────────────────
+async function loadMetrics() {
+  var m = await api('/metrics');
+  if (!m.cpuPct && m.cpuPct !== 0) return;
 
-function init(){Promise.all([loadDisk(),loadStatus(),loadStrip(),loadRe(),loadDupes(),loadMetrics(),loadEncodeStatus(),loadEncodeRemaining()]);setInterval(loadStatus,15000);setInterval(loadDisk,30000);setInterval(loadMetrics,4000);setInterval(loadEncodeStatus,5000);setInterval(loadEncodeRemaining,60000);mdPreviewSched();}
-if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',init);}else{setTimeout(init,0);}
+  document.getElementById('j-cpu-pct').textContent = m.cpuPct + '%';
+  document.getElementById('j-gpu-pct').textContent = m.gpuPct + '%';
+  document.getElementById('j-mem-pct').textContent = m.memPct + '%';
+
+  document.getElementById('j-gpu-bar').style.width = m.gpuPct + '%';
+  document.getElementById('j-gpu-val').textContent = m.gpuPct + '%';
+
+  var vp = m.vramTotalMb > 0 ? Math.round(m.vramUsedMb / m.vramTotalMb * 100) : 0;
+  document.getElementById('j-vram-bar').style.width = vp + '%';
+  document.getElementById('j-vram-val').textContent = vp + '%';
+  document.getElementById('j-vram-detail').textContent = fM(m.vramUsedMb) + ' / ' + fM(m.vramTotalMb);
+
+  document.getElementById('j-mem-bar').style.width = m.memPct + '%';
+  document.getElementById('j-mem-val').textContent = m.memPct + '%';
+  document.getElementById('j-mem-detail').textContent = fM(m.memUsedMb) + ' / ' + fM(m.memTotalMb);
+
+  if (m.temps) {
+    if (m.temps.cpu  != null) document.getElementById('j-cpu-temp').textContent  = 'CPU: '  + m.temps.cpu  + '°C';
+    if (m.temps.gpu  != null) document.getElementById('j-gpu-temp').textContent  = 'GPU: '  + m.temps.gpu  + '°C';
+    if (m.temps.nvme != null) document.getElementById('j-nvme-temp').textContent = 'NVMe: ' + m.temps.nvme + '°C';
+  }
+
+  var dr = m.diskReadGb;
+  var dw = m.diskWriteGb;
+  document.getElementById('j-disk-r').textContent = dr >= 1000 ? (dr/1000).toFixed(1)+'TB' : dr+'GB';
+  document.getElementById('j-disk-w').textContent = dw >= 1000 ? (dw/1000).toFixed(1)+'TB' : dw+'GB';
+
+  // Per-core CPU bars
+  if (m.perCore && m.perCore.length) {
+    document.getElementById('j-core-bars').innerHTML = m.perCore.map(function (p, i) {
+      return '<div class="j-bar-row">' +
+        '<div class="j-bar-lbl">Core ' + i + '</div>' +
+        '<div class="j-bar-track"><div class="j-bar-fill" style="background:var(--jblue);width:' + p + '%"></div></div>' +
+        '<div class="j-bar-val">' + p + '%</div></div>';
+    }).join('');
+  }
+}
+
+// ── Settings — load config defaults ─────────────────────────────────
+async function loadConfig() {
+  if (!window.ApiClient) return;
+  try {
+    var cfg = await new Promise(function(res) {
+      ApiClient.getPluginConfiguration('4a5c8f2e-1b3d-4e6f-9a2c-7d8e0f1b3c5a').then(res);
+    });
+    if (cfg.VideoExtensions) {
+      // Show media paths from config
+      var paths = (cfg.MediaRootPath || '').split(',').map(function(p){return p.trim();}).filter(Boolean);
+      document.getElementById('j-lib-paths').value = paths.join('\n');
+    }
+    if (cfg.SkipCodecs) document.getElementById('j-skip-codecs').value = cfg.SkipCodecs;
+    if (cfg.QuietHoursStart != null) { document.getElementById('j-ps').value = cfg.QuietHoursStart; }
+    if (cfg.QuietHoursEnd   != null) { document.getElementById('j-pe').value = cfg.QuietHoursEnd;   }
+    jSchedPrev();
+  } catch (e) {}
+}
+
+// ── Schedule visualiser ──────────────────────────────────────────────
+window.jSchedPrev = function () {
+  var ps = parseInt(document.getElementById('j-ps').value) || 8;
+  var pe = parseInt(document.getElementById('j-pe').value) || 16;
+  document.getElementById('j-sched-viz').innerHTML = Array.from({ length: 24 }, function (_, i) {
+    var q = ps < pe ? (i >= ps && i < pe) : (i >= ps || i < pe);
+    return '<div class="j-sched-h" style="background:' +
+      (q ? 'rgba(255,152,0,0.3);border:1px solid var(--jamber)' : 'rgba(76,175,80,0.2);border:1px solid var(--jgreen)') +
+      '" title="' + i + ':00"></div>';
+  }).join('');
+};
+
+// ── Actions ──────────────────────────────────────────────────────────
+window.jPause  = async function () { await api('/pause',  { method: 'POST', body: '{}' }); toast('Encoding paused', 'amber'); loadStatus(); };
+window.jResume = async function () { await api('/resume', { method: 'POST', body: '{}' }); toast('Resuming encoder', 'green'); setTimeout(loadStatus, 800); setTimeout(loadEncode, 2000); };
+window.jRun    = async function (s) {
+  var r = await api('/run', { method: 'POST', body: JSON.stringify({ script: s }) });
+  r.ok ? toast('Started: ' + s) : toast('Failed to start ' + s, 'red');
+  setTimeout(loadStatus, 1500);
+};
+
+window.jSaveSched = async function () {
+  var r = await api('/schedule', {
+    method: 'POST',
+    body: JSON.stringify({
+      pauseStart: parseInt(document.getElementById('j-ps').value),
+      pauseEnd:   parseInt(document.getElementById('j-pe').value)
+    })
+  });
+  r.ok ? toast('Schedule saved', 'green') : toast('Failed to save', 'red');
+};
+
+window.jSaveEncodeSettings = function () {
+  if (!window.ApiClient) { toast('ApiClient not available', 'red'); return; }
+  ApiClient.getPluginConfiguration('4a5c8f2e-1b3d-4e6f-9a2c-7d8e0f1b3c5a').then(function (cfg) {
+    cfg.EncodeMethod  = document.getElementById('j-enc-method').value;
+    cfg.EncodeCodec   = document.getElementById('j-enc-codec').value;
+    cfg.EncodeQuality = parseInt(document.getElementById('j-enc-quality').value) || 22;
+    cfg.EncodeWorkers = parseInt(document.getElementById('j-enc-workers').value) || 2;
+    ApiClient.updatePluginConfiguration('4a5c8f2e-1b3d-4e6f-9a2c-7d8e0f1b3c5a', cfg).then(function () {
+      toast('Encode settings saved', 'green');
+    });
+  });
+};
+
+window.jSaveLibraries = function () {
+  if (!window.ApiClient) { toast('ApiClient not available', 'red'); return; }
+  ApiClient.getPluginConfiguration('4a5c8f2e-1b3d-4e6f-9a2c-7d8e0f1b3c5a').then(function (cfg) {
+    var paths = document.getElementById('j-lib-paths').value
+      .split('\n').map(function(p){return p.trim();}).filter(Boolean);
+    cfg.MediaRootPath = paths[0] || cfg.MediaRootPath;   // primary path for disk stats
+    cfg.SkipCodecs    = document.getElementById('j-skip-codecs').value;
+    ApiClient.updatePluginConfiguration('4a5c8f2e-1b3d-4e6f-9a2c-7d8e0f1b3c5a', cfg).then(function () {
+      toast('Library settings saved', 'green');
+    });
+  });
+};
+
+// ── Init ─────────────────────────────────────────────────────────────
+function init() {
+  loadStatus();
+  loadEncode();
+  loadStorage();
+  loadSummary();
+  loadMetrics();
+  loadConfig();
+  jSchedPrev();
+
+  setInterval(loadStatus,  15000);
+  setInterval(loadEncode,   5000);
+  setInterval(loadMetrics,  4000);
+  setInterval(loadStorage, 60000);
+  setInterval(loadSummary, 60000);
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  setTimeout(init, 0);
+}
 })();
 </script>
 </div>

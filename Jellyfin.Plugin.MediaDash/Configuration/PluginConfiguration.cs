@@ -82,4 +82,13 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>Comma-separated video codecs that are already done (skip re-encode).</summary>
     public string SkipCodecs { get; set; } = "hevc,av1";
+
+    /// <summary>Encode method: vaapi, nvenc, or software.</summary>
+    public string EncodeMethod { get; set; } = "vaapi";
+    /// <summary>Target codec: hevc, h264, or av1.</summary>
+    public string EncodeCodec { get; set; } = "hevc";
+    /// <summary>CQP quality value (lower = better).</summary>
+    public int EncodeQuality { get; set; } = 22;
+    /// <summary>Number of concurrent encode workers.</summary>
+    public int EncodeWorkers { get; set; } = 2;
 }
