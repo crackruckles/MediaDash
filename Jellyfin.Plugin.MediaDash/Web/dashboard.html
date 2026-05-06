@@ -594,6 +594,20 @@
 <div class="toast" id="toast"></div>
 
 
-<script src="/mediadash/api/js/dashboard.js?v=1.0.12"></script>
+<script>
+// Load dashboard JS and trigger init after it's ready
+(function(){
+  var s = document.createElement('script');
+  s.src = '/mediadash/api/js/dashboard.js?v=1.0.13';
+  s.onload = function(){
+    // Script loaded — the bootstrap will handle init via MutationObserver/poll
+    // But also dispatch a synthetic viewshow in case it already missed it
+    try {
+      document.dispatchEvent(new CustomEvent('viewshow', {detail:{type:'html'}}));
+    } catch(e) {}
+  };
+  document.head.appendChild(s);
+})();
+</script>
 
 </div>
