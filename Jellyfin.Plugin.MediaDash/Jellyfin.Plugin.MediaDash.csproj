@@ -17,9 +17,10 @@
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Core" Version="2.2.5" />
   </ItemGroup>
 
-  <!-- Both HTML pages embedded as resources inside the DLL -->
+  <!-- Web resources embedded inside the DLL -->
   <ItemGroup>
     <EmbeddedResource Include="Web\dashboard.html" />
+    <EmbeddedResource Include="Web\dashboard.js" />
     <EmbeddedResource Include="Web\config.html" />
   </ItemGroup>
 

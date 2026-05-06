@@ -77,6 +77,21 @@ public sealed class MediaDashController : ControllerBase
         return new OkResponse(true, "Language settings saved");
     }
 
+    // ── Static JS asset ────────────────────────────────────────────────────
+    // Serves dashboard.js as an external script so Jellyfin's HTML parser
+    // never sees the JS (avoids SyntaxError from Jellyfin's new Function() loader)
+    [HttpGet("js/dashboard.js")]
+    [AllowAnonymous]   // JS must load before auth context exists in the page
+    [Produces("application/javascript")]
+    public IActionResult GetDashboardJs()
+    {
+        var asm       = System.Reflection.Assembly.GetExecutingAssembly();
+        var resName   = "Jellyfin.Plugin.MediaDash.Web.dashboard.js";
+        var stream    = asm.GetManifestResourceStream(resName);
+        if (stream == null) return NotFound();
+        return File(stream, "application/javascript; charset=utf-8");
+    }
+
     // ── File explorer ──────────────────────────────────────────────────────
 
     [HttpGet("fs/list")]
