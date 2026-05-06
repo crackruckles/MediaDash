@@ -1075,12 +1075,13 @@ function fsCtx(e,path,type,name){
   var menu=document.createElement('div');
   menu.className='ctx-menu';
   menu.style.left=e.clientX+'px'; menu.style.top=e.clientY+'px';
-  menu.innerHTML=
-    '<div class="ctx-item" onclick="fsRename('+JSON.stringify(path)+','+JSON.stringify(name)+')">✏️ Rename</div>'+
-    '<div class="ctx-item" onclick="fsClip('+JSON.stringify(path)+','move')">✂️ Cut</div>'+
-    '<div class="ctx-item" onclick="fsClip('+JSON.stringify(path)+','copy')">📋 Copy</div>'+
-    '<div class="ctx-sep"></div>'+
-    '<div class="ctx-item danger" onclick="fsDeletePrompt('+JSON.stringify(path)+','+JSON.stringify(name)+','+JSON.stringify(type)+')">🗑 Delete</div>';
+  function mi(txt,cls,fn){var d=document.createElement('div');d.className='ctx-item'+(cls?' '+cls:'');d.textContent=txt;d.onclick=fn;return d;}
+  function ms(){var d=document.createElement('div');d.className='ctx-sep';return d;}
+  menu.appendChild(mi('Rename','',function(){fsCloseCtx();fsRename(path,name);}));
+  menu.appendChild(mi('Cut','',function(){fsCloseCtx();fsClip(path,'move');}));
+  menu.appendChild(mi('Copy','',function(){fsCloseCtx();fsClip(path,'copy');}));
+  menu.appendChild(ms());
+  menu.appendChild(mi('Delete','danger',function(){fsCloseCtx();fsDeletePrompt(path,name,type);}));
   document.getElementById('MediaDashPage').appendChild(menu);
   _ctxMenu=menu;
   setTimeout(function(){document.addEventListener('click',fsCloseCtx,{once:true});},0);
