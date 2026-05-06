@@ -597,15 +597,12 @@
 <script>
 // Load dashboard JS and trigger init after it's ready
 (function(){
+  // Reset singleton so the new script version can run
+  window.__mediaDashLoaded = false;
+  // Remove any old dashboard.js scripts to prevent stale versions running
+  document.querySelectorAll('script[src*="dashboard.js"]').forEach(function(s){s.remove();});
   var s = document.createElement('script');
-  s.src = '/mediadash/api/js/dashboard.js?v=1.0.13';
-  s.onload = function(){
-    // Script loaded — the bootstrap will handle init via MutationObserver/poll
-    // But also dispatch a synthetic viewshow in case it already missed it
-    try {
-      document.dispatchEvent(new CustomEvent('viewshow', {detail:{type:'html'}}));
-    } catch(e) {}
-  };
+  s.src = '/mediadash/api/js/dashboard.js?v=1.0.14';
   document.head.appendChild(s);
 })();
 </script>

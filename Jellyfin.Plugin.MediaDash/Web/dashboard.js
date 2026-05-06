@@ -1,4 +1,7 @@
 (function(){
+// Singleton guard — only run once per page, even if script loads multiple times
+if(window.__mediaDashLoaded) return;
+window.__mediaDashLoaded = true;
 var PLUGIN_ID='4a5c8f2e-1b3d-4e6f-9a2c-7d8e0f1b3c5a';
 var BASE='/mediadash/api';
 // Jellyfin's JSON serializer returns PascalCase — normalise to camelCase
