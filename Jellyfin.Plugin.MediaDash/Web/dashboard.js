@@ -34,7 +34,7 @@ async function api(p,o){
   try{
     var r=await fetch(BASE+p,Object.assign({},o,{headers:h}));
     if(r.status===401||r.status===403)return{_auth_error:true};
-    return r.ok?r.json().then(norm):{};
+    return r.ok?norm(await r.json()):{};  // await is critical here
   } catch(e){console.warn('MediaDash API error',p,e);return{};}
 }
 
