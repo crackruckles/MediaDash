@@ -672,5 +672,20 @@ async function triggerLibraryScan(){
   } catch(e){console.warn('Library refresh failed',e);}
 }
 
-document.readyState==='loading'?document.addEventListener('DOMContentLoaded',init):setTimeout(init,0);
+// Jellyfin loads plugin pages via XHR into its SPA — DOMContentLoaded is already
+// fired. We poll for a known element to confirm the page fragment is in the live DOM,
+// then call init. Timeout of 10s to avoid infinite loops.
+(function bootstrap(){
+  var tries = 0;
+  function attempt(){
+    // Check our root element is actually in the live document
+    var el = document.getElementById('b-status');
+    if(el && document.contains(el)){
+      init();
+    } else if(tries++ < 100){
+      setTimeout(attempt, 100);
+    }
+  }
+  attempt();
+})();
 })();
