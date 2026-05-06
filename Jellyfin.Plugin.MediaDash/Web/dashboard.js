@@ -672,20 +672,38 @@ async function triggerLibraryScan(){
   } catch(e){console.warn('Library refresh failed',e);}
 }
 
-// Jellyfin loads plugin pages via XHR into its SPA — DOMContentLoaded is already
-// fired. We poll for a known element to confirm the page fragment is in the live DOM,
-// then call init. Timeout of 10s to avoid infinite loops.
+// Jellyfin injects plugin HTML via XHR after the <script src> has already executed.
+// We use a MutationObserver to detect when our elements appear in the DOM,
+// with a polling fallback for older browsers.
 (function bootstrap(){
-  var tries = 0;
-  function attempt(){
-    // Check our root element is actually in the live document
+  var started = false;
+  function tryInit(){
+    if(started) return;
     var el = document.getElementById('b-status');
     if(el && document.contains(el)){
-      init();
-    } else if(tries++ < 100){
-      setTimeout(attempt, 100);
+      started = true;
+      // Small delay to ensure Jellyfin has finished its own post-insert setup
+      setTimeout(init, 200);
+      return true;
     }
+    return false;
   }
-  attempt();
+
+  // Try immediately (page might already be ready)
+  if(tryInit()) return;
+
+  // MutationObserver: fires when Jellyfin inserts our HTML into the DOM
+  var observer = new MutationObserver(function(){
+    if(tryInit()) observer.disconnect();
+  });
+  observer.observe(document.body || document.documentElement, {
+    childList: true, subtree: true
+  });
+
+  // Polling fallback: keep trying for up to 30 seconds
+  var tries = 0;
+  var poll = setInterval(function(){
+    if(tryInit() || tries++ > 300) clearInterval(poll);
+  }, 100);
 })();
 })();
