@@ -594,7 +594,22 @@
 <div class="toast" id="toast"></div>
 
 <script type="text/javascript">
-(function(){var _t=0;function _r(){var s=document.querySelector('script[type="text/x-md"]');if(s){(new Function(s.textContent))();}else if(_t++<50){setTimeout(_r,100);}}setTimeout(_r,0);})();
+(function(){
+  var _t=0;
+  function _r(){
+    var s=document.querySelector('script[type="text/x-md"]');
+    if(s){
+      // Clone and re-type as executable JS — browsers won't auto-execute text/x-md
+      var clone=document.createElement('script');
+      clone.type='text/javascript';
+      clone.textContent=s.textContent;
+      (document.head||document.body).appendChild(clone);
+    } else if(_t++<50){
+      setTimeout(_r,100);
+    }
+  }
+  setTimeout(_r,0);
+})();
 </script>
 <script type="text/x-md">
 (function(){
