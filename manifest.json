@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/images/logo.png",
     "versions": [
       {
+        "version": "1.0.9.0",
+        "changelog": "Fix: jQuery SyntaxError from context menu \u2014 plugin page now loads correctly.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v1.0.9/mediadash_1.0.9.0.zip",
+        "checksum": "d784b27f3c71ad375e0d5fa650895fe2",
+        "timestamp": "2026-05-06T00:34:33Z"
+      },
+      {
         "version": "1.0.8.0",
         "changelog": "File explorer (browse/rename/cut/copy/delete) and auto-sort by IMDB ID via TMDB.",
         "targetAbi": "10.11.0.0",
