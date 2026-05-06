@@ -1,6 +1,19 @@
 (function(){
 var PLUGIN_ID='4a5c8f2e-1b3d-4e6f-9a2c-7d8e0f1b3c5a';
 var BASE='/mediadash/api';
+// Jellyfin's JSON serializer returns PascalCase — normalise to camelCase
+function norm(obj){
+  if(Array.isArray(obj)) return obj.map(norm);
+  if(obj&&typeof obj==='object'){
+    var out={};
+    Object.keys(obj).forEach(function(k){
+      var ck=k.charAt(0).toLowerCase()+k.slice(1);
+      out[ck]=norm(obj[k]);
+    });
+    return out;
+  }
+  return obj;
+}
 
 // ── Auth ─────────────────────────────────────────────────────────────
 function ah(){
@@ -21,7 +34,7 @@ async function api(p,o){
   try{
     var r=await fetch(BASE+p,Object.assign({},o,{headers:h}));
     if(r.status===401||r.status===403)return{_auth_error:true};
-    return r.ok?r.json():{};
+    return r.ok?r.json().then(norm):{};
   } catch(e){console.warn('MediaDash API error',p,e);return{};}
 }
 
@@ -673,6 +686,7 @@ async function triggerLibraryScan(){
 }
 
 // Jellyfin injects plugin HTML via XHR after the <script src> has already executed.
+// Also listen for Jellyfin's own view lifecycle events for SPA re-navigation.
 // We use a MutationObserver to detect when our elements appear in the DOM,
 // with a polling fallback for older browsers.
 (function bootstrap(){
@@ -699,6 +713,13 @@ async function triggerLibraryScan(){
   observer.observe(document.body || document.documentElement, {
     childList: true, subtree: true
   });
+
+  // Jellyfin SPA view lifecycle — fires on every navigation to this page
+  document.addEventListener('viewshow', function(e){
+    if(e.detail && e.detail.type === 'html') tryInit();
+  });
+  // Also listen on the page element itself
+  document.addEventListener('pageshow', tryInit);
 
   // Polling fallback: keep trying for up to 30 seconds
   var tries = 0;
