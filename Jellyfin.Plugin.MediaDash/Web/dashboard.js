@@ -1,6 +1,4 @@
 // MediaDash  Jellyfin plugin controller
-// Exported function is called by Jellyfin with (view, params) after DOM insertion.
-export default function(view, params) {
 
 var BASE = '/mediadash/api';
 
@@ -787,4 +785,3 @@ view.addEventListener('viewshow', function(){
 // Init immediately too  viewshow may have already fired
 setTimeout(function(){ init(); }, 50);
 
-} // end export default
