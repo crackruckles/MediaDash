@@ -594,11 +594,8 @@
 <div class="toast" id="toast"></div>
 
 
-<script defer>
+<!--<script>
 (function(){
-// Singleton guard — only run once per page, even if script loads multiple times
-if(window.__mediaDashLoaded) return;
-window.__mediaDashLoaded = true;
 var PLUGIN_ID='4a5c8f2e-1b3d-4e6f-9a2c-7d8e0f1b3c5a';
 var BASE='/mediadash/api';
 // Jellyfin's JSON serializer returns PascalCase — normalise to camelCase
@@ -1287,10 +1284,48 @@ async function triggerLibraryScan(){
 
 // Jellyfin injects plugin HTML via XHR after the <script src> has already executed.
 // Also listen for Jellyfin's own view lifecycle events for SPA re-navigation.
-// script defer guarantees DOM is ready — call init directly
-setTimeout(init, 100);
+// We use a MutationObserver to detect when our elements appear in the DOM,
+// with a polling fallback for older browsers.
+(function bootstrap(){
+  var started = false;
+  function tryInit(){
+    if(started) return;
+    var el = document.getElementById('b-status');
+    if(el && document.contains(el)){
+      started = true;
+      // Small delay to ensure Jellyfin has finished its own post-insert setup
+      setTimeout(init, 200);
+      return true;
+    }
+    return false;
+  }
+
+  // Try immediately (page might already be ready)
+  if(tryInit()) return;
+
+  // MutationObserver: fires when Jellyfin inserts our HTML into the DOM
+  var observer = new MutationObserver(function(){
+    if(tryInit()) observer.disconnect();
+  });
+  observer.observe(document.body || document.documentElement, {
+    childList: true, subtree: true
+  });
+
+  // Jellyfin SPA view lifecycle — fires on every navigation to this page
+  document.addEventListener('viewshow', function(e){
+    if(e.detail && e.detail.type === 'html') tryInit();
+  });
+  // Also listen on the page element itself
+  document.addEventListener('pageshow', tryInit);
+
+  // Polling fallback: keep trying for up to 30 seconds
+  var tries = 0;
+  var poll = setInterval(function(){
+    if(tryInit() || tries++ > 300) clearInterval(poll);
+  }, 100);
 })();
 })();
-</script>
+setTimeout(init,0);
+</script>-->
 
 </div>
