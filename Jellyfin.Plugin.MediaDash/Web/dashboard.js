@@ -1,4 +1,4 @@
-// MediaDash — Jellyfin plugin controller
+// MediaDash  Jellyfin plugin controller
 // Exported function is called by Jellyfin with (view, params) after DOM insertion.
 export default function(view, params) {
 
@@ -49,12 +49,12 @@ function toast(m,c){
   setTimeout(function(){t.classList.remove('on');},2800);
 }
 
-// Singleton guard — only run once per page, even if script loads multiple times
+// Singleton guard  only run once per page, even if script loads multiple times
 if(window.__mediaDashLoaded) return;
 window.__mediaDashLoaded = true;
 var PLUGIN_ID='4a5c8f2e-1b3d-4e6f-9a2c-7d8e0f1b3c5a';
 
-// Jellyfin's JSON serializer returns PascalCase — normalise to camelCase
+// Jellyfin's JSON serializer returns PascalCase  normalise to camelCase
 function norm(obj){
   if(Array.isArray(obj)) return obj.map(norm);
   if(obj&&typeof obj==='object'){
@@ -68,7 +68,7 @@ function norm(obj){
   return obj;
 }
 
-// ── Auth ─────────────────────────────────────────────────────────────
+//  Auth 
 function ah(){
   if(window.ApiClient){
     var t=ApiClient.accessToken()||'';
@@ -91,7 +91,7 @@ async function api(p,o){
   } catch(e){console.warn('MediaDash API error',p,e);return{};}
 }
 
-// ── Toast ─────────────────────────────────────────────────────────────
+//  Toast 
 function toast(m,c){
   var t=document.getElementById('toast');
   t.textContent=m;
@@ -100,7 +100,7 @@ function toast(m,c){
   setTimeout(function(){t.classList.remove('on');},2800);
 }
 
-// ── Tabs ─────────────────────────────────────────────────────────────
+//  Tabs 
 document.querySelectorAll('#MediaDashPage .tab').forEach(function(b){
   b.addEventListener('click',function(){
     document.querySelectorAll('#MediaDashPage .tab').forEach(function(x){x.classList.remove('on');});
@@ -110,7 +110,7 @@ document.querySelectorAll('#MediaDashPage .tab').forEach(function(b){
   });
 });
 
-// ── Helpers ──────────────────────────────────────────────────────────
+//  Helpers 
 function fG(g){return g>=1?g.toFixed(1)+'GB':Math.round(g*1024)+'MB';}
 function fM(m){return m>=1024?(m/1024).toFixed(1)+'GB':m+'MB';}
 function fS(s){if(!s)return'';var h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=s%60;return h?h+'h '+m+'m':m?m+'m '+sc+'s':sc+'s';}
@@ -118,7 +118,7 @@ function driveCol(p){return p>90?'#f44336':p>75?'#ff9800':'#00a4dc';}
 function g(id){return document.getElementById(id);}
 function setText(id,v){var el=g(id);if(el)el.textContent=v;}
 
-// ── Status ────────────────────────────────────────────────────────────
+//  Status 
 async function loadStatus(){
   var s=await api('/status');
   if(!s||!s.schedule)return;
@@ -137,8 +137,8 @@ async function loadStatus(){
     g('streams-sec').style.display='';
     g('streams-list').innerHTML=st.map(function(x){
       return '<div class="stream-row"><div class="av">'+(x.user||'?').charAt(0).toUpperCase()+'</div>'+
-        '<div class="si"><div class="st">'+(x.series?x.series+' — ':'')+x.title+'</div>'+
-        '<div class="ss">'+x.user+' · '+x.client+'</div></div>'+
+        '<div class="si"><div class="st">'+(x.series?x.series+' \u2014 ':'')+x.title+'</div>'+
+        '<div class="ss">'+x.user+' \u00b7 '+x.client+'</div></div>'+
         '<span class="sp">'+x.progressPct+'%</span></div>';
     }).join('');
   } else {sb.style.display='none';g('streams-sec').style.display='none';}
@@ -149,7 +149,7 @@ async function loadStatus(){
   }
 }
 
-// ── Encode status ─────────────────────────────────────────────────────
+//  Encode status 
 async function loadEncode(){
   var e=await api('/encode_status');
   var card=g('enc-card');
@@ -158,20 +158,20 @@ async function loadEncode(){
     setText('enc-chip','No task running'); setText('enc-spd','');
     setText('enc-name','Encoder is idle');
     setText('enc-sub','Waiting for the next scheduled window');
-    ['enc-src','enc-out','enc-fin','enc-sav'].forEach(function(id){setText(id,'–');});
+    ['enc-src','enc-out','enc-fin','enc-sav'].forEach(function(id){setText(id,'\u2013');});
     g('enc-bar').style.width='0%'; setText('enc-pct','0%');
     setText('enc-elapsed',''); setText('enc-eta','');
     return;
   }
   card.className='card enc-active';
-  setText('enc-chip',(e.codec||'?').toUpperCase()+' → '+(e.targetCodec||'H.265'));
+  setText('enc-chip',(e.codec||'?').toUpperCase()+' \u2192 '+(e.targetCodec||'H.265'));
   setText('enc-spd',(e.speed&&e.speed!=='N/A')?e.speed:'');
-  setText('enc-name',e.name||'–');
-  setText('enc-sub','Started '+( e.startedAt||'–')+(e.worker!=null?' · Worker '+e.worker:''));
-  setText('enc-src',e.sourceGb?e.sourceGb+' GB':'–');
-  setText('enc-out',e.tmpSizeGb>0?e.tmpSizeGb+' GB':'–');
-  setText('enc-fin',e.estFinalGb>0?e.estFinalGb+' GB':e.pct<3?'…':'–');
-  setText('enc-sav',(e.estSavingGb||0)>0?e.estSavingGb.toFixed(1)+' GB saved':e.pct<3?'…':'–');
+  setText('enc-name',e.name||'\u2013');
+  setText('enc-sub','Started '+( e.startedAt||'\u2013')+(e.worker!=null?' \u00b7 Worker '+e.worker:''));
+  setText('enc-src',e.sourceGb?e.sourceGb+' GB':'\u2013');
+  setText('enc-out',e.tmpSizeGb>0?e.tmpSizeGb+' GB':'\u2013');
+  setText('enc-fin',e.estFinalGb>0?e.estFinalGb+' GB':e.pct<3?'\u2026':'\u2013');
+  setText('enc-sav',(e.estSavingGb||0)>0?e.estSavingGb.toFixed(1)+' GB saved':e.pct<3?'\u2026':'\u2013');
   var p=e.pct||0;
   g('enc-bar').style.width=p+'%'; setText('enc-pct',p.toFixed(1)+'%');
   setText('enc-elapsed',e.elapsedS?'Elapsed '+fS(e.elapsedS):'');
@@ -179,12 +179,12 @@ async function loadEncode(){
   else setText('enc-eta','');
 }
 
-// ── Storage ───────────────────────────────────────────────────────────
+//  Storage 
 async function loadDrives(){
   var drives=await api('/drives');
   var c=g('drives-card');
   if(!Array.isArray(drives)||!drives.length){
-    c.innerHTML='<div style="font-size:.82em;color:var(--t2)">No storage data — configure media directories in Settings.</div>';
+    c.innerHTML='<div style="font-size:.82em;color:var(--t2)">No storage data \u2014 configure media directories in Settings.</div>';
     return;
   }
   // Deduplicate by mount point, prefer non-root mounts
@@ -206,7 +206,7 @@ async function loadDrives(){
   }).join('');
 }
 
-// ── Processing summary ────────────────────────────────────────────────
+//  Processing summary 
 async function loadSummary(){
   var re=await api('/reencode'),strip=await api('/strip'),rem=await api('/encode_remaining');
   if(Array.isArray(re)){
@@ -224,7 +224,7 @@ async function loadSummary(){
   }
 }
 
-// ── Performance ───────────────────────────────────────────────────────
+//  Performance 
 async function loadMetrics(){
   var m=await api('/metrics');
   if(!m||m._auth_error){console.warn('MediaDash: metrics auth failed');return;}
@@ -237,9 +237,9 @@ async function loadMetrics(){
   g('p-mem-bar').style.width=m.memPct+'%'; setText('p-mem-v',m.memPct+'%');
   setText('p-mem-d',fM(m.memUsedMb)+' / '+fM(m.memTotalMb));
   if(m.temps){
-    if(m.temps.cpu!=null)  setText('p-cpu-t', 'CPU: '+m.temps.cpu+'°C');
-    if(m.temps.gpu!=null)  setText('p-gpu-t', 'GPU: '+m.temps.gpu+'°C');
-    if(m.temps.nvme!=null) setText('p-nvme-t','NVMe: '+m.temps.nvme+'°C');
+    if(m.temps.cpu!=null)  setText('p-cpu-t', 'CPU: '+m.temps.cpu+'\u00b0C');
+    if(m.temps.gpu!=null)  setText('p-gpu-t', 'GPU: '+m.temps.gpu+'\u00b0C');
+    if(m.temps.nvme!=null) setText('p-nvme-t','NVMe: '+m.temps.nvme+'\u00b0C');
   }
   var dr=m.diskReadGb, dw=m.diskWriteGb;
   setText('p-dr',dr>=1000?(dr/1000).toFixed(1)+'TB':dr+'GB');
@@ -250,7 +250,7 @@ async function loadMetrics(){
     }).join('');
 }
 
-// ── Schedule viz ──────────────────────────────────────────────────────
+//  Schedule viz 
 window.schedPrev=function(){
   var ps=parseInt(g('cfg-ps').value)||0,pe=parseInt(g('cfg-pe').value)||0;
   g('sched-viz').innerHTML=Array.from({length:24},function(_,i){
@@ -259,7 +259,7 @@ window.schedPrev=function(){
   }).join('');
 };
 
-// ── Config: load ──────────────────────────────────────────────────────
+//  Config: load 
 async function loadConfig(){
   if(!window.ApiClient)return;
   var cfg=await new Promise(function(res){ApiClient.getPluginConfiguration(PLUGIN_ID).then(res).catch(function(){res({});});});
@@ -280,7 +280,7 @@ async function loadConfig(){
   if(g('cfg-keep-first')) g('cfg-keep-first').checked=cfg.AlwaysKeepFirstAudio!==false;
   if(g('cfg-keep-commentary')) g('cfg-keep-commentary').checked=!!cfg.KeepCommentaryTracks;
 
-  // Dirs — pre-fill from Jellyfin libraries if not configured
+  // Dirs  pre-fill from Jellyfin libraries if not configured
   if(g('cfg-dirs')){
     if(cfg.MediaDirectories&&cfg.MediaDirectories.trim()){
       g('cfg-dirs').value=cfg.MediaDirectories;
@@ -315,22 +315,22 @@ async function loadConfig(){
   if(g('cfg-pause-streams')) g('cfg-pause-streams').checked=cfg.PauseDuringStreams!==false;
   schedPrev();
 
-  // Run buttons — only show if service is configured
+  // Run buttons  only show if service is configured
   var rbDiv=g('run-btns'); rbDiv.innerHTML='';
   if(cfg.ReencodeServiceName)
-    rbDiv.innerHTML+='<button is="emby-button" class="raised emby-button" onclick="doRun(\'reencode\')">▶ Run re-encoder now</button> ';
+    rbDiv.innerHTML+='<button is="emby-button" class="raised emby-button" onclick="doRun(\'reencode\')">\u25b6 Run re-encoder now</button> ';
   if(cfg.StripServiceName)
-    rbDiv.innerHTML+='<button is="emby-button" class="raised emby-button" onclick="doRun(\'strip\')">▶ Run strip tracks now</button>';
+    rbDiv.innerHTML+='<button is="emby-button" class="raised emby-button" onclick="doRun(\'strip\')">\u25b6 Run strip tracks now</button>';
 
   // Show Jellyfin library paths as helper text
   var libs=await api('/libraries');
   if(Array.isArray(libs)&&libs.length){
     g('jellyfin-libs').innerHTML='<div style="font-size:.78em;color:var(--t2);margin-bottom:.5em">Your Jellyfin libraries (used automatically if directories above are blank):</div>'+
-      libs.map(function(l){return'<div style="font-size:.75em;font-family:var(--mo);color:var(--t2);padding:.15em 0">'+l.name+' — '+l.path+'</div>';}).join('');
+      libs.map(function(l){return'<div style="font-size:.75em;font-family:var(--mo);color:var(--t2);padding:.15em 0">'+l.name+' \u2014 '+l.path+'</div>';}).join('');
   }
 }
 
-// ── Save functions ────────────────────────────────────────────────────
+//  Save functions 
 function withCfg(fn){
   if(!window.ApiClient){toast('Not connected to Jellyfin','r');return;}
   ApiClient.getPluginConfiguration(PLUGIN_ID).then(function(cfg){fn(cfg);}).catch(function(){toast('Failed to load config','r');});
@@ -397,11 +397,11 @@ window.doPause  =async function(){await api('/pause', {method:'POST',body:'{}'})
 window.doResume =async function(){await api('/resume',{method:'POST',body:'{}'});toast('Resuming','g');setTimeout(loadStatus,800);setTimeout(loadEncode,2000);};
 window.doRun    =async function(s){
   var r=await api('/run',{method:'POST',body:JSON.stringify({script:s})});
-  r.ok?toast('Started','g'):toast(r.error||'Service not configured — check Settings','r');
+  r.ok?toast('Started','g'):toast(r.error||'Service not configured \u2014 check Settings','r');
   setTimeout(loadStatus,1500);
 };
 
-// ── Init ──────────────────────────────────────────────────────────────
+//  Init 
 function init(){
   loadStatus(); loadEncode(); loadDrives(); loadSummary(); loadMetrics(); loadConfig();
   loadFsLibraries();
@@ -413,9 +413,9 @@ function init(){
   setInterval(loadSummary,60000);
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// 
 // FILE EXPLORER
-// ═══════════════════════════════════════════════════════════════════
+// 
 
 var fsRoot=null, fsCurrent=null, fsClipboard=null, fsClipOp=null;
 
@@ -464,14 +464,14 @@ async function fsOpen(root,path){
 
 async function fsRender(path){
   fsCurrent=path;
-  setText('fs-status','Loading…');
+  setText('fs-status','Loading\u2026');
   var r=await api('/fs/list?path='+encodeURIComponent(path));
   if(r._auth_error||r.error){setText('fs-status','Error: '+(r.error||'Auth failed'));return;}
 
   // Breadcrumb
   var bc=g('fs-breadcrumb'); bc.innerHTML='';
   (r.breadcrumbs||[]).forEach(function(seg,i){
-    var name=i===0?'📁 '+seg.split('/').pop()||seg:seg.split('/').pop()||seg;
+    var name=i===0?'\u1f4c1 '+seg.split('/').pop()||seg:seg.split('/').pop()||seg;
     var sp=document.createElement('span');
     sp.className='bc-seg'; sp.textContent=name; sp.title=seg;
     sp.onclick=function(){fsRender(seg);};
@@ -490,7 +490,7 @@ async function fsRender(path){
   (r.dirs||[]).forEach(function(d){
     var el=document.createElement('div');
     el.className='fs-item'; el.dataset.path=d.path; el.dataset.type='dir';
-    el.innerHTML='<div class="fs-item-icon">📁</div>'+
+    el.innerHTML='<div class="fs-item-icon">\u1f4c1</div>'+
       '<div class="fs-item-name">'+esc(d.name)+'</div>'+
       '<div class="fs-item-meta">Folder</div>';
     el.ondblclick=function(){fsRender(d.path);};
@@ -505,7 +505,7 @@ async function fsRender(path){
     el.className='fs-item'; el.dataset.path=f.path; el.dataset.type='file';
     el.innerHTML='<div class="fs-item-icon">'+icon+'</div>'+
       '<div class="fs-item-name">'+esc(f.name)+'</div>'+
-      '<div class="fs-item-meta">'+f.sizeFmt+' · '+f.modified+'</div>';
+      '<div class="fs-item-meta">'+f.sizeFmt+' \u00b7 '+f.modified+'</div>';
     el.onclick=function(e){fsSelect(el,e);};
     el.oncontextmenu=function(e){e.preventDefault();fsCtx(e,f.path,f.type,f.name);};
     grid.appendChild(el);
@@ -518,11 +518,11 @@ function fsIcon(ext){
   var video=['.mkv','.mp4','.avi','.mov','.m2ts','.ts','.wmv','.flv','.webm'];
   var sub=['.srt','.ass','.ssa','.sup','.vtt'];
   var img=['.jpg','.jpeg','.png','.webp','.gif','.bmp'];
-  if(video.includes(ext))return'🎬';
-  if(sub.includes(ext))return'💬';
-  if(img.includes(ext))return'🖼';
-  if(ext==='.nfo')return'📄';
-  return'📄';
+  if(video.includes(ext))return'\u1f3ac';
+  if(sub.includes(ext))return'\u1f4ac';
+  if(img.includes(ext))return'\u1f5bc';
+  if(ext==='.nfo')return'\u1f4c4';
+  return'\u1f4c4';
 }
 
 var fsSelected=[];
@@ -563,7 +563,7 @@ function fsClip(path,op){
   fsClipboard=path; fsClipOp=op;
   g('fs-paste-btn').style.display='';
   g('fs-cancel-btn').style.display='';
-  setText('fs-clipboard-lbl',(op==='move'?'✂️ Cut:':'📋 Copy: ')+path.split('/').pop());
+  setText('fs-clipboard-lbl',(op==='move'?'\u2702\ufe0f Cut:':'\u1f4cb Copy: ')+path.split('/').pop());
   fsCloseCtx();
 }
 window.fsCancelClip=function(){
@@ -604,9 +604,9 @@ window.fsDeletePrompt=async function(path,name,type){
 
 function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
 
-// ═══════════════════════════════════════════════════════════════════
+// 
 // AUTO-SORT
-// ═══════════════════════════════════════════════════════════════════
+// 
 
 var sortLibRoot=null, sortPreviewData=null;
 
@@ -636,7 +636,7 @@ async function sortScan(){
     return;
   }
   g('sort-scanning').style.display='flex';
-  g('sort-loading').textContent='Scanning… writing IMDB markers (this may take a few minutes for large libraries)';
+  g('sort-loading').textContent='Scanning\u2026 writing IMDB markers (this may take a few minutes for large libraries)';
 
   // Step 1: write IMDB markers
   var scan=await api('/sort/scan',{method:'POST',body:JSON.stringify({path:sortLibRoot})});
@@ -646,7 +646,7 @@ async function sortScan(){
   var preview=await api('/sort/preview',{method:'POST',body:JSON.stringify({path:sortLibRoot})});
   g('sort-scanning').style.display='none';
 
-  if(preview._auth_error){toast('Auth error — try refreshing','r');return;}
+  if(preview._auth_error){toast('Auth error \u2014 try refreshing','r');return;}
   sortPreviewData=preview;
   renderSortPreview(preview);
 }
@@ -684,11 +684,11 @@ function renderSortPreview(preview){
     var folders=c.groups.map(function(f){
       return '<div class="sort-folder">'+
         '<div class="sort-folder-info">'+
-          '<div class="sort-folder-name">'+(f.isCanonical?'⭐ ':'')+esc(f.name)+'</div>'+
+          '<div class="sort-folder-name">'+(f.isCanonical?'\u2b50 ':'')+esc(f.name)+'</div>'+
           '<div class="sort-folder-path">'+esc(f.path)+'</div>'+
         '</div>'+
         '<div class="sort-folder-count">'+f.fileCount+' file'+(f.fileCount!==1?'s':'')+
-          (f.isCanonical?' · <span style="color:var(--g)">KEEP</span>':' · <span style="color:var(--a)">MERGE IN</span>')+
+          (f.isCanonical?' \u00b7 <span style="color:var(--g)">KEEP</span>':' \u00b7 <span style="color:var(--a)">MERGE IN</span>')+
         '</div></div>';
     }).join('');
     return '<div class="sort-candidate">'+
@@ -712,7 +712,7 @@ window.sortToggle=function(id){g(id).classList.toggle('on');};
 window.sortMerge=async function(imdbId,title){
   if(!confirm('Merge all folders for "'+title+'" into the one with the most files? This will move files and cannot be easily undone.'))return;
   var r=await api('/sort/execute',{method:'POST',body:JSON.stringify({libraryRoot:sortLibRoot,imdbId})});
-  if(r.ok){toast('Merged successfully — library refresh triggered','g');triggerLibraryScan();await sortScan();}
+  if(r.ok){toast('Merged successfully \u2014 library refresh triggered','g');triggerLibraryScan();await sortScan();}
   else toast('Merge failed: '+(r.error||'unknown'),'r');
 };
 
@@ -726,8 +726,8 @@ window.sortMergeAll=async function(){
     var r=await api('/sort/execute',{method:'POST',body:JSON.stringify({libraryRoot:sortLibRoot,imdbId:c.imdbId})});
     if(!r.ok)failed++;
   }
-  if(failed===0){toast('All groups merged — triggering library scan','g');triggerLibraryScan();}
-  else toast(failed+' group(s) failed — check individual results','r');
+  if(failed===0){toast('All groups merged \u2014 triggering library scan','g');triggerLibraryScan();}
+  else toast(failed+' group(s) failed \u2014 check individual results','r');
   await sortScan();
 };
 
@@ -765,7 +765,7 @@ async function triggerLibraryScan(){
     childList: true, subtree: true
   });
 
-  // Jellyfin SPA view lifecycle — fires on every navigation to this page
+  // Jellyfin SPA view lifecycle  fires on every navigation to this page
   document.addEventListener('viewshow', function(e){
     if(e.detail && e.detail.type === 'html') tryInit();
   });
@@ -784,7 +784,7 @@ view.addEventListener('viewshow', function(){
   init();
 });
 
-// Init immediately too — viewshow may have already fired
+// Init immediately too  viewshow may have already fired
 setTimeout(function(){ init(); }, 50);
 
 } // end export default
