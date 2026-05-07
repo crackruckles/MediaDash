@@ -1,0 +1,22 @@
+<Project>
+  <PropertyGroup>
+    <!-- Match installed Jellyfin server version -->
+    <JellyfinVersion>10.11.0</JellyfinVersion>
+
+    <!-- Build settings aligned with jellyfin-plugin-template -->
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <AnalysisMode>Default</AnalysisMode>
+    <LangVersion>latest</LangVersion>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!-- Plugin metadata -->
+    <Authors>Craig (crackruckles)</Authors>
+    <Copyright>Copyright (c) 2026 Craig</Copyright>
+    <RepositoryUrl>https://github.com/crackruckles/MediaDash</RepositoryUrl>
+    <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
+  </PropertyGroup>
+</Project>

@@ -10,30 +10,38 @@ using MediaBrowser.Model.Serialization;
 namespace Jellyfin.Plugin.MediaDash;
 
 /// <summary>
-/// MediaDash — a Jellyfin plugin that provides a media-processing
-/// dashboard (re-encoding queue, track stripping, duplicate detection,
-/// system metrics, live stream view).
+/// MediaDash plugin — media-processing dashboard for Jellyfin.
+/// Provides re-encoding queue, track stripping, duplicate detection,
+/// system metrics, and a live stream monitor.
 /// </summary>
-public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
+public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 {
-    /// <summary>Stable GUID — must never change once published.</summary>
-    public static readonly Guid StaticId = new("4a5c8f2e-1b3d-4e6f-9a2c-7d8e0f1b3c5a");
+    /// <summary>
+    /// Stable plugin GUID. Must never change after initial publication.
+    /// </summary>
+    public static readonly Guid PluginGuid = new("4a5c8f2e-1b3d-4e6f-9a2c-7d8e0f1b3c5a");
+
+    /// <summary>
+    /// Gets the current plugin instance. Set on construction by Jellyfin's DI container.
+    /// </summary>
+    public static Plugin? Instance { get; private set; }
 
     /// <inheritdoc />
     public override string Name => "MediaDash";
 
     /// <inheritdoc />
-    public override Guid Id => StaticId;
+    public override Guid Id => PluginGuid;
 
     /// <inheritdoc />
     public override string Description =>
         "Media processing dashboard: re-encode queue, track stripping, " +
-        "duplicate detection, live stream monitor and system metrics.";
+        "duplicate detection, live stream monitor, and system metrics.";
 
-    /// <summary>Singleton accessor used by controllers.</summary>
-    public static Plugin? Instance { get; private set; }
-
-    /// <summary>Initialises the plugin.</summary>
+    /// <summary>
+    /// Initialises the plugin and registers the singleton instance.
+    /// </summary>
+    /// <param name="applicationPaths">Instance of <see cref="IApplicationPaths"/>.</param>
+    /// <param name="xmlSerializer">Instance of <see cref="IXmlSerializer"/>.</param>
     public Plugin(IApplicationPaths applicationPaths, IXmlSerializer xmlSerializer)
         : base(applicationPaths, xmlSerializer)
     {
@@ -43,10 +51,11 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     /// <inheritdoc />
     public IEnumerable<PluginPageInfo> GetPages()
     {
-        var ns = GetType().Namespace;
+        var ns = GetType().Namespace
+            ?? throw new InvalidOperationException("Plugin namespace must not be null.");
 
-        // Config page — Name must match plugin Name exactly so Jellyfin
-        // shows the Settings button on the plugin card.
+        // Settings page — Name must match plugin Name so Jellyfin shows the
+        // Settings button on the plugin card in the admin dashboard.
         yield return new PluginPageInfo
         {
             Name = Name,
@@ -56,7 +65,8 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                 ns),
         };
 
-        // Dashboard page — accessible at /web/configurationpage?name=MediaDashDashboard
+        // Main dashboard page.
+        // Accessible at /web/#/configurationpage?name=MediaDashDashboard
         yield return new PluginPageInfo
         {
             Name = "MediaDashDashboard",
@@ -68,18 +78,6 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             MenuSection = "server",
             MenuIcon = "bar_chart",
             DisplayName = "MediaDash",
-        };
-
-        // JS controller — Jellyfin loads this when the page has
-        // data-controller="__plugin/dashboard.js"
-        // It is served at /web/configurationpage?name=dashboard.js
-        yield return new PluginPageInfo
-        {
-            Name = "dashboard.js",
-            EmbeddedResourcePath = string.Format(
-                CultureInfo.InvariantCulture,
-                "{0}.Web.dashboard.js",
-                ns),
         };
     }
 }

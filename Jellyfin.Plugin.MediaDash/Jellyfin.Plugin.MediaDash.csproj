@@ -1,20 +1,28 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
     <AssemblyName>Jellyfin.Plugin.MediaDash</AssemblyName>
     <RootNamespace>Jellyfin.Plugin.MediaDash</RootNamespace>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
-    <Nullable>enable</Nullable>
-    <AnalysisMode>None</AnalysisMode>
     <Version>1.0.11.0</Version>
+    <!-- Properties inherited from Directory.Build.props:
+         TargetFramework, Nullable, ImplicitUsings, GenerateDocumentationFile,
+         TreatWarningsAsErrors, AnalysisMode, LangVersion -->
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Jellyfin.Controller" Version="10.11.0" />
-    <PackageReference Include="Jellyfin.Model" Version="10.11.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Core" Version="2.2.5" />
+    <!--
+      ExcludeAssets="runtime" is required by the Jellyfin plugin template.
+      Without it, unnecessary files are copied and the plugin may not register.
+    -->
+    <PackageReference Include="Jellyfin.Controller" Version="$(JellyfinVersion)">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    <PackageReference Include="Jellyfin.Model" Version="$(JellyfinVersion)">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Core" Version="2.2.5">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
   </ItemGroup>
 
   <!-- Web resources embedded inside the DLL -->

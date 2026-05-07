@@ -1,8 +1,19 @@
+# Build output
 bin/
 obj/
-build/
-dist/
 *.user
+
+# IDE
 .vs/
 .idea/
+*.suo
+
+# Packages
+packages/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Plugin zip artifacts
 *.zip

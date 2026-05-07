@@ -13,36 +13,45 @@ namespace Jellyfin.Plugin.MediaDash.Api;
 
 // ── File explorer models ────────────────────────────────────────────────────
 
+/// <summary>A single file or directory entry returned by the file explorer.</summary>
 public record FsEntry(
     string Name,
     string Path,
-    string Type,       // "file" | "dir"
+    string Type,
     long   SizeBytes,
     string SizeFmt,
     string Modified,
     string? Ext);
 
+/// <summary>Contents of a directory listing.</summary>
 public record FsListing(
-    string        Root,
-    string        Current,
-    string[]      Breadcrumbs,
-    FsEntry[]     Dirs,
-    FsEntry[]     Files,
-    long          TotalBytes);
+    string    Root,
+    string    Current,
+    string[]  Breadcrumbs,
+    FsEntry[] Dirs,
+    FsEntry[] Files,
+    long      TotalBytes);
 
-public record FsOpResult(bool Ok, string? Error = null);
+/// <summary>Result of a file-system operation (rename, delete, move, copy).</summary>
+public record FsOpResult(
+    bool Ok,
+    string? Error = null);
 
 // ── Auto-sort models ────────────────────────────────────────────────────────
 
+/// <summary>
+/// A group of folders that share the same IMDB ID and are candidates for merging.
+/// </summary>
 public record SortCandidate(
     string ImdbId,
     string Title,
     int    Year,
-    string Type,          // "movie" | "tv"
-    string CanonicalName, // folder name that wins (most files)
+    string Type,
+    string CanonicalName,
     string CanonicalPath,
     FolderGroup[] Groups);
 
+/// <summary>A single folder within a sort candidate group.</summary>
 public record FolderGroup(
     string Path,
     string Name,
@@ -50,6 +59,7 @@ public record FolderGroup(
     long   SizeBytes,
     bool   IsCanonical);
 
+/// <summary>Preview of all merge operations that would be performed by auto-sort.</summary>
 public record SortPreview(
     SortCandidate[] Candidates,
     int             TotalFolders,
