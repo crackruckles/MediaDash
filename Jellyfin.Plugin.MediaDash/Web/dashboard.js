@@ -1,3 +1,4 @@
+(function() {
 // MediaDash  Jellyfin plugin controller
 
 var BASE = '/mediadash/api';
@@ -785,3 +786,5 @@ view.addEventListener('viewshow', function(){
 // Init immediately too  viewshow may have already fired
 setTimeout(function(){ init(); }, 50);
 
+
+})();
