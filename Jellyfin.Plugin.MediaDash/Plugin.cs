@@ -69,5 +69,17 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             MenuIcon = "bar_chart",
             DisplayName = "MediaDash",
         };
+
+        // JS controller — Jellyfin loads this when the page has
+        // data-controller="__plugin/dashboard.js"
+        // It is served at /web/configurationpage?name=dashboard.js
+        yield return new PluginPageInfo
+        {
+            Name = "dashboard.js",
+            EmbeddedResourcePath = string.Format(
+                CultureInfo.InvariantCulture,
+                "{0}.Web.dashboard.js",
+                ns),
+        };
     }
 }
