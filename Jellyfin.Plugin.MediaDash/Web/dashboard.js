@@ -1,9 +1,59 @@
-(function(){
+// MediaDash — Jellyfin plugin controller
+// Exported function is called by Jellyfin with (view, params) after DOM insertion.
+export default function(view, params) {
+
+var BASE = '/mediadash/api';
+
+// Scope g() to the view element so it only finds elements in our page
+function g(id){ return view.querySelector('#' + id); }
+function setText(id,v){ var el=g(id); if(el) el.textContent=v; }
+
+function norm(obj){
+  if(Array.isArray(obj)) return obj.map(norm);
+  if(obj&&typeof obj==='object'){
+    var out={};
+    Object.keys(obj).forEach(function(k){
+      var ck=k.charAt(0).toLowerCase()+k.slice(1);
+      out[ck]=norm(obj[k]);
+    });
+    return out;
+  }
+  return obj;
+}
+
+function ah(){
+  if(window.ApiClient){
+    return{'X-Emby-Authorization':
+      'MediaBrowser Client="MediaDash", Device="Jellyfin Web", DeviceId="mediadash-plugin-1", Version="1.0.0", Token="'+ApiClient.accessToken()+'"'
+    };
+  }
+  return{};
+}
+
+async function api(p,o){
+  o=o||{};
+  var h=Object.assign({'Content-Type':'application/json','Accept':'application/json'},ah(),o.headers||{});
+  try{
+    var r=await fetch(BASE+p,Object.assign({},o,{headers:h}));
+    if(r.status===401||r.status===403)return{_auth_error:true};
+    return r.ok?norm(await r.json()):{};
+  } catch(e){console.warn('MediaDash API error',p,e);return{};}
+}
+
+function toast(m,c){
+  var t=g('toast');
+  if(!t)return;
+  t.textContent=m;
+  t.style.borderColor=c==='g'?'#4caf50':c==='r'?'#f44336':'#00a4dc';
+  t.classList.add('on');
+  setTimeout(function(){t.classList.remove('on');},2800);
+}
+
 // Singleton guard — only run once per page, even if script loads multiple times
 if(window.__mediaDashLoaded) return;
 window.__mediaDashLoaded = true;
 var PLUGIN_ID='4a5c8f2e-1b3d-4e6f-9a2c-7d8e0f1b3c5a';
-var BASE='/mediadash/api';
+
 // Jellyfin's JSON serializer returns PascalCase — normalise to camelCase
 function norm(obj){
   if(Array.isArray(obj)) return obj.map(norm);
@@ -688,10 +738,8 @@ async function triggerLibraryScan(){
   } catch(e){console.warn('Library refresh failed',e);}
 }
 
-// Jellyfin injects plugin HTML via XHR after the <script src> has already executed.
-// Also listen for Jellyfin's own view lifecycle events for SPA re-navigation.
-// We use a MutationObserver to detect when our elements appear in the DOM,
-// with a polling fallback for older browsers.
+
+
 (function bootstrap(){
   var started = false;
   function tryInit(){
@@ -730,4 +778,13 @@ async function triggerLibraryScan(){
     if(tryInit() || tries++ > 300) clearInterval(poll);
   }, 100);
 })();
-})();
+
+// Jellyfin calls this when the view is shown (every SPA navigation to this page)
+view.addEventListener('viewshow', function(){
+  init();
+});
+
+// Init immediately too — viewshow may have already fired
+setTimeout(function(){ init(); }, 50);
+
+} // end export default
