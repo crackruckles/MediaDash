@@ -226,7 +226,7 @@
                                 <input id="mdThorough" type="checkbox" is="emby-checkbox" />
                                 <span>Thorough playability check</span>
                             </label>
-                            <div class="fieldDescription">Also test-decodes the start and end of every file. Catches more broken files but makes scans much slower. Default: off.</div>
+                            <div class="fieldDescription">Test-plays the start, middle and end of every file (30 seconds each). Catches broken files that look fine on the surface, but makes the first scan much slower — results are remembered for unchanged files. Default: off.</div>
                         </div>
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label class="emby-checkbox-label">
@@ -310,6 +310,7 @@
 
             var FIX_TYPES = [
                 { key: 'Duplicate', mode: 'DuplicateFixMode', disposal: 'DuplicateDisposal' },
+                { key: 'Playability', mode: 'PlayabilityFixMode', disposal: 'PlayabilityDisposal' },
                 { key: 'Quality', mode: 'TranscodeFixMode', disposal: 'TranscodeDisposal' },
                 { key: 'SubtitleLanguage', mode: 'SubtitleFixMode', disposal: 'SubtitleDisposal' },
                 { key: 'AudioLanguage', mode: 'AudioFixMode', disposal: 'AudioDisposal' }
@@ -740,6 +741,8 @@
                         c.TranscodeFixMode = mode;
                         c.SubtitleFixMode = mode;
                         c.AudioFixMode = mode;
+                        // Deleting broken files always waits for approval, even when everything else is automatic.
+                        c.PlayabilityFixMode = 'ManualApprove';
                         c.FirstRunDone = true;
                         ApiClient.updatePluginConfiguration(PLUGIN_ID, c).then(function (result) {
                             Dashboard.processPluginConfigurationUpdateResult(result);

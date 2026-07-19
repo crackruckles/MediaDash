@@ -23,7 +23,8 @@ public sealed class FixTask : IScheduledTask
         IssueType.Duplicate,
         IssueType.Quality,
         IssueType.SubtitleLanguage,
-        IssueType.AudioLanguage
+        IssueType.AudioLanguage,
+        IssueType.Playability
     ];
 
     private readonly MediaDashDb _db;

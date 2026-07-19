@@ -53,6 +53,14 @@ public sealed class MediaDashDb
                 json TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS decode_cache (
+                path TEXT PRIMARY KEY,
+                size INTEGER NOT NULL,
+                mtime_utc INTEGER NOT NULL,
+                checked_at_utc INTEGER NOT NULL,
+                error TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 issue_id INTEGER NOT NULL,
@@ -225,6 +233,48 @@ public sealed class MediaDashDb
         cmd.Parameters.AddWithValue("@mtime", mtimeUtcTicks);
         cmd.Parameters.AddWithValue("@probedAt", DateTime.UtcNow.Ticks);
         cmd.Parameters.AddWithValue("@json", json);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Looks up a cached decode-check result that is still valid for the file's current size and modification time.
+    /// </summary>
+    /// <param name="path">Full file path.</param>
+    /// <param name="size">Current file size in bytes.</param>
+    /// <param name="mtimeUtcTicks">Current last-write time in UTC ticks.</param>
+    /// <returns>Empty string when the file decoded cleanly, the error text when it did not, or null when not cached.</returns>
+    public string? GetCachedDecode(string path, long size, long mtimeUtcTicks)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT error FROM decode_cache WHERE path = @path AND size = @size AND mtime_utc = @mtime";
+        cmd.Parameters.AddWithValue("@path", path);
+        cmd.Parameters.AddWithValue("@size", size);
+        cmd.Parameters.AddWithValue("@mtime", mtimeUtcTicks);
+        return cmd.ExecuteScalar() as string;
+    }
+
+    /// <summary>
+    /// Stores a decode-check result, replacing any previous entry for the path.
+    /// </summary>
+    /// <param name="path">Full file path.</param>
+    /// <param name="size">File size in bytes at check time.</param>
+    /// <param name="mtimeUtcTicks">Last-write time in UTC ticks at check time.</param>
+    /// <param name="error">Empty string for a clean decode, otherwise the error text.</param>
+    public void StoreDecode(string path, long size, long mtimeUtcTicks, string error)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO decode_cache (path, size, mtime_utc, checked_at_utc, error)
+            VALUES (@path, @size, @mtime, @checkedAt, @error)
+            ON CONFLICT(path) DO UPDATE SET size = @size, mtime_utc = @mtime, checked_at_utc = @checkedAt, error = @error
+            """;
+        cmd.Parameters.AddWithValue("@path", path);
+        cmd.Parameters.AddWithValue("@size", size);
+        cmd.Parameters.AddWithValue("@mtime", mtimeUtcTicks);
+        cmd.Parameters.AddWithValue("@checkedAt", DateTime.UtcNow.Ticks);
+        cmd.Parameters.AddWithValue("@error", error);
         cmd.ExecuteNonQuery();
     }
 

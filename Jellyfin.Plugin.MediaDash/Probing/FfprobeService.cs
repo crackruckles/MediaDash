@@ -78,22 +78,43 @@ public sealed class FfprobeService
     }
 
     /// <summary>
-    /// Decodes the first and last 30 seconds of a file with ffmpeg to catch corruption ffprobe misses.
+    /// Test-plays the start, middle and end of a file (30 seconds each) with ffmpeg to catch corruption ffprobe misses.
+    /// Results are cached by path, size and modification time so unchanged files are not decoded again.
     /// </summary>
     /// <param name="path">Full path of the file to check.</param>
+    /// <param name="durationSeconds">The file's duration in seconds, used to locate the middle segment; 0 skips the middle check.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The decode error output, or null when the file decodes cleanly.</returns>
-    public async Task<string?> DecodeCheckAsync(string path, CancellationToken cancellationToken)
+    public async Task<string?> DecodeCheckAsync(string path, double durationSeconds, CancellationToken cancellationToken)
     {
-        // ponytail: decode results are not cached; the thorough toggle is off by default and re-runs are rare
-        var head = await RunFfmpegDecodeAsync(["-v", "error", "-i", path, "-t", "30", "-f", "null", "-"], cancellationToken).ConfigureAwait(false);
-        if (!string.IsNullOrWhiteSpace(head))
+        var fileInfo = new FileInfo(path);
+        if (!fileInfo.Exists)
         {
-            return head;
+            return null;
         }
 
-        var tail = await RunFfmpegDecodeAsync(["-v", "error", "-sseof", "-30", "-i", path, "-f", "null", "-"], cancellationToken).ConfigureAwait(false);
-        return string.IsNullOrWhiteSpace(tail) ? null : tail;
+        var cached = _db.GetCachedDecode(path, fileInfo.Length, fileInfo.LastWriteTimeUtc.Ticks);
+        if (cached is not null)
+        {
+            return cached.Length == 0 ? null : cached;
+        }
+
+        var error = await RunFfmpegDecodeAsync(["-i", path, "-t", "30", "-f", "null", "-"], cancellationToken).ConfigureAwait(false);
+
+        if (string.IsNullOrWhiteSpace(error) && durationSeconds > 90)
+        {
+            var middle = ((long)(durationSeconds / 2)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            error = await RunFfmpegDecodeAsync(["-ss", middle, "-i", path, "-t", "30", "-f", "null", "-"], cancellationToken).ConfigureAwait(false);
+        }
+
+        if (string.IsNullOrWhiteSpace(error))
+        {
+            error = await RunFfmpegDecodeAsync(["-sseof", "-30", "-i", path, "-f", "null", "-"], cancellationToken).ConfigureAwait(false);
+        }
+
+        var result = string.IsNullOrWhiteSpace(error) ? null : error;
+        _db.StoreDecode(path, fileInfo.Length, fileInfo.LastWriteTimeUtc.Ticks, result ?? string.Empty);
+        return result;
     }
 
     private async Task<string?> RunFfmpegDecodeAsync(string[] args, CancellationToken cancellationToken)
@@ -109,6 +130,8 @@ public sealed class FfprobeService
         process.StartInfo.UseShellExecute = false;
         process.StartInfo.CreateNoWindow = true;
         process.StartInfo.RedirectStandardError = true;
+        process.StartInfo.ArgumentList.Add("-v");
+        process.StartInfo.ArgumentList.Add("error");
         foreach (var arg in args)
         {
             process.StartInfo.ArgumentList.Add(arg);

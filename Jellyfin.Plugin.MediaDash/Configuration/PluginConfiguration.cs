@@ -32,10 +32,12 @@ public class PluginConfiguration : BasePluginConfiguration
         TranscodeFixMode = FixMode.DetectOnly;
         SubtitleFixMode = FixMode.DetectOnly;
         AudioFixMode = FixMode.DetectOnly;
+        PlayabilityFixMode = FixMode.DetectOnly;
         DuplicateDisposal = DisposalMethod.RecycleBin;
         TranscodeDisposal = DisposalMethod.RecycleBin;
         SubtitleDisposal = DisposalMethod.RecycleBin;
         AudioDisposal = DisposalMethod.RecycleBin;
+        PlayabilityDisposal = DisposalMethod.RecycleBin;
         RecycleBinPath = string.Empty;
         RecycleBinRetentionDays = 30;
         MaxConcurrentTranscodes = 1;
@@ -73,6 +75,16 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets how audio track removal runs.
     /// </summary>
     public FixMode AudioFixMode { get; set; }
+
+    /// <summary>
+    /// Gets or sets how removal of unplayable files runs.
+    /// </summary>
+    public FixMode PlayabilityFixMode { get; set; }
+
+    /// <summary>
+    /// Gets or sets where removed unplayable files go.
+    /// </summary>
+    public DisposalMethod PlayabilityDisposal { get; set; }
 
     /// <summary>
     /// Gets or sets where files removed by duplicate fixes go.
@@ -184,7 +196,7 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets the fix mode for an issue type.
     /// </summary>
     /// <param name="type">The issue type.</param>
-    /// <returns>The configured mode; playability issues are never auto-fixed.</returns>
+    /// <returns>The configured mode.</returns>
     public FixMode GetFixMode(Data.IssueType type)
     {
         return type switch
@@ -193,6 +205,7 @@ public class PluginConfiguration : BasePluginConfiguration
             Data.IssueType.Quality => TranscodeFixMode,
             Data.IssueType.SubtitleLanguage => SubtitleFixMode,
             Data.IssueType.AudioLanguage => AudioFixMode,
+            Data.IssueType.Playability => PlayabilityFixMode,
             _ => FixMode.DetectOnly
         };
     }
@@ -210,6 +223,7 @@ public class PluginConfiguration : BasePluginConfiguration
             Data.IssueType.Quality => TranscodeDisposal,
             Data.IssueType.SubtitleLanguage => SubtitleDisposal,
             Data.IssueType.AudioLanguage => AudioDisposal,
+            Data.IssueType.Playability => PlayabilityDisposal,
             _ => DisposalMethod.RecycleBin
         };
     }

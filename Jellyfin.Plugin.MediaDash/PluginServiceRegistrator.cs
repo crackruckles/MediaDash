@@ -30,5 +30,6 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IFixer, DuplicateFixer>();
         serviceCollection.AddSingleton<IFixer, TrackFixer>();
         serviceCollection.AddSingleton<IFixer, TranscodeFixer>();
+        serviceCollection.AddSingleton<IFixer, PlayabilityFixer>();
     }
 }

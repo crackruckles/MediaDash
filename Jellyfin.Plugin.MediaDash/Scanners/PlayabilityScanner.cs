@@ -59,7 +59,7 @@ public sealed class PlayabilityScanner : ProbingScannerBase
         }
         else if (Config.ThoroughPlayabilityCheck)
         {
-            var decodeError = await Ffprobe.DecodeCheckAsync(path, cancellationToken).ConfigureAwait(false);
+            var decodeError = await Ffprobe.DecodeCheckAsync(path, duration, cancellationToken).ConfigureAwait(false);
             if (decodeError is not null)
             {
                 reason = "decode-error";
@@ -72,11 +72,20 @@ public sealed class PlayabilityScanner : ProbingScannerBase
             return null;
         }
 
+        long size = 0;
+        try
+        {
+            size = new System.IO.FileInfo(path).Length;
+        }
+        catch (System.IO.IOException)
+        {
+        }
+
         return new Issue
         {
             DetailsJson = JsonSerializer.Serialize(new { reason, detail }),
-            SuggestedFix = "This file can't be played. Review it — MediaDash will not delete it automatically.",
-            SizeSavings = 0
+            SuggestedFix = "This file can't be played. Approve to remove it — it goes to the recycle bin first unless you chose permanent delete.",
+            SizeSavings = size
         };
     }
 
