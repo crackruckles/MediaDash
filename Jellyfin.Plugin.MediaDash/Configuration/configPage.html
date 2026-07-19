@@ -345,11 +345,26 @@
                 unitPercent: '{0}%',
                 unitDays: '{0} days',
                 types: {
-                    Duplicate: { title: 'Duplicate copies', hint: 'The same movie or episode exists more than once.', color: '#f59e0b', icon: 'content_copy' },
-                    Playability: { title: "Files that won't play", hint: 'These files are broken or unreadable.', color: '#ef4444', icon: 'play_disabled' },
-                    Quality: { title: 'Files wasting space', hint: 'Bigger than your chosen quality ceiling.', color: '#3b82f6', icon: 'compress' },
-                    SubtitleLanguage: { title: 'Unwanted subtitles', hint: 'Subtitles in languages you don’t keep.', color: '#8b5cf6', icon: 'subtitles' },
-                    AudioLanguage: { title: 'Unwanted audio', hint: 'Audio tracks in languages you don’t keep.', color: '#10b981', icon: 'audiotrack' }
+                    Duplicate: {
+                        title: 'Duplicate copies', hint: 'The same movie or episode exists more than once.', color: '#f59e0b', icon: 'content_copy',
+                        action: 'Delete this copy', actionHint: 'Queues deletion of this copy for the next fix run; the better copy stays.', approveAll: 'Delete all {0} duplicate copies shown'
+                    },
+                    Playability: {
+                        title: "Files that won't play", hint: 'These files are broken or unreadable.', color: '#ef4444', icon: 'play_disabled',
+                        action: 'Remove file', actionHint: 'Queues removal for the next fix run (re-checked as broken before anything is removed).', approveAll: 'Remove all {0} broken files shown'
+                    },
+                    Quality: {
+                        title: 'Files wasting space', hint: 'Bigger than your chosen quality ceiling.', color: '#3b82f6', icon: 'compress',
+                        action: 'Re-encode', actionHint: 'Queues a re-encode down to your quality ceiling for the next fix run; the original goes to the recycle bin.', approveAll: 'Re-encode all {0} files shown'
+                    },
+                    SubtitleLanguage: {
+                        title: 'Unwanted subtitles', hint: 'Subtitles in languages you don’t keep.', color: '#8b5cf6', icon: 'subtitles',
+                        action: 'Remove subtitles', actionHint: 'Queues removal of the unwanted subtitle tracks for the next fix run.', approveAll: 'Clean up all {0} files shown'
+                    },
+                    AudioLanguage: {
+                        title: 'Unwanted audio', hint: 'Audio tracks in languages you don’t keep.', color: '#10b981', icon: 'audiotrack',
+                        action: 'Remove audio tracks', actionHint: 'Queues removal of the unwanted audio tracks for the next fix run.', approveAll: 'Clean up all {0} files shown'
+                    }
                 },
                 languages: [
                     ['eng', 'English'], ['spa', 'Spanish'], ['fra', 'French'], ['deu', 'German'], ['ita', 'Italian'],
@@ -556,8 +571,9 @@
                 var typeFilter = view.querySelector('#mdTypeFilter').value;
 
                 if (typeFilter && list.length > 1) {
+                    var ft = STR.types[typeFilter] || {};
                     approveAllBtn.style.display = '';
-                    approveAllBtn.querySelector('span').textContent = fmt(STR.approveAll, list.length);
+                    approveAllBtn.querySelector('span').textContent = fmt(ft.approveAll || STR.approveAll, list.length);
                     view.querySelector('#mdApproveAllNote').textContent = STR.approveAllNote;
                 } else {
                     approveAllBtn.style.display = 'none';
@@ -584,9 +600,9 @@
                         '<div style="margin:.3em 0;">' + esc(i.SuggestedFix) +
                         (i.SizeSavings > 0 ? ' <b style="color:' + t.color + ';">(' + bytes(i.SizeSavings) + ')</b>' : '') + '</div>' +
                         '<div style="display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">' +
-                        '<button is="emby-button" type="button" class="raised button-submit mdApprove" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(STR.approve) + '</span></button>' +
+                        '<button is="emby-button" type="button" class="raised button-submit mdApprove" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(t.action || STR.approve) + '</span></button>' +
                         '<button is="emby-button" type="button" class="raised mdDismiss" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(STR.dismiss) + '</span></button>' +
-                        '<span class="fieldDescription">' + esc(STR.approveHint) + ' · ' + esc(STR.dismissHint) + '</span>' +
+                        '<span class="fieldDescription">' + esc(t.actionHint || STR.approveHint) + ' · ' + esc(STR.dismissHint) + '</span>' +
                         '</div>' +
                         '<div class="fieldDescription mdRowMsg" style="margin-top:.3em;"></div>' +
                         '</div>';
