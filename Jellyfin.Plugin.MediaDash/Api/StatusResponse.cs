@@ -19,6 +19,21 @@ public sealed class StatusResponse
     public double? ScanProgress { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether a fix run is currently executing.
+    /// </summary>
+    public bool IsFixing { get; set; }
+
+    /// <summary>
+    /// Gets or sets the running fix run's progress percentage, when fixing.
+    /// </summary>
+    public double? FixProgress { get; set; }
+
+    /// <summary>
+    /// Gets or sets the total number of open issues.
+    /// </summary>
+    public int OpenIssueTotal { get; set; }
+
+    /// <summary>
     /// Gets or sets when issues were last detected (UTC).
     /// </summary>
     public DateTime? LastScanUtc { get; set; }

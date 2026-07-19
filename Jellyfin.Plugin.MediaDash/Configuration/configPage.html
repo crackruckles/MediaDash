@@ -64,6 +64,9 @@
                     </button>
                 </div>
                 <div id="mdScanState" class="fieldDescription" style="margin-bottom:.4em;"></div>
+                <div id="mdProgressWrap" style="display:none;max-width:36em;margin:.4em 0 .8em;">
+                    <div class="mdBarTrack" style="height:10px;"><div id="mdProgressFill" class="mdBarFill" style="width:3%;background:#00a4dc;"></div></div>
+                </div>
                 <div id="mdDryRunNote" style="display:none;margin-bottom:1em;padding:.55em 1em;border-radius:10px;background:rgba(0,164,220,.14);border:1px solid rgba(0,164,220,.35);">
                     <span class="material-icons" style="font-size:1.1em;vertical-align:-3px;">shield</span>
                     <span id="mdDryRunText"></span>
@@ -261,6 +264,11 @@
                 scanIdle: 'Last scan: {0}',
                 scanNever: 'No scan has run yet. Click "Scan now" to check your libraries.',
                 scanRunning: 'Scanning your libraries… {0}%',
+                scanStarting: 'Starting scan…',
+                scanDone: 'Scan finished — {0} open issue(s) found.',
+                fixRunning: 'Applying fixes… {0}%',
+                fixStarting: 'Starting fix run…',
+                fixDone: 'Fix run finished — see History for what was done.',
                 dryRunOn: 'Safe mode is on: fix runs only log what they would do. Nothing is changed until you turn off dry-run in Settings.',
                 totalSavings: 'Space you could reclaim',
                 whereSavings: 'Where the savings are',
@@ -396,14 +404,46 @@
 
             // ---------- Overview ----------
 
+            var busy = { scan: false, fix: false };
+
+            function setProgress(visible, percent) {
+                view.querySelector('#mdProgressWrap').style.display = visible ? '' : 'none';
+                if (visible) {
+                    view.querySelector('#mdProgressFill').style.width = Math.max(3, percent || 0) + '%';
+                }
+            }
+
             function renderStatus(s) {
                 var state = view.querySelector('#mdScanState');
+                var scanBtn = view.querySelector('#mdScanNow');
+                var fixBtn = view.querySelector('#mdFixNow');
+                scanBtn.disabled = s.IsScanning;
+                fixBtn.disabled = s.IsFixing;
+
                 if (s.IsScanning) {
+                    busy.scan = true;
                     state.textContent = fmt(STR.scanRunning, Math.round(s.ScanProgress || 0));
+                    setProgress(true, s.ScanProgress);
                     schedulePoll();
+                } else if (s.IsFixing) {
+                    busy.fix = true;
+                    state.textContent = fmt(STR.fixRunning, Math.round(s.FixProgress || 0));
+                    setProgress(true, s.FixProgress);
+                    schedulePoll();
+                } else if (busy.scan) {
+                    busy.scan = false;
+                    setProgress(false);
+                    state.textContent = fmt(STR.scanDone, s.OpenIssueTotal);
+                } else if (busy.fix) {
+                    busy.fix = false;
+                    setProgress(false);
+                    state.textContent = STR.fixDone;
+                    if (view.querySelector('#mdTab-history').style.display !== 'none') loadHistory();
                 } else if (s.LastScanUtc) {
+                    setProgress(false);
                     state.textContent = fmt(STR.scanIdle, new Date(s.LastScanUtc).toLocaleString());
                 } else {
+                    setProgress(false);
                     state.textContent = STR.scanNever;
                 }
 
@@ -820,11 +860,19 @@
                     });
 
                     view.querySelector('#mdScanNow').addEventListener('click', function () {
-                        post('Scan').then(function () { setTimeout(refresh, 500); });
+                        busy.scan = true;
+                        this.disabled = true;
+                        view.querySelector('#mdScanState').textContent = STR.scanStarting;
+                        setProgress(true, 3);
+                        post('Scan').then(function () { setTimeout(refresh, 700); });
                     });
 
                     view.querySelector('#mdFixNow').addEventListener('click', function () {
-                        post('Fix').then(function () { setTimeout(refresh, 500); });
+                        busy.fix = true;
+                        this.disabled = true;
+                        view.querySelector('#mdScanState').textContent = STR.fixStarting;
+                        setProgress(true, 3);
+                        post('Fix').then(function () { setTimeout(refresh, 700); });
                     });
 
                     view.querySelector('#mdApproveAll').addEventListener('click', function () {

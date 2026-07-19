@@ -52,10 +52,14 @@ public class MediaDashController : ControllerBase
     {
         var summary = _db.GetSummary();
         var scanTask = GetScanTask();
+        var fixTask = _taskManager.ScheduledTasks.FirstOrDefault(w => w.ScheduledTask is FixTask);
         return new StatusResponse
         {
             IsScanning = scanTask is not null && scanTask.State != TaskState.Idle,
             ScanProgress = scanTask?.CurrentProgress,
+            IsFixing = fixTask is not null && fixTask.State != TaskState.Idle,
+            FixProgress = fixTask?.CurrentProgress,
+            OpenIssueTotal = summary.Sum(s => s.Count),
             LastScanUtc = summary.Count > 0 ? summary.Max(s => s.NewestDetectedUtc) : null,
             TotalPotentialSavings = summary.Sum(s => s.PotentialSavings),
             Counts = summary.Select(s => new TypeCount
