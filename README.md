@@ -32,7 +32,7 @@ Each fix type independently: **Off / Detect only / Ask me first / Automatic**, a
 ## Install
 
 1. In Jellyfin: **Dashboard → Plugins → Repositories → +** and add this repository URL:
-   `https://raw.githubusercontent.com/OWNER/mediadash/master/manifest.json` *(will be live with the first release)*
+   `https://raw.githubusercontent.com/crackruckles/MediaDash/main/manifest.json` *(will be live with the first release)*
 2. Go to **Catalog**, install **MediaDash**, restart Jellyfin.
 3. Open **Dashboard → My Plugins → MediaDash** and answer the three setup questions.
 
