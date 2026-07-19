@@ -36,9 +36,19 @@ public sealed class PlayabilityScanner : ProbingScannerBase
         string? reason = null;
         string? detail = null;
 
+        if (!System.IO.File.Exists(path))
+        {
+            return new Issue
+            {
+                DetailsJson = JsonSerializer.Serialize(new { reason = "missing", detail = "The library entry points to a file that no longer exists." }),
+                SuggestedFix = "The file is gone but Jellyfin still lists it. Restore the file, or run a library scan in Jellyfin to remove the dead entry.",
+                SizeSavings = 0
+            };
+        }
+
         if (probe is null)
         {
-            // File vanished or ffprobe unavailable — infrastructure problem, not a file problem.
+            // ffprobe unavailable — infrastructure problem, not a file problem.
             return null;
         }
 

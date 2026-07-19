@@ -50,15 +50,19 @@
         </style>
         <div data-role="content">
             <div class="content-primary">
-                <h1 style="display:flex;align-items:center;gap:1em;flex-wrap:wrap;">
-                    <span style="display:flex;align-items:center;gap:.35em;"><span class="material-icons" style="color:#00a4dc;">dashboard</span>MediaDash</span>
+                <div style="display:flex;align-items:center;gap:1.1em;flex-wrap:wrap;margin:.6em 0;">
+                    <img id="mdLogo" alt="MediaDash" style="width:64px;height:64px;border-radius:16px;" />
+                    <div style="flex:1;min-width:16em;">
+                        <h1 style="margin:0;">MediaDash</h1>
+                        <div class="fieldDescription" id="mdTagline" style="max-width:44em;"></div>
+                    </div>
                     <button is="emby-button" type="button" id="mdScanNow" class="raised button-submit" style="font-size:80%;">
                         <span class="material-icons" style="font-size:1.2em;margin-right:.3em;">search</span><span>Scan now</span>
                     </button>
                     <button is="emby-button" type="button" id="mdFixNow" class="raised" style="font-size:80%;">
                         <span class="material-icons" style="font-size:1.2em;margin-right:.3em;">build</span><span>Run fixes now</span>
                     </button>
-                </h1>
+                </div>
                 <div id="mdScanState" class="fieldDescription" style="margin-bottom:.4em;"></div>
                 <div id="mdDryRunNote" style="display:none;margin-bottom:1em;padding:.55em 1em;border-radius:10px;background:rgba(0,164,220,.14);border:1px solid rgba(0,164,220,.35);">
                     <span class="material-icons" style="font-size:1.1em;vertical-align:-3px;">shield</span>
@@ -226,7 +230,7 @@
                                 <input id="mdThorough" type="checkbox" is="emby-checkbox" />
                                 <span>Thorough playability check</span>
                             </label>
-                            <div class="fieldDescription">Test-plays the start, middle and end of every file (30 seconds each). Catches broken files that look fine on the surface, but makes the first scan much slower — results are remembered for unchanged files. Default: off.</div>
+                            <div class="fieldDescription">Test-plays the start, middle and end of every file (30 seconds each). Catches broken files that look fine on the surface. The first scan is much slower; results are remembered for unchanged files. Default: on.</div>
                         </div>
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label class="emby-checkbox-label">
@@ -253,6 +257,7 @@
 
             // All user-facing strings live here for future localization.
             var STR = {
+                tagline: 'Keeps your library lean and playable — finds duplicate copies, broken files, oversized encodes and unwanted language tracks, then fixes them safely.',
                 scanIdle: 'Last scan: {0}',
                 scanNever: 'No scan has run yet. Click "Scan now" to check your libraries.',
                 scanRunning: 'Scanning your libraries… {0}%',
@@ -797,6 +802,9 @@
 
             document.querySelector('#MediaDashConfigPage').addEventListener('pageshow', function () {
                 view = this;
+
+                view.querySelector('#mdLogo').src = ApiClient.getUrl('MediaDash/Logo');
+                view.querySelector('#mdTagline').textContent = STR.tagline;
 
                 var filter = view.querySelector('#mdTypeFilter');
                 if (!filter.options.length) {

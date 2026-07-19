@@ -100,12 +100,16 @@ public sealed class MediaDashDb
         using (var insert = connection.CreateCommand())
         {
             insert.Transaction = transaction;
+            // Dismissed rows suppress re-detection (the user said "never show this again");
+            // queued rows suppress duplicates. Fixed rows must NOT suppress — the same path can break again later.
             insert.CommandText = """
                 INSERT INTO issues (type, item_id, path, details, suggested_fix, size_savings, status, detected_at_utc)
                 SELECT @type, @itemId, @path, @details, @suggestedFix, @sizeSavings, @detected, @detectedAt
                 WHERE NOT EXISTS (
-                    SELECT 1 FROM issues WHERE type = @type AND path = @path AND status != @detected)
+                    SELECT 1 FROM issues WHERE type = @type AND path = @path AND status IN (@queued, @dismissed))
                 """;
+            insert.Parameters.AddWithValue("@queued", (int)IssueStatus.Queued);
+            insert.Parameters.AddWithValue("@dismissed", (int)IssueStatus.Dismissed);
             var pType = insert.Parameters.Add("@type", SqliteType.Integer);
             var pItemId = insert.Parameters.Add("@itemId", SqliteType.Text);
             var pPath = insert.Parameters.Add("@path", SqliteType.Text);

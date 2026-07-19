@@ -25,7 +25,7 @@ public class PluginConfiguration : BasePluginConfiguration
         ReencodeFileTypes = [];
         TargetContainer = "mkv";
         KeeperPolicyOrder = ["Resolution", "Codec", "Bitrate", "Size"];
-        ThoroughPlayabilityCheck = false;
+        ThoroughPlayabilityCheck = true;
         TreatEditionsAsDuplicates = false;
         DryRun = true;
         DuplicateFixMode = FixMode.DetectOnly;
@@ -178,7 +178,8 @@ public class PluginConfiguration : BasePluginConfiguration
     public string[] KeeperPolicyOrder { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether the playability scan additionally decodes the start and end of every file (slow but thorough).
+    /// Gets or sets a value indicating whether the playability scan test-plays the start, middle and end of every file.
+    /// On by default; the first scan is slow but results are cached for unchanged files.
     /// </summary>
     public bool ThoroughPlayabilityCheck { get; set; }
 

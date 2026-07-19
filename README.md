@@ -1,3 +1,5 @@
+<p align="center"><img src="logo.png" width="140" alt="MediaDash logo"/></p>
+
 # MediaDash — keep your Jellyfin library lean and playable
 
 MediaDash scans your libraries for **duplicate copies**, **files that won't play**, **oversized encodes**, and **audio/subtitle tracks in languages you don't want** — then fixes them, either automatically or after your approval. All from a dashboard inside the Jellyfin web UI.

@@ -203,6 +203,20 @@ public class MediaDashController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Gets the plugin logo. Anonymous so image tags can load it without a token header.
+    /// </summary>
+    /// <returns>The logo PNG.</returns>
+    [HttpGet("Logo")]
+    [AllowAnonymous]
+    [Produces("image/png")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult GetLogo()
+    {
+        var stream = typeof(Plugin).Assembly.GetManifestResourceStream("Jellyfin.Plugin.MediaDash.Configuration.logo.png");
+        return stream is null ? NotFound() : File(stream, "image/png");
+    }
+
     private IScheduledTaskWorker? GetScanTask()
     {
         return _taskManager.ScheduledTasks.FirstOrDefault(w => w.ScheduledTask is ScanTask);
