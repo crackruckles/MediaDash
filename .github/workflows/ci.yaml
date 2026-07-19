@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+    paths-ignore: ['**/*.md']
+  pull_request:
+    branches: [master]
+    paths-ignore: ['**/*.md']
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Build
+        run: dotnet build Jellyfin.Plugin.MediaDash.sln --configuration Release
+      - name: Test
+        run: dotnet test Jellyfin.Plugin.MediaDash.sln --configuration Release --no-build
