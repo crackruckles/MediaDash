@@ -220,6 +220,19 @@ public class MediaDashController : ControllerBase
     }
 
     /// <summary>
+    /// Lists the files currently held in the recycle bin, newest first.
+    /// </summary>
+    /// <returns>The recycled files.</returns>
+    [HttpGet("RecycleBin/Items")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<IReadOnlyList<RecycleBinItem>> GetRecycleBinItems()
+    {
+        return Ok(_recycleBin.ListContents()
+            .Select(e => new RecycleBinItem { FileName = e.FileName, SizeBytes = e.SizeBytes, RecycledAtUtc = e.RecycledAtUtc })
+            .ToList());
+    }
+
+    /// <summary>
     /// Permanently empties the recycle bin. Files can no longer be restored afterwards.
     /// </summary>
     /// <returns>No content.</returns>

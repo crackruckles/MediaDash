@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using MediaBrowser.Common.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -86,6 +88,35 @@ public sealed class RecycleBin
         }
 
         return (count, size);
+    }
+
+    /// <summary>
+    /// Lists the files currently held in the bin, newest first.
+    /// </summary>
+    /// <param name="limit">Maximum entries returned.</param>
+    /// <returns>File name, size and when it was recycled.</returns>
+    public IReadOnlyList<(string FileName, long SizeBytes, DateTime RecycledAtUtc)> ListContents(int limit = 500)
+    {
+        var result = new List<(string, long, DateTime)>();
+        if (!Directory.Exists(Root))
+        {
+            return result;
+        }
+
+        foreach (var dir in Directory.GetDirectories(Root).OrderByDescending(d => d, StringComparer.Ordinal))
+        {
+            foreach (var file in Directory.EnumerateFiles(dir))
+            {
+                var info = new FileInfo(file);
+                result.Add((info.Name, info.Length, Directory.GetCreationTimeUtc(dir)));
+                if (result.Count >= limit)
+                {
+                    return result;
+                }
+            }
+        }
+
+        return result;
     }
 
     /// <summary>
