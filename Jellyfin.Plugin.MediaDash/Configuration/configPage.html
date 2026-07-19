@@ -46,6 +46,14 @@
             #MediaDashConfigPage .mdIssueCard { border-left: 4px solid transparent; }
             #MediaDashConfigPage .mdSection { margin-top: 1.6em; }
             #MediaDashConfigPage .mdFade { animation: mdFadeIn .35s ease; }
+            #MediaDashConfigPage .mdSecHead {
+                display: flex; align-items: center; gap: .5em;
+                border-left: 5px solid; border-radius: 5px;
+                padding: .3em .7em; margin: 2em 0 .9em;
+                background: linear-gradient(90deg, rgba(255,255,255,.06), transparent 70%);
+                font-size: 1.2em; font-weight: 600;
+            }
+            #MediaDashConfigPage .mdSecHead .material-icons { font-size: 1.15em; }
             @keyframes mdFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
         </style>
         <div data-role="content">
@@ -135,7 +143,7 @@
 
                 <div id="mdTab-settings" style="display:none;">
                     <form id="mdSettingsForm">
-                        <h2>Safety</h2>
+                        <h2 class="mdSecHead" style="border-color:#00a4dc;"><span class="material-icons" style="color:#00a4dc;">shield</span>Safety</h2>
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label class="emby-checkbox-label">
                                 <input id="mdDryRun" type="checkbox" is="emby-checkbox" />
@@ -151,11 +159,20 @@
                             <div class="fieldDescription">On (default): scheduled scans and fixes wait until nobody is watching anything and nobody has used Jellyfin for 15 minutes. The "Scan now" and "Run fixes now" buttons always run immediately.</div>
                         </div>
 
-                        <h2 class="mdSection">What to fix</h2>
+                        <h2 class="mdSecHead" style="border-color:#ef4444;"><span class="material-icons" style="color:#ef4444;">build</span>What to fix</h2>
                         <div class="fieldDescription" style="margin-bottom:.8em;">For each kind of issue: how it runs, and what happens to removed or replaced files. "Ask me first" queues fixes for your approval on the Issues tab.</div>
                         <div id="mdFixTypeRows"></div>
+                        <div class="selectContainer" style="max-width:26em;">
+                            <label class="selectLabel" for="mdKeeperPolicy">When duplicates are found, keep</label>
+                            <select is="emby-select" id="mdKeeperPolicy" class="emby-select-withcolor emby-select">
+                                <option value="quality">The best-quality copy (recommended)</option>
+                                <option value="codec">The most modern format (codec first)</option>
+                                <option value="size">The smallest file</option>
+                            </select>
+                            <div class="fieldDescription">Decides which copy survives. Best quality compares resolution, then codec, then bitrate; ties go to the smaller file.</div>
+                        </div>
 
-                        <h2 class="mdSection">Quality ceiling</h2>
+                        <h2 class="mdSecHead" style="border-color:#3b82f6;"><span class="material-icons" style="color:#3b82f6;">compress</span>Quality ceiling</h2>
                         <div class="selectContainer" style="max-width:26em;">
                             <label class="selectLabel" for="mdMaxRes">Maximum resolution</label>
                             <select is="emby-select" id="mdMaxRes" class="emby-select-withcolor emby-select">
@@ -199,7 +216,7 @@
                             <div class="fieldDescription">Files only slightly over the limits are left alone. Default: 15%.</div>
                         </div>
 
-                        <h2 class="mdSection">Languages</h2>
+                        <h2 class="mdSecHead" style="border-color:#10b981;"><span class="material-icons" style="color:#10b981;">translate</span>Languages</h2>
                         <div class="inputContainer" style="max-width:26em;">
                             <label class="inputLabel inputLabelUnfocused" for="mdAudioLangs">Audio languages to keep</label>
                             <input id="mdAudioLangs" type="text" is="emby-input" placeholder="not set — audio cleanup off" />
@@ -211,11 +228,16 @@
                             <div class="fieldDescription">Comma-separated ISO codes like "eng". Empty turns subtitle-language cleanup off.</div>
                         </div>
 
-                        <h2 class="mdSection">Libraries</h2>
+                        <h2 class="mdSecHead" style="border-color:#8b5cf6;"><span class="material-icons" style="color:#8b5cf6;">video_library</span>Libraries</h2>
                         <div class="fieldDescription" style="margin-bottom:.6em;">MediaDash scans these libraries. Nothing selected (default) means all movie and TV libraries.</div>
                         <div id="mdLibraries"></div>
 
-                        <h2 class="mdSection">Recycle bin</h2>
+                        <h2 class="mdSecHead" style="border-color:#f59e0b;"><span class="material-icons" style="color:#f59e0b;">delete</span>Recycle bin</h2>
+                        <div id="mdBinInfo" class="fieldDescription" style="margin-bottom:.5em;"></div>
+                        <div style="margin-bottom:.8em;">
+                            <button is="emby-button" type="button" id="mdBinEmpty" class="raised" style="font-size:80%;"><span>Empty recycle bin now</span></button>
+                            <span class="fieldDescription">Permanently deletes everything held in the bin — Restore stops working for those files.</span>
+                        </div>
                         <div class="inputContainer" style="max-width:26em;">
                             <label class="inputLabel inputLabelUnfocused" for="mdBinPath">Recycle bin folder</label>
                             <input id="mdBinPath" type="text" is="emby-input" placeholder="default (inside Jellyfin's data folder)" />
@@ -227,7 +249,7 @@
                             <div class="fieldDescription">After this many days, recycled files are deleted for good. Default: 30.</div>
                         </div>
 
-                        <h2 class="mdSection">Advanced</h2>
+                        <h2 class="mdSecHead" style="border-color:#64748b;"><span class="material-icons" style="color:#64748b;">tune</span>Advanced</h2>
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label class="emby-checkbox-label">
                                 <input id="mdThorough" type="checkbox" is="emby-checkbox" />
@@ -243,6 +265,10 @@
                             <div class="fieldDescription">Off (default): a Director's Cut and the theatrical cut are kept as separate movies.</div>
                         </div>
                         <div class="fieldDescription" style="margin:.8em 0;">Scan and fix schedules can be changed in Dashboard → Scheduled Tasks ("Scan libraries for issues" and "Apply approved fixes").</div>
+                        <div style="margin:.6em 0;">
+                            <button is="emby-button" type="button" id="mdRerunSetup" class="raised" style="font-size:80%;"><span>Run first-time setup again</span></button>
+                            <span class="fieldDescription">Brings back the three-question welcome card.</span>
+                        </div>
 
                         <button is="emby-button" type="submit" class="raised button-submit block" style="max-width:26em;margin-top:1em;">
                             <span>Save</span>
@@ -295,6 +321,9 @@
                 saved: 'Saved.',
                 confirmAuto: 'Automatic mode will change files every night without asking. Removed files go to the recycle bin (unless set to permanent delete). Continue?',
                 confirmPermanent: 'Permanent delete means removed files CANNOT be recovered. Are you sure?',
+                confirmEmptyBin: 'Permanently delete everything in the recycle bin? Restore will no longer be possible for those files.',
+                binHolding: 'Currently holding {0} file(s) ({1}).',
+                binEmpty: 'The recycle bin is empty.',
                 modeOff: "Off — don't even scan",
                 modeDetect: 'Detect only — just show me',
                 modeManual: 'Ask me first',
@@ -328,6 +357,12 @@
                 { key: 'SubtitleLanguage', mode: 'SubtitleFixMode', disposal: 'SubtitleDisposal' },
                 { key: 'AudioLanguage', mode: 'AudioFixMode', disposal: 'AudioDisposal' }
             ];
+
+            var KEEPER_PRESETS = {
+                quality: ['Resolution', 'Codec', 'Bitrate', 'Size'],
+                codec: ['Codec', 'Resolution', 'Bitrate', 'Size'],
+                size: ['Size']
+            };
 
             var SLIDERS = [
                 { id: 'mdMaxBitrate', val: 'mdMaxBitrateVal', unit: 'unitMbps' },
@@ -691,8 +726,25 @@
                 });
             }
 
+            function loadBinInfo() {
+                api('RecycleBin').then(function (b) {
+                    view.querySelector('#mdBinInfo').textContent = b.FileCount > 0
+                        ? fmt(STR.binHolding, b.FileCount, bytes(b.SizeBytes))
+                        : STR.binEmpty;
+                    view.querySelector('#mdBinEmpty').disabled = b.FileCount === 0;
+                });
+            }
+
+            function keeperPresetFromConfig(order) {
+                var joined = (order || []).join(',');
+                var match = Object.keys(KEEPER_PRESETS).find(function (k) { return KEEPER_PRESETS[k].join(',') === joined; });
+                return match || 'quality';
+            }
+
             function loadSettings() {
+                loadBinInfo();
                 ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
+                    view.querySelector('#mdKeeperPolicy').value = keeperPresetFromConfig(c.KeeperPolicyOrder);
                     view.querySelector('#mdDryRun').checked = c.DryRun;
                     view.querySelector('#mdPausePlayback').checked = c.PauseDuringPlayback;
                     FIX_TYPES.forEach(function (t) {
@@ -754,6 +806,7 @@
                     c.EnabledLibraries = Array.prototype.map.call(view.querySelectorAll('.mdLib:checked'), function (cb) {
                         return cb.getAttribute('data-id');
                     });
+                    c.KeeperPolicyOrder = KEEPER_PRESETS[view.querySelector('#mdKeeperPolicy').value] || KEEPER_PRESETS.quality;
 
                     ApiClient.updatePluginConfiguration(PLUGIN_ID, c).then(function (result) {
                         view.querySelector('#mdSaveMsg').textContent = STR.saved;
@@ -885,6 +938,22 @@
                     initSliders();
                     view.querySelector('#mdSettingsForm').addEventListener('submit', saveSettings);
                     setupFirstRun();
+
+                    view.querySelector('#mdBinEmpty').addEventListener('click', function () {
+                        if (!window.confirm(STR.confirmEmptyBin)) return;
+                        post('RecycleBin/Empty').then(loadBinInfo);
+                    });
+
+                    view.querySelector('#mdRerunSetup').addEventListener('click', function () {
+                        ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
+                            c.FirstRunDone = false;
+                            ApiClient.updatePluginConfiguration(PLUGIN_ID, c).then(function (result) {
+                                Dashboard.processPluginConfigurationUpdateResult(result);
+                                refresh();
+                                window.scrollTo(0, 0);
+                            });
+                        });
+                    });
                 }
 
                 refresh();

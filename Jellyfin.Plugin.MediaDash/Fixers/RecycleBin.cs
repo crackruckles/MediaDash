@@ -67,6 +67,46 @@ public sealed class RecycleBin
     }
 
     /// <summary>
+    /// Gets the current number of files and total bytes held in the bin.
+    /// </summary>
+    /// <returns>File count and total size.</returns>
+    public (int FileCount, long SizeBytes) GetContents()
+    {
+        if (!Directory.Exists(Root))
+        {
+            return (0, 0);
+        }
+
+        var count = 0;
+        long size = 0;
+        foreach (var file in Directory.EnumerateFiles(Root, "*", SearchOption.AllDirectories))
+        {
+            count++;
+            size += new FileInfo(file).Length;
+        }
+
+        return (count, size);
+    }
+
+    /// <summary>
+    /// Permanently deletes everything in the bin, regardless of retention.
+    /// </summary>
+    public void EmptyAll()
+    {
+        if (!Directory.Exists(Root))
+        {
+            return;
+        }
+
+        foreach (var dir in Directory.GetDirectories(Root))
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+
+        _logger.LogInformation("Recycle bin emptied by user request");
+    }
+
+    /// <summary>
     /// Deletes recycled files older than the retention period.
     /// </summary>
     /// <param name="retentionDays">Days to keep recycled files.</param>

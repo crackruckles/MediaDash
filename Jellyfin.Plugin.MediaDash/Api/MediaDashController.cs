@@ -208,6 +208,30 @@ public class MediaDashController : ControllerBase
     }
 
     /// <summary>
+    /// Gets the recycle bin contents summary.
+    /// </summary>
+    /// <returns>File count and total size.</returns>
+    [HttpGet("RecycleBin")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<RecycleBinInfo> GetRecycleBin()
+    {
+        var (count, size) = _recycleBin.GetContents();
+        return new RecycleBinInfo { FileCount = count, SizeBytes = size };
+    }
+
+    /// <summary>
+    /// Permanently empties the recycle bin. Files can no longer be restored afterwards.
+    /// </summary>
+    /// <returns>No content.</returns>
+    [HttpPost("RecycleBin/Empty")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public ActionResult EmptyRecycleBin()
+    {
+        _recycleBin.EmptyAll();
+        return NoContent();
+    }
+
+    /// <summary>
     /// Gets the plugin logo. Anonymous so image tags can load it without a token header.
     /// </summary>
     /// <returns>The logo PNG.</returns>
