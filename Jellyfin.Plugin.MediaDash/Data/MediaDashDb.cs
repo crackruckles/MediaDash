@@ -19,13 +19,17 @@ public sealed class MediaDashDb
     /// </summary>
     /// <param name="applicationPaths">Instance of the <see cref="IApplicationPaths"/> interface.</param>
     public MediaDashDb(IApplicationPaths applicationPaths)
+        : this(EnsureDbPath(applicationPaths))
     {
-        var dataDir = Path.Combine(applicationPaths.DataPath, "mediadash");
-        Directory.CreateDirectory(dataDir);
-        _connectionString = new SqliteConnectionStringBuilder
-        {
-            DataSource = Path.Combine(dataDir, "mediadash.db")
-        }.ToString();
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MediaDashDb"/> class against an explicit database file (tests).
+    /// </summary>
+    /// <param name="dbPath">Full path of the SQLite database file.</param>
+    internal MediaDashDb(string dbPath)
+    {
+        _connectionString = new SqliteConnectionStringBuilder { DataSource = dbPath }.ToString();
 
         using var connection = Open();
         using var cmd = connection.CreateCommand();
@@ -77,24 +81,48 @@ public sealed class MediaDashDb
         cmd.ExecuteNonQuery();
     }
 
+    private static string EnsureDbPath(IApplicationPaths applicationPaths)
+    {
+        var dataDir = Path.Combine(applicationPaths.DataPath, "mediadash");
+        Directory.CreateDirectory(dataDir);
+        return Path.Combine(dataDir, "mediadash.db");
+    }
+
     /// <summary>
-    /// Replaces all issues of a type that are still in <see cref="IssueStatus.Detected"/> status with fresh scan results.
+    /// Replaces detected issues of a type with fresh scan results, but only for the paths that were actually scanned —
+    /// a scan scoped to one library must not wipe findings from other libraries.
     /// Issues the user dismissed are preserved and not re-inserted for the same path.
     /// </summary>
     /// <param name="type">The issue type being refreshed.</param>
     /// <param name="issues">The freshly detected issues.</param>
-    public void ReplaceDetectedIssues(IssueType type, IReadOnlyList<Issue> issues)
+    /// <param name="scannedPaths">All file paths covered by this scan; null means the scan covered everything.</param>
+    public void ReplaceDetectedIssues(IssueType type, IReadOnlyList<Issue> issues, IReadOnlyCollection<string>? scannedPaths = null)
     {
         using var connection = Open();
         using var transaction = connection.BeginTransaction();
 
-        using (var delete = connection.CreateCommand())
+        if (scannedPaths is null)
         {
+            using var delete = connection.CreateCommand();
             delete.Transaction = transaction;
             delete.CommandText = "DELETE FROM issues WHERE type = @type AND status = @detected";
             delete.Parameters.AddWithValue("@type", (int)type);
             delete.Parameters.AddWithValue("@detected", (int)IssueStatus.Detected);
             delete.ExecuteNonQuery();
+        }
+        else
+        {
+            using var delete = connection.CreateCommand();
+            delete.Transaction = transaction;
+            delete.CommandText = "DELETE FROM issues WHERE type = @type AND status = @detected AND path = @path";
+            delete.Parameters.AddWithValue("@type", (int)type);
+            delete.Parameters.AddWithValue("@detected", (int)IssueStatus.Detected);
+            var pPath = delete.Parameters.Add("@path", SqliteType.Text);
+            foreach (var path in scannedPaths)
+            {
+                pPath.Value = path;
+                delete.ExecuteNonQuery();
+            }
         }
 
         using (var insert = connection.CreateCommand())

@@ -79,9 +79,11 @@ public sealed class ScanTask : IScheduledTask
             Recursive = true
         });
 
+        var scanIsScoped = false;
         var enabledLibraries = Plugin.Instance!.Configuration.EnabledLibraries;
         if (enabledLibraries.Length > 0)
         {
+            scanIsScoped = true;
             var enabledLocations = _libraryManager.GetVirtualFolders()
                 .Where(f => enabledLibraries.Contains(f.ItemId, StringComparer.OrdinalIgnoreCase))
                 .SelectMany(f => f.Locations)
@@ -94,6 +96,9 @@ public sealed class ScanTask : IScheduledTask
 
         _logger.LogInformation("MediaDash scan starting: {ItemCount} items, {ScannerCount} scanners", items.Count, _scanners.Count());
 
+        var scannedPaths = scanIsScoped
+            ? items.SelectMany(MediaFileHelper.GetFilePaths).ToList()
+            : null;
         var scanners = _scanners.ToList();
         for (var i = 0; i < scanners.Count; i++)
         {
@@ -104,7 +109,7 @@ public sealed class ScanTask : IScheduledTask
             var scannerProgress = new Progress<double>(p => progress.Report(baseProgress + (p * slice / 100.0)));
 
             var issues = await scanner.ScanAsync(items, scannerProgress, cancellationToken).ConfigureAwait(false);
-            _db.ReplaceDetectedIssues(scanner.Type, issues);
+            _db.ReplaceDetectedIssues(scanner.Type, issues, scannedPaths);
             _logger.LogInformation("MediaDash scanner {Type} found {Count} issues", scanner.Type, issues.Count);
         }
 
