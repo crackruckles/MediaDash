@@ -1,0 +1,18 @@
+---
+name: "MediaDash"
+guid: "38bdb090-b763-4294-934b-b54ade4d9d6d"
+version: "0.1.0.0"
+targetAbi: "10.11.0.0"
+framework: "net9.0"
+overview: "Keeps your library lean and playable: finds duplicates, broken files, oversized encodes, and unwanted language tracks — and fixes them safely."
+description: >
+  MediaDash scans your libraries for duplicate copies, files that won't play,
+  encodes bigger than your chosen quality ceiling, and audio/subtitle tracks in
+  languages you don't want. Each fix type can run automatically or wait for your
+  approval, with a built-in recycle bin so nothing is lost by accident.
+category: "General"
+owner: "crackruckles"
+artifacts:
+- "Jellyfin.Plugin.MediaDash.dll"
+changelog: >
+  Initial development version.
