@@ -40,7 +40,19 @@ public class PluginConfiguration : BasePluginConfiguration
         RecycleBinRetentionDays = 30;
         MaxConcurrentTranscodes = 1;
         PauseDuringPlayback = true;
+        FirstRunDone = false;
+        EnabledLibraries = [];
     }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the first-run setup has been completed.
+    /// </summary>
+    public bool FirstRunDone { get; set; }
+
+    /// <summary>
+    /// Gets or sets the item ids of libraries MediaDash scans. Empty means all movie and TV libraries.
+    /// </summary>
+    public string[] EnabledLibraries { get; set; }
 
     /// <summary>
     /// Gets or sets how duplicate fixes run.

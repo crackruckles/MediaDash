@@ -60,6 +60,19 @@ public sealed class ScanTask : IScheduledTask
             Recursive = true
         });
 
+        var enabledLibraries = Plugin.Instance!.Configuration.EnabledLibraries;
+        if (enabledLibraries.Length > 0)
+        {
+            var enabledLocations = _libraryManager.GetVirtualFolders()
+                .Where(f => enabledLibraries.Contains(f.ItemId, StringComparer.OrdinalIgnoreCase))
+                .SelectMany(f => f.Locations)
+                .Select(l => System.IO.Path.TrimEndingDirectorySeparator(l) + System.IO.Path.DirectorySeparatorChar)
+                .ToList();
+            items = items.Where(i => !string.IsNullOrEmpty(i.Path)
+                && enabledLocations.Any(l => i.Path.StartsWith(l, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+        }
+
         _logger.LogInformation("MediaDash scan starting: {ItemCount} items, {ScannerCount} scanners", items.Count, _scanners.Count());
 
         var scanners = _scanners.ToList();

@@ -5,7 +5,7 @@
     <title>MediaDash</title>
 </head>
 <body>
-    <div id="MediaDashConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-select">
+    <div id="MediaDashConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-select,emby-input,emby-checkbox">
         <div data-role="content">
             <div class="content-primary">
                 <h1 style="display:flex;align-items:center;gap:1em;flex-wrap:wrap;">MediaDash
@@ -19,10 +19,38 @@
                 <div id="mdScanState" class="fieldDescription" style="margin-bottom:.4em;"></div>
                 <div id="mdDryRunNote" class="fieldDescription" style="margin-bottom:1em;"></div>
 
-                <div style="display:flex;gap:.6em;margin-bottom:1.2em;">
+                <div id="mdFirstRun" class="cardBox" style="display:none;padding:1.2em 1.6em;margin-bottom:1.4em;">
+                    <h2 style="margin-top:0;">Welcome! Three quick questions and you're set up.</h2>
+                    <div class="selectContainer" style="max-width:26em;">
+                        <label class="selectLabel" for="mdFrLang">Which language do you keep?</label>
+                        <select is="emby-select" id="mdFrLang" class="emby-select-withcolor emby-select"></select>
+                        <div class="fieldDescription">Audio and subtitles in other languages get flagged for removal. Tracks with no language tag are always kept.</div>
+                    </div>
+                    <div class="selectContainer" style="max-width:26em;">
+                        <label class="selectLabel" for="mdFrQuality">What's the highest quality you want to keep?</label>
+                        <select is="emby-select" id="mdFrQuality" class="emby-select-withcolor emby-select">
+                            <option value="2160">4K — keep everything as-is</option>
+                            <option value="1080" selected>1080p — re-encode anything bigger</option>
+                            <option value="720">720p — save the most space</option>
+                        </select>
+                        <div class="fieldDescription">Files above this get flagged with an estimate of the space a re-encode would save.</div>
+                    </div>
+                    <div class="selectContainer" style="max-width:26em;">
+                        <label class="selectLabel" for="mdFrMode">How should fixes run?</label>
+                        <select is="emby-select" id="mdFrMode" class="emby-select-withcolor emby-select">
+                            <option value="review" selected>Ask me first (recommended)</option>
+                            <option value="auto">Fix automatically every night</option>
+                        </select>
+                        <div class="fieldDescription">Either way, nothing is touched while dry-run stays on, and removed files go to MediaDash's recycle bin for 30 days.</div>
+                    </div>
+                    <button is="emby-button" type="button" id="mdFrDone" class="raised button-submit"><span>Finish setup</span></button>
+                </div>
+
+                <div style="display:flex;gap:.6em;margin-bottom:1.2em;flex-wrap:wrap;">
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="overview"><span>Overview</span></button>
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="issues"><span>Issues</span></button>
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="history"><span>History</span></button>
+                    <button is="emby-button" type="button" class="raised mdTab" data-tab="settings"><span>Settings</span></button>
                 </div>
 
                 <div id="mdTab-overview">
@@ -48,18 +76,138 @@
                     <div id="mdHistorySummary" class="fieldDescription" style="margin:.5em 0;"></div>
                     <div id="mdHistoryList"></div>
                 </div>
+
+                <div id="mdTab-settings" style="display:none;">
+                    <form id="mdSettingsForm">
+                        <h2>Safety</h2>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="mdDryRun" type="checkbox" is="emby-checkbox" />
+                                <span>Dry-run mode</span>
+                            </label>
+                            <div class="fieldDescription">On (default): fix runs only log what they would do — nothing is changed. Turn off once you're happy with the plan shown in History.</div>
+                        </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="mdPausePlayback" type="checkbox" is="emby-checkbox" />
+                                <span>Pause fixes while someone is watching</span>
+                            </label>
+                            <div class="fieldDescription">On (default): a fix run stops when any user is playing media, and resumes on the next scheduled run.</div>
+                        </div>
+
+                        <h2>What to fix</h2>
+                        <div class="fieldDescription" style="margin-bottom:.8em;">For each kind of issue: how it runs, and what happens to removed or replaced files. "Ask me first" queues fixes for your approval on the Issues tab.</div>
+                        <div id="mdFixTypeRows"></div>
+
+                        <h2>Quality ceiling</h2>
+                        <div class="selectContainer" style="max-width:26em;">
+                            <label class="selectLabel" for="mdMaxRes">Maximum resolution</label>
+                            <select is="emby-select" id="mdMaxRes" class="emby-select-withcolor emby-select">
+                                <option value="2160">4K (2160p)</option>
+                                <option value="1440">1440p</option>
+                                <option value="1080">1080p</option>
+                                <option value="720">720p</option>
+                            </select>
+                            <div class="fieldDescription">Files taller than this are flagged as wasting space. Default: 1080p.</div>
+                        </div>
+                        <div class="inputContainer" style="max-width:26em;">
+                            <label class="inputLabel inputLabelUnfocused" for="mdMaxBitrate">Maximum video bitrate at 1080p (Mbps)</label>
+                            <input id="mdMaxBitrate" type="number" is="emby-input" min="1" max="100" step="0.5" />
+                            <div class="fieldDescription">Scaled automatically for other resolutions. Default: 8.</div>
+                        </div>
+                        <div class="selectContainer" style="max-width:26em;">
+                            <label class="selectLabel" for="mdCodec">Re-encode to</label>
+                            <select is="emby-select" id="mdCodec" class="emby-select-withcolor emby-select">
+                                <option value="hevc">H.265 / HEVC (recommended)</option>
+                                <option value="h264">H.264 (best compatibility)</option>
+                                <option value="av1">AV1 (smallest files, slow)</option>
+                            </select>
+                            <div class="fieldDescription">The video format oversized files are converted to. Default: H.265.</div>
+                        </div>
+                        <div class="selectContainer" style="max-width:26em;">
+                            <label class="selectLabel" for="mdContainer">Save re-encoded files as</label>
+                            <select is="emby-select" id="mdContainer" class="emby-select-withcolor emby-select">
+                                <option value="mkv">MKV (recommended — keeps subtitles)</option>
+                                <option value="mp4">MP4 (subtitle tracks are not carried over)</option>
+                            </select>
+                            <div class="fieldDescription">The file type re-encoded videos are written to. Default: MKV.</div>
+                        </div>
+                        <div class="inputContainer" style="max-width:26em;">
+                            <label class="inputLabel inputLabelUnfocused" for="mdFileTypes">Only re-encode these file types</label>
+                            <input id="mdFileTypes" type="text" is="emby-input" placeholder="all file types" />
+                            <div class="fieldDescription">Comma-separated list like "avi, wmv, mkv". Leave empty (default) to consider every video file.</div>
+                        </div>
+                        <div class="inputContainer" style="max-width:26em;">
+                            <label class="inputLabel inputLabelUnfocused" for="mdTolerance">Tolerance (%)</label>
+                            <input id="mdTolerance" type="number" is="emby-input" min="0" max="100" />
+                            <div class="fieldDescription">Files only slightly over the limits are left alone. Default: 15.</div>
+                        </div>
+
+                        <h2>Languages</h2>
+                        <div class="inputContainer" style="max-width:26em;">
+                            <label class="inputLabel inputLabelUnfocused" for="mdAudioLangs">Audio languages to keep</label>
+                            <input id="mdAudioLangs" type="text" is="emby-input" placeholder="not set — audio cleanup off" />
+                            <div class="fieldDescription">Comma-separated ISO codes like "eng, jpn". Empty turns audio-language cleanup off. A file's only audio track is never removed.</div>
+                        </div>
+                        <div class="inputContainer" style="max-width:26em;">
+                            <label class="inputLabel inputLabelUnfocused" for="mdSubLangs">Subtitle languages to keep</label>
+                            <input id="mdSubLangs" type="text" is="emby-input" placeholder="not set — subtitle cleanup off" />
+                            <div class="fieldDescription">Comma-separated ISO codes like "eng". Empty turns subtitle-language cleanup off.</div>
+                        </div>
+
+                        <h2>Libraries</h2>
+                        <div class="fieldDescription" style="margin-bottom:.6em;">MediaDash scans these libraries. Nothing selected (default) means all movie and TV libraries.</div>
+                        <div id="mdLibraries"></div>
+
+                        <h2>Recycle bin</h2>
+                        <div class="inputContainer" style="max-width:26em;">
+                            <label class="inputLabel inputLabelUnfocused" for="mdBinPath">Recycle bin folder</label>
+                            <input id="mdBinPath" type="text" is="emby-input" placeholder="default (inside Jellyfin's data folder)" />
+                            <div class="fieldDescription">Where removed files are kept. Pick a folder on the same drive as your media to make recycling instant.</div>
+                        </div>
+                        <div class="inputContainer" style="max-width:26em;">
+                            <label class="inputLabel inputLabelUnfocused" for="mdRetention">Keep recycled files for (days)</label>
+                            <input id="mdRetention" type="number" is="emby-input" min="1" max="365" />
+                            <div class="fieldDescription">After this many days, recycled files are deleted for good. Default: 30.</div>
+                        </div>
+
+                        <h2>Advanced</h2>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="mdThorough" type="checkbox" is="emby-checkbox" />
+                                <span>Thorough playability check</span>
+                            </label>
+                            <div class="fieldDescription">Also test-decodes the start and end of every file. Catches more broken files but makes scans much slower. Default: off.</div>
+                        </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="mdEditions" type="checkbox" is="emby-checkbox" />
+                                <span>Treat different editions as duplicates</span>
+                            </label>
+                            <div class="fieldDescription">Off (default): a Director's Cut and the theatrical cut are kept as separate movies.</div>
+                        </div>
+                        <div class="fieldDescription" style="margin:.8em 0;">Scan and fix schedules can be changed in Dashboard → Scheduled Tasks ("Scan libraries for issues" and "Apply approved fixes").</div>
+
+                        <button is="emby-button" type="submit" class="raised button-submit block" style="max-width:26em;margin-top:1em;">
+                            <span>Save</span>
+                        </button>
+                        <div id="mdSaveMsg" class="fieldDescription" style="margin-top:.5em;"></div>
+                    </form>
+                </div>
             </div>
         </div>
         <script type="text/javascript">
         (function () {
             'use strict';
 
+            var PLUGIN_ID = '38bdb090-b763-4294-934b-b54ade4d9d6d';
+
             // All user-facing strings live here for future localization.
             var STR = {
                 scanIdle: 'Last scan: {0}',
                 scanNever: 'No scan has run yet. Click "Scan now" to check your libraries.',
                 scanRunning: 'Scanning your libraries… {0}%',
-                dryRunOn: 'Safe mode is on: fix runs only log what they would do. Nothing is changed until you turn off dry-run in settings.',
+                dryRunOn: 'Safe mode is on: fix runs only log what they would do. Nothing is changed until you turn off dry-run in Settings.',
                 totalSavings: 'Space you could reclaim',
                 noIssues: 'No issues found — your library is in good shape. New scans run automatically every night.',
                 noHistory: 'Nothing has been fixed yet. Fixes appear here after a fix run, with a Restore button for anything recoverable.',
@@ -79,14 +227,38 @@
                 restoreFailed: 'Could not restore: {0}',
                 spaceSavedToDate: 'Space saved to date: {0}',
                 dryRunBadge: 'dry run',
+                saved: 'Saved.',
+                confirmAuto: 'Automatic mode will change files every night without asking. Removed files go to the recycle bin (unless set to permanent delete). Continue?',
+                confirmPermanent: 'Permanent delete means removed files CANNOT be recovered. Are you sure?',
+                modeOff: "Off — don't even scan",
+                modeDetect: 'Detect only — just show me',
+                modeManual: 'Ask me first',
+                modeAuto: 'Fix automatically',
+                disposalRecycle: 'Recycle bin (recoverable)',
+                disposalPermanent: 'Delete permanently',
                 types: {
                     Duplicate: { title: 'Duplicate copies', hint: 'The same movie or episode exists more than once.' },
                     Playability: { title: "Files that won't play", hint: 'These files are broken or unreadable.' },
                     Quality: { title: 'Files wasting space', hint: 'Bigger than your chosen quality ceiling.' },
                     SubtitleLanguage: { title: 'Unwanted subtitle languages', hint: 'Subtitles in languages you don’t keep.' },
                     AudioLanguage: { title: 'Unwanted audio languages', hint: 'Audio tracks in languages you don’t keep.' }
-                }
+                },
+                languages: [
+                    ['eng', 'English'], ['spa', 'Spanish'], ['fra', 'French'], ['deu', 'German'], ['ita', 'Italian'],
+                    ['por', 'Portuguese'], ['nld', 'Dutch'], ['rus', 'Russian'], ['jpn', 'Japanese'], ['zho', 'Chinese'],
+                    ['kor', 'Korean'], ['ara', 'Arabic'], ['hin', 'Hindi'], ['pol', 'Polish'], ['swe', 'Swedish'],
+                    ['nor', 'Norwegian'], ['dan', 'Danish'], ['fin', 'Finnish'], ['tur', 'Turkish'], ['ces', 'Czech'],
+                    ['ell', 'Greek'], ['heb', 'Hebrew'], ['tha', 'Thai'], ['vie', 'Vietnamese'], ['ukr', 'Ukrainian'],
+                    ['hun', 'Hungarian'], ['ron', 'Romanian']
+                ]
             };
+
+            var FIX_TYPES = [
+                { key: 'Duplicate', mode: 'DuplicateFixMode', disposal: 'DuplicateDisposal' },
+                { key: 'Quality', mode: 'TranscodeFixMode', disposal: 'TranscodeDisposal' },
+                { key: 'SubtitleLanguage', mode: 'SubtitleFixMode', disposal: 'SubtitleDisposal' },
+                { key: 'AudioLanguage', mode: 'AudioFixMode', disposal: 'AudioDisposal' }
+            ];
 
             function fmt(str) {
                 var args = Array.prototype.slice.call(arguments, 1);
@@ -252,6 +424,159 @@
                 });
             }
 
+            // ---------- Settings ----------
+
+            function modeOptions() {
+                return '<option value="Off">' + esc(STR.modeOff) + '</option>' +
+                    '<option value="DetectOnly">' + esc(STR.modeDetect) + '</option>' +
+                    '<option value="ManualApprove">' + esc(STR.modeManual) + '</option>' +
+                    '<option value="Automatic">' + esc(STR.modeAuto) + '</option>';
+            }
+
+            function disposalOptions() {
+                return '<option value="RecycleBin">' + esc(STR.disposalRecycle) + '</option>' +
+                    '<option value="Permanent">' + esc(STR.disposalPermanent) + '</option>';
+            }
+
+            function buildFixTypeRows() {
+                var html = '';
+                FIX_TYPES.forEach(function (t) {
+                    html += '<div style="display:flex;gap:1em;flex-wrap:wrap;align-items:flex-end;margin-bottom:.4em;">' +
+                        '<div class="selectContainer" style="min-width:16em;flex:1;">' +
+                        '<label class="selectLabel" for="mdMode' + t.key + '">' + esc(STR.types[t.key].title) + '</label>' +
+                        '<select is="emby-select" id="mdMode' + t.key + '" class="emby-select-withcolor emby-select">' + modeOptions() + '</select>' +
+                        '</div>' +
+                        '<div class="selectContainer" style="min-width:16em;flex:1;">' +
+                        '<label class="selectLabel" for="mdDisposal' + t.key + '">Removed files go to</label>' +
+                        '<select is="emby-select" id="mdDisposal' + t.key + '" class="emby-select-withcolor emby-select">' + disposalOptions() + '</select>' +
+                        '</div>' +
+                        '</div>';
+                });
+                view.querySelector('#mdFixTypeRows').innerHTML = html;
+            }
+
+            function loadLibraries(config) {
+                ApiClient.getJSON(ApiClient.getUrl('Library/VirtualFolders')).then(function (folders) {
+                    var el = view.querySelector('#mdLibraries');
+                    var html = '';
+                    folders.forEach(function (f) {
+                        if (f.CollectionType && f.CollectionType !== 'movies' && f.CollectionType !== 'tvshows') return;
+                        var checked = (config.EnabledLibraries || []).indexOf(f.ItemId) >= 0 ? ' checked' : '';
+                        html += '<div class="checkboxContainer"><label class="emby-checkbox-label">' +
+                            '<input type="checkbox" is="emby-checkbox" class="mdLib" data-id="' + esc(f.ItemId) + '"' + checked + ' />' +
+                            '<span>' + esc(f.Name) + '</span></label></div>';
+                    });
+                    el.innerHTML = html;
+                });
+            }
+
+            function loadSettings() {
+                ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
+                    view.querySelector('#mdDryRun').checked = c.DryRun;
+                    view.querySelector('#mdPausePlayback').checked = c.PauseDuringPlayback;
+                    FIX_TYPES.forEach(function (t) {
+                        view.querySelector('#mdMode' + t.key).value = c[t.mode];
+                        view.querySelector('#mdDisposal' + t.key).value = c[t.disposal];
+                    });
+                    view.querySelector('#mdMaxRes').value = String(c.MaxResolutionHeight);
+                    view.querySelector('#mdMaxBitrate').value = c.MaxBitrateMbpsAt1080p;
+                    view.querySelector('#mdCodec').value = c.PreferredCodec;
+                    view.querySelector('#mdContainer').value = c.TargetContainer;
+                    view.querySelector('#mdFileTypes').value = (c.ReencodeFileTypes || []).join(', ');
+                    view.querySelector('#mdTolerance').value = c.QualityTolerancePercent;
+                    view.querySelector('#mdAudioLangs').value = (c.AllowedAudioLanguages || []).join(', ');
+                    view.querySelector('#mdSubLangs').value = (c.AllowedSubtitleLanguages || []).join(', ');
+                    view.querySelector('#mdBinPath').value = c.RecycleBinPath || '';
+                    view.querySelector('#mdRetention').value = c.RecycleBinRetentionDays;
+                    view.querySelector('#mdThorough').checked = c.ThoroughPlayabilityCheck;
+                    view.querySelector('#mdEditions').checked = c.TreatEditionsAsDuplicates;
+                    loadLibraries(c);
+                });
+            }
+
+            function csv(value) {
+                return value.split(',').map(function (s) { return s.trim().toLowerCase(); }).filter(function (s) { return s.length > 0; });
+            }
+
+            function saveSettings(e) {
+                e.preventDefault();
+                ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
+                    var turnedAuto = false, turnedPermanent = false;
+                    FIX_TYPES.forEach(function (t) {
+                        var newMode = view.querySelector('#mdMode' + t.key).value;
+                        var newDisposal = view.querySelector('#mdDisposal' + t.key).value;
+                        if (newMode === 'Automatic' && c[t.mode] !== 'Automatic') turnedAuto = true;
+                        if (newDisposal === 'Permanent' && c[t.disposal] !== 'Permanent') turnedPermanent = true;
+                    });
+                    if (turnedAuto && !window.confirm(STR.confirmAuto)) return;
+                    if (turnedPermanent && !window.confirm(STR.confirmPermanent)) return;
+
+                    c.DryRun = view.querySelector('#mdDryRun').checked;
+                    c.PauseDuringPlayback = view.querySelector('#mdPausePlayback').checked;
+                    FIX_TYPES.forEach(function (t) {
+                        c[t.mode] = view.querySelector('#mdMode' + t.key).value;
+                        c[t.disposal] = view.querySelector('#mdDisposal' + t.key).value;
+                    });
+                    c.MaxResolutionHeight = parseInt(view.querySelector('#mdMaxRes').value, 10);
+                    c.MaxBitrateMbpsAt1080p = parseFloat(view.querySelector('#mdMaxBitrate').value) || 8;
+                    c.PreferredCodec = view.querySelector('#mdCodec').value;
+                    c.TargetContainer = view.querySelector('#mdContainer').value;
+                    c.ReencodeFileTypes = csv(view.querySelector('#mdFileTypes').value);
+                    c.QualityTolerancePercent = parseInt(view.querySelector('#mdTolerance').value, 10) || 15;
+                    c.AllowedAudioLanguages = csv(view.querySelector('#mdAudioLangs').value);
+                    c.AllowedSubtitleLanguages = csv(view.querySelector('#mdSubLangs').value);
+                    c.RecycleBinPath = view.querySelector('#mdBinPath').value.trim();
+                    c.RecycleBinRetentionDays = parseInt(view.querySelector('#mdRetention').value, 10) || 30;
+                    c.ThoroughPlayabilityCheck = view.querySelector('#mdThorough').checked;
+                    c.TreatEditionsAsDuplicates = view.querySelector('#mdEditions').checked;
+                    c.EnabledLibraries = Array.prototype.map.call(view.querySelectorAll('.mdLib:checked'), function (cb) {
+                        return cb.getAttribute('data-id');
+                    });
+
+                    ApiClient.updatePluginConfiguration(PLUGIN_ID, c).then(function (result) {
+                        view.querySelector('#mdSaveMsg').textContent = STR.saved;
+                        Dashboard.processPluginConfigurationUpdateResult(result);
+                        refresh();
+                    });
+                });
+                return false;
+            }
+
+            // ---------- First run ----------
+
+            function setupFirstRun() {
+                var langSelect = view.querySelector('#mdFrLang');
+                if (!langSelect.options.length) {
+                    langSelect.innerHTML = STR.languages.map(function (l) {
+                        return '<option value="' + l[0] + '">' + esc(l[1]) + '</option>';
+                    }).join('');
+                }
+
+                view.querySelector('#mdFrDone').addEventListener('click', function () {
+                    ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
+                        var lang = view.querySelector('#mdFrLang').value;
+                        var auto = view.querySelector('#mdFrMode').value === 'auto';
+                        c.AllowedAudioLanguages = [lang];
+                        c.AllowedSubtitleLanguages = [lang];
+                        c.MaxResolutionHeight = parseInt(view.querySelector('#mdFrQuality').value, 10);
+                        var mode = auto ? 'Automatic' : 'ManualApprove';
+                        c.DuplicateFixMode = mode;
+                        c.TranscodeFixMode = mode;
+                        c.SubtitleFixMode = mode;
+                        c.AudioFixMode = mode;
+                        c.FirstRunDone = true;
+                        ApiClient.updatePluginConfiguration(PLUGIN_ID, c).then(function (result) {
+                            Dashboard.processPluginConfigurationUpdateResult(result);
+                            view.querySelector('#mdFirstRun').style.display = 'none';
+                            loadSettings();
+                            refresh();
+                        });
+                    });
+                });
+            }
+
+            // ---------- Common ----------
+
             function loadIssues() {
                 var type = view.querySelector('#mdTypeFilter').value;
                 api('Issues' + (type ? '?type=' + type : '')).then(renderIssues);
@@ -267,8 +592,9 @@
                     renderStatus(s);
                     Dashboard.hideLoadingMsg();
                 });
-                ApiClient.getPluginConfiguration('38bdb090-b763-4294-934b-b54ade4d9d6d').then(function (c) {
+                ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
                     view.querySelector('#mdDryRunNote').textContent = c.DryRun ? STR.dryRunOn : '';
+                    view.querySelector('#mdFirstRun').style.display = c.FirstRunDone ? 'none' : '';
                 });
             }
 
@@ -278,11 +604,12 @@
             }
 
             function showTab(name) {
-                ['overview', 'issues', 'history'].forEach(function (n) {
+                ['overview', 'issues', 'history', 'settings'].forEach(function (n) {
                     view.querySelector('#mdTab-' + n).style.display = n === name ? '' : 'none';
                 });
                 if (name === 'issues') loadIssues();
                 if (name === 'history') loadHistory();
+                if (name === 'settings') loadSettings();
             }
 
             document.querySelector('#MediaDashConfigPage').addEventListener('pageshow', function () {
@@ -314,6 +641,10 @@
                         if (!type) return;
                         post('Issues/ApproveAll?type=' + type).then(loadIssues);
                     });
+
+                    buildFixTypeRows();
+                    view.querySelector('#mdSettingsForm').addEventListener('submit', saveSettings);
+                    setupFirstRun();
                 }
 
                 refresh();
