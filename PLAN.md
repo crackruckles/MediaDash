@@ -88,7 +88,7 @@ Scan results are incremental: `FfprobeService` caches probe output keyed on `(pa
 
 ## 5. Configuration model (PluginConfiguration)
 
-Settings: enabled libraries (default all), scan schedule, fix schedule/window; per-fix-type mode (Off/Detect/Manual/Auto) and disposal (Recycle/Permanent); recycle bin path + retention days; quality ceiling (resolution, bitrate table, codec, tolerance %); allowed audio languages, allowed subtitle languages (ISO 639-2 lists, sensible single default the user picks in a first-run setup card); duplicate keeper policy order; thorough playability check on/off; max concurrent transcodes; pause-during-playback; dry-run.
+Settings: enabled libraries (default all), scan schedule, fix schedule/window; per-fix-type mode (Off/Detect/Manual/Auto) and disposal (Recycle/Permanent); recycle bin path + retention days; quality ceiling (resolution, bitrate table, codec, tolerance %); re-encode source file types (extension list, empty = all) and target container (mkv/mp4) — user requirement 2026-07-19; allowed audio languages, allowed subtitle languages (ISO 639-2 lists, sensible single default the user picks in a first-run setup card); duplicate keeper policy order; thorough playability check on/off; max concurrent transcodes; pause-during-playback; dry-run.
 
 ## 6. UI (configPage.html — embedded plugin page in Jellyfin web)
 

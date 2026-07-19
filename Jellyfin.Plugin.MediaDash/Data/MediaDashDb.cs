@@ -147,6 +147,33 @@ public sealed class MediaDashDb
     }
 
     /// <summary>
+    /// Gets per-type counts and potential savings for issues awaiting a decision, plus the newest detection time.
+    /// </summary>
+    /// <returns>One summary row per issue type that has detected issues.</returns>
+    public IReadOnlyList<IssueSummary> GetSummary()
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT type, COUNT(*), SUM(size_savings), MAX(detected_at_utc) FROM issues WHERE status = @detected GROUP BY type";
+        cmd.Parameters.AddWithValue("@detected", (int)IssueStatus.Detected);
+
+        var result = new List<IssueSummary>();
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            result.Add(new IssueSummary
+            {
+                Type = (IssueType)reader.GetInt32(0),
+                Count = reader.GetInt32(1),
+                PotentialSavings = reader.IsDBNull(2) ? 0 : reader.GetInt64(2),
+                NewestDetectedUtc = new DateTime(reader.GetInt64(3), DateTimeKind.Utc)
+            });
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// Looks up a cached ffprobe result that is still valid for the file's current size and modification time.
     /// </summary>
     /// <param name="path">Full file path.</param>

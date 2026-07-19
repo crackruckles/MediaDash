@@ -5,13 +5,193 @@
     <title>MediaDash</title>
 </head>
 <body>
-    <div id="MediaDashConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button">
+    <div id="MediaDashConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-select">
         <div data-role="content">
             <div class="content-primary">
-                <h1>MediaDash</h1>
-                <p>MediaDash is installed. The dashboard is coming in a later build step.</p>
+                <h1 style="display:flex;align-items:center;gap:1em;">MediaDash
+                    <button is="emby-button" type="button" id="mdScanNow" class="raised button-submit" style="font-size:80%;">
+                        <span>Scan now</span>
+                    </button>
+                </h1>
+                <div id="mdScanState" class="fieldDescription" style="margin-bottom:1em;"></div>
+
+                <div style="display:flex;gap:.6em;margin-bottom:1.2em;">
+                    <button is="emby-button" type="button" class="raised mdTab" data-tab="overview"><span>Overview</span></button>
+                    <button is="emby-button" type="button" class="raised mdTab" data-tab="issues"><span>Issues</span></button>
+                </div>
+
+                <div id="mdTab-overview">
+                    <div id="mdCards" style="display:flex;flex-wrap:wrap;gap:1em;"></div>
+                    <div id="mdEmpty" class="fieldDescription" style="margin-top:1em;"></div>
+                </div>
+
+                <div id="mdTab-issues" style="display:none;">
+                    <div class="selectContainer" style="max-width:22em;">
+                        <label class="selectLabel" for="mdTypeFilter">Show</label>
+                        <select is="emby-select" id="mdTypeFilter" class="emby-select-withcolor emby-select"></select>
+                    </div>
+                    <div id="mdIssueList"></div>
+                </div>
             </div>
         </div>
+        <script type="text/javascript">
+        (function () {
+            'use strict';
+
+            // All user-facing strings live here for future localization.
+            var STR = {
+                scanIdle: 'Last scan: {0}',
+                scanNever: 'No scan has run yet. Click "Scan now" to check your libraries.',
+                scanRunning: 'Scanning your libraries… {0}%',
+                totalSavings: 'Space you could reclaim',
+                noIssues: 'No issues found — your library is in good shape. New scans run automatically every night.',
+                showingOf: 'Showing the first {0} of {1} issues. Use the filter above to narrow the list.',
+                allTypes: 'All issue types',
+                filesAffected: '{0} file(s)',
+                types: {
+                    Duplicate: { title: 'Duplicate copies', hint: 'The same movie or episode exists more than once.' },
+                    Playability: { title: "Files that won't play", hint: 'These files are broken or unreadable.' },
+                    Quality: { title: 'Files wasting space', hint: 'Bigger than your chosen quality ceiling.' },
+                    SubtitleLanguage: { title: 'Unwanted subtitle languages', hint: 'Subtitles in languages you don’t keep.' },
+                    AudioLanguage: { title: 'Unwanted audio languages', hint: 'Audio tracks in languages you don’t keep.' }
+                }
+            };
+
+            function fmt(str) {
+                var args = Array.prototype.slice.call(arguments, 1);
+                return str.replace(/\{(\d+)\}/g, function (m, i) { return args[i]; });
+            }
+
+            function bytes(n) {
+                if (!n || n <= 0) return '';
+                var units = ['B', 'KB', 'MB', 'GB', 'TB'], i = 0;
+                while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+                return n.toFixed(n >= 10 || i === 0 ? 0 : 1) + ' ' + units[i];
+            }
+
+            function esc(s) {
+                var d = document.createElement('div');
+                d.textContent = s == null ? '' : s;
+                return d.innerHTML;
+            }
+
+            var view, pollTimer;
+
+            function api(path) {
+                return ApiClient.getJSON(ApiClient.getUrl('MediaDash/' + path));
+            }
+
+            function renderStatus(s) {
+                var state = view.querySelector('#mdScanState');
+                if (s.IsScanning) {
+                    state.textContent = fmt(STR.scanRunning, Math.round(s.ScanProgress || 0));
+                    schedulePoll();
+                } else if (s.LastScanUtc) {
+                    state.textContent = fmt(STR.scanIdle, new Date(s.LastScanUtc).toLocaleString());
+                } else {
+                    state.textContent = STR.scanNever;
+                }
+
+                var cards = view.querySelector('#mdCards');
+                var html = '';
+                if (s.TotalPotentialSavings > 0) {
+                    html += card(STR.totalSavings, bytes(s.TotalPotentialSavings), '');
+                }
+                (s.Counts || []).forEach(function (c) {
+                    var t = STR.types[c.Type] || { title: c.Type, hint: '' };
+                    var extra = c.PotentialSavings > 0 ? bytes(c.PotentialSavings) : '';
+                    html += card(t.title, c.Count + (extra ? ' · ' + extra : ''), t.hint);
+                });
+                cards.innerHTML = html;
+                view.querySelector('#mdEmpty').textContent = (s.Counts || []).length === 0 && !s.IsScanning ? STR.noIssues : '';
+            }
+
+            function card(title, value, hint) {
+                return '<div class="cardBox" style="padding:1em 1.4em;min-width:13em;">' +
+                    '<div style="font-size:90%;opacity:.8;">' + esc(title) + '</div>' +
+                    '<div style="font-size:170%;font-weight:500;margin:.2em 0;">' + esc(value) + '</div>' +
+                    (hint ? '<div class="fieldDescription">' + esc(hint) + '</div>' : '') +
+                    '</div>';
+            }
+
+            function renderIssues(list) {
+                var el = view.querySelector('#mdIssueList');
+                if (!list.length) {
+                    el.innerHTML = '<div class="fieldDescription" style="margin-top:1em;">' + esc(STR.noIssues) + '</div>';
+                    return;
+                }
+                var html = '';
+                var MAX = 100;
+                if (list.length > MAX) {
+                    html += '<div class="fieldDescription" style="margin:.6em 0;">' + esc(fmt(STR.showingOf, MAX, list.length)) + '</div>';
+                }
+                list.slice(0, MAX).forEach(function (i) {
+                    var t = STR.types[i.Type] || { title: i.Type };
+                    html += '<div class="cardBox" style="padding: .8em 1.2em;margin:.5em 0;">' +
+                        '<div style="font-weight:500;">' + esc(i.FileName) + '</div>' +
+                        '<div class="fieldDescription" title="' + esc(i.Path) + '">' + esc(i.Path) + '</div>' +
+                        '<div style="margin-top:.3em;">' + esc(t.title) + ' — ' + esc(i.SuggestedFix) +
+                        (i.SizeSavings > 0 ? ' <b>(' + bytes(i.SizeSavings) + ')</b>' : '') + '</div>' +
+                        '</div>';
+                });
+                el.innerHTML = html;
+            }
+
+            function loadIssues() {
+                var type = view.querySelector('#mdTypeFilter').value;
+                api('Issues' + (type ? '?type=' + type : '')).then(renderIssues);
+            }
+
+            function refresh() {
+                Dashboard.showLoadingMsg();
+                api('Status').then(function (s) {
+                    renderStatus(s);
+                    Dashboard.hideLoadingMsg();
+                });
+            }
+
+            function schedulePoll() {
+                clearTimeout(pollTimer);
+                pollTimer = setTimeout(refresh, 3000);
+            }
+
+            function showTab(name) {
+                view.querySelector('#mdTab-overview').style.display = name === 'overview' ? '' : 'none';
+                view.querySelector('#mdTab-issues').style.display = name === 'issues' ? '' : 'none';
+                if (name === 'issues') loadIssues();
+            }
+
+            document.querySelector('#MediaDashConfigPage').addEventListener('pageshow', function () {
+                view = this;
+
+                var filter = view.querySelector('#mdTypeFilter');
+                if (!filter.options.length) {
+                    var opts = '<option value="">' + esc(STR.allTypes) + '</option>';
+                    Object.keys(STR.types).forEach(function (k) {
+                        opts += '<option value="' + k + '">' + esc(STR.types[k].title) + '</option>';
+                    });
+                    filter.innerHTML = opts;
+                    filter.addEventListener('change', loadIssues);
+
+                    view.querySelectorAll('.mdTab').forEach(function (b) {
+                        b.addEventListener('click', function () { showTab(b.getAttribute('data-tab')); });
+                    });
+
+                    view.querySelector('#mdScanNow').addEventListener('click', function () {
+                        ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('MediaDash/Scan') }).then(function () {
+                            setTimeout(refresh, 500);
+                        });
+                    });
+                }
+
+                refresh();
+            });
+
+            document.querySelector('#MediaDashConfigPage').addEventListener('pagehide', function () {
+                clearTimeout(pollTimer);
+            });
+        })();
+        </script>
     </div>
 </body>
 </html>

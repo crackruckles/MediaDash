@@ -42,6 +42,12 @@ public sealed class QualityScanner : ProbingScannerBase
         }
 
         var config = Config;
+        if (config.ReencodeFileTypes.Length > 0
+            && !config.ReencodeFileTypes.Contains(Path.GetExtension(path).TrimStart('.'), StringComparer.OrdinalIgnoreCase))
+        {
+            return Task.FromResult<Issue?>(null);
+        }
+
         var tolerance = 1 + (config.QualityTolerancePercent / 100.0);
         var height = video.Height.Value;
         var width = video.Width.Value;

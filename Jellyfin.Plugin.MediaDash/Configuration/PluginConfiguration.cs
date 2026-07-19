@@ -22,6 +22,8 @@ public class PluginConfiguration : BasePluginConfiguration
         AllowedAudioLanguages = [];
         AllowedSubtitleLanguages = [];
         CodecPreferenceOrder = ["av1", "hevc", "h264", "vp9", "mpeg4", "mpeg2video"];
+        ReencodeFileTypes = [];
+        TargetContainer = "mkv";
         KeeperPolicyOrder = ["Resolution", "Codec", "Bitrate", "Size"];
         ThoroughPlayabilityCheck = false;
         TreatEditionsAsDuplicates = false;
@@ -62,6 +64,16 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets the codec ranking used when choosing which duplicate to keep; earlier entries win.
     /// </summary>
     public string[] CodecPreferenceOrder { get; set; }
+
+    /// <summary>
+    /// Gets or sets the file extensions (without dot) eligible for re-encoding, e.g. "mkv", "avi". Empty means all video files.
+    /// </summary>
+    public string[] ReencodeFileTypes { get; set; }
+
+    /// <summary>
+    /// Gets or sets the container format re-encoded files are written to (e.g. "mkv" or "mp4").
+    /// </summary>
+    public string TargetContainer { get; set; }
 
     /// <summary>
     /// Gets or sets the order of criteria used to pick the copy to keep among duplicates.
