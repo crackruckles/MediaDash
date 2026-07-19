@@ -209,6 +209,13 @@
                             <input id="mdFileTypes" type="text" is="emby-input" placeholder="all file types" />
                             <div class="fieldDescription">Comma-separated list like "avi, wmv, mkv". Leave empty (default) to consider every video file.</div>
                         </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="mdHwEncode" type="checkbox" is="emby-checkbox" />
+                                <span>Use hardware encoder for re-encodes</span>
+                            </label>
+                            <div class="fieldDescription">Uses the graphics card encoder configured in Jellyfin's Playback settings. Much faster, files come out slightly larger. If the hardware encoder fails on a file, MediaDash automatically retries with software. Default: off.</div>
+                        </div>
                         <div class="inputContainer" style="max-width:30em;">
                             <label class="inputLabel" for="mdTolerance">Tolerance<span class="mdSliderVal" id="mdToleranceVal"></span></label>
                             <input id="mdTolerance" type="range" min="0" max="50" step="5" />
@@ -759,6 +766,7 @@
                     view.querySelector('#mdMaxBitrate').value = c.MaxBitrateMbpsAt1080p;
                     view.querySelector('#mdCodec').value = c.PreferredCodec;
                     view.querySelector('#mdContainer').value = c.TargetContainer;
+                    view.querySelector('#mdHwEncode').checked = c.UseHardwareEncoder;
                     view.querySelector('#mdFileTypes').value = (c.ReencodeFileTypes || []).join(', ');
                     view.querySelector('#mdTolerance').value = c.QualityTolerancePercent;
                     view.querySelector('#mdAudioLangs').value = (c.AllowedAudioLanguages || []).join(', ');
@@ -799,6 +807,7 @@
                     c.MaxBitrateMbpsAt1080p = parseFloat(view.querySelector('#mdMaxBitrate').value) || 8;
                     c.PreferredCodec = view.querySelector('#mdCodec').value;
                     c.TargetContainer = view.querySelector('#mdContainer').value;
+                    c.UseHardwareEncoder = view.querySelector('#mdHwEncode').checked;
                     c.ReencodeFileTypes = csv(view.querySelector('#mdFileTypes').value);
                     c.QualityTolerancePercent = parseInt(view.querySelector('#mdTolerance').value, 10) || 15;
                     c.AllowedAudioLanguages = csv(view.querySelector('#mdAudioLangs').value);

@@ -9,7 +9,10 @@ using Jellyfin.Plugin.MediaDash.Configuration;
 using Jellyfin.Plugin.MediaDash.Data;
 using Jellyfin.Plugin.MediaDash.Probing;
 using Jellyfin.Plugin.MediaDash.Scanners;
+using MediaBrowser.Common.Configuration;
+using MediaBrowser.Controller.Configuration;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Model.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.MediaDash.Fixers;
@@ -28,6 +31,7 @@ public sealed class TranscodeFixer : IFixer
     private readonly LibraryGuard _guard;
     private readonly RecycleBin _recycleBin;
     private readonly ILibraryMonitor _libraryMonitor;
+    private readonly IServerConfigurationManager _serverConfig;
     private readonly ILogger<TranscodeFixer> _logger;
 
     /// <summary>
@@ -39,6 +43,7 @@ public sealed class TranscodeFixer : IFixer
     /// <param name="guard">The library path guard.</param>
     /// <param name="recycleBin">The recycle bin.</param>
     /// <param name="libraryMonitor">Instance of the <see cref="ILibraryMonitor"/> interface.</param>
+    /// <param name="serverConfig">Instance of the <see cref="IServerConfigurationManager"/> interface, used to read the server's hardware acceleration type.</param>
     /// <param name="logger">The logger.</param>
     public TranscodeFixer(
         FfprobeService ffprobe,
@@ -47,6 +52,7 @@ public sealed class TranscodeFixer : IFixer
         LibraryGuard guard,
         RecycleBin recycleBin,
         ILibraryMonitor libraryMonitor,
+        IServerConfigurationManager serverConfig,
         ILogger<TranscodeFixer> logger)
     {
         _ffprobe = ffprobe;
@@ -55,6 +61,7 @@ public sealed class TranscodeFixer : IFixer
         _guard = guard;
         _recycleBin = recycleBin;
         _libraryMonitor = libraryMonitor;
+        _serverConfig = serverConfig;
         _logger = logger;
     }
 
@@ -111,8 +118,30 @@ public sealed class TranscodeFixer : IFixer
         var tempPath = issue.Path + ".mediadash.tmp." + targetContainer;
         try
         {
-            var args = BuildArgs(issue.Path, tempPath, probe, video, config, needsDownscale, targetContainer);
-            var error = await _ffmpeg.RunAsync(args, TranscodeTimeout, cancellationToken).ConfigureAwait(false);
+            var hwEncoder = config.UseHardwareEncoder ? GetHardwareEncoder(config.PreferredCodec) : null;
+            string? error;
+            if (hwEncoder is not null)
+            {
+                var hwArgs = BuildArgs(issue.Path, tempPath, probe, video, config, needsDownscale, targetContainer, hwEncoder);
+                error = await _ffmpeg.RunAsync(hwArgs, TranscodeTimeout, cancellationToken).ConfigureAwait(false);
+                if (error is not null)
+                {
+                    _logger.LogWarning("Hardware encoder {Encoder} failed on {Path}; retrying with software. Details: {Error}", hwEncoder, issue.Path, Truncate(error));
+                    if (File.Exists(tempPath))
+                    {
+                        File.Delete(tempPath);
+                    }
+
+                    var swArgs = BuildArgs(issue.Path, tempPath, probe, video, config, needsDownscale, targetContainer, null);
+                    error = await _ffmpeg.RunAsync(swArgs, TranscodeTimeout, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            else
+            {
+                var args = BuildArgs(issue.Path, tempPath, probe, video, config, needsDownscale, targetContainer, null);
+                error = await _ffmpeg.RunAsync(args, TranscodeTimeout, cancellationToken).ConfigureAwait(false);
+            }
+
             if (error is not null)
             {
                 return FixResult.Fail("Re-encoding failed; the original is untouched. Details: " + Truncate(error));
@@ -161,6 +190,33 @@ public sealed class TranscodeFixer : IFixer
         }
     }
 
+    private string? GetHardwareEncoder(string preferredCodec)
+    {
+        var accel = _serverConfig.GetConfiguration<EncodingOptions>("encoding").HardwareAccelerationType.ToString().ToLowerInvariant();
+        var suffix = accel switch
+        {
+            "amf" => "_amf",
+            "nvenc" => "_nvenc",
+            "qsv" => "_qsv",
+            "videotoolbox" => "_videotoolbox",
+            // vaapi needs device/hwupload plumbing; software fallback handles those setups for now.
+            _ => null
+        };
+        if (suffix is null)
+        {
+            return null;
+        }
+
+        var codec = preferredCodec.ToLowerInvariant() switch
+        {
+            "hevc" or "h265" => "hevc",
+            "h264" => "h264",
+            "av1" => "av1",
+            _ => "hevc"
+        };
+        return codec + suffix;
+    }
+
     private static List<string> BuildArgs(
         string inputPath,
         string tempPath,
@@ -168,10 +224,10 @@ public sealed class TranscodeFixer : IFixer
         FfprobeStreamInfo video,
         PluginConfiguration config,
         bool needsDownscale,
-        string targetContainer)
+        string targetContainer,
+        string? hardwareEncoder)
     {
-        // ponytail: software encoders only; hardware encoder selection from Jellyfin's encoding options can come later
-        var encoder = config.PreferredCodec.ToLowerInvariant() switch
+        var encoder = hardwareEncoder ?? config.PreferredCodec.ToLowerInvariant() switch
         {
             "hevc" or "h265" => "libx265",
             "h264" => "libx264",
@@ -213,7 +269,37 @@ public sealed class TranscodeFixer : IFixer
         }
 
         args.AddRange(["-c:v", encoder]);
-        if (encoder == "libsvtav1")
+        if (hardwareEncoder is not null)
+        {
+            // Hardware encoders don't support CRF; target the configured bitrate ceiling scaled to the output resolution,
+            // but never spend more bits per pixel than the source did (a downscale reduces the needed bitrate too).
+            var height = video.Height ?? config.MaxResolutionHeight;
+            var targetHeight = Math.Min(height, config.MaxResolutionHeight);
+            var pixels = (double)(video.Width ?? 0) * height;
+            var scale = height > 0 ? (double)targetHeight / height : 1;
+            var targetPixels = pixels > 0 ? pixels * scale * scale : 1920.0 * 1080.0;
+            var targetBits = (long)(config.MaxBitrateMbpsAt1080p * 1_000_000 * (targetPixels / (1920.0 * 1080.0)));
+            var sourceBits = long.TryParse(video.BitRate, NumberStyles.Integer, CultureInfo.InvariantCulture, out var vb) && vb > 0
+                ? vb
+                : long.TryParse(probe.Format?.BitRate, NumberStyles.Integer, CultureInfo.InvariantCulture, out var fb) && fb > 0 ? fb : 0;
+            if (sourceBits > 0)
+            {
+                targetBits = Math.Min(targetBits, (long)(sourceBits * scale * scale));
+            }
+
+            targetBits = Math.Max(targetBits, 500_000);
+            args.AddRange([
+                "-b:v", targetBits.ToString(CultureInfo.InvariantCulture),
+                "-maxrate", (targetBits * 3 / 2).ToString(CultureInfo.InvariantCulture),
+                "-bufsize", (targetBits * 2).ToString(CultureInfo.InvariantCulture)
+            ]);
+            if (encoder.StartsWith("h264", StringComparison.Ordinal))
+            {
+                // h264 hardware encoders are 8-bit; normalize input so 10-bit sources don't abort the encoder.
+                args.AddRange(["-pix_fmt", "yuv420p"]);
+            }
+        }
+        else if (encoder == "libsvtav1")
         {
             args.AddRange(["-crf", "30", "-preset", "8"]);
         }

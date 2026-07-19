@@ -24,6 +24,7 @@ public class PluginConfiguration : BasePluginConfiguration
         CodecPreferenceOrder = ["av1", "hevc", "h264", "vp9", "mpeg4", "mpeg2video"];
         ReencodeFileTypes = [];
         TargetContainer = "mkv";
+        UseHardwareEncoder = false;
         KeeperPolicyOrder = ["Resolution", "Codec", "Bitrate", "Size"];
         ThoroughPlayabilityCheck = true;
         TreatEditionsAsDuplicates = false;
@@ -171,6 +172,12 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets the container format re-encoded files are written to (e.g. "mkv" or "mp4").
     /// </summary>
     public string TargetContainer { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether re-encodes use the server's configured hardware encoder
+    /// (much faster, slightly larger files). Falls back to software per file when the hardware encoder fails.
+    /// </summary>
+    public bool UseHardwareEncoder { get; set; }
 
     /// <summary>
     /// Gets or sets the order of criteria used to pick the copy to keep among duplicates.

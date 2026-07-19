@@ -29,6 +29,9 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     public override string Name => "MediaDash";
 
     /// <inheritdoc />
+    public override string Description => "Keeps your library lean and playable: finds duplicate copies, broken files, oversized encodes and unwanted language tracks, then fixes them safely. Dry-run mode and a recycle bin protect your media by default.";
+
+    /// <inheritdoc />
     public override Guid Id => Guid.Parse("38bdb090-b763-4294-934b-b54ade4d9d6d");
 
     /// <summary>
