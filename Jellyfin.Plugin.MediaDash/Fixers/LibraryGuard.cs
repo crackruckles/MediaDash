@@ -35,7 +35,7 @@ public sealed class LibraryGuard
             .Any(location => IsUnder(fullPath, location));
     }
 
-    private static bool IsUnder(string fullPath, string root)
+    internal static bool IsUnder(string fullPath, string root)
     {
         var fullRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
         if (!fullPath.StartsWith(fullRoot, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))

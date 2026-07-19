@@ -187,7 +187,7 @@ public sealed partial class DuplicateScanner : IScanner
             return [];
         }
 
-        var ranked = Rank(candidates);
+        var ranked = Rank(candidates, Config.KeeperPolicyOrder, Config.CodecPreferenceOrder);
         var keeper = ranked[0];
         var issues = new List<Issue>();
         foreach (var loser in ranked.Skip(1))
@@ -195,7 +195,7 @@ public sealed partial class DuplicateScanner : IScanner
             issues.Add(new Issue
             {
                 Type = IssueType.Duplicate,
-                ItemId = loser.Item.Id,
+                ItemId = loser.Item!.Id,
                 Path = loser.Path,
                 Status = IssueStatus.Detected,
                 DetectedAtUtc = DateTime.UtcNow,
@@ -218,11 +218,10 @@ public sealed partial class DuplicateScanner : IScanner
         return issues;
     }
 
-    private static List<Candidate> Rank(List<Candidate> candidates)
+    internal static List<Candidate> Rank(List<Candidate> candidates, string[] keeperPolicyOrder, string[] codecOrder)
     {
-        var codecOrder = Config.CodecPreferenceOrder;
         IOrderedEnumerable<Candidate>? ordered = null;
-        foreach (var criterion in Config.KeeperPolicyOrder)
+        foreach (var criterion in keeperPolicyOrder)
         {
             Func<Candidate, long> selector = criterion.ToUpperInvariant() switch
             {
@@ -251,9 +250,9 @@ public sealed partial class DuplicateScanner : IScanner
     [GeneratedRegex(@"\{edition-([^}]+)\}", RegexOptions.IgnoreCase)]
     private static partial Regex EditionRegex();
 
-    private sealed class Candidate
+    internal sealed class Candidate
     {
-        public required BaseItem Item { get; init; }
+        public BaseItem? Item { get; init; }
 
         public required string Path { get; init; }
 

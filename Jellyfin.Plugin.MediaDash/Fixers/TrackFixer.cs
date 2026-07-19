@@ -187,7 +187,7 @@ public sealed class TrackFixer : IFixer
         };
     }
 
-    private static List<int> ComputeRemovableIndexes(FfprobeData probe, IssueType type, PluginConfiguration config)
+    internal static List<int> ComputeRemovableIndexes(FfprobeData probe, IssueType type, PluginConfiguration config)
     {
         if (type == IssueType.AudioLanguage)
         {
