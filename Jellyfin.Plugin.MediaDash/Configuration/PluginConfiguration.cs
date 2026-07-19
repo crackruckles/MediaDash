@@ -110,7 +110,8 @@ public class PluginConfiguration : BasePluginConfiguration
     public int MaxConcurrentTranscodes { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether fixes wait while someone is watching something.
+    /// Gets or sets a value indicating whether scheduled scans and fixes only run while the server is idle:
+    /// nobody playing media and no session active in the last 15 minutes. Manual runs from the dashboard ignore this.
     /// </summary>
     public bool PauseDuringPlayback { get; set; }
 

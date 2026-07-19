@@ -11,3 +11,5 @@ Initial version.
 - Dashboard with Overview, Issues (approve/dismiss), History (restore) and Settings tabs
 - Three-question first-run setup
 - Configurable re-encode source file types and target container/codec
+- Server-idle gate: scheduled scans and fixes wait until nobody is playing media or has used Jellyfin in the last 15 minutes (toggle in Settings; manual runs bypass it)
+- Visual dashboard: issue donut chart, per-type savings bars, cumulative space-saved graph, sliders for bitrate/tolerance/retention

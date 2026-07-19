@@ -49,6 +49,12 @@ public sealed class FixTask : IScheduledTask
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets or sets a value indicating whether the next run skips the server-idle check.
+    /// Set by the dashboard's "Run fixes now" button — the person clicking it is themselves an active session.
+    /// </summary>
+    internal static bool BypassIdleCheckOnce { get; set; }
+
     /// <inheritdoc />
     public string Name => "Apply approved fixes";
 
@@ -65,6 +71,15 @@ public sealed class FixTask : IScheduledTask
     public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
     {
         var config = Plugin.Instance!.Configuration;
+        var bypassIdleCheck = BypassIdleCheckOnce;
+        BypassIdleCheckOnce = false;
+
+        if (config.PauseDuringPlayback && !bypassIdleCheck && IdleCheck.IsServerBusy(_sessionManager))
+        {
+            _logger.LogInformation("Skipping fix run: someone is watching or was recently active. Queued issues stay queued.");
+            progress.Report(100);
+            return;
+        }
 
         foreach (var type in FixableTypes)
         {
@@ -88,9 +103,9 @@ public sealed class FixTask : IScheduledTask
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (config.PauseDuringPlayback && _sessionManager.Sessions.Any(s => s.NowPlayingItem is not null))
+            if (config.PauseDuringPlayback && !bypassIdleCheck && IdleCheck.IsServerBusy(_sessionManager))
             {
-                _logger.LogInformation("Pausing fix run: someone is watching something. Remaining issues stay queued.");
+                _logger.LogInformation("Pausing fix run: someone started using the server. Remaining issues stay queued.");
                 break;
             }
 

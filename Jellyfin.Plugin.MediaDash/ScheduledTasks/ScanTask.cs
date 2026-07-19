@@ -8,6 +8,7 @@ using Jellyfin.Plugin.MediaDash.Data;
 using Jellyfin.Plugin.MediaDash.Scanners;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Logging;
 
@@ -21,6 +22,7 @@ public sealed class ScanTask : IScheduledTask
     private readonly ILibraryManager _libraryManager;
     private readonly IEnumerable<IScanner> _scanners;
     private readonly MediaDashDb _db;
+    private readonly ISessionManager _sessionManager;
     private readonly ILogger<ScanTask> _logger;
 
     /// <summary>
@@ -29,14 +31,22 @@ public sealed class ScanTask : IScheduledTask
     /// <param name="libraryManager">Instance of the <see cref="ILibraryManager"/> interface.</param>
     /// <param name="scanners">All registered scanners.</param>
     /// <param name="db">The plugin database.</param>
+    /// <param name="sessionManager">Instance of the <see cref="ISessionManager"/> interface.</param>
     /// <param name="logger">Instance of the <see cref="ILogger{ScanTask}"/> interface.</param>
-    public ScanTask(ILibraryManager libraryManager, IEnumerable<IScanner> scanners, MediaDashDb db, ILogger<ScanTask> logger)
+    public ScanTask(ILibraryManager libraryManager, IEnumerable<IScanner> scanners, MediaDashDb db, ISessionManager sessionManager, ILogger<ScanTask> logger)
     {
         _libraryManager = libraryManager;
         _scanners = scanners;
         _db = db;
+        _sessionManager = sessionManager;
         _logger = logger;
     }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the next run skips the server-idle check.
+    /// Set by the dashboard's "Scan now" button — the person clicking it is themselves an active session.
+    /// </summary>
+    internal static bool BypassIdleCheckOnce { get; set; }
 
     /// <inheritdoc />
     public string Name => "Scan libraries for issues";
@@ -53,6 +63,15 @@ public sealed class ScanTask : IScheduledTask
     /// <inheritdoc />
     public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
     {
+        var bypassIdleCheck = BypassIdleCheckOnce;
+        BypassIdleCheckOnce = false;
+        if (Plugin.Instance!.Configuration.PauseDuringPlayback && !bypassIdleCheck && IdleCheck.IsServerBusy(_sessionManager))
+        {
+            _logger.LogInformation("Skipping scheduled scan: someone is watching or was recently active.");
+            progress.Report(100);
+            return;
+        }
+
         var items = _libraryManager.GetItemList(new InternalItemsQuery
         {
             IncludeItemTypes = [BaseItemKind.Movie, BaseItemKind.Episode],

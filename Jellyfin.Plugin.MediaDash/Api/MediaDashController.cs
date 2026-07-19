@@ -93,6 +93,7 @@ public class MediaDashController : ControllerBase
         var scanTask = GetScanTask();
         if (scanTask is not null && scanTask.State == TaskState.Idle)
         {
+            ScanTask.BypassIdleCheckOnce = true;
             _taskManager.Execute(scanTask, new TaskOptions());
         }
 
@@ -136,6 +137,7 @@ public class MediaDashController : ControllerBase
         var fixTask = _taskManager.ScheduledTasks.FirstOrDefault(w => w.ScheduledTask is FixTask);
         if (fixTask is not null && fixTask.State == TaskState.Idle)
         {
+            FixTask.BypassIdleCheckOnce = true;
             _taskManager.Execute(fixTask, new TaskOptions());
         }
 

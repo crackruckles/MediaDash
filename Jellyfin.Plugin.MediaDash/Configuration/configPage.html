@@ -6,20 +6,66 @@
 </head>
 <body>
     <div id="MediaDashConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-select,emby-input,emby-checkbox">
+        <style>
+            #MediaDashConfigPage .mdCard {
+                background: rgba(255,255,255,.045);
+                border: 1px solid rgba(255,255,255,.09);
+                border-radius: 14px;
+                padding: 1.1em 1.4em;
+                transition: transform .15s ease, border-color .15s ease;
+            }
+            #MediaDashConfigPage .mdCard:hover { border-color: rgba(255,255,255,.2); }
+            #MediaDashConfigPage .mdStat { min-width: 12.5em; flex: 1; position: relative; overflow: hidden; }
+            #MediaDashConfigPage .mdStat .mdAccent {
+                position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: 4px 0 0 4px;
+            }
+            #MediaDashConfigPage .mdStat .material-icons {
+                font-size: 1.5em; opacity: .85; vertical-align: middle;
+            }
+            #MediaDashConfigPage .mdNum { font-size: 1.9em; font-weight: 600; line-height: 1.2; }
+            #MediaDashConfigPage .mdHero { display: flex; gap: 2em; align-items: center; flex-wrap: wrap; }
+            #MediaDashConfigPage .mdTabBar { display: flex; gap: .4em; margin: 1.2em 0; flex-wrap: wrap; }
+            #MediaDashConfigPage .mdTab {
+                border-radius: 999px !important; padding: .35em 1.3em; opacity: .75;
+            }
+            #MediaDashConfigPage .mdTab.mdTabActive { background: #00a4dc !important; color: #fff !important; opacity: 1; }
+            #MediaDashConfigPage .mdBadge {
+                display: inline-block; padding: .1em .7em; border-radius: 999px; font-size: .78em;
+                font-weight: 600; color: #fff; vertical-align: middle;
+            }
+            #MediaDashConfigPage .mdBarRow { display: flex; align-items: center; gap: .8em; margin: .45em 0; }
+            #MediaDashConfigPage .mdBarLabel { width: 14em; font-size: .92em; opacity: .9; text-align: right; }
+            #MediaDashConfigPage .mdBarTrack { flex: 1; background: rgba(255,255,255,.06); border-radius: 999px; height: 14px; overflow: hidden; }
+            #MediaDashConfigPage .mdBarFill { height: 100%; border-radius: 999px; transition: width .6s ease; }
+            #MediaDashConfigPage .mdBarValue { width: 6em; font-size: .92em; font-weight: 600; }
+            #MediaDashConfigPage input[type=range] { accent-color: #00a4dc; width: 100%; max-width: 22em; }
+            #MediaDashConfigPage .mdSliderVal {
+                display: inline-block; min-width: 4.5em; text-align: center; font-weight: 600;
+                background: rgba(0,164,220,.18); border-radius: 8px; padding: .1em .5em; margin-left: .8em;
+            }
+            #MediaDashConfigPage .mdIssueCard { border-left: 4px solid transparent; }
+            #MediaDashConfigPage .mdSection { margin-top: 1.6em; }
+            #MediaDashConfigPage .mdFade { animation: mdFadeIn .35s ease; }
+            @keyframes mdFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        </style>
         <div data-role="content">
             <div class="content-primary">
-                <h1 style="display:flex;align-items:center;gap:1em;flex-wrap:wrap;">MediaDash
+                <h1 style="display:flex;align-items:center;gap:1em;flex-wrap:wrap;">
+                    <span style="display:flex;align-items:center;gap:.35em;"><span class="material-icons" style="color:#00a4dc;">dashboard</span>MediaDash</span>
                     <button is="emby-button" type="button" id="mdScanNow" class="raised button-submit" style="font-size:80%;">
-                        <span>Scan now</span>
+                        <span class="material-icons" style="font-size:1.2em;margin-right:.3em;">search</span><span>Scan now</span>
                     </button>
                     <button is="emby-button" type="button" id="mdFixNow" class="raised" style="font-size:80%;">
-                        <span>Run fixes now</span>
+                        <span class="material-icons" style="font-size:1.2em;margin-right:.3em;">build</span><span>Run fixes now</span>
                     </button>
                 </h1>
                 <div id="mdScanState" class="fieldDescription" style="margin-bottom:.4em;"></div>
-                <div id="mdDryRunNote" class="fieldDescription" style="margin-bottom:1em;"></div>
+                <div id="mdDryRunNote" style="display:none;margin-bottom:1em;padding:.55em 1em;border-radius:10px;background:rgba(0,164,220,.14);border:1px solid rgba(0,164,220,.35);">
+                    <span class="material-icons" style="font-size:1.1em;vertical-align:-3px;">shield</span>
+                    <span id="mdDryRunText"></span>
+                </div>
 
-                <div id="mdFirstRun" class="cardBox" style="display:none;padding:1.2em 1.6em;margin-bottom:1.4em;">
+                <div id="mdFirstRun" class="mdCard" style="display:none;margin-bottom:1.4em;border-color:rgba(0,164,220,.5);">
                     <h2 style="margin-top:0;">Welcome! Three quick questions and you're set up.</h2>
                     <div class="selectContainer" style="max-width:26em;">
                         <label class="selectLabel" for="mdFrLang">Which language do you keep?</label>
@@ -46,15 +92,17 @@
                     <button is="emby-button" type="button" id="mdFrDone" class="raised button-submit"><span>Finish setup</span></button>
                 </div>
 
-                <div style="display:flex;gap:.6em;margin-bottom:1.2em;flex-wrap:wrap;">
-                    <button is="emby-button" type="button" class="raised mdTab" data-tab="overview"><span>Overview</span></button>
+                <div class="mdTabBar">
+                    <button is="emby-button" type="button" class="raised mdTab mdTabActive" data-tab="overview"><span>Overview</span></button>
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="issues"><span>Issues</span></button>
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="history"><span>History</span></button>
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="settings"><span>Settings</span></button>
                 </div>
 
                 <div id="mdTab-overview">
-                    <div id="mdCards" style="display:flex;flex-wrap:wrap;gap:1em;"></div>
+                    <div id="mdHero"></div>
+                    <div id="mdCards" style="display:flex;flex-wrap:wrap;gap:1em;margin-top:1em;"></div>
+                    <div id="mdSavingsBars" class="mdSection"></div>
                     <div id="mdEmpty" class="fieldDescription" style="margin-top:1em;"></div>
                 </div>
 
@@ -73,6 +121,7 @@
                 </div>
 
                 <div id="mdTab-history" style="display:none;">
+                    <div id="mdHistoryChart" class="mdSection"></div>
                     <div id="mdHistorySummary" class="fieldDescription" style="margin:.5em 0;"></div>
                     <div id="mdHistoryList"></div>
                 </div>
@@ -90,16 +139,16 @@
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label class="emby-checkbox-label">
                                 <input id="mdPausePlayback" type="checkbox" is="emby-checkbox" />
-                                <span>Pause fixes while someone is watching</span>
+                                <span>Only run when the server is idle</span>
                             </label>
-                            <div class="fieldDescription">On (default): a fix run stops when any user is playing media, and resumes on the next scheduled run.</div>
+                            <div class="fieldDescription">On (default): scheduled scans and fixes wait until nobody is watching anything and nobody has used Jellyfin for 15 minutes. The "Scan now" and "Run fixes now" buttons always run immediately.</div>
                         </div>
 
-                        <h2>What to fix</h2>
+                        <h2 class="mdSection">What to fix</h2>
                         <div class="fieldDescription" style="margin-bottom:.8em;">For each kind of issue: how it runs, and what happens to removed or replaced files. "Ask me first" queues fixes for your approval on the Issues tab.</div>
                         <div id="mdFixTypeRows"></div>
 
-                        <h2>Quality ceiling</h2>
+                        <h2 class="mdSection">Quality ceiling</h2>
                         <div class="selectContainer" style="max-width:26em;">
                             <label class="selectLabel" for="mdMaxRes">Maximum resolution</label>
                             <select is="emby-select" id="mdMaxRes" class="emby-select-withcolor emby-select">
@@ -110,10 +159,10 @@
                             </select>
                             <div class="fieldDescription">Files taller than this are flagged as wasting space. Default: 1080p.</div>
                         </div>
-                        <div class="inputContainer" style="max-width:26em;">
-                            <label class="inputLabel inputLabelUnfocused" for="mdMaxBitrate">Maximum video bitrate at 1080p (Mbps)</label>
-                            <input id="mdMaxBitrate" type="number" is="emby-input" min="1" max="100" step="0.5" />
-                            <div class="fieldDescription">Scaled automatically for other resolutions. Default: 8.</div>
+                        <div class="inputContainer" style="max-width:30em;">
+                            <label class="inputLabel" for="mdMaxBitrate">Maximum video bitrate at 1080p<span class="mdSliderVal" id="mdMaxBitrateVal"></span></label>
+                            <input id="mdMaxBitrate" type="range" min="2" max="40" step="0.5" />
+                            <div class="fieldDescription">Scaled automatically for other resolutions. Default: 8 Mbps.</div>
                         </div>
                         <div class="selectContainer" style="max-width:26em;">
                             <label class="selectLabel" for="mdCodec">Re-encode to</label>
@@ -137,13 +186,13 @@
                             <input id="mdFileTypes" type="text" is="emby-input" placeholder="all file types" />
                             <div class="fieldDescription">Comma-separated list like "avi, wmv, mkv". Leave empty (default) to consider every video file.</div>
                         </div>
-                        <div class="inputContainer" style="max-width:26em;">
-                            <label class="inputLabel inputLabelUnfocused" for="mdTolerance">Tolerance (%)</label>
-                            <input id="mdTolerance" type="number" is="emby-input" min="0" max="100" />
-                            <div class="fieldDescription">Files only slightly over the limits are left alone. Default: 15.</div>
+                        <div class="inputContainer" style="max-width:30em;">
+                            <label class="inputLabel" for="mdTolerance">Tolerance<span class="mdSliderVal" id="mdToleranceVal"></span></label>
+                            <input id="mdTolerance" type="range" min="0" max="50" step="5" />
+                            <div class="fieldDescription">Files only slightly over the limits are left alone. Default: 15%.</div>
                         </div>
 
-                        <h2>Languages</h2>
+                        <h2 class="mdSection">Languages</h2>
                         <div class="inputContainer" style="max-width:26em;">
                             <label class="inputLabel inputLabelUnfocused" for="mdAudioLangs">Audio languages to keep</label>
                             <input id="mdAudioLangs" type="text" is="emby-input" placeholder="not set — audio cleanup off" />
@@ -155,23 +204,23 @@
                             <div class="fieldDescription">Comma-separated ISO codes like "eng". Empty turns subtitle-language cleanup off.</div>
                         </div>
 
-                        <h2>Libraries</h2>
+                        <h2 class="mdSection">Libraries</h2>
                         <div class="fieldDescription" style="margin-bottom:.6em;">MediaDash scans these libraries. Nothing selected (default) means all movie and TV libraries.</div>
                         <div id="mdLibraries"></div>
 
-                        <h2>Recycle bin</h2>
+                        <h2 class="mdSection">Recycle bin</h2>
                         <div class="inputContainer" style="max-width:26em;">
                             <label class="inputLabel inputLabelUnfocused" for="mdBinPath">Recycle bin folder</label>
                             <input id="mdBinPath" type="text" is="emby-input" placeholder="default (inside Jellyfin's data folder)" />
                             <div class="fieldDescription">Where removed files are kept. Pick a folder on the same drive as your media to make recycling instant.</div>
                         </div>
-                        <div class="inputContainer" style="max-width:26em;">
-                            <label class="inputLabel inputLabelUnfocused" for="mdRetention">Keep recycled files for (days)</label>
-                            <input id="mdRetention" type="number" is="emby-input" min="1" max="365" />
+                        <div class="inputContainer" style="max-width:30em;">
+                            <label class="inputLabel" for="mdRetention">Keep recycled files for<span class="mdSliderVal" id="mdRetentionVal"></span></label>
+                            <input id="mdRetention" type="range" min="1" max="90" step="1" />
                             <div class="fieldDescription">After this many days, recycled files are deleted for good. Default: 30.</div>
                         </div>
 
-                        <h2>Advanced</h2>
+                        <h2 class="mdSection">Advanced</h2>
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label class="emby-checkbox-label">
                                 <input id="mdThorough" type="checkbox" is="emby-checkbox" />
@@ -209,6 +258,8 @@
                 scanRunning: 'Scanning your libraries… {0}%',
                 dryRunOn: 'Safe mode is on: fix runs only log what they would do. Nothing is changed until you turn off dry-run in Settings.',
                 totalSavings: 'Space you could reclaim',
+                whereSavings: 'Where the savings are',
+                issuesByType: 'Issues found',
                 noIssues: 'No issues found — your library is in good shape. New scans run automatically every night.',
                 noHistory: 'Nothing has been fixed yet. Fixes appear here after a fix run, with a Restore button for anything recoverable.',
                 allTypes: 'All issue types',
@@ -226,6 +277,7 @@
                 restored: 'Restored.',
                 restoreFailed: 'Could not restore: {0}',
                 spaceSavedToDate: 'Space saved to date: {0}',
+                savedOverTime: 'Space saved over time',
                 dryRunBadge: 'dry run',
                 saved: 'Saved.',
                 confirmAuto: 'Automatic mode will change files every night without asking. Removed files go to the recycle bin (unless set to permanent delete). Continue?',
@@ -236,12 +288,15 @@
                 modeAuto: 'Fix automatically',
                 disposalRecycle: 'Recycle bin (recoverable)',
                 disposalPermanent: 'Delete permanently',
+                unitMbps: '{0} Mbps',
+                unitPercent: '{0}%',
+                unitDays: '{0} days',
                 types: {
-                    Duplicate: { title: 'Duplicate copies', hint: 'The same movie or episode exists more than once.' },
-                    Playability: { title: "Files that won't play", hint: 'These files are broken or unreadable.' },
-                    Quality: { title: 'Files wasting space', hint: 'Bigger than your chosen quality ceiling.' },
-                    SubtitleLanguage: { title: 'Unwanted subtitle languages', hint: 'Subtitles in languages you don’t keep.' },
-                    AudioLanguage: { title: 'Unwanted audio languages', hint: 'Audio tracks in languages you don’t keep.' }
+                    Duplicate: { title: 'Duplicate copies', hint: 'The same movie or episode exists more than once.', color: '#f59e0b', icon: 'content_copy' },
+                    Playability: { title: "Files that won't play", hint: 'These files are broken or unreadable.', color: '#ef4444', icon: 'play_disabled' },
+                    Quality: { title: 'Files wasting space', hint: 'Bigger than your chosen quality ceiling.', color: '#3b82f6', icon: 'compress' },
+                    SubtitleLanguage: { title: 'Unwanted subtitles', hint: 'Subtitles in languages you don’t keep.', color: '#8b5cf6', icon: 'subtitles' },
+                    AudioLanguage: { title: 'Unwanted audio', hint: 'Audio tracks in languages you don’t keep.', color: '#10b981', icon: 'audiotrack' }
                 },
                 languages: [
                     ['eng', 'English'], ['spa', 'Spanish'], ['fra', 'French'], ['deu', 'German'], ['ita', 'Italian'],
@@ -260,13 +315,19 @@
                 { key: 'AudioLanguage', mode: 'AudioFixMode', disposal: 'AudioDisposal' }
             ];
 
+            var SLIDERS = [
+                { id: 'mdMaxBitrate', val: 'mdMaxBitrateVal', unit: 'unitMbps' },
+                { id: 'mdTolerance', val: 'mdToleranceVal', unit: 'unitPercent' },
+                { id: 'mdRetention', val: 'mdRetentionVal', unit: 'unitDays' }
+            ];
+
             function fmt(str) {
                 var args = Array.prototype.slice.call(arguments, 1);
                 return str.replace(/\{(\d+)\}/g, function (m, i) { return args[i]; });
             }
 
             function bytes(n) {
-                if (!n || n <= 0) return '';
+                if (!n || n <= 0) return '0 B';
                 var units = ['B', 'KB', 'MB', 'GB', 'TB'], i = 0;
                 while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
                 return n.toFixed(n >= 10 || i === 0 ? 0 : 1) + ' ' + units[i];
@@ -288,6 +349,47 @@
                 return ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('MediaDash/' + path) });
             }
 
+            // ---------- Charts (inline SVG, no dependencies) ----------
+
+            function donutSvg(segments, size) {
+                var total = segments.reduce(function (a, s) { return a + s.value; }, 0);
+                if (total <= 0) return '';
+                var r = size / 2 - 8, c = 2 * Math.PI * r, offset = c * 0.25;
+                var svg = '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">';
+                segments.forEach(function (s) {
+                    if (s.value <= 0) return;
+                    var frac = s.value / total;
+                    svg += '<circle cx="' + (size / 2) + '" cy="' + (size / 2) + '" r="' + r + '" fill="none"' +
+                        ' stroke="' + s.color + '" stroke-width="13" stroke-linecap="butt"' +
+                        ' stroke-dasharray="' + (frac * c - 1.5) + ' ' + (c - frac * c + 1.5) + '"' +
+                        ' stroke-dashoffset="' + offset + '"></circle>';
+                    offset -= frac * c;
+                });
+                svg += '</svg>';
+                return svg;
+            }
+
+            function areaChartSvg(points, width, height) {
+                if (points.length < 2) return '';
+                var max = points[points.length - 1].y || 1;
+                var px = function (i) { return (i / (points.length - 1)) * (width - 20) + 10; };
+                var py = function (v) { return height - 22 - (v / max) * (height - 40); };
+                var line = points.map(function (p, i) { return (i ? 'L' : 'M') + px(i).toFixed(1) + ' ' + py(p.y).toFixed(1); }).join(' ');
+                var area = line + ' L' + px(points.length - 1).toFixed(1) + ' ' + (height - 22) + ' L10 ' + (height - 22) + ' Z';
+                var svg = '<svg width="100%" viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none" style="max-height:' + height + 'px;">' +
+                    '<defs><linearGradient id="mdGrad" x1="0" y1="0" x2="0" y2="1">' +
+                    '<stop offset="0%" stop-color="#00a4dc" stop-opacity=".45"/><stop offset="100%" stop-color="#00a4dc" stop-opacity="0"/></linearGradient></defs>' +
+                    '<path d="' + area + '" fill="url(#mdGrad)"></path>' +
+                    '<path d="' + line + '" fill="none" stroke="#00a4dc" stroke-width="2.5" stroke-linejoin="round"></path>';
+                points.forEach(function (p, i) {
+                    svg += '<circle cx="' + px(i).toFixed(1) + '" cy="' + py(p.y).toFixed(1) + '" r="3" fill="#00a4dc"></circle>';
+                });
+                svg += '</svg>';
+                return svg;
+            }
+
+            // ---------- Overview ----------
+
             function renderStatus(s) {
                 var state = view.querySelector('#mdScanState');
                 if (s.IsScanning) {
@@ -299,27 +401,62 @@
                     state.textContent = STR.scanNever;
                 }
 
-                var cards = view.querySelector('#mdCards');
-                var html = '';
-                if (s.TotalPotentialSavings > 0) {
-                    html += card(STR.totalSavings, bytes(s.TotalPotentialSavings), '');
+                var counts = s.Counts || [];
+                var hero = view.querySelector('#mdHero');
+                if (s.TotalPotentialSavings > 0 || counts.length > 0) {
+                    var donut = donutSvg(counts.map(function (c) {
+                        var t = STR.types[c.Type] || { color: '#888' };
+                        return { value: c.Count, color: t.color };
+                    }), 130);
+                    var legend = counts.map(function (c) {
+                        var t = STR.types[c.Type] || { title: c.Type, color: '#888' };
+                        return '<div style="margin:.15em 0;"><span class="mdBadge" style="background:' + t.color + ';">' + c.Count + '</span> ' + esc(t.title) + '</div>';
+                    }).join('');
+                    hero.innerHTML = '<div class="mdCard mdHero mdFade" style="width:100%;">' +
+                        '<div><div class="fieldDescription">' + esc(STR.totalSavings) + '</div>' +
+                        '<div class="mdNum" style="font-size:2.6em;color:#00a4dc;">' + bytes(s.TotalPotentialSavings) + '</div></div>' +
+                        '<div style="display:flex;gap:1.4em;align-items:center;">' + donut + '<div>' + legend + '</div></div>' +
+                        '</div>';
+                } else {
+                    hero.innerHTML = '';
                 }
-                (s.Counts || []).forEach(function (c) {
-                    var t = STR.types[c.Type] || { title: c.Type, hint: '' };
-                    var extra = c.PotentialSavings > 0 ? bytes(c.PotentialSavings) : '';
-                    html += card(t.title, c.Count + (extra ? ' · ' + extra : ''), t.hint);
-                });
-                cards.innerHTML = html;
-                view.querySelector('#mdEmpty').textContent = (s.Counts || []).length === 0 && !s.IsScanning ? STR.noIssues : '';
+
+                var cards = view.querySelector('#mdCards');
+                cards.innerHTML = counts.map(function (c) {
+                    var t = STR.types[c.Type] || { title: c.Type, hint: '', color: '#888', icon: 'info' };
+                    return '<div class="mdCard mdStat mdFade">' +
+                        '<div class="mdAccent" style="background:' + t.color + ';"></div>' +
+                        '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+                        '<span style="font-size:.92em;opacity:.85;">' + esc(t.title) + '</span>' +
+                        '<span class="material-icons" style="color:' + t.color + ';">' + t.icon + '</span></div>' +
+                        '<div class="mdNum">' + c.Count + '</div>' +
+                        (c.PotentialSavings > 0 ? '<div style="font-weight:600;color:' + t.color + ';">' + bytes(c.PotentialSavings) + '</div>' : '') +
+                        '<div class="fieldDescription">' + esc(t.hint) + '</div>' +
+                        '</div>';
+                }).join('');
+
+                var withSavings = counts.filter(function (c) { return c.PotentialSavings > 0; });
+                var barsEl = view.querySelector('#mdSavingsBars');
+                if (withSavings.length > 0) {
+                    var maxSave = Math.max.apply(null, withSavings.map(function (c) { return c.PotentialSavings; }));
+                    barsEl.innerHTML = '<div class="mdCard mdFade"><h3 style="margin:.1em 0 .7em;">' + esc(STR.whereSavings) + '</h3>' +
+                        withSavings.map(function (c) {
+                            var t = STR.types[c.Type] || { title: c.Type, color: '#888' };
+                            var pct = Math.max(3, Math.round(c.PotentialSavings / maxSave * 100));
+                            return '<div class="mdBarRow">' +
+                                '<div class="mdBarLabel">' + esc(t.title) + '</div>' +
+                                '<div class="mdBarTrack"><div class="mdBarFill" style="width:' + pct + '%;background:' + t.color + ';"></div></div>' +
+                                '<div class="mdBarValue">' + bytes(c.PotentialSavings) + '</div>' +
+                                '</div>';
+                        }).join('') + '</div>';
+                } else {
+                    barsEl.innerHTML = '';
+                }
+
+                view.querySelector('#mdEmpty').textContent = counts.length === 0 && !s.IsScanning ? STR.noIssues : '';
             }
 
-            function card(title, value, hint) {
-                return '<div class="cardBox" style="padding:1em 1.4em;min-width:13em;">' +
-                    '<div style="font-size:90%;opacity:.8;">' + esc(title) + '</div>' +
-                    '<div style="font-size:170%;font-weight:500;margin:.2em 0;">' + esc(value) + '</div>' +
-                    (hint ? '<div class="fieldDescription">' + esc(hint) + '</div>' : '') +
-                    '</div>';
-            }
+            // ---------- Issues ----------
 
             function renderIssues(list) {
                 var el = view.querySelector('#mdIssueList');
@@ -346,12 +483,14 @@
                     html += '<div class="fieldDescription" style="margin:.6em 0;">' + esc(fmt(STR.showingOf, MAX, list.length)) + '</div>';
                 }
                 list.slice(0, MAX).forEach(function (i) {
-                    var t = STR.types[i.Type] || { title: i.Type };
-                    html += '<div class="cardBox" style="padding:.8em 1.2em;margin:.5em 0;" data-issue="' + i.Id + '">' +
-                        '<div style="font-weight:500;">' + esc(i.FileName) + '</div>' +
-                        '<div class="fieldDescription" title="' + esc(i.Path) + '">' + esc(i.Path) + '</div>' +
-                        '<div style="margin:.3em 0;">' + esc(t.title) + ' — ' + esc(i.SuggestedFix) +
-                        (i.SizeSavings > 0 ? ' <b>(' + bytes(i.SizeSavings) + ')</b>' : '') + '</div>' +
+                    var t = STR.types[i.Type] || { title: i.Type, color: '#888' };
+                    html += '<div class="mdCard mdIssueCard mdFade" style="margin:.6em 0;border-left-color:' + t.color + ';" data-issue="' + i.Id + '">' +
+                        '<div style="display:flex;justify-content:space-between;gap:1em;flex-wrap:wrap;align-items:center;">' +
+                        '<div style="font-weight:600;">' + esc(i.FileName) + '</div>' +
+                        '<span class="mdBadge" style="background:' + t.color + ';">' + esc(t.title) + '</span></div>' +
+                        '<div class="fieldDescription" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(i.Path) + '">' + esc(i.Path) + '</div>' +
+                        '<div style="margin:.3em 0;">' + esc(i.SuggestedFix) +
+                        (i.SizeSavings > 0 ? ' <b style="color:' + t.color + ';">(' + bytes(i.SizeSavings) + ')</b>' : '') + '</div>' +
                         '<div style="display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">' +
                         '<button is="emby-button" type="button" class="raised button-submit mdApprove" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(STR.approve) + '</span></button>' +
                         '<button is="emby-button" type="button" class="raised mdDismiss" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(STR.dismiss) + '</span></button>' +
@@ -380,11 +519,26 @@
                 });
             }
 
+            // ---------- History ----------
+
             function renderHistory(list) {
                 var el = view.querySelector('#mdHistoryList');
                 var saved = 0;
                 list.forEach(function (h) { if (!h.WasDryRun) saved += h.BytesFreed; });
                 view.querySelector('#mdHistorySummary').textContent = saved > 0 ? fmt(STR.spaceSavedToDate, bytes(saved)) : '';
+
+                var chartEl = view.querySelector('#mdHistoryChart');
+                var real = list.filter(function (h) { return !h.WasDryRun && h.BytesFreed > 0; })
+                    .sort(function (a, b) { return new Date(a.FixedAtUtc) - new Date(b.FixedAtUtc); });
+                if (real.length >= 2) {
+                    var cum = 0;
+                    var points = real.map(function (h) { cum += h.BytesFreed; return { y: cum }; });
+                    chartEl.innerHTML = '<div class="mdCard mdFade"><h3 style="margin:.1em 0 .4em;">' + esc(STR.savedOverTime) + '</h3>' +
+                        '<div class="fieldDescription" style="margin-bottom:.4em;">' + bytes(cum) + ' total</div>' +
+                        areaChartSvg(points, 640, 160) + '</div>';
+                } else {
+                    chartEl.innerHTML = '';
+                }
 
                 if (!list.length) {
                     el.innerHTML = '<div class="fieldDescription" style="margin-top:1em;">' + esc(STR.noHistory) + '</div>';
@@ -393,12 +547,13 @@
 
                 var html = '';
                 list.forEach(function (h) {
-                    html += '<div class="cardBox" style="padding:.8em 1.2em;margin:.5em 0;" data-history="' + h.Id + '">' +
-                        '<div style="font-weight:500;">' + esc(h.FileName) +
-                        (h.WasDryRun ? ' <span style="opacity:.7;font-size:80%;border:1px solid;border-radius:4px;padding:0 .4em;">' + esc(STR.dryRunBadge) + '</span>' : '') +
+                    var t = STR.types[h.Type] || { color: '#888' };
+                    html += '<div class="mdCard mdIssueCard mdFade" style="margin:.6em 0;border-left-color:' + t.color + ';" data-history="' + h.Id + '">' +
+                        '<div style="font-weight:600;">' + esc(h.FileName) +
+                        (h.WasDryRun ? ' <span class="mdBadge" style="background:rgba(255,255,255,.18);">' + esc(STR.dryRunBadge) + '</span>' : '') +
                         '</div>' +
                         '<div style="margin:.2em 0;">' + esc(h.Action) +
-                        (h.BytesFreed > 0 ? ' <b>(' + bytes(h.BytesFreed) + ' freed)</b>' : '') + '</div>' +
+                        (h.BytesFreed > 0 ? ' <b style="color:' + t.color + ';">(' + bytes(h.BytesFreed) + ' freed)</b>' : '') + '</div>' +
                         '<div class="fieldDescription">' + new Date(h.FixedAtUtc).toLocaleString() + '</div>' +
                         (h.CanRestore
                             ? '<div style="display:flex;gap:.6em;align-items:center;margin-top:.3em;">' +
@@ -441,18 +596,38 @@
             function buildFixTypeRows() {
                 var html = '';
                 FIX_TYPES.forEach(function (t) {
-                    html += '<div style="display:flex;gap:1em;flex-wrap:wrap;align-items:flex-end;margin-bottom:.4em;">' +
-                        '<div class="selectContainer" style="min-width:16em;flex:1;">' +
-                        '<label class="selectLabel" for="mdMode' + t.key + '">' + esc(STR.types[t.key].title) + '</label>' +
+                    var meta = STR.types[t.key];
+                    html += '<div class="mdCard" style="margin-bottom:.7em;border-left:4px solid ' + meta.color + ';">' +
+                        '<div style="font-weight:600;margin-bottom:.4em;"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;color:' + meta.color + ';">' + meta.icon + '</span> ' + esc(meta.title) + '</div>' +
+                        '<div style="display:flex;gap:1em;flex-wrap:wrap;">' +
+                        '<div class="selectContainer" style="min-width:15em;flex:1;">' +
+                        '<label class="selectLabel" for="mdMode' + t.key + '">How it runs</label>' +
                         '<select is="emby-select" id="mdMode' + t.key + '" class="emby-select-withcolor emby-select">' + modeOptions() + '</select>' +
                         '</div>' +
-                        '<div class="selectContainer" style="min-width:16em;flex:1;">' +
+                        '<div class="selectContainer" style="min-width:15em;flex:1;">' +
                         '<label class="selectLabel" for="mdDisposal' + t.key + '">Removed files go to</label>' +
                         '<select is="emby-select" id="mdDisposal' + t.key + '" class="emby-select-withcolor emby-select">' + disposalOptions() + '</select>' +
                         '</div>' +
-                        '</div>';
+                        '</div></div>';
                 });
                 view.querySelector('#mdFixTypeRows').innerHTML = html;
+            }
+
+            function initSliders() {
+                SLIDERS.forEach(function (s) {
+                    var input = view.querySelector('#' + s.id);
+                    var label = view.querySelector('#' + s.val);
+                    input.addEventListener('input', function () {
+                        label.textContent = fmt(STR[s.unit], input.value);
+                    });
+                });
+            }
+
+            function syncSliderLabels() {
+                SLIDERS.forEach(function (s) {
+                    var input = view.querySelector('#' + s.id);
+                    view.querySelector('#' + s.val).textContent = fmt(STR[s.unit], input.value);
+                });
             }
 
             function loadLibraries(config) {
@@ -490,6 +665,7 @@
                     view.querySelector('#mdRetention').value = c.RecycleBinRetentionDays;
                     view.querySelector('#mdThorough').checked = c.ThoroughPlayabilityCheck;
                     view.querySelector('#mdEditions').checked = c.TreatEditionsAsDuplicates;
+                    syncSliderLabels();
                     loadLibraries(c);
                 });
             }
@@ -593,7 +769,8 @@
                     Dashboard.hideLoadingMsg();
                 });
                 ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
-                    view.querySelector('#mdDryRunNote').textContent = c.DryRun ? STR.dryRunOn : '';
+                    view.querySelector('#mdDryRunNote').style.display = c.DryRun ? '' : 'none';
+                    view.querySelector('#mdDryRunText').textContent = STR.dryRunOn;
                     view.querySelector('#mdFirstRun').style.display = c.FirstRunDone ? 'none' : '';
                 });
             }
@@ -606,6 +783,9 @@
             function showTab(name) {
                 ['overview', 'issues', 'history', 'settings'].forEach(function (n) {
                     view.querySelector('#mdTab-' + n).style.display = n === name ? '' : 'none';
+                });
+                view.querySelectorAll('.mdTab').forEach(function (b) {
+                    b.classList.toggle('mdTabActive', b.getAttribute('data-tab') === name);
                 });
                 if (name === 'issues') loadIssues();
                 if (name === 'history') loadHistory();
@@ -643,6 +823,7 @@
                     });
 
                     buildFixTypeRows();
+                    initSliders();
                     view.querySelector('#mdSettingsForm').addEventListener('submit', saveSettings);
                     setupFirstRun();
                 }
