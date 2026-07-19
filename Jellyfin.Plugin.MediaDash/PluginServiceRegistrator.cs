@@ -1,5 +1,6 @@
 using Jellyfin.Plugin.MediaDash.Data;
 using Jellyfin.Plugin.MediaDash.Probing;
+using Jellyfin.Plugin.MediaDash.Scanners;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,5 +17,10 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     {
         serviceCollection.AddSingleton<MediaDashDb>();
         serviceCollection.AddSingleton<FfprobeService>();
+        serviceCollection.AddSingleton<IScanner, DuplicateScanner>();
+        serviceCollection.AddSingleton<IScanner, PlayabilityScanner>();
+        serviceCollection.AddSingleton<IScanner, QualityScanner>();
+        serviceCollection.AddSingleton<IScanner, SubtitleLanguageScanner>();
+        serviceCollection.AddSingleton<IScanner, AudioLanguageScanner>();
     }
 }

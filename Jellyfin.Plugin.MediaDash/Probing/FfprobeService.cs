@@ -77,6 +77,66 @@ public sealed class FfprobeService
         return data;
     }
 
+    /// <summary>
+    /// Decodes the first and last 30 seconds of a file with ffmpeg to catch corruption ffprobe misses.
+    /// </summary>
+    /// <param name="path">Full path of the file to check.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The decode error output, or null when the file decodes cleanly.</returns>
+    public async Task<string?> DecodeCheckAsync(string path, CancellationToken cancellationToken)
+    {
+        // ponytail: decode results are not cached; the thorough toggle is off by default and re-runs are rare
+        var head = await RunFfmpegDecodeAsync(["-v", "error", "-i", path, "-t", "30", "-f", "null", "-"], cancellationToken).ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(head))
+        {
+            return head;
+        }
+
+        var tail = await RunFfmpegDecodeAsync(["-v", "error", "-sseof", "-30", "-i", path, "-f", "null", "-"], cancellationToken).ConfigureAwait(false);
+        return string.IsNullOrWhiteSpace(tail) ? null : tail;
+    }
+
+    private async Task<string?> RunFfmpegDecodeAsync(string[] args, CancellationToken cancellationToken)
+    {
+        var encoderPath = _mediaEncoder.EncoderPath;
+        if (string.IsNullOrEmpty(encoderPath))
+        {
+            return null;
+        }
+
+        using var process = new Process();
+        process.StartInfo.FileName = encoderPath;
+        process.StartInfo.UseShellExecute = false;
+        process.StartInfo.CreateNoWindow = true;
+        process.StartInfo.RedirectStandardError = true;
+        foreach (var arg in args)
+        {
+            process.StartInfo.ArgumentList.Add(arg);
+        }
+
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(ProbeTimeout);
+
+        try
+        {
+            process.Start();
+            var stderrTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
+            await process.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false);
+            var stderr = await stderrTask.ConfigureAwait(false);
+            return process.ExitCode != 0 && string.IsNullOrWhiteSpace(stderr) ? "ffmpeg exited with an error" : stderr;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            TryKill(process);
+            return "decode check timed out";
+        }
+        catch (OperationCanceledException)
+        {
+            TryKill(process);
+            throw;
+        }
+    }
+
     private FfprobeData? Deserialize(string json, string path)
     {
         try
