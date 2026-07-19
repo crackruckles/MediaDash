@@ -28,7 +28,79 @@ public class PluginConfiguration : BasePluginConfiguration
         ThoroughPlayabilityCheck = false;
         TreatEditionsAsDuplicates = false;
         DryRun = true;
+        DuplicateFixMode = FixMode.DetectOnly;
+        TranscodeFixMode = FixMode.DetectOnly;
+        SubtitleFixMode = FixMode.DetectOnly;
+        AudioFixMode = FixMode.DetectOnly;
+        DuplicateDisposal = DisposalMethod.RecycleBin;
+        TranscodeDisposal = DisposalMethod.RecycleBin;
+        SubtitleDisposal = DisposalMethod.RecycleBin;
+        AudioDisposal = DisposalMethod.RecycleBin;
+        RecycleBinPath = string.Empty;
+        RecycleBinRetentionDays = 30;
+        MaxConcurrentTranscodes = 1;
+        PauseDuringPlayback = true;
     }
+
+    /// <summary>
+    /// Gets or sets how duplicate fixes run.
+    /// </summary>
+    public FixMode DuplicateFixMode { get; set; }
+
+    /// <summary>
+    /// Gets or sets how re-encode fixes run.
+    /// </summary>
+    public FixMode TranscodeFixMode { get; set; }
+
+    /// <summary>
+    /// Gets or sets how subtitle track removal runs.
+    /// </summary>
+    public FixMode SubtitleFixMode { get; set; }
+
+    /// <summary>
+    /// Gets or sets how audio track removal runs.
+    /// </summary>
+    public FixMode AudioFixMode { get; set; }
+
+    /// <summary>
+    /// Gets or sets where files removed by duplicate fixes go.
+    /// </summary>
+    public DisposalMethod DuplicateDisposal { get; set; }
+
+    /// <summary>
+    /// Gets or sets where replaced originals of re-encodes go.
+    /// </summary>
+    public DisposalMethod TranscodeDisposal { get; set; }
+
+    /// <summary>
+    /// Gets or sets where replaced originals of subtitle strips go.
+    /// </summary>
+    public DisposalMethod SubtitleDisposal { get; set; }
+
+    /// <summary>
+    /// Gets or sets where replaced originals of audio strips go.
+    /// </summary>
+    public DisposalMethod AudioDisposal { get; set; }
+
+    /// <summary>
+    /// Gets or sets the recycle bin folder. Empty uses a folder inside the plugin's data directory.
+    /// </summary>
+    public string RecycleBinPath { get; set; }
+
+    /// <summary>
+    /// Gets or sets how many days recycled files are kept before automatic purge.
+    /// </summary>
+    public int RecycleBinRetentionDays { get; set; }
+
+    /// <summary>
+    /// Gets or sets the maximum number of simultaneous re-encodes.
+    /// </summary>
+    public int MaxConcurrentTranscodes { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether fixes wait while someone is watching something.
+    /// </summary>
+    public bool PauseDuringPlayback { get; set; }
 
     /// <summary>
     /// Gets or sets the maximum wanted video height in pixels (e.g. 1080). Files taller than this are flagged as oversized.
@@ -94,4 +166,38 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets a value indicating whether fixes only log what they would do instead of changing files. Defaults to on for safety.
     /// </summary>
     public bool DryRun { get; set; }
+
+    /// <summary>
+    /// Gets the fix mode for an issue type.
+    /// </summary>
+    /// <param name="type">The issue type.</param>
+    /// <returns>The configured mode; playability issues are never auto-fixed.</returns>
+    public FixMode GetFixMode(Data.IssueType type)
+    {
+        return type switch
+        {
+            Data.IssueType.Duplicate => DuplicateFixMode,
+            Data.IssueType.Quality => TranscodeFixMode,
+            Data.IssueType.SubtitleLanguage => SubtitleFixMode,
+            Data.IssueType.AudioLanguage => AudioFixMode,
+            _ => FixMode.DetectOnly
+        };
+    }
+
+    /// <summary>
+    /// Gets the disposal method for an issue type.
+    /// </summary>
+    /// <param name="type">The issue type.</param>
+    /// <returns>The configured disposal method.</returns>
+    public DisposalMethod GetDisposal(Data.IssueType type)
+    {
+        return type switch
+        {
+            Data.IssueType.Duplicate => DuplicateDisposal,
+            Data.IssueType.Quality => TranscodeDisposal,
+            Data.IssueType.SubtitleLanguage => SubtitleDisposal,
+            Data.IssueType.AudioLanguage => AudioDisposal,
+            _ => DisposalMethod.RecycleBin
+        };
+    }
 }

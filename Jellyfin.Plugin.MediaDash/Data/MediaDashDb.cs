@@ -52,6 +52,19 @@ public sealed class MediaDashDb
                 probed_at_utc INTEGER NOT NULL,
                 json TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                issue_id INTEGER NOT NULL,
+                type INTEGER NOT NULL,
+                path TEXT NOT NULL,
+                action TEXT NOT NULL,
+                bytes_freed INTEGER NOT NULL DEFAULT 0,
+                recycle_path TEXT NULL,
+                fixed_at_utc INTEGER NOT NULL,
+                dry_run INTEGER NOT NULL DEFAULT 0,
+                restored INTEGER NOT NULL DEFAULT 0
+            );
             """;
         cmd.ExecuteNonQuery();
     }
@@ -212,6 +225,127 @@ public sealed class MediaDashDb
         cmd.Parameters.AddWithValue("@mtime", mtimeUtcTicks);
         cmd.Parameters.AddWithValue("@probedAt", DateTime.UtcNow.Ticks);
         cmd.Parameters.AddWithValue("@json", json);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Updates the status of a single issue.
+    /// </summary>
+    /// <param name="issueId">The issue id.</param>
+    /// <param name="status">The new status.</param>
+    /// <returns>True when a row was updated.</returns>
+    public bool UpdateIssueStatus(long issueId, IssueStatus status)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "UPDATE issues SET status = @status WHERE id = @id";
+        cmd.Parameters.AddWithValue("@status", (int)status);
+        cmd.Parameters.AddWithValue("@id", issueId);
+        return cmd.ExecuteNonQuery() > 0;
+    }
+
+    /// <summary>
+    /// Moves all detected issues of a type into the queue (used by automatic mode).
+    /// </summary>
+    /// <param name="type">The issue type.</param>
+    /// <returns>The number of issues queued.</returns>
+    public int QueueDetectedIssues(IssueType type)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "UPDATE issues SET status = @queued WHERE type = @type AND status = @detected";
+        cmd.Parameters.AddWithValue("@queued", (int)IssueStatus.Queued);
+        cmd.Parameters.AddWithValue("@type", (int)type);
+        cmd.Parameters.AddWithValue("@detected", (int)IssueStatus.Detected);
+        return cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Gets a single issue by id.
+    /// </summary>
+    /// <param name="issueId">The issue id.</param>
+    /// <returns>The issue, or null.</returns>
+    public Issue? GetIssue(long issueId)
+    {
+        foreach (var issue in GetIssues())
+        {
+            if (issue.Id == issueId)
+            {
+                return issue;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Records a fix action in the history.
+    /// </summary>
+    /// <param name="entry">The history entry.</param>
+    public void AddHistory(HistoryEntry entry)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO history (issue_id, type, path, action, bytes_freed, recycle_path, fixed_at_utc, dry_run, restored)
+            VALUES (@issueId, @type, @path, @action, @bytesFreed, @recyclePath, @fixedAt, @dryRun, 0)
+            """;
+        cmd.Parameters.AddWithValue("@issueId", entry.IssueId);
+        cmd.Parameters.AddWithValue("@type", (int)entry.Type);
+        cmd.Parameters.AddWithValue("@path", entry.Path);
+        cmd.Parameters.AddWithValue("@action", entry.Action);
+        cmd.Parameters.AddWithValue("@bytesFreed", entry.BytesFreed);
+        cmd.Parameters.AddWithValue("@recyclePath", (object?)entry.RecyclePath ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@fixedAt", entry.FixedAtUtc.Ticks);
+        cmd.Parameters.AddWithValue("@dryRun", entry.WasDryRun ? 1 : 0);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Gets fix history, newest first.
+    /// </summary>
+    /// <param name="limit">Maximum rows returned.</param>
+    /// <returns>The history entries.</returns>
+    public IReadOnlyList<HistoryEntry> GetHistory(int limit = 500)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT id, issue_id, type, path, action, bytes_freed, recycle_path, fixed_at_utc, dry_run, restored"
+            + " FROM history ORDER BY id DESC LIMIT @limit";
+        cmd.Parameters.AddWithValue("@limit", limit);
+
+        var result = new List<HistoryEntry>();
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            result.Add(new HistoryEntry
+            {
+                Id = reader.GetInt64(0),
+                IssueId = reader.GetInt64(1),
+                Type = (IssueType)reader.GetInt32(2),
+                Path = reader.GetString(3),
+                Action = reader.GetString(4),
+                BytesFreed = reader.GetInt64(5),
+                RecyclePath = reader.IsDBNull(6) ? null : reader.GetString(6),
+                FixedAtUtc = new DateTime(reader.GetInt64(7), DateTimeKind.Utc),
+                WasDryRun = reader.GetInt32(8) != 0,
+                Restored = reader.GetInt32(9) != 0
+            });
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Marks a history entry as restored from the recycle bin.
+    /// </summary>
+    /// <param name="historyId">The history entry id.</param>
+    public void MarkRestored(long historyId)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "UPDATE history SET restored = 1 WHERE id = @id";
+        cmd.Parameters.AddWithValue("@id", historyId);
         cmd.ExecuteNonQuery();
     }
 

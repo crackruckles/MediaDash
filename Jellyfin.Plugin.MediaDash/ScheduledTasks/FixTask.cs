@@ -1,0 +1,156 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Jellyfin.Plugin.MediaDash.Configuration;
+using Jellyfin.Plugin.MediaDash.Data;
+using Jellyfin.Plugin.MediaDash.Fixers;
+using MediaBrowser.Controller.Session;
+using MediaBrowser.Model.Tasks;
+using Microsoft.Extensions.Logging;
+
+namespace Jellyfin.Plugin.MediaDash.ScheduledTasks;
+
+/// <summary>
+/// Scheduled task that drains the fix queue: automatic-mode issues are queued first,
+/// then every queued issue is handed to its fixer. Respects dry-run and pause-during-playback.
+/// </summary>
+public sealed class FixTask : IScheduledTask
+{
+    private static readonly IssueType[] FixableTypes =
+    [
+        IssueType.Duplicate,
+        IssueType.Quality,
+        IssueType.SubtitleLanguage,
+        IssueType.AudioLanguage
+    ];
+
+    private readonly MediaDashDb _db;
+    private readonly IEnumerable<IFixer> _fixers;
+    private readonly RecycleBin _recycleBin;
+    private readonly ISessionManager _sessionManager;
+    private readonly ILogger<FixTask> _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FixTask"/> class.
+    /// </summary>
+    /// <param name="db">The plugin database.</param>
+    /// <param name="fixers">All registered fixers.</param>
+    /// <param name="recycleBin">The recycle bin.</param>
+    /// <param name="sessionManager">Instance of the <see cref="ISessionManager"/> interface.</param>
+    /// <param name="logger">The logger.</param>
+    public FixTask(MediaDashDb db, IEnumerable<IFixer> fixers, RecycleBin recycleBin, ISessionManager sessionManager, ILogger<FixTask> logger)
+    {
+        _db = db;
+        _fixers = fixers;
+        _recycleBin = recycleBin;
+        _sessionManager = sessionManager;
+        _logger = logger;
+    }
+
+    /// <inheritdoc />
+    public string Name => "Apply approved fixes";
+
+    /// <inheritdoc />
+    public string Key => "MediaDashFix";
+
+    /// <inheritdoc />
+    public string Description => "Applies approved and automatic fixes: removes duplicates, re-encodes oversized files, strips unwanted tracks.";
+
+    /// <inheritdoc />
+    public string Category => "MediaDash";
+
+    /// <inheritdoc />
+    public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
+    {
+        var config = Plugin.Instance!.Configuration;
+
+        foreach (var type in FixableTypes)
+        {
+            if (config.GetFixMode(type) == FixMode.Automatic)
+            {
+                var queued = _db.QueueDetectedIssues(type);
+                if (queued > 0)
+                {
+                    _logger.LogInformation("Auto-queued {Count} {Type} issues", queued, type);
+                }
+            }
+        }
+
+        var queue = _db.GetIssues(status: IssueStatus.Queued)
+            .Where(i => config.GetFixMode(i.Type) is FixMode.ManualApprove or FixMode.Automatic)
+            .ToList();
+
+        _logger.LogInformation("MediaDash fix run: {Count} queued issues (dry-run: {DryRun})", queue.Count, config.DryRun);
+
+        for (var i = 0; i < queue.Count; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (config.PauseDuringPlayback && _sessionManager.Sessions.Any(s => s.NowPlayingItem is not null))
+            {
+                _logger.LogInformation("Pausing fix run: someone is watching something. Remaining issues stay queued.");
+                break;
+            }
+
+            var issue = queue[i];
+            var fixer = _fixers.FirstOrDefault(f => f.CanFix(issue.Type));
+            if (fixer is null)
+            {
+                continue;
+            }
+
+            try
+            {
+                var result = await fixer.FixAsync(issue, cancellationToken).ConfigureAwait(false);
+                _db.AddHistory(new HistoryEntry
+                {
+                    IssueId = issue.Id,
+                    Type = issue.Type,
+                    Path = issue.Path,
+                    Action = result.Message,
+                    BytesFreed = result.Success && !result.WasDryRun ? result.BytesFreed : 0,
+                    RecyclePath = result.RecyclePath,
+                    FixedAtUtc = DateTime.UtcNow,
+                    WasDryRun = result.WasDryRun
+                });
+
+                if (result.Success && !result.WasDryRun)
+                {
+                    _db.UpdateIssueStatus(issue.Id, IssueStatus.Fixed);
+                }
+                else if (!result.Success)
+                {
+                    _logger.LogWarning("Fix failed for {Path}: {Message}", issue.Path, result.Message);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error fixing {Path}", issue.Path);
+            }
+
+            progress.Report((i + 1) * 100.0 / queue.Count);
+        }
+
+        _recycleBin.Purge(config.RecycleBinRetentionDays);
+        progress.Report(100);
+    }
+
+    /// <inheritdoc />
+    public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
+    {
+        return
+        [
+            new TaskTriggerInfo
+            {
+                Type = TaskTriggerInfoType.DailyTrigger,
+                TimeOfDayTicks = TimeSpan.FromHours(3).Ticks
+            }
+        ];
+    }
+}

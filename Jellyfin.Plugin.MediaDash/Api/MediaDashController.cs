@@ -90,6 +90,49 @@ public class MediaDashController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Approves an issue: it is queued for the next fix run.
+    /// </summary>
+    /// <param name="id">The issue id.</param>
+    /// <returns>No content, or 404 when the issue does not exist.</returns>
+    [HttpPost("Issues/{id}/Approve")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public ActionResult ApproveIssue([FromRoute] long id)
+    {
+        return _db.UpdateIssueStatus(id, IssueStatus.Queued) ? NoContent() : NotFound();
+    }
+
+    /// <summary>
+    /// Dismisses an issue: it will not be re-reported by future scans.
+    /// </summary>
+    /// <param name="id">The issue id.</param>
+    /// <returns>No content, or 404 when the issue does not exist.</returns>
+    [HttpPost("Issues/{id}/Dismiss")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public ActionResult DismissIssue([FromRoute] long id)
+    {
+        return _db.UpdateIssueStatus(id, IssueStatus.Dismissed) ? NoContent() : NotFound();
+    }
+
+    /// <summary>
+    /// Starts a fix run now.
+    /// </summary>
+    /// <returns>No content.</returns>
+    [HttpPost("Fix")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public ActionResult StartFix()
+    {
+        var fixTask = _taskManager.ScheduledTasks.FirstOrDefault(w => w.ScheduledTask is FixTask);
+        if (fixTask is not null && fixTask.State == TaskState.Idle)
+        {
+            _taskManager.Execute(fixTask, new TaskOptions());
+        }
+
+        return NoContent();
+    }
+
     private IScheduledTaskWorker? GetScanTask()
     {
         return _taskManager.ScheduledTasks.FirstOrDefault(w => w.ScheduledTask is ScanTask);
