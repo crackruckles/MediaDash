@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Jellyfin.Plugin.MediaDash.Data;
+using Jellyfin.Plugin.MediaDash.Fixers;
 using Jellyfin.Plugin.MediaDash.ScheduledTasks;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -21,16 +24,22 @@ public class MediaDashController : ControllerBase
 {
     private readonly MediaDashDb _db;
     private readonly ITaskManager _taskManager;
+    private readonly RecycleBin _recycleBin;
+    private readonly ILibraryMonitor _libraryMonitor;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MediaDashController"/> class.
     /// </summary>
     /// <param name="db">The plugin database.</param>
     /// <param name="taskManager">Instance of the <see cref="ITaskManager"/> interface.</param>
-    public MediaDashController(MediaDashDb db, ITaskManager taskManager)
+    /// <param name="recycleBin">The recycle bin.</param>
+    /// <param name="libraryMonitor">Instance of the <see cref="ILibraryMonitor"/> interface.</param>
+    public MediaDashController(MediaDashDb db, ITaskManager taskManager, RecycleBin recycleBin, ILibraryMonitor libraryMonitor)
     {
         _db = db;
         _taskManager = taskManager;
+        _recycleBin = recycleBin;
+        _libraryMonitor = libraryMonitor;
     }
 
     /// <summary>
@@ -130,6 +139,65 @@ public class MediaDashController : ControllerBase
             _taskManager.Execute(fixTask, new TaskOptions());
         }
 
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Approves all open issues of a type at once.
+    /// </summary>
+    /// <param name="type">The issue type to approve.</param>
+    /// <returns>The number of issues queued.</returns>
+    [HttpPost("Issues/ApproveAll")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<int> ApproveAll([FromQuery] IssueType type)
+    {
+        return _db.QueueDetectedIssues(type);
+    }
+
+    /// <summary>
+    /// Gets the fix history, newest first.
+    /// </summary>
+    /// <returns>The history entries.</returns>
+    [HttpGet("History")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<IReadOnlyList<HistoryDto>> GetHistory()
+    {
+        return Ok(_db.GetHistory().Select(HistoryDto.FromEntry).ToList());
+    }
+
+    /// <summary>
+    /// Restores a recycled file to its original location.
+    /// </summary>
+    /// <param name="id">The history entry id.</param>
+    /// <returns>No content on success; 404 when unknown; 409 when the file cannot be restored.</returns>
+    [HttpPost("History/{id}/Restore")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public ActionResult RestoreFromHistory([FromRoute] long id)
+    {
+        var entry = _db.GetHistory().FirstOrDefault(h => h.Id == id);
+        if (entry is null)
+        {
+            return NotFound();
+        }
+
+        if (entry.Restored || string.IsNullOrEmpty(entry.RecyclePath) || !System.IO.File.Exists(entry.RecyclePath))
+        {
+            return Conflict("This file is no longer in the recycle bin.");
+        }
+
+        try
+        {
+            _recycleBin.Restore(entry.RecyclePath, entry.Path);
+        }
+        catch (IOException ex)
+        {
+            return Conflict(ex.Message);
+        }
+
+        _db.MarkRestored(id);
+        _libraryMonitor.ReportFileSystemChanged(entry.Path);
         return NoContent();
     }
 

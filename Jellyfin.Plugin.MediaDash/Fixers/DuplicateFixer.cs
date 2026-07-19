@@ -82,12 +82,15 @@ public sealed class DuplicateFixer : IFixer
 
         var size = new FileInfo(issue.Path).Length;
         var disposal = config.GetDisposal(IssueType.Duplicate);
+        var sizeText = size >= 1_073_741_824
+            ? string.Format(CultureInfo.InvariantCulture, "{0:F1} GB", size / 1_073_741_824.0)
+            : string.Format(CultureInfo.InvariantCulture, "{0:F0} MB", size / 1_048_576.0);
         var actionText = string.Format(
             CultureInfo.InvariantCulture,
-            "{0} {1} ({2:F1} GB) — better copy kept: {3}",
+            "{0} {1} ({2}) — better copy kept: {3}",
             disposal == DisposalMethod.RecycleBin ? "moved to recycle bin" : "permanently deleted",
             Path.GetFileName(issue.Path),
-            size / 1_073_741_824.0,
+            sizeText,
             Path.GetFileName(keeperPath));
 
         if (config.DryRun)

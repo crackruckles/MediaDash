@@ -8,16 +8,21 @@
     <div id="MediaDashConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-select">
         <div data-role="content">
             <div class="content-primary">
-                <h1 style="display:flex;align-items:center;gap:1em;">MediaDash
+                <h1 style="display:flex;align-items:center;gap:1em;flex-wrap:wrap;">MediaDash
                     <button is="emby-button" type="button" id="mdScanNow" class="raised button-submit" style="font-size:80%;">
                         <span>Scan now</span>
                     </button>
+                    <button is="emby-button" type="button" id="mdFixNow" class="raised" style="font-size:80%;">
+                        <span>Run fixes now</span>
+                    </button>
                 </h1>
-                <div id="mdScanState" class="fieldDescription" style="margin-bottom:1em;"></div>
+                <div id="mdScanState" class="fieldDescription" style="margin-bottom:.4em;"></div>
+                <div id="mdDryRunNote" class="fieldDescription" style="margin-bottom:1em;"></div>
 
                 <div style="display:flex;gap:.6em;margin-bottom:1.2em;">
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="overview"><span>Overview</span></button>
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="issues"><span>Issues</span></button>
+                    <button is="emby-button" type="button" class="raised mdTab" data-tab="history"><span>History</span></button>
                 </div>
 
                 <div id="mdTab-overview">
@@ -26,11 +31,22 @@
                 </div>
 
                 <div id="mdTab-issues" style="display:none;">
-                    <div class="selectContainer" style="max-width:22em;">
-                        <label class="selectLabel" for="mdTypeFilter">Show</label>
-                        <select is="emby-select" id="mdTypeFilter" class="emby-select-withcolor emby-select"></select>
+                    <div style="display:flex;gap:1em;align-items:flex-end;flex-wrap:wrap;">
+                        <div class="selectContainer" style="max-width:22em;flex:1;">
+                            <label class="selectLabel" for="mdTypeFilter">Show</label>
+                            <select is="emby-select" id="mdTypeFilter" class="emby-select-withcolor emby-select"></select>
+                        </div>
+                        <button is="emby-button" type="button" id="mdApproveAll" class="raised" style="display:none;margin-bottom:.6em;">
+                            <span></span>
+                        </button>
                     </div>
+                    <div id="mdApproveAllNote" class="fieldDescription"></div>
                     <div id="mdIssueList"></div>
+                </div>
+
+                <div id="mdTab-history" style="display:none;">
+                    <div id="mdHistorySummary" class="fieldDescription" style="margin:.5em 0;"></div>
+                    <div id="mdHistoryList"></div>
                 </div>
             </div>
         </div>
@@ -43,11 +59,26 @@
                 scanIdle: 'Last scan: {0}',
                 scanNever: 'No scan has run yet. Click "Scan now" to check your libraries.',
                 scanRunning: 'Scanning your libraries… {0}%',
+                dryRunOn: 'Safe mode is on: fix runs only log what they would do. Nothing is changed until you turn off dry-run in settings.',
                 totalSavings: 'Space you could reclaim',
                 noIssues: 'No issues found — your library is in good shape. New scans run automatically every night.',
-                showingOf: 'Showing the first {0} of {1} issues. Use the filter above to narrow the list.',
+                noHistory: 'Nothing has been fixed yet. Fixes appear here after a fix run, with a Restore button for anything recoverable.',
                 allTypes: 'All issue types',
-                filesAffected: '{0} file(s)',
+                showingOf: 'Showing the first {0} of {1} issues. Use the filter above to narrow the list.',
+                approve: 'Approve',
+                approveHint: 'Queues this fix for the next fix run.',
+                dismiss: 'Dismiss',
+                dismissHint: 'Hides this issue permanently; future scans will not report it again.',
+                approveAll: 'Approve all {0} shown',
+                approveAllNote: 'Approves every issue currently listed — each will be fixed on the next fix run.',
+                approved: 'Approved — will be handled by the next fix run.',
+                dismissed: 'Dismissed.',
+                restore: 'Restore',
+                restoreHint: 'Puts the file back exactly where it was.',
+                restored: 'Restored.',
+                restoreFailed: 'Could not restore: {0}',
+                spaceSavedToDate: 'Space saved to date: {0}',
+                dryRunBadge: 'dry run',
                 types: {
                     Duplicate: { title: 'Duplicate copies', hint: 'The same movie or episode exists more than once.' },
                     Playability: { title: "Files that won't play", hint: 'These files are broken or unreadable.' },
@@ -79,6 +110,10 @@
 
             function api(path) {
                 return ApiClient.getJSON(ApiClient.getUrl('MediaDash/' + path));
+            }
+
+            function post(path) {
+                return ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('MediaDash/' + path) });
             }
 
             function renderStatus(s) {
@@ -116,10 +151,23 @@
 
             function renderIssues(list) {
                 var el = view.querySelector('#mdIssueList');
+                var approveAllBtn = view.querySelector('#mdApproveAll');
+                var typeFilter = view.querySelector('#mdTypeFilter').value;
+
+                if (typeFilter && list.length > 1) {
+                    approveAllBtn.style.display = '';
+                    approveAllBtn.querySelector('span').textContent = fmt(STR.approveAll, list.length);
+                    view.querySelector('#mdApproveAllNote').textContent = STR.approveAllNote;
+                } else {
+                    approveAllBtn.style.display = 'none';
+                    view.querySelector('#mdApproveAllNote').textContent = '';
+                }
+
                 if (!list.length) {
                     el.innerHTML = '<div class="fieldDescription" style="margin-top:1em;">' + esc(STR.noIssues) + '</div>';
                     return;
                 }
+
                 var html = '';
                 var MAX = 100;
                 if (list.length > MAX) {
@@ -127,14 +175,81 @@
                 }
                 list.slice(0, MAX).forEach(function (i) {
                     var t = STR.types[i.Type] || { title: i.Type };
-                    html += '<div class="cardBox" style="padding: .8em 1.2em;margin:.5em 0;">' +
+                    html += '<div class="cardBox" style="padding:.8em 1.2em;margin:.5em 0;" data-issue="' + i.Id + '">' +
                         '<div style="font-weight:500;">' + esc(i.FileName) + '</div>' +
                         '<div class="fieldDescription" title="' + esc(i.Path) + '">' + esc(i.Path) + '</div>' +
-                        '<div style="margin-top:.3em;">' + esc(t.title) + ' — ' + esc(i.SuggestedFix) +
+                        '<div style="margin:.3em 0;">' + esc(t.title) + ' — ' + esc(i.SuggestedFix) +
                         (i.SizeSavings > 0 ? ' <b>(' + bytes(i.SizeSavings) + ')</b>' : '') + '</div>' +
+                        '<div style="display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">' +
+                        '<button is="emby-button" type="button" class="raised button-submit mdApprove" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(STR.approve) + '</span></button>' +
+                        '<button is="emby-button" type="button" class="raised mdDismiss" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(STR.dismiss) + '</span></button>' +
+                        '<span class="fieldDescription">' + esc(STR.approveHint) + ' · ' + esc(STR.dismissHint) + '</span>' +
+                        '</div>' +
+                        '<div class="fieldDescription mdRowMsg" style="margin-top:.3em;"></div>' +
                         '</div>';
                 });
                 el.innerHTML = html;
+
+                el.querySelectorAll('.mdApprove').forEach(function (b) {
+                    b.addEventListener('click', function () { rowAction(b, 'Approve', STR.approved); });
+                });
+                el.querySelectorAll('.mdDismiss').forEach(function (b) {
+                    b.addEventListener('click', function () { rowAction(b, 'Dismiss', STR.dismissed); });
+                });
+            }
+
+            function rowAction(button, action, doneText) {
+                var id = button.getAttribute('data-id');
+                post('Issues/' + id + '/' + action).then(function () {
+                    var row = button.closest('[data-issue]');
+                    row.querySelector('.mdRowMsg').textContent = doneText;
+                    row.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+                    row.style.opacity = '.55';
+                });
+            }
+
+            function renderHistory(list) {
+                var el = view.querySelector('#mdHistoryList');
+                var saved = 0;
+                list.forEach(function (h) { if (!h.WasDryRun) saved += h.BytesFreed; });
+                view.querySelector('#mdHistorySummary').textContent = saved > 0 ? fmt(STR.spaceSavedToDate, bytes(saved)) : '';
+
+                if (!list.length) {
+                    el.innerHTML = '<div class="fieldDescription" style="margin-top:1em;">' + esc(STR.noHistory) + '</div>';
+                    return;
+                }
+
+                var html = '';
+                list.forEach(function (h) {
+                    html += '<div class="cardBox" style="padding:.8em 1.2em;margin:.5em 0;" data-history="' + h.Id + '">' +
+                        '<div style="font-weight:500;">' + esc(h.FileName) +
+                        (h.WasDryRun ? ' <span style="opacity:.7;font-size:80%;border:1px solid;border-radius:4px;padding:0 .4em;">' + esc(STR.dryRunBadge) + '</span>' : '') +
+                        '</div>' +
+                        '<div style="margin:.2em 0;">' + esc(h.Action) +
+                        (h.BytesFreed > 0 ? ' <b>(' + bytes(h.BytesFreed) + ' freed)</b>' : '') + '</div>' +
+                        '<div class="fieldDescription">' + new Date(h.FixedAtUtc).toLocaleString() + '</div>' +
+                        (h.CanRestore
+                            ? '<div style="display:flex;gap:.6em;align-items:center;margin-top:.3em;">' +
+                              '<button is="emby-button" type="button" class="raised mdRestore" data-id="' + h.Id + '" style="font-size:80%;"><span>' + esc(STR.restore) + '</span></button>' +
+                              '<span class="fieldDescription">' + esc(STR.restoreHint) + '</span></div>'
+                            : '') +
+                        '<div class="fieldDescription mdRowMsg" style="margin-top:.3em;"></div>' +
+                        '</div>';
+                });
+                el.innerHTML = html;
+
+                el.querySelectorAll('.mdRestore').forEach(function (b) {
+                    b.addEventListener('click', function () {
+                        post('History/' + b.getAttribute('data-id') + '/Restore').then(function () {
+                            var row = b.closest('[data-history]');
+                            row.querySelector('.mdRowMsg').textContent = STR.restored;
+                            b.disabled = true;
+                        }, function (err) {
+                            var row = b.closest('[data-history]');
+                            row.querySelector('.mdRowMsg').textContent = fmt(STR.restoreFailed, (err && err.statusText) || '');
+                        });
+                    });
+                });
             }
 
             function loadIssues() {
@@ -142,11 +257,18 @@
                 api('Issues' + (type ? '?type=' + type : '')).then(renderIssues);
             }
 
+            function loadHistory() {
+                api('History').then(renderHistory);
+            }
+
             function refresh() {
                 Dashboard.showLoadingMsg();
                 api('Status').then(function (s) {
                     renderStatus(s);
                     Dashboard.hideLoadingMsg();
+                });
+                ApiClient.getPluginConfiguration('38bdb090-b763-4294-934b-b54ade4d9d6d').then(function (c) {
+                    view.querySelector('#mdDryRunNote').textContent = c.DryRun ? STR.dryRunOn : '';
                 });
             }
 
@@ -156,9 +278,11 @@
             }
 
             function showTab(name) {
-                view.querySelector('#mdTab-overview').style.display = name === 'overview' ? '' : 'none';
-                view.querySelector('#mdTab-issues').style.display = name === 'issues' ? '' : 'none';
+                ['overview', 'issues', 'history'].forEach(function (n) {
+                    view.querySelector('#mdTab-' + n).style.display = n === name ? '' : 'none';
+                });
                 if (name === 'issues') loadIssues();
+                if (name === 'history') loadHistory();
             }
 
             document.querySelector('#MediaDashConfigPage').addEventListener('pageshow', function () {
@@ -178,9 +302,17 @@
                     });
 
                     view.querySelector('#mdScanNow').addEventListener('click', function () {
-                        ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('MediaDash/Scan') }).then(function () {
-                            setTimeout(refresh, 500);
-                        });
+                        post('Scan').then(function () { setTimeout(refresh, 500); });
+                    });
+
+                    view.querySelector('#mdFixNow').addEventListener('click', function () {
+                        post('Fix').then(function () { setTimeout(refresh, 500); });
+                    });
+
+                    view.querySelector('#mdApproveAll').addEventListener('click', function () {
+                        var type = view.querySelector('#mdTypeFilter').value;
+                        if (!type) return;
+                        post('Issues/ApproveAll?type=' + type).then(loadIssues);
                     });
                 }
 
