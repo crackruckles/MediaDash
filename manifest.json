@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.3.0.0",
+        "changelog": "New Files tab: browse, upload, download, rename, move, copy and delete files inside your library folders. Deletes go to the recycle bin. Every operation is refused if it targets anything outside a configured library.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.3.0/mediadash_0.3.0.zip",
+        "checksum": "de2112b31b3a34daa759905c16db89c3",
+        "timestamp": "2026-07-20T11:20:00Z"
+      },
+      {
         "version": "0.2.0.0",
         "changelog": "Fewer false-positive unplayable flags; less aggressive re-encode disk check so batches can proceed on tighter drives; live progress bar during transcodes; helpful hint when 'Run fixes now' has nothing to do; new 'Reset scan data' button in Settings > Advanced to recover from stuck state without reinstalling. Existing installs get a one-time decode-cache wipe so the playability fix takes effect immediately.",
         "targetAbi": "10.11.0.0",
