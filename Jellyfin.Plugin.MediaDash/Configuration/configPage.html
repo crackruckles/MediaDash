@@ -53,6 +53,8 @@
                 font-size: 1.2em; font-weight: 600;
             }
             #MediaDashConfigPage .mdSecHead .material-icons { font-size: 1.15em; }
+            #MediaDashConfigPage #mdFileDrop { border: 2px dashed transparent; border-radius: .4em; transition: background .15s, border-color .15s; }
+            #MediaDashConfigPage #mdFileDrop.mdDropActive { border-color: #00a4dc; background: rgba(0, 164, 220, .07); }
             @keyframes mdFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
         </style>
         <div data-role="content">
@@ -150,16 +152,18 @@
                 </div>
 
                 <div id="mdTab-files" style="display:none;">
-                    <div class="fieldDescription" style="margin-bottom:.6em;">Manual file management, scoped to your library folders. Deletes go to the recycle bin. Files outside your libraries can't be reached from here.</div>
+                    <div class="fieldDescription" style="margin-bottom:.6em;">Manual file management, scoped to your library folders. Admin only. Deletes go to the recycle bin. Files outside your libraries can't be reached from here. Tip: drag files onto the list to upload.</div>
                     <div id="mdFileBar" style="display:flex;gap:.5em;align-items:center;flex-wrap:wrap;margin-bottom:.6em;">
                         <button is="emby-button" type="button" id="mdFileUp" class="raised" style="font-size:80%;" title="Up one level"><span class="material-icons" style="font-size:1.2em;">arrow_upward</span></button>
                         <button is="emby-button" type="button" id="mdFileRefresh" class="raised" style="font-size:80%;" title="Refresh"><span class="material-icons" style="font-size:1.2em;">refresh</span></button>
                         <button is="emby-button" type="button" id="mdFileMkdir" class="raised" style="font-size:80%;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">create_new_folder</span><span>New folder</span></button>
-                        <label is="emby-button" class="raised emby-button" style="font-size:80%;cursor:pointer;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">upload</span><span>Upload file</span><input id="mdFileUpload" type="file" style="display:none;" /></label>
+                        <label is="emby-button" class="raised emby-button" style="font-size:80%;cursor:pointer;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">upload</span><span>Upload file</span><input id="mdFileUpload" type="file" multiple style="display:none;" /></label>
                         <div id="mdFileUploadStatus" class="fieldDescription" style="flex:1;"></div>
                     </div>
                     <div id="mdFileCrumbs" class="fieldDescription" style="margin-bottom:.4em;word-break:break-all;"></div>
-                    <div id="mdFileList"></div>
+                    <div id="mdFileDrop">
+                        <div id="mdFileList"></div>
+                    </div>
                 </div>
 
                 <div id="mdTab-settings" style="display:none;">
@@ -1102,6 +1106,43 @@
                 }
             }
 
+            function uploadFiles(fileList) {
+                if (!fileList || !fileList.length || !currentFilePath) return;
+                var status = view.querySelector('#mdFileUploadStatus');
+                var files = Array.from(fileList);
+                var results = { ok: 0, fail: 0, total: files.length };
+
+                function uploadOne(idx) {
+                    if (idx >= files.length) {
+                        status.textContent = results.fail === 0
+                            ? 'Uploaded ' + results.ok + ' file(s).'
+                            : ('Uploaded ' + results.ok + ' of ' + results.total + ' — ' + results.fail + ' failed.');
+                        loadFiles(currentFilePath);
+                        return;
+                    }
+                    var file = files[idx];
+                    var xhr = new XMLHttpRequest();
+                    xhr.open('POST', ApiClient.getUrl('MediaDash/Files/Upload') + '?path=' + encodeURIComponent(currentFilePath) + '&name=' + encodeURIComponent(file.name));
+                    xhr.setRequestHeader('X-Emby-Token', ApiClient.accessToken());
+                    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+                    xhr.upload.onprogress = function (e) {
+                        if (e.lengthComputable) {
+                            status.textContent = 'Uploading ' + file.name + ' (' + (idx + 1) + '/' + files.length + ')… ' + Math.round(e.loaded * 100 / e.total) + '%';
+                        }
+                    };
+                    xhr.onload = function () {
+                        if (xhr.status >= 200 && xhr.status < 300) results.ok++;
+                        else results.fail++;
+                        uploadOne(idx + 1);
+                    };
+                    xhr.onerror = function () { results.fail++; uploadOne(idx + 1); };
+                    xhr.send(file);
+                }
+
+                status.textContent = 'Uploading ' + files.length + ' file(s)…';
+                uploadOne(0);
+            }
+
             function fileMutate(endpoint, body) {
                 ApiClient.ajax({
                     type: 'POST',
@@ -1235,32 +1276,32 @@
                         fileMutate('Files/Mkdir', { Path: currentFilePath, Name: name });
                     });
                     view.querySelector('#mdFileUpload').addEventListener('change', function () {
-                        var file = this.files && this.files[0];
-                        if (!file || !currentFilePath) return;
-                        var status = view.querySelector('#mdFileUploadStatus');
-                        status.textContent = 'Uploading ' + file.name + '…';
-                        var xhr = new XMLHttpRequest();
-                        xhr.open('POST', ApiClient.getUrl('MediaDash/Files/Upload') + '?path=' + encodeURIComponent(currentFilePath) + '&name=' + encodeURIComponent(file.name));
-                        xhr.setRequestHeader('X-Emby-Token', ApiClient.accessToken());
-                        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-                        xhr.upload.onprogress = function (e) {
-                            if (e.lengthComputable) status.textContent = 'Uploading ' + file.name + '… ' + Math.round(e.loaded * 100 / e.total) + '%';
-                        };
-                        xhr.onload = function () {
-                            if (xhr.status >= 200 && xhr.status < 300) {
-                                status.textContent = 'Uploaded ' + file.name + '.';
-                                loadFiles(currentFilePath);
-                            } else if (xhr.status === 409) {
-                                status.textContent = 'A file with that name already exists.';
-                            } else if (xhr.status === 403) {
-                                status.textContent = 'Blocked: outside your library folders.';
-                            } else {
-                                status.textContent = 'Upload failed (' + xhr.status + ').';
-                            }
-                        };
-                        xhr.onerror = function () { status.textContent = 'Upload failed (network error).'; };
-                        xhr.send(file);
+                        uploadFiles(this.files);
                         this.value = '';
+                    });
+
+                    var drop = view.querySelector('#mdFileDrop');
+                    ['dragenter', 'dragover'].forEach(function (evt) {
+                        drop.addEventListener(evt, function (e) {
+                            if (!currentFilePath) return;
+                            e.preventDefault(); e.stopPropagation();
+                            drop.classList.add('mdDropActive');
+                        });
+                    });
+                    ['dragleave', 'dragend'].forEach(function (evt) {
+                        drop.addEventListener(evt, function (e) {
+                            // Only unhighlight when leaving the outer container, not moving between children.
+                            if (e.target === drop) drop.classList.remove('mdDropActive');
+                        });
+                    });
+                    drop.addEventListener('drop', function (e) {
+                        e.preventDefault(); e.stopPropagation();
+                        drop.classList.remove('mdDropActive');
+                        if (!currentFilePath) {
+                            view.querySelector('#mdFileUploadStatus').textContent = 'Open a library folder first, then drop files here.';
+                            return;
+                        }
+                        uploadFiles(e.dataTransfer && e.dataTransfer.files);
                     });
 
                     view.querySelector('#mdResetScan').addEventListener('click', function () {
