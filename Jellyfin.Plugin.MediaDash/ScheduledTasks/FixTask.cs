@@ -123,6 +123,7 @@ public sealed class FixTask : IScheduledTask
             var itemIndex = i;
             var slot = 100.0 / queue.Count;
             progress.Report(itemIndex * slot);
+            Plugin.CurrentActivity = issue.Path;
             // Synchronous IProgress: Progress<T> queues callbacks and can reorder reports, leading to a jittery bar.
             var itemProgress = new SynchronousProgress(fraction => progress.Report((itemIndex + Math.Clamp(fraction, 0, 1)) * slot));
 
@@ -163,6 +164,7 @@ public sealed class FixTask : IScheduledTask
         }
 
         _recycleBin.Purge(config.RecycleBinRetentionDays);
+        Plugin.CurrentActivity = null;
         progress.Report(100);
     }
 

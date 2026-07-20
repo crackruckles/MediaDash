@@ -69,4 +69,10 @@ public sealed class StatusResponse
     /// Gets or sets per-drive free/total bytes for each drive that hosts a library folder.
     /// </summary>
     public IReadOnlyList<DriveUsage> Drives { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the file currently being scanned or fixed, or null when idle.
+    /// Purely informational (surfaced under the progress bar); the frontend must not treat it as authoritative.
+    /// </summary>
+    public string? CurrentActivity { get; set; }
 }

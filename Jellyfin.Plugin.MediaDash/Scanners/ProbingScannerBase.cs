@@ -54,26 +54,34 @@ public abstract class ProbingScannerBase : IScanner
             return issues;
         }
 
-        for (var i = 0; i < items.Count; i++)
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var item = items[i];
-            foreach (var path in MediaFileHelper.GetFilePaths(item))
+            for (var i = 0; i < items.Count; i++)
             {
-                var probe = await Ffprobe.ProbeAsync(path, cancellationToken).ConfigureAwait(false);
-                var issue = await EvaluateAsync(item, path, probe, cancellationToken).ConfigureAwait(false);
-                if (issue is not null)
+                cancellationToken.ThrowIfCancellationRequested();
+                var item = items[i];
+                foreach (var path in MediaFileHelper.GetFilePaths(item))
                 {
-                    issue.Type = Type;
-                    issue.ItemId = item.Id;
-                    issue.Path = path;
-                    issue.Status = IssueStatus.Detected;
-                    issue.DetectedAtUtc = DateTime.UtcNow;
-                    issues.Add(issue);
+                    Plugin.CurrentActivity = path;
+                    var probe = await Ffprobe.ProbeAsync(path, cancellationToken).ConfigureAwait(false);
+                    var issue = await EvaluateAsync(item, path, probe, cancellationToken).ConfigureAwait(false);
+                    if (issue is not null)
+                    {
+                        issue.Type = Type;
+                        issue.ItemId = item.Id;
+                        issue.Path = path;
+                        issue.Status = IssueStatus.Detected;
+                        issue.DetectedAtUtc = DateTime.UtcNow;
+                        issues.Add(issue);
+                    }
                 }
-            }
 
-            progress.Report((i + 1) * 100.0 / items.Count);
+                progress.Report((i + 1) * 100.0 / items.Count);
+            }
+        }
+        finally
+        {
+            Plugin.CurrentActivity = null;
         }
 
         return issues;

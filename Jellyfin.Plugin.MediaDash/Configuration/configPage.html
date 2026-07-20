@@ -142,6 +142,46 @@
             #MediaDashConfigPage .mdPickerRow:nth-child(even) { background: rgba(255,255,255,.02); }
             #MediaDashConfigPage .mdPickerRow:hover { background: rgba(0,164,220,.14); }
 
+            #MediaDashConfigPage .mdActionBtn {
+                display: inline-flex; align-items: center; gap: .45em;
+                padding: .55em 1.1em !important;
+                border-radius: 12px !important;
+                font-size: .95em !important; font-weight: 600;
+                border: 1px solid rgba(255,255,255,.12) !important;
+                transition: transform .12s ease, background .15s ease, border-color .15s ease;
+            }
+            #MediaDashConfigPage .mdActionBtn:not(:disabled):hover { transform: translateY(-1px); }
+            #MediaDashConfigPage .mdActionBtn .material-icons { font-size: 1.25em; }
+            #MediaDashConfigPage .mdActionScan {
+                background: linear-gradient(135deg, #00a4dc, #0891b2) !important;
+                color: #fff !important;
+                border-color: rgba(0,164,220,.5) !important;
+                box-shadow: 0 4px 14px rgba(0,164,220,.25);
+            }
+            #MediaDashConfigPage .mdActionScan:not(:disabled):hover {
+                background: linear-gradient(135deg, #0bb6ee, #0aa0c2) !important;
+                box-shadow: 0 6px 18px rgba(0,164,220,.35);
+            }
+            #MediaDashConfigPage .mdActionFix {
+                background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+                color: #fff !important;
+                border-color: rgba(245,158,11,.5) !important;
+                box-shadow: 0 4px 14px rgba(245,158,11,.22);
+            }
+            #MediaDashConfigPage .mdActionFix:not(:disabled):hover {
+                background: linear-gradient(135deg, #fbb040, #ea8408) !important;
+                box-shadow: 0 6px 18px rgba(245,158,11,.32);
+            }
+            #MediaDashConfigPage .mdActionBtn.mdActionStop {
+                background: linear-gradient(135deg, #ef4444, #b91c1c) !important;
+                color: #fff !important;
+                border-color: rgba(239,68,68,.6) !important;
+                box-shadow: 0 4px 14px rgba(239,68,68,.28);
+            }
+            #MediaDashConfigPage .mdActionBtn.mdActionStop:not(:disabled):hover {
+                background: linear-gradient(135deg, #f56565, #dc2626) !important;
+                box-shadow: 0 6px 18px rgba(239,68,68,.38);
+            }
             @keyframes mdFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
         </style>
         <div data-role="content">
@@ -152,16 +192,17 @@
                         <h1 style="margin:0;">MediaDash</h1>
                         <div class="fieldDescription" id="mdTagline" style="max-width:44em;"></div>
                     </div>
-                    <button is="emby-button" type="button" id="mdScanNow" class="raised button-submit" style="font-size:80%;">
-                        <span class="material-icons" style="font-size:1.2em;margin-right:.3em;">search</span><span>Scan now</span>
+                    <button is="emby-button" type="button" id="mdScanNow" class="raised mdActionBtn mdActionScan">
+                        <span class="material-icons">search</span><span id="mdScanNowLabel">Scan now</span>
                     </button>
-                    <button is="emby-button" type="button" id="mdFixNow" class="raised" style="font-size:80%;">
-                        <span class="material-icons" style="font-size:1.2em;margin-right:.3em;">build</span><span>Run fixes now</span>
+                    <button is="emby-button" type="button" id="mdFixNow" class="raised mdActionBtn mdActionFix">
+                        <span class="material-icons">build</span><span id="mdFixNowLabel">Run fixes now</span>
                     </button>
                 </div>
                 <div id="mdScanState" class="fieldDescription" style="margin-bottom:.4em;"></div>
                 <div id="mdProgressWrap" style="display:none;max-width:36em;margin:.4em 0 .8em;">
                     <div class="mdBarTrack" style="height:10px;"><div id="mdProgressFill" class="mdBarFill" style="width:3%;background:#00a4dc;"></div></div>
+                    <div id="mdActivity" class="fieldDescription" style="margin-top:.3em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:monospace;font-size:.85em;"></div>
                 </div>
                 <div id="mdDryRunNote" style="display:none;margin-bottom:1em;padding:.8em 1.2em;border-radius:12px;background:rgba(245,158,11,.16);border:2px solid #f59e0b;">
                     <div style="display:flex;gap:.8em;align-items:center;flex-wrap:wrap;">
@@ -441,8 +482,12 @@
                 scanRunning: 'Scanning your libraries… {0}%',
                 scanStarting: 'Starting scan…',
                 scanDone: 'Scan finished — {0} open issue(s) found.',
+                scanNowLabel: 'Scan now',
+                stopScanLabel: 'Stop scanning',
                 fixRunning: 'Applying fixes… {0}%',
                 fixStarting: 'Starting fix run…',
+                fixNowLabel: 'Run fixes now',
+                stopFixLabel: 'Stop running fixes',
                 fixDone: 'Fix run finished — see History for what was done.',
                 fixNothingToDo: 'Nothing to fix yet — approve issues on the Issues tab, or switch a fix type to "Fix automatically" in Settings, then click again.',
                 dryRunOn: 'Approved fixes are only rehearsed and logged to History. When the plan looks right, turn off dry-run to let MediaDash make real changes.',
@@ -653,13 +698,22 @@
                 }
             }
 
-            function renderStatus(s) {
+            function renderStatus(s, silent) {
                 lastStatus = s;
                 var state = view.querySelector('#mdScanState');
                 var scanBtn = view.querySelector('#mdScanNow');
                 var fixBtn = view.querySelector('#mdFixNow');
-                scanBtn.disabled = s.IsScanning;
-                fixBtn.disabled = s.IsFixing;
+                // Button stays enabled while running so it can be clicked to cancel; label + colour swap to "Stop".
+                scanBtn.classList.toggle('mdActionStop', s.IsScanning);
+                scanBtn.classList.toggle('mdActionScan', !s.IsScanning);
+                scanBtn.querySelector('.material-icons').textContent = s.IsScanning ? 'stop' : 'search';
+                view.querySelector('#mdScanNowLabel').textContent = s.IsScanning ? STR.stopScanLabel : STR.scanNowLabel;
+                fixBtn.classList.toggle('mdActionStop', s.IsFixing);
+                fixBtn.classList.toggle('mdActionFix', !s.IsFixing);
+                fixBtn.querySelector('.material-icons').textContent = s.IsFixing ? 'stop' : 'build';
+                view.querySelector('#mdFixNowLabel').textContent = s.IsFixing ? STR.stopFixLabel : STR.fixNowLabel;
+
+                var wasBusy = busy.scan || busy.fix;
 
                 if (s.IsScanning) {
                     busy.scan = true;
@@ -686,6 +740,22 @@
                 } else {
                     setProgress(false);
                     state.textContent = STR.scanNever;
+                }
+
+                var activityEl = view.querySelector('#mdActivity');
+                if ((s.IsScanning || s.IsFixing) && s.CurrentActivity) {
+                    activityEl.textContent = s.CurrentActivity;
+                    activityEl.title = s.CurrentActivity;
+                } else {
+                    activityEl.textContent = '';
+                    activityEl.title = '';
+                }
+
+                // Skip re-rendering the static content (hero/cards/savings/drives) during silent polls while a
+                // scan/fix is running — none of it changes and re-writing innerHTML every 3s causes the tab to flicker.
+                var nowBusy = s.IsScanning || s.IsFixing;
+                if (silent && nowBusy && wasBusy) {
+                    return;
                 }
 
                 var counts = s.Counts || [];
@@ -1122,22 +1192,25 @@
                 api('History').then(renderHistory);
             }
 
-            function refresh() {
-                Dashboard.showLoadingMsg();
+            function refresh(silent) {
+                if (!silent) Dashboard.showLoadingMsg();
                 api('Status').then(function (s) {
-                    renderStatus(s);
-                    Dashboard.hideLoadingMsg();
+                    renderStatus(s, !!silent);
+                    if (!silent) Dashboard.hideLoadingMsg();
                 });
-                ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
-                    view.querySelector('#mdDryRunNote').style.display = c.DryRun ? '' : 'none';
-                    view.querySelector('#mdDryRunText').textContent = STR.dryRunOn;
-                    view.querySelector('#mdFirstRun').style.display = c.FirstRunDone ? 'none' : '';
-                });
+                if (!silent) {
+                    ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
+                        view.querySelector('#mdDryRunNote').style.display = c.DryRun ? '' : 'none';
+                        view.querySelector('#mdDryRunText').textContent = STR.dryRunOn;
+                        view.querySelector('#mdFirstRun').style.display = c.FirstRunDone ? 'none' : '';
+                    });
+                }
             }
 
             function schedulePoll() {
+                // Silent polls during scan/fix so the whole page doesn't flash every 3s.
                 clearTimeout(pollTimer);
-                pollTimer = setTimeout(refresh, 3000);
+                pollTimer = setTimeout(function () { refresh(true); }, 3000);
             }
 
             function showTab(name) {
@@ -1536,21 +1609,27 @@
                     });
 
                     view.querySelector('#mdScanNow').addEventListener('click', function () {
+                        if (lastStatus && lastStatus.IsScanning) {
+                            post('Scan/Cancel').then(function () { setTimeout(refresh, 700); });
+                            return;
+                        }
                         busy.scan = true;
-                        this.disabled = true;
                         view.querySelector('#mdScanState').textContent = STR.scanStarting;
                         setProgress(true, 3);
                         post('Scan').then(function () { setTimeout(refresh, 700); });
                     });
 
                     view.querySelector('#mdFixNow').addEventListener('click', function () {
-                        if (lastStatus && !lastStatus.IsFixing && (lastStatus.PendingFixCount || 0) === 0) {
+                        if (lastStatus && lastStatus.IsFixing) {
+                            post('Fix/Cancel').then(function () { setTimeout(refresh, 700); });
+                            return;
+                        }
+                        if (lastStatus && (lastStatus.PendingFixCount || 0) === 0) {
                             view.querySelector('#mdScanState').textContent = STR.fixNothingToDo;
                             setProgress(false);
                             return;
                         }
                         busy.fix = true;
-                        this.disabled = true;
                         view.querySelector('#mdScanState').textContent = STR.fixStarting;
                         setProgress(true, 3);
                         post('Fix').then(function () { setTimeout(refresh, 700); });

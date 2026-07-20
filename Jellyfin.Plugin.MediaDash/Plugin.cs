@@ -39,6 +39,13 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     /// </summary>
     public static Plugin? Instance { get; private set; }
 
+    /// <summary>
+    /// Gets or sets the path of the file the currently-running scan or fix is working on, or null when idle.
+    /// Read by the /Status endpoint so the dashboard can show what's happening under the progress bar.
+    /// Never a load-bearing field — best-effort human readout only.
+    /// </summary>
+    public static string? CurrentActivity { get; set; }
+
     /// <inheritdoc />
     public IEnumerable<PluginPageInfo> GetPages()
     {

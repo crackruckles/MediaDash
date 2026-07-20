@@ -100,7 +100,8 @@ public class MediaDashController : ControllerBase
                 PotentialSavings = s.PotentialSavings
             }).ToList(),
             PendingFixCount = queuedCount + autoQueueableCount,
-            Drives = drives
+            Drives = drives,
+            CurrentActivity = Plugin.CurrentActivity
         };
     }
 
@@ -176,6 +177,41 @@ public class MediaDashController : ControllerBase
         {
             FixTask.BypassIdleCheckOnce = true;
             _taskManager.Execute(fixTask, new TaskOptions());
+        }
+
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Cancels the running scan, if any.
+    /// </summary>
+    /// <returns>No content.</returns>
+    [HttpPost("Scan/Cancel")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public ActionResult CancelScan()
+    {
+        var scanTask = GetScanTask();
+        if (scanTask is not null && scanTask.State != TaskState.Idle)
+        {
+            _taskManager.Cancel(scanTask);
+        }
+
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Cancels the running fix, if any. Fix work that has already completed on individual files remains done —
+    /// only the remaining queue is skipped.
+    /// </summary>
+    /// <returns>No content.</returns>
+    [HttpPost("Fix/Cancel")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public ActionResult CancelFix()
+    {
+        var fixTask = _taskManager.ScheduledTasks.FirstOrDefault(w => w.ScheduledTask is FixTask);
+        if (fixTask is not null && fixTask.State != TaskState.Idle)
+        {
+            _taskManager.Cancel(fixTask);
         }
 
         return NoContent();
