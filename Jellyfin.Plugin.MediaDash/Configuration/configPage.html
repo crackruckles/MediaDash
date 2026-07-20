@@ -183,9 +183,9 @@
                             <div class="fieldDescription">Files taller than this are flagged as wasting space. Default: 1080p.</div>
                         </div>
                         <div class="inputContainer" style="max-width:30em;">
-                            <label class="inputLabel" for="mdMaxBitrate">Maximum video bitrate at 1080p<span class="mdSliderVal" id="mdMaxBitrateVal"></span></label>
-                            <input id="mdMaxBitrate" type="range" min="2" max="40" step="0.5" />
-                            <div class="fieldDescription">Scaled automatically for other resolutions. Default: 8 Mbps.</div>
+                            <label class="inputLabel" for="mdMaxBitrate"><span id="mdMaxBitrateLabel">Maximum video bitrate at 1080p</span><span class="mdSliderVal" id="mdMaxBitrateVal"></span></label>
+                            <input id="mdMaxBitrate" type="range" min="1" max="40" step="0.5" />
+                            <div class="fieldDescription">Follows the resolution you picked above and is scaled automatically for every other resolution. Default: 8 Mbps at 1080p.</div>
                         </div>
                         <div class="selectContainer" style="max-width:26em;">
                             <label class="selectLabel" for="mdCodec">Re-encode to</label>
@@ -394,6 +394,29 @@
                 codec: ['Codec', 'Resolution', 'Bitrate', 'Size'],
                 size: ['Size']
             };
+
+            // Bitrate is stored as its 1080p equivalent; the slider displays it scaled to the selected max resolution.
+            var RES_PIXEL_FACTOR = { 720: 0.4444, 1080: 1, 1440: 1.7778, 2160: 4 };
+
+            var currentBitrateFactor = 1;
+
+            function bitrateFactor() {
+                return RES_PIXEL_FACTOR[parseInt(view.querySelector('#mdMaxRes').value, 10)] || 1;
+            }
+
+            function setBitrateSliderForResolution(base1080) {
+                currentBitrateFactor = bitrateFactor();
+                var slider = view.querySelector('#mdMaxBitrate');
+                slider.max = Math.ceil(40 * currentBitrateFactor);
+                slider.value = Math.round(base1080 * currentBitrateFactor * 2) / 2;
+                view.querySelector('#mdMaxBitrateLabel').textContent = 'Maximum video bitrate at ' + view.querySelector('#mdMaxRes').value + 'p';
+                view.querySelector('#mdMaxBitrateVal').textContent = fmt(STR.unitMbps, slider.value);
+            }
+
+            function bitrateBaseFromSlider() {
+                // Divide by the factor the slider was DISPLAYED with, not the freshly selected resolution's factor.
+                return Math.round((parseFloat(view.querySelector('#mdMaxBitrate').value) / currentBitrateFactor) * 10) / 10 || 8;
+            }
 
             var SLIDERS = [
                 { id: 'mdMaxBitrate', val: 'mdMaxBitrateVal', unit: 'unitMbps' },
@@ -785,7 +808,7 @@
                         view.querySelector('#mdDisposal' + t.key).value = c[t.disposal];
                     });
                     view.querySelector('#mdMaxRes').value = String(c.MaxResolutionHeight);
-                    view.querySelector('#mdMaxBitrate').value = c.MaxBitrateMbpsAt1080p;
+                    setBitrateSliderForResolution(c.MaxBitrateMbpsAt1080p);
                     view.querySelector('#mdCodec').value = c.PreferredCodec;
                     view.querySelector('#mdContainer').value = c.TargetContainer;
                     view.querySelector('#mdHwEncode').checked = c.UseHardwareEncoder;
@@ -826,7 +849,7 @@
                         c[t.disposal] = view.querySelector('#mdDisposal' + t.key).value;
                     });
                     c.MaxResolutionHeight = parseInt(view.querySelector('#mdMaxRes').value, 10);
-                    c.MaxBitrateMbpsAt1080p = parseFloat(view.querySelector('#mdMaxBitrate').value) || 8;
+                    c.MaxBitrateMbpsAt1080p = bitrateBaseFromSlider();
                     c.PreferredCodec = view.querySelector('#mdCodec').value;
                     c.TargetContainer = view.querySelector('#mdContainer').value;
                     c.UseHardwareEncoder = view.querySelector('#mdHwEncode').checked;
@@ -971,6 +994,10 @@
 
                     buildFixTypeRows();
                     initSliders();
+                    view.querySelector('#mdMaxRes').addEventListener('change', function () {
+                        // Re-express the same underlying ceiling at the newly selected resolution.
+                        setBitrateSliderForResolution(bitrateBaseFromSlider());
+                    });
                     view.querySelector('#mdSettingsForm').addEventListener('submit', saveSettings);
                     setupFirstRun();
 
