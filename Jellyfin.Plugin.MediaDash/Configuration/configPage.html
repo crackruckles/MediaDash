@@ -53,10 +53,95 @@
                 font-size: 1.2em; font-weight: 600;
             }
             #MediaDashConfigPage .mdSecHead .material-icons { font-size: 1.15em; }
-            #MediaDashConfigPage #mdFileDrop { border: 2px dashed transparent; border-radius: .4em; transition: background .15s, border-color .15s; }
-            #MediaDashConfigPage #mdFileDrop.mdDropActive { border-color: #00a4dc; background: rgba(0, 164, 220, .07); }
+            #MediaDashConfigPage #mdFileDrop {
+                border: 2px dashed transparent; border-radius: 14px;
+                transition: background .15s, border-color .15s; padding: 2px;
+            }
+            #MediaDashConfigPage #mdFileDrop.mdDropActive { border-color: #00a4dc; background: rgba(0,164,220,.07); }
             #MediaDashConfigPage .mdIssuePath:hover { color: #00a4dc; text-decoration: underline; }
+            #MediaDashConfigPage .mdSortHead {
+                display: inline-flex; align-items: center; gap: .2em; cursor: pointer;
+                transition: color .15s ease;
+            }
             #MediaDashConfigPage .mdSortHead:hover { color: #00a4dc; }
+            #MediaDashConfigPage .mdSortHead .material-icons { font-size: 1em; opacity: .8; }
+
+            #MediaDashConfigPage .mdFileTable {
+                background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.09);
+                border-radius: 14px; overflow: hidden;
+            }
+            #MediaDashConfigPage .mdFileHead {
+                display: flex; align-items: center; gap: .6em;
+                padding: .55em .9em;
+                background: linear-gradient(90deg, rgba(0,164,220,.14), rgba(0,164,220,.04) 70%, transparent);
+                border-bottom: 1px solid rgba(255,255,255,.08);
+                font-weight: 600; user-select: none;
+            }
+            #MediaDashConfigPage .mdFileRow {
+                display: flex; align-items: center; gap: .6em;
+                padding: .5em .9em;
+                border-bottom: 1px solid rgba(255,255,255,.05);
+                transition: background .1s ease;
+            }
+            #MediaDashConfigPage .mdFileRow:last-child { border-bottom: none; }
+            #MediaDashConfigPage .mdFileRow:nth-child(even) { background: rgba(255,255,255,.02); }
+            #MediaDashConfigPage .mdFileRow:hover { background: rgba(0,164,220,.09); }
+            #MediaDashConfigPage .mdFileName { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            #MediaDashConfigPage .mdFileName.mdFileNameLink { cursor: pointer; }
+            #MediaDashConfigPage .mdFileName.mdFileNameLink:hover { color: #00a4dc; }
+            #MediaDashConfigPage .mdFileMeta { opacity: .85; white-space: nowrap; min-width: 6em; text-align: right; font-variant-numeric: tabular-nums; }
+            #MediaDashConfigPage .mdFileDate { opacity: .6; white-space: nowrap; min-width: 7em; text-align: right; font-variant-numeric: tabular-nums; }
+            #MediaDashConfigPage .mdFileActions { display: flex; gap: .25em; min-width: 11em; justify-content: flex-end; }
+            #MediaDashConfigPage .mdFileAct {
+                border-radius: 8px !important; padding: .3em .55em !important; font-size: 75% !important;
+                background: rgba(255,255,255,.06) !important;
+            }
+            #MediaDashConfigPage .mdFileAct:hover { background: rgba(0,164,220,.22) !important; }
+            #MediaDashConfigPage .mdFileAct.mdFileActDanger { background: rgba(127,29,29,.55) !important; }
+            #MediaDashConfigPage .mdFileAct.mdFileActDanger:hover { background: #7f1d1d !important; }
+            #MediaDashConfigPage .mdFileAct .material-icons { font-size: 1.05em; }
+            #MediaDashConfigPage .mdFileCheck, #MediaDashConfigPage #mdFileSelectAll {
+                accent-color: #00a4dc; width: 1.05em; height: 1.05em; margin: 0;
+            }
+
+            #MediaDashConfigPage .mdBulkBar {
+                display: none; align-items: center; gap: .6em;
+                padding: .55em .9em; margin-bottom: .5em;
+                background: rgba(0,164,220,.12); border: 1px solid rgba(0,164,220,.38);
+                border-radius: 14px;
+            }
+            #MediaDashConfigPage .mdBulkBar b { color: #00a4dc; }
+
+            #MediaDashConfigPage .mdCrumbs {
+                display: inline-flex; align-items: center; gap: .35em;
+                padding: .35em .8em; margin-bottom: .5em;
+                background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+                border-radius: 10px; font-size: .92em; word-break: break-all;
+            }
+            #MediaDashConfigPage .mdCrumbs .material-icons { font-size: 1em; color: #00a4dc; }
+
+            #MediaDashConfigPage #mdFileBar { display: flex; gap: .5em; align-items: center; flex-wrap: wrap; margin-bottom: .7em; }
+            #MediaDashConfigPage #mdFileBar .emby-button { border-radius: 10px !important; }
+            #MediaDashConfigPage #mdFileFilter { border-radius: 10px !important; padding-left: .8em !important; }
+
+            #MediaDashConfigPage #mdPicker {
+                display: none; position: fixed; inset: 0;
+                background: rgba(0,0,0,.6); backdrop-filter: blur(2px);
+                z-index: 9999; align-items: center; justify-content: center;
+                animation: mdFadeIn .18s ease;
+            }
+            #MediaDashConfigPage #mdPicker .mdCard { width: min(680px, 92vw); max-height: 80vh; display: flex; flex-direction: column; }
+            #MediaDashConfigPage #mdPickerList { overflow: auto; border: 1px solid rgba(255,255,255,.08); border-radius: 10px; flex: 1; }
+            #MediaDashConfigPage .mdPickerRow {
+                display: flex; align-items: center; gap: .6em;
+                padding: .55em .9em; cursor: pointer;
+                border-bottom: 1px solid rgba(255,255,255,.05);
+                transition: background .1s ease;
+            }
+            #MediaDashConfigPage .mdPickerRow:last-child { border-bottom: none; }
+            #MediaDashConfigPage .mdPickerRow:nth-child(even) { background: rgba(255,255,255,.02); }
+            #MediaDashConfigPage .mdPickerRow:hover { background: rgba(0,164,220,.14); }
+
             @keyframes mdFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
         </style>
         <div data-role="content">
@@ -155,7 +240,7 @@
 
                 <div id="mdTab-files" style="display:none;">
                     <div class="fieldDescription" style="margin-bottom:.6em;">Manual file management, scoped to your library folders. Admin only. Deletes go to the recycle bin. Files outside your libraries can't be reached from here. Tip: drag files onto the list to upload.</div>
-                    <div id="mdFileBar" style="display:flex;gap:.5em;align-items:center;flex-wrap:wrap;margin-bottom:.6em;">
+                    <div id="mdFileBar">
                         <button is="emby-button" type="button" id="mdFileUp" class="raised" style="font-size:80%;" title="Up one level"><span class="material-icons" style="font-size:1.2em;">arrow_upward</span></button>
                         <button is="emby-button" type="button" id="mdFileRefresh" class="raised" style="font-size:80%;" title="Refresh"><span class="material-icons" style="font-size:1.2em;">refresh</span></button>
                         <button is="emby-button" type="button" id="mdFileMkdir" class="raised" style="font-size:80%;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">create_new_folder</span><span>New folder</span></button>
@@ -163,9 +248,11 @@
                         <input id="mdFileFilter" type="search" is="emby-input" placeholder="Filter in this folder…" style="max-width:16em;font-size:80%;" />
                         <div id="mdFileUploadStatus" class="fieldDescription" style="flex:1;"></div>
                     </div>
-                    <div id="mdFileCrumbs" class="fieldDescription" style="margin-bottom:.4em;word-break:break-all;"></div>
-                    <div id="mdFileBulk" style="display:none;align-items:center;gap:.5em;padding:.4em .7em;margin-bottom:.4em;background:rgba(0,164,220,.1);border:1px solid rgba(0,164,220,.35);border-radius:.4em;">
-                        <span id="mdFileBulkCount"></span>
+                    <div id="mdFileCrumbs" class="mdCrumbs"><span class="material-icons">folder_open</span><span id="mdFileCrumbsText"></span></div>
+                    <div id="mdFileBulk" class="mdBulkBar">
+                        <span class="material-icons" style="color:#00a4dc;">check_box</span>
+                        <span><b id="mdFileBulkCount"></b> selected</span>
+                        <span style="flex:1;"></span>
                         <button is="emby-button" type="button" id="mdFileBulkDelete" class="raised" style="font-size:80%;background:#7f1d1d;color:#fff;"><span class="material-icons" style="font-size:1em;margin-right:.3em;">delete</span><span>Delete</span></button>
                         <button is="emby-button" type="button" id="mdFileBulkMove" class="raised" style="font-size:80%;"><span class="material-icons" style="font-size:1em;margin-right:.3em;">drive_file_move</span><span>Move to…</span></button>
                         <button is="emby-button" type="button" id="mdFileBulkDownload" class="raised" style="font-size:80%;"><span class="material-icons" style="font-size:1em;margin-right:.3em;">download</span><span>Download</span></button>
@@ -177,15 +264,15 @@
                 </div>
 
                 <!-- Folder picker modal -->
-                <div id="mdPicker" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;">
-                    <div class="mdCard" style="width:min(680px, 92vw);max-height:80vh;display:flex;flex-direction:column;padding:1em;">
-                        <div style="display:flex;align-items:center;gap:.5em;margin-bottom:.5em;">
+                <div id="mdPicker">
+                    <div class="mdCard mdFade">
+                        <div style="display:flex;align-items:center;gap:.5em;margin-bottom:.6em;">
                             <button is="emby-button" type="button" id="mdPickerUp" class="raised" style="font-size:80%;" title="Up one level"><span class="material-icons" style="font-size:1.2em;">arrow_upward</span></button>
-                            <div id="mdPickerCrumbs" class="fieldDescription" style="flex:1;word-break:break-all;"></div>
+                            <div id="mdPickerCrumbs" class="mdCrumbs" style="flex:1;margin-bottom:0;"><span class="material-icons">folder_open</span><span id="mdPickerCrumbsText"></span></div>
                             <button is="emby-button" type="button" id="mdPickerCancel" class="raised" style="font-size:80%;"><span>Cancel</span></button>
                             <button is="emby-button" type="button" id="mdPickerAccept" class="raised button-submit" style="font-size:80%;"><span>Select this folder</span></button>
                         </div>
-                        <div id="mdPickerList" style="overflow:auto;border:1px solid rgba(255,255,255,.07);border-radius:.4em;flex:1;"></div>
+                        <div id="mdPickerList"></div>
                     </div>
                 </div>
 
@@ -1079,7 +1166,7 @@
 
             function renderFileList(d) {
                 currentFileListing = d;
-                view.querySelector('#mdFileCrumbs').textContent = d.IsRoot ? 'Library folders' : d.Path;
+                view.querySelector('#mdFileCrumbsText').textContent = d.IsRoot ? 'Library folders' : d.Path;
                 // d.Parent === "" means "one level up is the library-roots pseudo-root". Disable Up only at the pseudo-root itself.
                 view.querySelector('#mdFileUp').disabled = d.IsRoot || d.Parent == null;
                 view.querySelector('#mdFileUp').setAttribute('data-parent', d.Parent == null ? '' : d.Parent);
@@ -1089,7 +1176,7 @@
 
                 var listEl = view.querySelector('#mdFileList');
                 if (!d.Entries || d.Entries.length === 0) {
-                    listEl.innerHTML = '<div class="fieldDescription">Empty folder.</div>';
+                    listEl.innerHTML = '<div class="mdFileTable"><div class="fieldDescription" style="padding:.7em 1em;">Empty folder.</div></div>';
                     return;
                 }
 
@@ -1098,34 +1185,36 @@
                     var q = fileFilter.toLowerCase();
                     sorted = sorted.filter(function (e) { return e.Name.toLowerCase().indexOf(q) >= 0; });
                 }
-                var arrow = function (col) { return fileSort.by === col ? (fileSort.dir === 'asc' ? ' ▲' : ' ▼') : ''; };
-                var headerColor = 'rgba(255,255,255,.08)';
+                var arrow = function (col) {
+                    if (fileSort.by !== col) return '';
+                    return '<span class="material-icons">' + (fileSort.dir === 'asc' ? 'arrow_drop_up' : 'arrow_drop_down') + '</span>';
+                };
                 var selectable = !d.IsRoot;
-                var html = '<div style="border:1px solid rgba(255,255,255,.07);border-radius:.4em;overflow:hidden;">' +
-                    '<div class="mdFileHead" style="display:flex;align-items:center;gap:.6em;padding:.4em .8em;background:' + headerColor + ';font-weight:600;user-select:none;">' +
-                    (selectable ? '<input type="checkbox" id="mdFileSelectAll" style="margin:0;" title="Select all shown" />' : '<span style="width:1em;"></span>') +
+                var html = '<div class="mdFileTable"><div class="mdFileHead">' +
+                    (selectable ? '<input type="checkbox" id="mdFileSelectAll" title="Select all shown" />' : '<span style="width:1.05em;"></span>') +
                     '<span class="material-icons" style="opacity:0;">folder</span>' +
-                    '<span class="mdSortHead" data-col="name" style="flex:1;cursor:pointer;">Name' + arrow('name') + '</span>' +
-                    '<span class="mdSortHead" data-col="size" style="cursor:pointer;min-width:6em;text-align:right;">Size' + arrow('size') + '</span>' +
-                    '<span class="mdSortHead" data-col="date" style="cursor:pointer;min-width:6em;text-align:right;">Modified' + arrow('date') + '</span>' +
+                    '<span class="mdSortHead" data-col="name" style="flex:1;">Name' + arrow('name') + '</span>' +
+                    '<span class="mdSortHead mdFileMeta" data-col="size">Size' + arrow('size') + '</span>' +
+                    '<span class="mdSortHead mdFileDate" data-col="date">Modified' + arrow('date') + '</span>' +
                     '<span style="min-width:11em;"></span>' +
                     '</div>';
                 if (!sorted.length) {
-                    html += '<div class="fieldDescription" style="padding:.6em .8em;">No matches.</div>';
+                    html += '<div class="fieldDescription" style="padding:.7em 1em;">No matches.</div>';
                 }
-                sorted.forEach(function (e, i) {
+                sorted.forEach(function (e) {
                     var icon = e.IsDirectory ? 'folder' : (e.Name.match(/\.(mkv|mp4|avi|mov|webm|m4v|ts|wmv)$/i) ? 'movie' : 'insert_drive_file');
-                    var color = e.IsDirectory ? '#f59e0b' : '#8b5cf6';
+                    var color = e.IsDirectory ? '#f59e0b' : (e.Name.match(/\.(mkv|mp4|avi|mov|webm|m4v|ts|wmv)$/i) ? '#00a4dc' : '#8b5cf6');
                     var meta = e.IsDirectory ? '' : bytes(e.SizeBytes);
                     var date = new Date(e.ModifiedUtc).toLocaleDateString();
                     var checked = fileSelection.has(e.Name) ? ' checked' : '';
-                    html += '<div class="mdFileRow" data-name="' + esc(e.Name) + '" data-isdir="' + (e.IsDirectory ? '1' : '0') + '" style="display:flex;align-items:center;gap:.6em;padding:.5em .8em;border-bottom:1px solid rgba(255,255,255,.05);' + (i % 2 ? 'background:rgba(255,255,255,.02);' : '') + '">' +
-                        (selectable ? '<input type="checkbox" class="mdFileCheck" style="margin:0;"' + checked + ' />' : '<span style="width:1em;"></span>') +
+                    var nameCls = 'mdFileName' + (e.IsDirectory || d.IsRoot ? ' mdFileNameLink' : '');
+                    html += '<div class="mdFileRow" data-name="' + esc(e.Name) + '" data-isdir="' + (e.IsDirectory ? '1' : '0') + '">' +
+                        (selectable ? '<input type="checkbox" class="mdFileCheck"' + checked + ' />' : '<span style="width:1.05em;"></span>') +
                         '<span class="material-icons" style="color:' + color + ';">' + icon + '</span>' +
-                        '<span class="mdFileName" style="flex:1;cursor:' + (e.IsDirectory || d.IsRoot ? 'pointer' : 'default') + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(e.Name) + '</span>' +
-                        '<span style="opacity:.8;white-space:nowrap;min-width:6em;text-align:right;">' + meta + '</span>' +
-                        '<span style="opacity:.6;white-space:nowrap;min-width:6em;text-align:right;">' + date + '</span>' +
-                        '<span class="mdFileActions" style="display:flex;gap:.2em;"></span>' +
+                        '<span class="' + nameCls + '">' + esc(e.Name) + '</span>' +
+                        '<span class="mdFileMeta">' + meta + '</span>' +
+                        '<span class="mdFileDate">' + date + '</span>' +
+                        '<span class="mdFileActions"></span>' +
                         '</div>';
                 });
                 html += '</div>';
@@ -1175,11 +1264,11 @@
                         row.querySelector('.mdFileName').addEventListener('click', function () { loadFiles(full); });
                     }
                     actions.innerHTML =
-                        (isDir ? '' : '<button is="emby-button" type="button" class="raised mdFileAct" data-act="download" style="font-size:70%;padding:.2em .5em;" title="Download"><span class="material-icons" style="font-size:1em;">download</span></button>') +
-                        '<button is="emby-button" type="button" class="raised mdFileAct" data-act="rename" style="font-size:70%;padding:.2em .5em;" title="Rename"><span class="material-icons" style="font-size:1em;">drive_file_rename_outline</span></button>' +
-                        '<button is="emby-button" type="button" class="raised mdFileAct" data-act="move" style="font-size:70%;padding:.2em .5em;" title="Move"><span class="material-icons" style="font-size:1em;">drive_file_move</span></button>' +
-                        '<button is="emby-button" type="button" class="raised mdFileAct" data-act="copy" style="font-size:70%;padding:.2em .5em;" title="Copy"><span class="material-icons" style="font-size:1em;">file_copy</span></button>' +
-                        '<button is="emby-button" type="button" class="raised mdFileAct" data-act="delete" style="font-size:70%;padding:.2em .5em;background:#7f1d1d;color:#fff;" title="Delete (moves to recycle bin)"><span class="material-icons" style="font-size:1em;">delete</span></button>';
+                        (isDir ? '' : '<button is="emby-button" type="button" class="raised mdFileAct" data-act="download" title="Download"><span class="material-icons">download</span></button>') +
+                        '<button is="emby-button" type="button" class="raised mdFileAct" data-act="rename" title="Rename"><span class="material-icons">drive_file_rename_outline</span></button>' +
+                        '<button is="emby-button" type="button" class="raised mdFileAct" data-act="move" title="Move"><span class="material-icons">drive_file_move</span></button>' +
+                        '<button is="emby-button" type="button" class="raised mdFileAct" data-act="copy" title="Copy"><span class="material-icons">file_copy</span></button>' +
+                        '<button is="emby-button" type="button" class="raised mdFileAct mdFileActDanger" data-act="delete" title="Delete (moves to recycle bin)"><span class="material-icons">delete</span></button>';
                     Array.from(actions.querySelectorAll('.mdFileAct')).forEach(function (btn) {
                         btn.addEventListener('click', function () { doFileAction(btn.getAttribute('data-act'), full, name, isDir); });
                     });
@@ -1198,7 +1287,7 @@
                 var n = fileSelection.size;
                 if (n === 0) { bar.style.display = 'none'; return; }
                 bar.style.display = 'flex';
-                view.querySelector('#mdFileBulkCount').textContent = n + ' selected';
+                view.querySelector('#mdFileBulkCount').textContent = n;
             }
 
             function bulkDelete() {
@@ -1265,6 +1354,7 @@
                 picker.open = true;
                 picker.onPick = onPick;
                 view.querySelector('#mdPicker').style.display = 'flex';
+                document.body.style.overflow = 'hidden';
                 loadPicker(startPath || '');
             }
 
@@ -1272,6 +1362,7 @@
                 picker.open = false;
                 picker.onPick = null;
                 view.querySelector('#mdPicker').style.display = 'none';
+                document.body.style.overflow = '';
             }
 
             function loadPicker(path) {
@@ -1288,7 +1379,7 @@
             }
 
             function renderPicker(d) {
-                view.querySelector('#mdPickerCrumbs').textContent = d.IsRoot ? 'Choose a library folder' : d.Path;
+                view.querySelector('#mdPickerCrumbsText').textContent = d.IsRoot ? 'Choose a library folder' : d.Path;
                 view.querySelector('#mdPickerUp').disabled = d.IsRoot || d.Parent == null;
                 view.querySelector('#mdPickerUp').setAttribute('data-parent', d.Parent == null ? '' : d.Parent);
                 view.querySelector('#mdPickerAccept').disabled = d.IsRoot;
@@ -1296,13 +1387,13 @@
                 var dirs = (d.Entries || []).filter(function (e) { return e.IsDirectory; });
                 dirs.sort(function (a, b) { return a.Name.localeCompare(b.Name, undefined, { numeric: true, sensitivity: 'base' }); });
                 if (!dirs.length) {
-                    view.querySelector('#mdPickerList').innerHTML = '<div class="fieldDescription" style="padding:.6em .8em;">No subfolders.</div>';
+                    view.querySelector('#mdPickerList').innerHTML = '<div class="fieldDescription" style="padding:.7em 1em;">No subfolders.</div>';
                     return;
                 }
                 var html = '';
-                dirs.forEach(function (e, i) {
+                dirs.forEach(function (e) {
                     var target = d.IsRoot ? e.Name : joinPath(d.Path, e.Name);
-                    html += '<div class="mdPickerRow" data-target="' + esc(target) + '" style="display:flex;align-items:center;gap:.6em;padding:.5em .8em;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.05);' + (i % 2 ? 'background:rgba(255,255,255,.02);' : '') + '">' +
+                    html += '<div class="mdPickerRow" data-target="' + esc(target) + '">' +
                         '<span class="material-icons" style="color:#f59e0b;">folder</span>' +
                         '<span>' + esc(e.Name) + '</span>' +
                         '</div>';
