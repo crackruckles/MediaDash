@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.3.1.0",
+        "changelog": "Files tab: drag-and-drop uploads. Drop one or many files onto the list to upload into the current folder. Multi-file selection via the Upload button too. Admin-only, same safety as before.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.3.1/mediadash_0.3.1.zip",
+        "checksum": "2123741c50a3d9a84044c9f5b71c574c",
+        "timestamp": "2026-07-20T11:35:00Z"
+      },
+      {
         "version": "0.3.0.0",
         "changelog": "New Files tab: browse, upload, download, rename, move, copy and delete files inside your library folders. Deletes go to the recycle bin. Every operation is refused if it targets anything outside a configured library.",
         "targetAbi": "10.11.0.0",
