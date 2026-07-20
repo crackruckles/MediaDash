@@ -185,9 +185,20 @@ public class MediaDashController : ControllerBase
     /// <returns>The number of issues queued.</returns>
     [HttpPost("Issues/ApproveAll")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public ActionResult<int> ApproveAll([FromQuery] IssueType type)
+    public ActionResult<int> ApproveAll([FromQuery] IssueType? type = null)
     {
-        return _db.QueueDetectedIssues(type);
+        if (type is not null)
+        {
+            return _db.QueueDetectedIssues(type.Value);
+        }
+
+        var total = 0;
+        foreach (var t in Enum.GetValues<IssueType>())
+        {
+            total += _db.QueueDetectedIssues(t);
+        }
+
+        return total;
     }
 
     /// <summary>

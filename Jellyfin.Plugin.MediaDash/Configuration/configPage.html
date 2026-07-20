@@ -350,6 +350,7 @@
                 dismiss: 'Dismiss',
                 dismissHint: 'Hides this issue permanently; future scans will not report it again.',
                 approveAll: 'Approve all {0} shown',
+                approveAllTypes: 'Approve all {0} issues (all types)',
                 approveAllNote: 'Approves every issue currently listed — each will be fixed on the next fix run.',
                 approved: 'Approved — will be handled by the next fix run.',
                 dismissed: 'Dismissed.',
@@ -648,6 +649,10 @@
                     var ft = STR.types[typeFilter] || {};
                     approveAllBtn.style.display = '';
                     approveAllBtn.querySelector('span').textContent = fmt(ft.approveAll || STR.approveAll, list.length);
+                    view.querySelector('#mdApproveAllNote').textContent = STR.approveAllNote;
+                } else if (!typeFilter && list.length > 0) {
+                    approveAllBtn.style.display = '';
+                    approveAllBtn.querySelector('span').textContent = fmt(STR.approveAllTypes, list.length);
                     view.querySelector('#mdApproveAllNote').textContent = STR.approveAllNote;
                 } else {
                     approveAllBtn.style.display = 'none';
@@ -1258,8 +1263,7 @@
 
                     view.querySelector('#mdApproveAll').addEventListener('click', function () {
                         var type = view.querySelector('#mdTypeFilter').value;
-                        if (!type) return;
-                        post('Issues/ApproveAll?type=' + type).then(loadIssues);
+                        post('Issues/ApproveAll' + (type ? '?type=' + type : '')).then(loadIssues);
                     });
 
                     buildFixTypeRows();
