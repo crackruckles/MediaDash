@@ -75,4 +75,9 @@ public sealed class StatusResponse
     /// Purely informational (surfaced under the progress bar); the frontend must not treat it as authoritative.
     /// </summary>
     public string? CurrentActivity { get; set; }
+
+    /// <summary>
+    /// Gets or sets a live resource snapshot for the Jellyfin process (CPU / RAM / GPU).
+    /// </summary>
+    public SystemStats? System { get; set; }
 }

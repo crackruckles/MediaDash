@@ -101,7 +101,8 @@ public class MediaDashController : ControllerBase
             }).ToList(),
             PendingFixCount = queuedCount + autoQueueableCount,
             Drives = drives,
-            CurrentActivity = Plugin.CurrentActivity
+            CurrentActivity = Plugin.CurrentActivity,
+            System = SystemStats.Sample()
         };
     }
 

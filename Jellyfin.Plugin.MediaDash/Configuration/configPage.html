@@ -182,6 +182,27 @@
                 background: linear-gradient(135deg, #f56565, #dc2626) !important;
                 box-shadow: 0 6px 18px rgba(239,68,68,.38);
             }
+            #MediaDashConfigPage .mdSysGrid {
+                display: grid; grid-template-columns: repeat(auto-fit, minmax(14em, 1fr));
+                gap: 1em; margin-top: .3em;
+            }
+            #MediaDashConfigPage .mdSysCell {
+                display: flex; flex-direction: column; gap: .35em;
+                padding: .8em 1em;
+                background: rgba(255,255,255,.03);
+                border: 1px solid rgba(255,255,255,.08);
+                border-radius: 12px;
+            }
+            #MediaDashConfigPage .mdSysCell .mdSysHead {
+                display: flex; align-items: center; gap: .5em;
+                font-size: .85em; opacity: .85; text-transform: uppercase; letter-spacing: .04em;
+            }
+            #MediaDashConfigPage .mdSysCell .mdSysHead .material-icons { font-size: 1.05em; }
+            #MediaDashConfigPage .mdSysCell .mdSysValue {
+                font-size: 1.6em; font-weight: 600; font-variant-numeric: tabular-nums;
+            }
+            #MediaDashConfigPage .mdSysCell .mdSysHint { font-size: .82em; opacity: .7; }
+            #MediaDashConfigPage .mdSysCell .mdBarTrack { height: 6px; }
             @keyframes mdFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
         </style>
         <div data-role="content">
@@ -253,10 +274,11 @@
                 </div>
 
                 <div id="mdTab-overview">
-                    <div id="mdHero"></div>
+                    <div id="mdSystem"></div>
+                    <div id="mdDrives" class="mdSection"></div>
+                    <div id="mdHero" class="mdSection"></div>
                     <div id="mdCards" style="display:flex;flex-wrap:wrap;gap:1em;margin-top:1em;"></div>
                     <div id="mdSavingsBars" class="mdSection"></div>
-                    <div id="mdDrives" class="mdSection"></div>
                     <div id="mdEmpty" class="fieldDescription" style="margin-top:1em;"></div>
                 </div>
 
@@ -495,6 +517,15 @@
                 driveStorage: 'Library drive storage',
                 driveUsed: '{0} used of {1}',
                 driveFree: '{0} free',
+                systemStats: 'System performance',
+                statCpu: 'CPU',
+                statRam: 'Memory',
+                statGpu: 'GPU',
+                statCpuHint: 'Jellyfin process, across {0} cores',
+                statRamHint: '{0} used of {1}',
+                statGpuHint: 'NVIDIA GPUs (nvidia-smi)',
+                statGpuMissing: 'nvidia-smi not available on this host',
+                statUnknown: '—',
                 totalSavings: 'Space you could reclaim',
                 whereSavings: 'Where the savings are',
                 issuesByType: 'Issues found',
@@ -691,6 +722,56 @@
             var busy = { scan: false, fix: false };
             var lastStatus = null;
 
+            function pctColor(p) {
+                return p >= 90 ? '#ef4444' : p >= 70 ? '#f59e0b' : '#00a4dc';
+            }
+
+            function renderSystemStats(sys) {
+                var el = view.querySelector('#mdSystem');
+                if (!sys) { el.innerHTML = ''; return; }
+
+                function cell(icon, iconColor, title, valueHtml, hint, barPct) {
+                    var barHtml = '';
+                    if (typeof barPct === 'number') {
+                        var color = pctColor(barPct);
+                        barHtml = '<div class="mdBarTrack"><div class="mdBarFill" style="width:' + Math.max(3, Math.round(barPct)) + '%;background:linear-gradient(90deg,' + color + ',rgba(255,255,255,.15));"></div></div>';
+                    }
+                    return '<div class="mdSysCell">' +
+                        '<div class="mdSysHead"><span class="material-icons" style="color:' + iconColor + ';">' + icon + '</span>' + esc(title) + '</div>' +
+                        '<div class="mdSysValue">' + valueHtml + '</div>' +
+                        barHtml +
+                        '<div class="mdSysHint">' + esc(hint || '') + '</div>' +
+                        '</div>';
+                }
+
+                var cpuHtml = sys.CpuPercent == null ? '<span style="opacity:.5;">' + esc(STR.statUnknown) + '</span>' : (sys.CpuPercent.toFixed(1) + '%');
+                var cpuHint = fmt(STR.statCpuHint, sys.CpuCoreCount || 1);
+                var cpuBar = sys.CpuPercent == null ? undefined : sys.CpuPercent;
+
+                var ramUsedPct = sys.RamTotalBytes > 0 ? sys.RamUsedBytes / sys.RamTotalBytes * 100 : 0;
+                var ramHtml = bytes(sys.RamUsedBytes);
+                var ramHint = fmt(STR.statRamHint, bytes(sys.RamUsedBytes), bytes(sys.RamTotalBytes));
+
+                var gpuHtml, gpuHint, gpuBar;
+                if (sys.GpuPercent == null) {
+                    gpuHtml = '<span style="opacity:.5;">' + esc(STR.statUnknown) + '</span>';
+                    gpuHint = STR.statGpuMissing;
+                    gpuBar = undefined;
+                } else {
+                    gpuHtml = sys.GpuPercent.toFixed(1) + '%';
+                    gpuHint = STR.statGpuHint;
+                    gpuBar = sys.GpuPercent;
+                }
+
+                el.innerHTML = '<div class="mdCard mdFade"><h3 style="margin:.1em 0 .6em;display:flex;align-items:center;gap:.4em;">' +
+                    '<span class="material-icons" style="color:#00a4dc;">speed</span>' + esc(STR.systemStats) + '</h3>' +
+                    '<div class="mdSysGrid">' +
+                    cell('memory', '#00a4dc', STR.statCpu, cpuHtml, cpuHint, cpuBar) +
+                    cell('storage', '#8b5cf6', STR.statRam, ramHtml, ramHint, ramUsedPct) +
+                    cell('videogame_asset', '#f59e0b', STR.statGpu, gpuHtml, gpuHint, gpuBar) +
+                    '</div></div>';
+            }
+
             function setProgress(visible, percent) {
                 view.querySelector('#mdProgressWrap').style.display = visible ? '' : 'none';
                 if (visible) {
@@ -750,6 +831,9 @@
                     activityEl.textContent = '';
                     activityEl.title = '';
                 }
+
+                // System stats are live — update every poll (values change), regardless of busy state.
+                renderSystemStats(s.System);
 
                 // Skip re-rendering the static content (hero/cards/savings/drives) during silent polls while a
                 // scan/fix is running — none of it changes and re-writing innerHTML every 3s causes the tab to flicker.
