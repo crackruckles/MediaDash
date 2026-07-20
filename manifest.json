@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.4.2.0",
+        "changelog": "Overview polish. Scan/Fix buttons now cancel the running task (red Stop state) with a matching themed gradient look. Current file shown under the progress bar. Per-drive storage card. No more 3-second flicker while scanning/fixing. Fix run processes smallest files first so early completions free disk space for the big ones.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.4.2/mediadash_0.4.2.zip",
+        "checksum": "8707a8a03721d1c86cd686977c174475",
+        "timestamp": "2026-07-20T14:55:00Z"
+      },
+      {
         "version": "0.4.1.0",
         "changelog": "Files tab restyled to match the rest of the plugin: 14px rounded cards, Jellyfin-blue accent on headers/hover, tabular numbers for size/date, breadcrumb pill, refined bulk action bar and folder-picker modal. Visual only, no functional changes.",
         "targetAbi": "10.11.0.0",
