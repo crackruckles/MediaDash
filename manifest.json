@@ -1,0 +1,21 @@
+[
+  {
+    "guid": "38bdb090-b763-4294-934b-b54ade4d9d6d",
+    "name": "MediaDash",
+    "description": "Keeps your library lean and playable: finds duplicate copies, broken files, oversized encodes and unwanted language tracks, then fixes them safely. Dry-run mode and a recycle bin protect your media by default.",
+    "overview": "Keeps your library lean and playable.",
+    "owner": "crackruckles",
+    "category": "General",
+    "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
+    "versions": [
+      {
+        "version": "0.1.1.0",
+        "changelog": "Initial public release.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.1.1/mediadash_0.1.1.zip",
+        "checksum": "07cbd396e0aa9bf9eb198689193fc471",
+        "timestamp": "2026-07-20T02:00:00Z"
+      }
+    ]
+  }
+]
