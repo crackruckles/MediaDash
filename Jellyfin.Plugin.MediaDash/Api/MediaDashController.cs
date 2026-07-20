@@ -57,6 +57,7 @@ public class MediaDashController : ControllerBase
         var scanTask = GetScanTask();
         var fixTask = _taskManager.ScheduledTasks.FirstOrDefault(w => w.ScheduledTask is FixTask);
         long freeDisk = 0, totalDisk = 0;
+        var drives = new List<DriveUsage>();
         var roots = _libraryManager.GetVirtualFolders()
             .SelectMany(f => f.Locations)
             .Select(l => System.IO.Path.GetPathRoot(System.IO.Path.GetFullPath(l)))
@@ -69,6 +70,7 @@ public class MediaDashController : ControllerBase
                 var drive = new System.IO.DriveInfo(root!);
                 freeDisk += drive.AvailableFreeSpace;
                 totalDisk += drive.TotalSize;
+                drives.Add(new DriveUsage { Root = root!, FreeBytes = drive.AvailableFreeSpace, TotalBytes = drive.TotalSize });
             }
             catch (IOException)
             {
@@ -97,7 +99,8 @@ public class MediaDashController : ControllerBase
                 Count = s.Count,
                 PotentialSavings = s.PotentialSavings
             }).ToList(),
-            PendingFixCount = queuedCount + autoQueueableCount
+            PendingFixCount = queuedCount + autoQueueableCount,
+            Drives = drives
         };
     }
 

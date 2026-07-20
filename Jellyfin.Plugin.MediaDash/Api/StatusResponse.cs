@@ -64,4 +64,9 @@ public sealed class StatusResponse
     /// Zero means "Run fixes now" would be a no-op.
     /// </summary>
     public int PendingFixCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets per-drive free/total bytes for each drive that hosts a library folder.
+    /// </summary>
+    public IReadOnlyList<DriveUsage> Drives { get; set; } = [];
 }

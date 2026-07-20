@@ -215,6 +215,7 @@
                     <div id="mdHero"></div>
                     <div id="mdCards" style="display:flex;flex-wrap:wrap;gap:1em;margin-top:1em;"></div>
                     <div id="mdSavingsBars" class="mdSection"></div>
+                    <div id="mdDrives" class="mdSection"></div>
                     <div id="mdEmpty" class="fieldDescription" style="margin-top:1em;"></div>
                 </div>
 
@@ -446,6 +447,9 @@
                 fixNothingToDo: 'Nothing to fix yet — approve issues on the Issues tab, or switch a fix type to "Fix automatically" in Settings, then click again.',
                 dryRunOn: 'Approved fixes are only rehearsed and logged to History. When the plan looks right, turn off dry-run to let MediaDash make real changes.',
                 diskContext: '{0} free of {1} on your library drives',
+                driveStorage: 'Library drive storage',
+                driveUsed: '{0} used of {1}',
+                driveFree: '{0} free',
                 totalSavings: 'Space you could reclaim',
                 whereSavings: 'Where the savings are',
                 issuesByType: 'Issues found',
@@ -717,6 +721,26 @@
                         '<div class="fieldDescription">' + esc(t.hint) + '</div>' +
                         '</div>';
                 }).join('');
+
+                var drivesEl = view.querySelector('#mdDrives');
+                var drives = s.Drives || [];
+                if (drives.length > 0) {
+                    drivesEl.innerHTML = '<div class="mdCard mdFade"><h3 style="margin:.1em 0 .8em;display:flex;align-items:center;gap:.4em;">' +
+                        '<span class="material-icons" style="color:#00a4dc;">storage</span>' + esc(STR.driveStorage) + '</h3>' +
+                        drives.map(function (dr) {
+                            var used = Math.max(0, dr.TotalBytes - dr.FreeBytes);
+                            var pct = dr.TotalBytes > 0 ? used / dr.TotalBytes * 100 : 0;
+                            var pctDisplay = Math.max(3, Math.round(pct));
+                            var fillColor = pct >= 90 ? '#ef4444' : pct >= 70 ? '#f59e0b' : '#00a4dc';
+                            return '<div class="mdBarRow" style="cursor:default;">' +
+                                '<div class="mdBarLabel" style="font-family:monospace;text-align:left;">' + esc(dr.Root) + '</div>' +
+                                '<div class="mdBarTrack" title="' + esc(fmt(STR.driveUsed, bytes(used), bytes(dr.TotalBytes))) + '"><div class="mdBarFill" style="width:' + pctDisplay + '%;background:linear-gradient(90deg,' + fillColor + ',rgba(255,255,255,.15));"></div></div>' +
+                                '<div class="mdBarValue" style="text-align:right;font-variant-numeric:tabular-nums;" title="' + esc(fmt(STR.driveUsed, bytes(used), bytes(dr.TotalBytes))) + '">' + esc(fmt(STR.driveFree, bytes(dr.FreeBytes))) + '</div>' +
+                                '</div>';
+                        }).join('') + '</div>';
+                } else {
+                    drivesEl.innerHTML = '';
+                }
 
                 var withSavings = counts.filter(function (c) { return c.PotentialSavings > 0; });
                 var barsEl = view.querySelector('#mdSavingsBars');

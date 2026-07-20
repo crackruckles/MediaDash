@@ -94,8 +94,11 @@ public sealed class FixTask : IScheduledTask
             }
         }
 
+        // Smallest files first so early re-encodes free disk space for the bigger ones behind them.
+        // Missing files sort to the front (size 0) so they fail fast rather than block the queue.
         var queue = _db.GetIssues(status: IssueStatus.Queued)
             .Where(i => config.GetFixMode(i.Type) is FixMode.ManualApprove or FixMode.Automatic)
+            .OrderBy(GetFileSizeOrZero)
             .ToList();
 
         _logger.LogInformation("MediaDash fix run: {Count} queued issues (dry-run: {DryRun})", queue.Count, config.DryRun);
@@ -174,6 +177,18 @@ public sealed class FixTask : IScheduledTask
                 TimeOfDayTicks = TimeSpan.FromHours(3).Ticks
             }
         ];
+    }
+
+    private static long GetFileSizeOrZero(Data.Issue issue)
+    {
+        try
+        {
+            return System.IO.File.Exists(issue.Path) ? new System.IO.FileInfo(issue.Path).Length : 0;
+        }
+        catch (System.IO.IOException)
+        {
+            return 0;
+        }
     }
 
     private sealed class SynchronousProgress : IProgress<double>
