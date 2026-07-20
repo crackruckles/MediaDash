@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.4.1.0",
+        "changelog": "Files tab restyled to match the rest of the plugin: 14px rounded cards, Jellyfin-blue accent on headers/hover, tabular numbers for size/date, breadcrumb pill, refined bulk action bar and folder-picker modal. Visual only, no functional changes.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.4.1/mediadash_0.4.1.zip",
+        "checksum": "71b1628555a83f2dae3130c7101979b3",
+        "timestamp": "2026-07-20T12:35:00Z"
+      },
+      {
         "version": "0.4.0.0",
         "changelog": "Files tab: multi-select with bulk delete/move/download, filter box, and a modal folder picker that replaces the raw path prompt for move/copy operations.",
         "targetAbi": "10.11.0.0",
