@@ -118,6 +118,7 @@
                     <button is="emby-button" type="button" class="raised mdTab mdTabActive" data-tab="overview"><span>Overview</span></button>
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="issues"><span>Issues</span></button>
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="history"><span>History</span></button>
+                    <button is="emby-button" type="button" class="raised mdTab" data-tab="files"><span>Files</span></button>
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="settings"><span>Settings</span></button>
                 </div>
 
@@ -146,6 +147,19 @@
                     <div id="mdHistoryChart" class="mdSection"></div>
                     <div id="mdHistorySummary" class="fieldDescription" style="margin:.5em 0;"></div>
                     <div id="mdHistoryList"></div>
+                </div>
+
+                <div id="mdTab-files" style="display:none;">
+                    <div class="fieldDescription" style="margin-bottom:.6em;">Manual file management, scoped to your library folders. Deletes go to the recycle bin. Files outside your libraries can't be reached from here.</div>
+                    <div id="mdFileBar" style="display:flex;gap:.5em;align-items:center;flex-wrap:wrap;margin-bottom:.6em;">
+                        <button is="emby-button" type="button" id="mdFileUp" class="raised" style="font-size:80%;" title="Up one level"><span class="material-icons" style="font-size:1.2em;">arrow_upward</span></button>
+                        <button is="emby-button" type="button" id="mdFileRefresh" class="raised" style="font-size:80%;" title="Refresh"><span class="material-icons" style="font-size:1.2em;">refresh</span></button>
+                        <button is="emby-button" type="button" id="mdFileMkdir" class="raised" style="font-size:80%;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">create_new_folder</span><span>New folder</span></button>
+                        <label is="emby-button" class="raised emby-button" style="font-size:80%;cursor:pointer;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">upload</span><span>Upload file</span><input id="mdFileUpload" type="file" style="display:none;" /></label>
+                        <div id="mdFileUploadStatus" class="fieldDescription" style="flex:1;"></div>
+                    </div>
+                    <div id="mdFileCrumbs" class="fieldDescription" style="margin-bottom:.4em;word-break:break-all;"></div>
+                    <div id="mdFileList"></div>
                 </div>
 
                 <div id="mdTab-settings" style="display:none;">
@@ -974,7 +988,7 @@
             }
 
             function showTab(name) {
-                ['overview', 'issues', 'history', 'settings'].forEach(function (n) {
+                ['overview', 'issues', 'history', 'files', 'settings'].forEach(function (n) {
                     view.querySelector('#mdTab-' + n).style.display = n === name ? '' : 'none';
                 });
                 view.querySelectorAll('.mdTab').forEach(function (b) {
@@ -983,6 +997,127 @@
                 if (name === 'issues') loadIssues();
                 if (name === 'history') loadHistory();
                 if (name === 'settings') loadSettings();
+                if (name === 'files') loadFiles(currentFilePath);
+            }
+
+            // ---------- Files tab ----------
+            var currentFilePath = '';
+
+            function loadFiles(path) {
+                var listEl = view.querySelector('#mdFileList');
+                listEl.innerHTML = '<div class="fieldDescription">Loading…</div>';
+                var url = 'Files/List' + (path ? '?path=' + encodeURIComponent(path) : '');
+                api(url).then(function (d) {
+                    currentFilePath = d.Path || '';
+                    renderFileList(d);
+                }, function (xhr) {
+                    listEl.innerHTML = '<div class="fieldDescription" style="color:#ef4444;">' + (xhr && xhr.status === 403 ? 'That path is outside your library folders.' : 'Could not list this folder.') + '</div>';
+                });
+            }
+
+            function renderFileList(d) {
+                view.querySelector('#mdFileCrumbs').textContent = d.IsRoot ? 'Library folders' : d.Path;
+                view.querySelector('#mdFileUp').disabled = d.IsRoot || !d.Parent;
+                view.querySelector('#mdFileUp').setAttribute('data-parent', d.Parent || '');
+                view.querySelector('#mdFileMkdir').disabled = d.IsRoot;
+                view.querySelector('#mdFileUpload').disabled = d.IsRoot;
+                view.querySelector('#mdFileUpload').parentElement.style.opacity = d.IsRoot ? '.5' : '1';
+
+                var listEl = view.querySelector('#mdFileList');
+                if (!d.Entries || d.Entries.length === 0) {
+                    listEl.innerHTML = '<div class="fieldDescription">Empty folder.</div>';
+                    return;
+                }
+
+                var html = '<div style="border:1px solid rgba(255,255,255,.07);border-radius:.4em;overflow:hidden;">';
+                d.Entries.forEach(function (e, i) {
+                    var icon = e.IsDirectory ? 'folder' : (e.Name.match(/\.(mkv|mp4|avi|mov|webm|m4v|ts|wmv)$/i) ? 'movie' : 'insert_drive_file');
+                    var color = e.IsDirectory ? '#f59e0b' : '#8b5cf6';
+                    var meta = e.IsDirectory ? '' : bytes(e.SizeBytes);
+                    var date = new Date(e.ModifiedUtc).toLocaleDateString();
+                    html += '<div class="mdFileRow" data-name="' + esc(e.Name) + '" data-isdir="' + (e.IsDirectory ? '1' : '0') + '" style="display:flex;align-items:center;gap:.6em;padding:.5em .8em;border-bottom:1px solid rgba(255,255,255,.05);' + (i % 2 ? 'background:rgba(255,255,255,.02);' : '') + '">' +
+                        '<span class="material-icons" style="color:' + color + ';">' + icon + '</span>' +
+                        '<span class="mdFileName" style="flex:1;cursor:' + (e.IsDirectory || d.IsRoot ? 'pointer' : 'default') + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(e.Name) + '</span>' +
+                        '<span style="opacity:.8;white-space:nowrap;min-width:6em;text-align:right;">' + meta + '</span>' +
+                        '<span style="opacity:.6;white-space:nowrap;min-width:6em;text-align:right;">' + date + '</span>' +
+                        '<span class="mdFileActions" style="display:flex;gap:.2em;"></span>' +
+                        '</div>';
+                });
+                html += '</div>';
+                listEl.innerHTML = html;
+
+                Array.from(listEl.querySelectorAll('.mdFileRow')).forEach(function (row) {
+                    var name = row.getAttribute('data-name');
+                    var isDir = row.getAttribute('data-isdir') === '1';
+                    var actions = row.querySelector('.mdFileActions');
+                    if (d.IsRoot) {
+                        // Root row: click the name to enter the library folder. No mutations at root level.
+                        row.querySelector('.mdFileName').addEventListener('click', function () { loadFiles(name); });
+                        return;
+                    }
+                    var full = d.Path + (d.Path.match(/[\\\/]$/) ? '' : (d.Path.indexOf('/') >= 0 && d.Path.indexOf('\\') < 0 ? '/' : '\\')) + name;
+                    if (isDir) {
+                        row.querySelector('.mdFileName').addEventListener('click', function () { loadFiles(full); });
+                    }
+                    actions.innerHTML =
+                        (isDir ? '' : '<button is="emby-button" type="button" class="raised mdFileAct" data-act="download" style="font-size:70%;padding:.2em .5em;" title="Download"><span class="material-icons" style="font-size:1em;">download</span></button>') +
+                        '<button is="emby-button" type="button" class="raised mdFileAct" data-act="rename" style="font-size:70%;padding:.2em .5em;" title="Rename"><span class="material-icons" style="font-size:1em;">drive_file_rename_outline</span></button>' +
+                        '<button is="emby-button" type="button" class="raised mdFileAct" data-act="move" style="font-size:70%;padding:.2em .5em;" title="Move"><span class="material-icons" style="font-size:1em;">drive_file_move</span></button>' +
+                        '<button is="emby-button" type="button" class="raised mdFileAct" data-act="copy" style="font-size:70%;padding:.2em .5em;" title="Copy"><span class="material-icons" style="font-size:1em;">file_copy</span></button>' +
+                        '<button is="emby-button" type="button" class="raised mdFileAct" data-act="delete" style="font-size:70%;padding:.2em .5em;background:#7f1d1d;color:#fff;" title="Delete (moves to recycle bin)"><span class="material-icons" style="font-size:1em;">delete</span></button>';
+                    Array.from(actions.querySelectorAll('.mdFileAct')).forEach(function (btn) {
+                        btn.addEventListener('click', function () { doFileAction(btn.getAttribute('data-act'), full, name, isDir); });
+                    });
+                });
+            }
+
+            function doFileAction(act, full, name, isDir) {
+                if (act === 'download') {
+                    var tokenParam = ApiClient.accessToken ? '&api_key=' + encodeURIComponent(ApiClient.accessToken()) : '';
+                    window.open(ApiClient.getUrl('MediaDash/Files/Download') + '?path=' + encodeURIComponent(full) + tokenParam, '_blank');
+                    return;
+                }
+                if (act === 'rename') {
+                    var newName = window.prompt('New name for "' + name + '":', name);
+                    if (!newName || newName === name) return;
+                    fileMutate('Files/Rename', { Path: full, NewName: newName });
+                    return;
+                }
+                if (act === 'move') {
+                    var to = window.prompt('Move "' + name + '" to (full path inside a library):', full);
+                    if (!to || to === full) return;
+                    fileMutate('Files/Move', { From: full, To: to });
+                    return;
+                }
+                if (act === 'copy') {
+                    var toc = window.prompt('Copy "' + name + '" to (full path inside a library):', full + '.copy');
+                    if (!toc) return;
+                    fileMutate('Files/Copy', { From: full, To: toc });
+                    return;
+                }
+                if (act === 'delete') {
+                    if (!window.confirm('Send "' + name + '" to the recycle bin?' + (isDir ? ' Everything inside the folder goes with it.' : ''))) return;
+                    fileMutate('Files/Delete', { Path: full });
+                    return;
+                }
+            }
+
+            function fileMutate(endpoint, body) {
+                ApiClient.ajax({
+                    type: 'POST',
+                    url: ApiClient.getUrl('MediaDash/' + endpoint),
+                    contentType: 'application/json',
+                    data: JSON.stringify(body)
+                }).then(function () {
+                    loadFiles(currentFilePath);
+                }, function (xhr) {
+                    var msg = 'That operation failed.';
+                    if (xhr && xhr.status === 403) msg = 'Blocked: destination is outside your library folders.';
+                    else if (xhr && xhr.status === 404) msg = 'Not found.';
+                    else if (xhr && xhr.status === 409) msg = 'An entry already exists at the destination.';
+                    else if (xhr && xhr.status === 400) msg = 'Invalid name (no path separators, no "..").';
+                    window.alert(msg);
+                });
             }
 
             document.querySelector('#MediaDashConfigPage').addEventListener('pageshow', function () {
@@ -1086,6 +1221,46 @@
                                 window.scrollTo(0, 0);
                             });
                         });
+                    });
+
+                    view.querySelector('#mdFileUp').addEventListener('click', function () {
+                        var parent = this.getAttribute('data-parent');
+                        loadFiles(parent || '');
+                    });
+                    view.querySelector('#mdFileRefresh').addEventListener('click', function () { loadFiles(currentFilePath); });
+                    view.querySelector('#mdFileMkdir').addEventListener('click', function () {
+                        if (!currentFilePath) return;
+                        var name = window.prompt('New folder name:');
+                        if (!name) return;
+                        fileMutate('Files/Mkdir', { Path: currentFilePath, Name: name });
+                    });
+                    view.querySelector('#mdFileUpload').addEventListener('change', function () {
+                        var file = this.files && this.files[0];
+                        if (!file || !currentFilePath) return;
+                        var status = view.querySelector('#mdFileUploadStatus');
+                        status.textContent = 'Uploading ' + file.name + '…';
+                        var xhr = new XMLHttpRequest();
+                        xhr.open('POST', ApiClient.getUrl('MediaDash/Files/Upload') + '?path=' + encodeURIComponent(currentFilePath) + '&name=' + encodeURIComponent(file.name));
+                        xhr.setRequestHeader('X-Emby-Token', ApiClient.accessToken());
+                        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+                        xhr.upload.onprogress = function (e) {
+                            if (e.lengthComputable) status.textContent = 'Uploading ' + file.name + '… ' + Math.round(e.loaded * 100 / e.total) + '%';
+                        };
+                        xhr.onload = function () {
+                            if (xhr.status >= 200 && xhr.status < 300) {
+                                status.textContent = 'Uploaded ' + file.name + '.';
+                                loadFiles(currentFilePath);
+                            } else if (xhr.status === 409) {
+                                status.textContent = 'A file with that name already exists.';
+                            } else if (xhr.status === 403) {
+                                status.textContent = 'Blocked: outside your library folders.';
+                            } else {
+                                status.textContent = 'Upload failed (' + xhr.status + ').';
+                            }
+                        };
+                        xhr.onerror = function () { status.textContent = 'Upload failed (network error).'; };
+                        xhr.send(file);
+                        this.value = '';
                     });
 
                     view.querySelector('#mdResetScan').addEventListener('click', function () {

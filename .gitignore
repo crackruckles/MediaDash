@@ -7,3 +7,5 @@ artifacts
 .devtoken
 publish/
 artifacts/
+_verify/
+mediadash_*.zip

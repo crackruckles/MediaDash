@@ -32,4 +32,14 @@ public class LibraryGuardTests
     {
         Assert.True(LibraryGuard.IsUnder(P("movies", "film.mkv"), P("movies") + Path.DirectorySeparatorChar));
     }
+
+    [Fact]
+    public void PathTraversalAttemptIsRejected()
+    {
+        // File browser: user posts a path with ".." to escape the library. GetFullPath must be called first
+        // so that '../etc/passwd' relative to a library folder resolves to somewhere outside the root before check.
+        var libraryRoot = P("movies");
+        var attackerPath = Path.GetFullPath(Path.Combine(libraryRoot, "..", "..", "etc", "passwd"));
+        Assert.False(LibraryGuard.IsUnder(attackerPath, libraryRoot));
+    }
 }

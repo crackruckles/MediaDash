@@ -37,17 +37,25 @@ public sealed class RecycleBin
     }
 
     /// <summary>
-    /// Moves a file into the recycle bin.
+    /// Moves a file or directory into the recycle bin.
     /// </summary>
-    /// <param name="filePath">The file to recycle.</param>
-    /// <returns>The file's location inside the bin.</returns>
-    public string MoveToBin(string filePath)
+    /// <param name="path">The file or directory to recycle.</param>
+    /// <returns>The item's location inside the bin.</returns>
+    public string MoveToBin(string path)
     {
         var folder = Path.Combine(Root, DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff", CultureInfo.InvariantCulture));
         Directory.CreateDirectory(folder);
-        var target = Path.Combine(folder, Path.GetFileName(filePath));
-        MoveAcrossVolumes(filePath, target);
-        _logger.LogInformation("Recycled {Path} -> {Target}", filePath, target);
+        var target = Path.Combine(folder, Path.GetFileName(path));
+        if (Directory.Exists(path))
+        {
+            Directory.Move(path, target);
+        }
+        else
+        {
+            MoveAcrossVolumes(path, target);
+        }
+
+        _logger.LogInformation("Recycled {Path} -> {Target}", path, target);
         return target;
     }
 
