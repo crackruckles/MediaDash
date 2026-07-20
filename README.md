@@ -1,65 +1,90 @@
-<p align="center"><img src="logo.png" width="140" alt="MediaDash logo"/></p>
+<div align="center">
 
-# MediaDash — keep your Jellyfin library lean and playable
+<img src="logo.png" width="160" alt="MediaDash logo"/>
 
-MediaDash scans your libraries for **duplicate copies**, **files that won't play**, **oversized encodes**, and **audio/subtitle tracks in languages you don't want** — then fixes them, either automatically or after your approval. All from a dashboard inside the Jellyfin web UI.
+# MediaDash
 
-![Overview](docs/overview.png)
+**Keep your Jellyfin library lean and playable.**
 
-## What it will and won't touch (read this first)
+Finds duplicate copies, broken files, oversized encodes and unwanted language tracks — then fixes them safely, on your terms.
 
-- **Dry-run is ON by default.** Fix runs only log what they *would* do until you turn it off in Settings.
-- MediaDash **never touches files outside your configured library folders**.
-- It **never removes a file's only audio track** or its video stream, whatever the language settings say.
-- A re-encoded or rebuilt file **replaces the original only after it passes verification** (readable, same duration, expected streams).
-- Removed files go to MediaDash's **recycle bin** (default 30 days, one-click restore) unless you explicitly choose permanent delete.
-- Fix runs **pause while anyone is watching** something (default on).
+[![CI](https://github.com/crackruckles/MediaDash/actions/workflows/ci.yaml/badge.svg)](https://github.com/crackruckles/MediaDash/actions/workflows/ci.yaml)
+[![Release](https://img.shields.io/github/v/release/crackruckles/MediaDash?label=release&color=00a4dc)](https://github.com/crackruckles/MediaDash/releases/latest)
+[![Jellyfin](https://img.shields.io/badge/jellyfin-10.11%2B-aa5cc3)](https://jellyfin.org)
+[![License](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
-## Features
+<img src="docs/overview.png" width="850" alt="MediaDash overview dashboard"/>
 
-| Scanner | What it finds | Fix |
+</div>
+
+---
+
+## Install (30 seconds)
+
+1. In Jellyfin: **Dashboard → Plugins → Repositories → +** and paste:
+
+   ```
+   https://raw.githubusercontent.com/crackruckles/MediaDash/main/manifest.json
+   ```
+
+2. Open **Catalog**, find **MediaDash**, click **Install**, restart Jellyfin.
+3. Open **Dashboard → My Plugins → MediaDash** and answer three setup questions. Done.
+
+Requires Jellyfin **10.11+**.
+
+## What it does
+
+| | Finds | Fixes |
 |---|---|---|
-| Duplicate copies | Same movie/episode more than once (by TMDb/IMDb/TVDb id, falling back to name+year) | Deletes the lower-quality copy; keeper policy configurable |
-| Files that won't play | Broken, unreadable, zero-duration files; optional deep decode check | Flagged for your review — never auto-deleted |
-| Files wasting space | Above your resolution/bitrate ceiling | Re-encode to your chosen codec + container (source file types filterable) |
-| Unwanted audio languages | Extra audio tracks outside your language list | Lossless remux dropping those tracks |
-| Unwanted subtitle languages | Embedded tracks and external files | Lossless remux / file removal |
+| 🗂 **Duplicate copies** | Same movie/episode twice (by TMDb/IMDb/TVDb id, or name + year) | Deletes the worse copy — you choose what "worse" means |
+| 🚫 **Files that won't play** | Broken and unreadable files — every file is *test-played* at its start, middle and end | Removes them, after re-checking they're really broken |
+| 📦 **Files wasting space** | Anything above your resolution/bitrate ceiling | Re-encodes to your chosen codec + container (GPU-accelerated if you want) |
+| 💬 **Unwanted subtitles** | Embedded tracks & external files in languages you don't keep | Lossless remux — no quality loss |
+| 🔊 **Unwanted audio** | Extra audio tracks outside your language list | Lossless remux — never touches a file's only audio track |
 
-Each fix type independently: **Off / Detect only / Ask me first / Automatic**, and **recycle bin / permanent delete**.
+Every fix type runs independently: **Off · Detect only · Ask me first · Automatic**.
 
-![History](docs/history.png)
+<div align="center">
+<img src="docs/issues.png" width="850" alt="Issues tab with one-click actions"/>
+</div>
 
-## Install
+## Built to be trusted with your media
 
-1. In Jellyfin: **Dashboard → Plugins → Repositories → +** and add this repository URL:
-   `https://raw.githubusercontent.com/crackruckles/MediaDash/main/manifest.json` *(will be live with the first release)*
-2. Go to **Catalog**, install **MediaDash**, restart Jellyfin.
-3. Open **Dashboard → My Plugins → MediaDash** and answer the three setup questions.
+- 🛡 **Dry-run is on by default** — fix runs only log what they *would* do until you say otherwise
+- ♻️ **Recycle bin, not deletion** — removed files are recoverable for 30 days with one-click Restore
+- ✅ **Verify before swap** — a re-encoded file replaces the original only after it passes probe verification (duration, streams)
+- 🔒 **Hard limits** — never touches files outside your libraries, never removes a file's last audio track, checks free disk space before encoding
+- 😴 **Polite** — scheduled runs wait until nobody is watching and the server has been idle for 15 minutes
 
-Requires Jellyfin **10.11** or newer.
+<div align="center">
+<img src="docs/history.png" width="850" alt="History with space-saved graph and restore"/>
+</div>
 
-## First run
+## Highlights
 
-Setup asks three things: the language you keep, your quality ceiling, and whether fixes should wait for your approval. Everything else gets safe defaults. Run a scan, review the Issues tab, and check History to see what a fix run *would* do while dry-run is on.
+- **Three-question setup** — pick your language, quality ceiling, and auto-vs-review. Everything else has safe defaults.
+- **Hardware-accelerated re-encoding** (optional) — uses the AMF/NVENC/QSV/VideoToolbox encoder you already configured in Jellyfin, with automatic per-file software fallback.
+- **Smart test-play cache** — thorough playability checks only re-run on files that changed.
+- **Plain language everywhere** — "Safe to delete — a better copy exists", not "duplicate group loser".
+- Scan & fix schedules live in Jellyfin's own **Scheduled Tasks** dashboard.
 
-![Settings](docs/settings.png)
+<div align="center">
+<img src="docs/settings.png" width="850" alt="Settings with per-type fix modes"/>
+</div>
 
 ## FAQ
 
 **Will it delete something I can't get back?**
-Not unless you choose both permanent delete *and* turn off dry-run. Out of the box, everything removed sits in the recycle bin for 30 days with a Restore button.
+Not unless you choose both permanent delete *and* turn off dry-run. Out of the box everything removed sits in the recycle bin for 30 days.
 
 **Why isn't a broken file fixed automatically?**
-Broken files can't be repaired by re-encoding — MediaDash flags them so you can replace or delete them deliberately.
-
-**Does it use my GPU for re-encoding?**
-v1 uses software encoding (libx265/libx264/SVT-AV1). Hardware encoder support is planned.
+Broken files can't be repaired — MediaDash flags them so *you* decide. Even in full-automatic mode, removing broken files always waits for your approval.
 
 **A track has no language tag — will it be removed?**
-No. Untagged (`und`) tracks are always kept, because deleting a track whose language is unknown isn't safe.
+Never. Untagged tracks are always kept, because deleting a track whose language is unknown isn't safe.
 
-**Where's the scan schedule?**
-Dashboard → Scheduled Tasks: "Scan libraries for issues" and "Apply approved fixes" — change their triggers like any other Jellyfin task.
+**Does re-encoding lose my subtitles?**
+Not with the default MKV output. MP4 output skips subtitle tracks (the format's support is too patchy) — the setting says so.
 
 ## Development
 
@@ -68,8 +93,8 @@ dotnet build Jellyfin.Plugin.MediaDash.sln
 dotnet test
 ```
 
-Deploy locally: copy `Jellyfin.Plugin.MediaDash/bin/Debug/net9.0/Jellyfin.Plugin.MediaDash.dll` to your server's `plugins/MediaDash/` folder and restart. Test fixtures: `tools/make-fixtures.sh <dir>`; full docker cycle: `tools/integration-test.sh`.
+Deploy locally: copy `bin/Debug/net9.0/Jellyfin.Plugin.MediaDash.dll` to your server's `plugins/MediaDash/` folder and restart. Test fixtures: `tools/make-fixtures.sh <dir>` · full docker cycle: `tools/integration-test.sh`.
 
 ## License
 
-GPLv3 — see [LICENSE](LICENSE).
+[GPLv3](LICENSE)

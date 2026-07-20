@@ -1,8 +1,8 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-07-20)
 
-Initial version.
+Initial public release.
 
 - Five scanners: duplicate copies, unplayable files, oversized encodes, unwanted audio languages, unwanted subtitle languages
 - Fix engine with per-type modes (Off / Detect only / Ask me first / Automatic) and per-type disposal (recycle bin / permanent)
