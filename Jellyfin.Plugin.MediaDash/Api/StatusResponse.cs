@@ -34,6 +34,16 @@ public sealed class StatusResponse
     public int OpenIssueTotal { get; set; }
 
     /// <summary>
+    /// Gets or sets the free bytes across the drives that hold the libraries.
+    /// </summary>
+    public long FreeDiskBytes { get; set; }
+
+    /// <summary>
+    /// Gets or sets the total bytes across the drives that hold the libraries.
+    /// </summary>
+    public long TotalDiskBytes { get; set; }
+
+    /// <summary>
     /// Gets or sets when issues were last detected (UTC).
     /// </summary>
     public DateTime? LastScanUtc { get; set; }

@@ -26,6 +26,7 @@ public class MediaDashController : ControllerBase
     private readonly ITaskManager _taskManager;
     private readonly RecycleBin _recycleBin;
     private readonly ILibraryMonitor _libraryMonitor;
+    private readonly ILibraryManager _libraryManager;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MediaDashController"/> class.
@@ -34,12 +35,14 @@ public class MediaDashController : ControllerBase
     /// <param name="taskManager">Instance of the <see cref="ITaskManager"/> interface.</param>
     /// <param name="recycleBin">The recycle bin.</param>
     /// <param name="libraryMonitor">Instance of the <see cref="ILibraryMonitor"/> interface.</param>
-    public MediaDashController(MediaDashDb db, ITaskManager taskManager, RecycleBin recycleBin, ILibraryMonitor libraryMonitor)
+    /// <param name="libraryManager">Instance of the <see cref="ILibraryManager"/> interface.</param>
+    public MediaDashController(MediaDashDb db, ITaskManager taskManager, RecycleBin recycleBin, ILibraryMonitor libraryMonitor, ILibraryManager libraryManager)
     {
         _db = db;
         _taskManager = taskManager;
         _recycleBin = recycleBin;
         _libraryMonitor = libraryMonitor;
+        _libraryManager = libraryManager;
     }
 
     /// <summary>
@@ -53,6 +56,25 @@ public class MediaDashController : ControllerBase
         var summary = _db.GetSummary();
         var scanTask = GetScanTask();
         var fixTask = _taskManager.ScheduledTasks.FirstOrDefault(w => w.ScheduledTask is FixTask);
+        long freeDisk = 0, totalDisk = 0;
+        var roots = _libraryManager.GetVirtualFolders()
+            .SelectMany(f => f.Locations)
+            .Select(l => System.IO.Path.GetPathRoot(System.IO.Path.GetFullPath(l)))
+            .Where(r => !string.IsNullOrEmpty(r))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+        foreach (var root in roots)
+        {
+            try
+            {
+                var drive = new System.IO.DriveInfo(root!);
+                freeDisk += drive.AvailableFreeSpace;
+                totalDisk += drive.TotalSize;
+            }
+            catch (IOException)
+            {
+            }
+        }
+
         return new StatusResponse
         {
             IsScanning = scanTask is not null && scanTask.State != TaskState.Idle,
@@ -60,6 +82,8 @@ public class MediaDashController : ControllerBase
             IsFixing = fixTask is not null && fixTask.State != TaskState.Idle,
             FixProgress = fixTask?.CurrentProgress,
             OpenIssueTotal = summary.Sum(s => s.Count),
+            FreeDiskBytes = freeDisk,
+            TotalDiskBytes = totalDisk,
             LastScanUtc = summary.Count > 0 ? summary.Max(s => s.NewestDetectedUtc) : null,
             TotalPotentialSavings = summary.Sum(s => s.PotentialSavings),
             Counts = summary.Select(s => new TypeCount

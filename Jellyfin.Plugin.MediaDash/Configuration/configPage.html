@@ -74,9 +74,17 @@
                 <div id="mdProgressWrap" style="display:none;max-width:36em;margin:.4em 0 .8em;">
                     <div class="mdBarTrack" style="height:10px;"><div id="mdProgressFill" class="mdBarFill" style="width:3%;background:#00a4dc;"></div></div>
                 </div>
-                <div id="mdDryRunNote" style="display:none;margin-bottom:1em;padding:.55em 1em;border-radius:10px;background:rgba(0,164,220,.14);border:1px solid rgba(0,164,220,.35);">
-                    <span class="material-icons" style="font-size:1.1em;vertical-align:-3px;">shield</span>
-                    <span id="mdDryRunText"></span>
+                <div id="mdDryRunNote" style="display:none;margin-bottom:1em;padding:.8em 1.2em;border-radius:12px;background:rgba(245,158,11,.16);border:2px solid #f59e0b;">
+                    <div style="display:flex;gap:.8em;align-items:center;flex-wrap:wrap;">
+                        <span class="material-icons" style="color:#f59e0b;font-size:1.8em;">shield</span>
+                        <div style="flex:1;min-width:16em;">
+                            <div style="font-weight:700;color:#f59e0b;">Safe mode (dry-run) is ON — nothing is actually being changed</div>
+                            <div class="fieldDescription" id="mdDryRunText"></div>
+                        </div>
+                        <button is="emby-button" type="button" id="mdGoDryRun" class="raised" style="font-size:80%;border:1px solid #f59e0b;">
+                            <span>Turn it off in Settings</span>
+                        </button>
+                    </div>
                 </div>
 
                 <div id="mdFirstRun" class="mdCard" style="display:none;margin-bottom:1.4em;border-color:rgba(0,164,220,.5);">
@@ -303,7 +311,8 @@
                 fixRunning: 'Applying fixes… {0}%',
                 fixStarting: 'Starting fix run…',
                 fixDone: 'Fix run finished — see History for what was done.',
-                dryRunOn: 'Safe mode is on: fix runs only log what they would do. Nothing is changed until you turn off dry-run in Settings.',
+                dryRunOn: 'Approved fixes are only rehearsed and logged to History. When the plan looks right, turn off dry-run to let MediaDash make real changes.',
+                diskContext: '{0} free of {1} on your library drives',
                 totalSavings: 'Space you could reclaim',
                 whereSavings: 'Where the savings are',
                 issuesByType: 'Issues found',
@@ -494,6 +503,7 @@
             // ---------- Overview ----------
 
             var busy = { scan: false, fix: false };
+            var lastStatus = null;
 
             function setProgress(visible, percent) {
                 view.querySelector('#mdProgressWrap').style.display = visible ? '' : 'none';
@@ -503,6 +513,7 @@
             }
 
             function renderStatus(s) {
+                lastStatus = s;
                 var state = view.querySelector('#mdScanState');
                 var scanBtn = view.querySelector('#mdScanNow');
                 var fixBtn = view.querySelector('#mdFixNow');
@@ -559,7 +570,7 @@
                 var cards = view.querySelector('#mdCards');
                 cards.innerHTML = counts.map(function (c) {
                     var t = STR.types[c.Type] || { title: c.Type, hint: '', color: '#888', icon: 'info' };
-                    return '<div class="mdCard mdStat mdFade">' +
+                    return '<div class="mdCard mdStat mdFade mdGoIssues" data-type="' + c.Type + '" style="cursor:pointer;" title="Show these issues">' +
                         '<div class="mdAccent" style="background:' + t.color + ';"></div>' +
                         '<div style="display:flex;justify-content:space-between;align-items:center;">' +
                         '<span style="font-size:.92em;opacity:.85;">' + esc(t.title) + '</span>' +
@@ -578,7 +589,7 @@
                         withSavings.map(function (c) {
                             var t = STR.types[c.Type] || { title: c.Type, color: '#888' };
                             var pct = Math.max(3, Math.round(c.PotentialSavings / maxSave * 100));
-                            return '<div class="mdBarRow">' +
+                            return '<div class="mdBarRow mdGoIssues" data-type="' + c.Type + '" style="cursor:pointer;" title="Show these issues">' +
                                 '<div class="mdBarLabel">' + esc(t.title) + '</div>' +
                                 '<div class="mdBarTrack"><div class="mdBarFill" style="width:' + pct + '%;background:' + t.color + ';"></div></div>' +
                                 '<div class="mdBarValue">' + bytes(c.PotentialSavings) + '</div>' +
@@ -587,6 +598,13 @@
                 } else {
                     barsEl.innerHTML = '';
                 }
+
+                view.querySelectorAll('.mdGoIssues').forEach(function (el) {
+                    el.addEventListener('click', function () {
+                        view.querySelector('#mdTypeFilter').value = el.getAttribute('data-type');
+                        showTab('issues');
+                    });
+                });
 
                 view.querySelector('#mdEmpty').textContent = counts.length === 0 && !s.IsScanning ? STR.noIssues : '';
             }
@@ -669,9 +687,17 @@
                 if (real.length >= 2) {
                     var cum = 0;
                     var points = real.map(function (h) { cum += h.BytesFreed; return { y: cum }; });
+                    var diskHtml = '';
+                    if (lastStatus && lastStatus.TotalDiskBytes > 0) {
+                        var usedPct = Math.round((lastStatus.TotalDiskBytes - lastStatus.FreeDiskBytes) / lastStatus.TotalDiskBytes * 100);
+                        diskHtml = '<div style="margin-top:.8em;">' +
+                            '<div class="fieldDescription" style="margin-bottom:.3em;">' + esc(fmt(STR.diskContext, bytes(lastStatus.FreeDiskBytes), bytes(lastStatus.TotalDiskBytes))) + '</div>' +
+                            '<div class="mdBarTrack" style="height:10px;"><div class="mdBarFill" style="width:' + usedPct + '%;background:linear-gradient(90deg,#00a4dc,#8b5cf6);"></div></div>' +
+                            '</div>';
+                    }
                     chartEl.innerHTML = '<div class="mdCard mdFade"><h3 style="margin:.1em 0 .4em;">' + esc(STR.savedOverTime) + '</h3>' +
-                        '<div class="fieldDescription" style="margin-bottom:.4em;">' + bytes(cum) + ' total</div>' +
-                        areaChartSvg(points, 640, 160) + '</div>';
+                        '<div class="fieldDescription" style="margin-bottom:.4em;">' + bytes(cum) + ' total saved</div>' +
+                        areaChartSvg(points, 640, 160) + diskHtml + '</div>';
                 } else {
                     chartEl.innerHTML = '';
                 }
@@ -984,6 +1010,13 @@
                         view.querySelector('#mdScanState').textContent = STR.fixStarting;
                         setProgress(true, 3);
                         post('Fix').then(function () { setTimeout(refresh, 700); });
+                    });
+
+                    view.querySelector('#mdGoDryRun').addEventListener('click', function () {
+                        showTab('settings');
+                        setTimeout(function () {
+                            view.querySelector('#mdDryRun').scrollIntoView({ block: 'center', behavior: 'smooth' });
+                        }, 200);
                     });
 
                     view.querySelector('#mdApproveAll').addEventListener('click', function () {
