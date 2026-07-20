@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.4.0.0",
+        "changelog": "Files tab: multi-select with bulk delete/move/download, filter box, and a modal folder picker that replaces the raw path prompt for move/copy operations.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.4.0/mediadash_0.4.0.zip",
+        "checksum": "20d18325bf2fd6c27c986fc6e56aab13",
+        "timestamp": "2026-07-20T12:15:00Z"
+      },
+      {
         "version": "0.3.2.0",
         "changelog": "Files tab: sortable columns (Name, Size, Modified), directories stay on top. Up button fixed at library roots. Issues tab: click a file path to open its folder in the Files tab; new 'Approve all N issues (all types)' button when no type filter is set.",
         "targetAbi": "10.11.0.0",
