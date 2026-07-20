@@ -55,6 +55,7 @@
             #MediaDashConfigPage .mdSecHead .material-icons { font-size: 1.15em; }
             #MediaDashConfigPage #mdFileDrop { border: 2px dashed transparent; border-radius: .4em; transition: background .15s, border-color .15s; }
             #MediaDashConfigPage #mdFileDrop.mdDropActive { border-color: #00a4dc; background: rgba(0, 164, 220, .07); }
+            #MediaDashConfigPage .mdIssuePath:hover { color: #00a4dc; text-decoration: underline; }
             @keyframes mdFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
         </style>
         <div data-role="content">
@@ -668,7 +669,7 @@
                         '<div style="display:flex;justify-content:space-between;gap:1em;flex-wrap:wrap;align-items:center;">' +
                         '<div style="font-weight:600;">' + esc(i.FileName) + '</div>' +
                         '<span class="mdBadge" style="background:' + t.color + ';">' + esc(t.title) + '</span></div>' +
-                        '<div class="fieldDescription" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(i.Path) + '">' + esc(i.Path) + '</div>' +
+                        '<div class="fieldDescription mdIssuePath" data-path="' + esc(i.Path) + '" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" title="Click to open this folder in the Files tab">' + esc(i.Path) + '</div>' +
                         '<div style="margin:.3em 0;">' + esc(i.SuggestedFix) +
                         (i.SizeSavings > 0 ? ' <b style="color:' + t.color + ';">(' + bytes(i.SizeSavings) + ')</b>' : '') + '</div>' +
                         '<div style="display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">' +
@@ -687,6 +688,16 @@
                 el.querySelectorAll('.mdDismiss').forEach(function (b) {
                     b.addEventListener('click', function () { rowAction(b, 'Dismiss', STR.dismissed); });
                 });
+                el.querySelectorAll('.mdIssuePath').forEach(function (p) {
+                    p.addEventListener('click', function () { openInFileBrowser(p.getAttribute('data-path')); });
+                });
+            }
+
+            function openInFileBrowser(path) {
+                if (!path) return;
+                var lastSep = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+                currentFilePath = lastSep > 0 ? path.substring(0, lastSep) : path;
+                showTab('files');
             }
 
             function rowAction(button, action, doneText) {
@@ -1021,8 +1032,9 @@
 
             function renderFileList(d) {
                 view.querySelector('#mdFileCrumbs').textContent = d.IsRoot ? 'Library folders' : d.Path;
-                view.querySelector('#mdFileUp').disabled = d.IsRoot || !d.Parent;
-                view.querySelector('#mdFileUp').setAttribute('data-parent', d.Parent || '');
+                // d.Parent === "" means "one level up is the library-roots pseudo-root". Disable Up only at the pseudo-root itself.
+                view.querySelector('#mdFileUp').disabled = d.IsRoot || d.Parent == null;
+                view.querySelector('#mdFileUp').setAttribute('data-parent', d.Parent == null ? '' : d.Parent);
                 view.querySelector('#mdFileMkdir').disabled = d.IsRoot;
                 view.querySelector('#mdFileUpload').disabled = d.IsRoot;
                 view.querySelector('#mdFileUpload').parentElement.style.opacity = d.IsRoot ? '.5' : '1';
