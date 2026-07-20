@@ -160,11 +160,32 @@
                         <button is="emby-button" type="button" id="mdFileRefresh" class="raised" style="font-size:80%;" title="Refresh"><span class="material-icons" style="font-size:1.2em;">refresh</span></button>
                         <button is="emby-button" type="button" id="mdFileMkdir" class="raised" style="font-size:80%;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">create_new_folder</span><span>New folder</span></button>
                         <label is="emby-button" class="raised emby-button" style="font-size:80%;cursor:pointer;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">upload</span><span>Upload file</span><input id="mdFileUpload" type="file" multiple style="display:none;" /></label>
+                        <input id="mdFileFilter" type="search" is="emby-input" placeholder="Filter in this folder…" style="max-width:16em;font-size:80%;" />
                         <div id="mdFileUploadStatus" class="fieldDescription" style="flex:1;"></div>
                     </div>
                     <div id="mdFileCrumbs" class="fieldDescription" style="margin-bottom:.4em;word-break:break-all;"></div>
+                    <div id="mdFileBulk" style="display:none;align-items:center;gap:.5em;padding:.4em .7em;margin-bottom:.4em;background:rgba(0,164,220,.1);border:1px solid rgba(0,164,220,.35);border-radius:.4em;">
+                        <span id="mdFileBulkCount"></span>
+                        <button is="emby-button" type="button" id="mdFileBulkDelete" class="raised" style="font-size:80%;background:#7f1d1d;color:#fff;"><span class="material-icons" style="font-size:1em;margin-right:.3em;">delete</span><span>Delete</span></button>
+                        <button is="emby-button" type="button" id="mdFileBulkMove" class="raised" style="font-size:80%;"><span class="material-icons" style="font-size:1em;margin-right:.3em;">drive_file_move</span><span>Move to…</span></button>
+                        <button is="emby-button" type="button" id="mdFileBulkDownload" class="raised" style="font-size:80%;"><span class="material-icons" style="font-size:1em;margin-right:.3em;">download</span><span>Download</span></button>
+                        <button is="emby-button" type="button" id="mdFileBulkClear" class="raised" style="font-size:80%;"><span>Deselect</span></button>
+                    </div>
                     <div id="mdFileDrop">
                         <div id="mdFileList"></div>
+                    </div>
+                </div>
+
+                <!-- Folder picker modal -->
+                <div id="mdPicker" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;">
+                    <div class="mdCard" style="width:min(680px, 92vw);max-height:80vh;display:flex;flex-direction:column;padding:1em;">
+                        <div style="display:flex;align-items:center;gap:.5em;margin-bottom:.5em;">
+                            <button is="emby-button" type="button" id="mdPickerUp" class="raised" style="font-size:80%;" title="Up one level"><span class="material-icons" style="font-size:1.2em;">arrow_upward</span></button>
+                            <div id="mdPickerCrumbs" class="fieldDescription" style="flex:1;word-break:break-all;"></div>
+                            <button is="emby-button" type="button" id="mdPickerCancel" class="raised" style="font-size:80%;"><span>Cancel</span></button>
+                            <button is="emby-button" type="button" id="mdPickerAccept" class="raised button-submit" style="font-size:80%;"><span>Select this folder</span></button>
+                        </div>
+                        <div id="mdPickerList" style="overflow:auto;border:1px solid rgba(255,255,255,.07);border-radius:.4em;flex:1;"></div>
                     </div>
                 </div>
 
@@ -1025,6 +1046,9 @@
             var currentFilePath = '';
             var currentFileListing = null;
             var fileSort = { by: 'name', dir: 'asc' };
+            var fileSelection = new Set();
+            var fileFilter = '';
+            var picker = { open: false, path: '', listing: null, onPick: null };
 
             function sortEntries(entries, by, dir) {
                 var sign = dir === 'desc' ? -1 : 1;
@@ -1042,6 +1066,8 @@
             function loadFiles(path) {
                 var listEl = view.querySelector('#mdFileList');
                 listEl.innerHTML = '<div class="fieldDescription">Loading…</div>';
+                // Selection is only meaningful within one folder; clear when navigating.
+                fileSelection.clear();
                 var url = 'Files/List' + (path ? '?path=' + encodeURIComponent(path) : '');
                 api(url).then(function (d) {
                     currentFilePath = d.Path || '';
@@ -1068,22 +1094,33 @@
                 }
 
                 var sorted = sortEntries(d.Entries, fileSort.by, fileSort.dir);
+                if (fileFilter) {
+                    var q = fileFilter.toLowerCase();
+                    sorted = sorted.filter(function (e) { return e.Name.toLowerCase().indexOf(q) >= 0; });
+                }
                 var arrow = function (col) { return fileSort.by === col ? (fileSort.dir === 'asc' ? ' ▲' : ' ▼') : ''; };
                 var headerColor = 'rgba(255,255,255,.08)';
+                var selectable = !d.IsRoot;
                 var html = '<div style="border:1px solid rgba(255,255,255,.07);border-radius:.4em;overflow:hidden;">' +
                     '<div class="mdFileHead" style="display:flex;align-items:center;gap:.6em;padding:.4em .8em;background:' + headerColor + ';font-weight:600;user-select:none;">' +
+                    (selectable ? '<input type="checkbox" id="mdFileSelectAll" style="margin:0;" title="Select all shown" />' : '<span style="width:1em;"></span>') +
                     '<span class="material-icons" style="opacity:0;">folder</span>' +
                     '<span class="mdSortHead" data-col="name" style="flex:1;cursor:pointer;">Name' + arrow('name') + '</span>' +
                     '<span class="mdSortHead" data-col="size" style="cursor:pointer;min-width:6em;text-align:right;">Size' + arrow('size') + '</span>' +
                     '<span class="mdSortHead" data-col="date" style="cursor:pointer;min-width:6em;text-align:right;">Modified' + arrow('date') + '</span>' +
                     '<span style="min-width:11em;"></span>' +
                     '</div>';
+                if (!sorted.length) {
+                    html += '<div class="fieldDescription" style="padding:.6em .8em;">No matches.</div>';
+                }
                 sorted.forEach(function (e, i) {
                     var icon = e.IsDirectory ? 'folder' : (e.Name.match(/\.(mkv|mp4|avi|mov|webm|m4v|ts|wmv)$/i) ? 'movie' : 'insert_drive_file');
                     var color = e.IsDirectory ? '#f59e0b' : '#8b5cf6';
                     var meta = e.IsDirectory ? '' : bytes(e.SizeBytes);
                     var date = new Date(e.ModifiedUtc).toLocaleDateString();
+                    var checked = fileSelection.has(e.Name) ? ' checked' : '';
                     html += '<div class="mdFileRow" data-name="' + esc(e.Name) + '" data-isdir="' + (e.IsDirectory ? '1' : '0') + '" style="display:flex;align-items:center;gap:.6em;padding:.5em .8em;border-bottom:1px solid rgba(255,255,255,.05);' + (i % 2 ? 'background:rgba(255,255,255,.02);' : '') + '">' +
+                        (selectable ? '<input type="checkbox" class="mdFileCheck" style="margin:0;"' + checked + ' />' : '<span style="width:1em;"></span>') +
                         '<span class="material-icons" style="color:' + color + ';">' + icon + '</span>' +
                         '<span class="mdFileName" style="flex:1;cursor:' + (e.IsDirectory || d.IsRoot ? 'pointer' : 'default') + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(e.Name) + '</span>' +
                         '<span style="opacity:.8;white-space:nowrap;min-width:6em;text-align:right;">' + meta + '</span>' +
@@ -1103,16 +1140,37 @@
                     });
                 });
 
+                var selectAllEl = listEl.querySelector('#mdFileSelectAll');
+                if (selectAllEl) {
+                    var shownNames = sorted.map(function (e) { return e.Name; });
+                    var allSelected = shownNames.length > 0 && shownNames.every(function (n) { return fileSelection.has(n); });
+                    selectAllEl.checked = allSelected;
+                    selectAllEl.addEventListener('change', function () {
+                        if (this.checked) shownNames.forEach(function (n) { fileSelection.add(n); });
+                        else shownNames.forEach(function (n) { fileSelection.delete(n); });
+                        renderFileList(currentFileListing);
+                    });
+                }
+
                 Array.from(listEl.querySelectorAll('.mdFileRow')).forEach(function (row) {
                     var name = row.getAttribute('data-name');
                     var isDir = row.getAttribute('data-isdir') === '1';
                     var actions = row.querySelector('.mdFileActions');
+                    var check = row.querySelector('.mdFileCheck');
+                    if (check) {
+                        check.addEventListener('click', function (e) { e.stopPropagation(); });
+                        check.addEventListener('change', function () {
+                            if (this.checked) fileSelection.add(name); else fileSelection.delete(name);
+                            updateBulkBar();
+                        });
+                    }
+
                     if (d.IsRoot) {
                         // Root row: click the name to enter the library folder. No mutations at root level.
                         row.querySelector('.mdFileName').addEventListener('click', function () { loadFiles(name); });
                         return;
                     }
-                    var full = d.Path + (d.Path.match(/[\\\/]$/) ? '' : (d.Path.indexOf('/') >= 0 && d.Path.indexOf('\\') < 0 ? '/' : '\\')) + name;
+                    var full = joinPath(d.Path, name);
                     if (isDir) {
                         row.querySelector('.mdFileName').addEventListener('click', function () { loadFiles(full); });
                     }
@@ -1125,6 +1183,133 @@
                     Array.from(actions.querySelectorAll('.mdFileAct')).forEach(function (btn) {
                         btn.addEventListener('click', function () { doFileAction(btn.getAttribute('data-act'), full, name, isDir); });
                     });
+                });
+
+                updateBulkBar();
+            }
+
+            function joinPath(dir, name) {
+                var sep = dir.lastIndexOf('\\') > dir.lastIndexOf('/') ? '\\' : (dir.indexOf('/') >= 0 && dir.indexOf('\\') < 0 ? '/' : '\\');
+                return dir + (dir.match(/[\\\/]$/) ? '' : sep) + name;
+            }
+
+            function updateBulkBar() {
+                var bar = view.querySelector('#mdFileBulk');
+                var n = fileSelection.size;
+                if (n === 0) { bar.style.display = 'none'; return; }
+                bar.style.display = 'flex';
+                view.querySelector('#mdFileBulkCount').textContent = n + ' selected';
+            }
+
+            function bulkDelete() {
+                if (!fileSelection.size) return;
+                if (!window.confirm('Send ' + fileSelection.size + ' item(s) to the recycle bin?')) return;
+                var names = Array.from(fileSelection);
+                var i = 0, ok = 0, fail = 0;
+                function next() {
+                    if (i >= names.length) {
+                        window.alert('Deleted ' + ok + ' of ' + names.length + (fail ? ' — ' + fail + ' failed.' : '.'));
+                        fileSelection.clear();
+                        loadFiles(currentFilePath);
+                        return;
+                    }
+                    var full = joinPath(currentFilePath, names[i++]);
+                    ApiClient.ajax({
+                        type: 'POST',
+                        url: ApiClient.getUrl('MediaDash/Files/Delete'),
+                        contentType: 'application/json',
+                        data: JSON.stringify({ Path: full })
+                    }).then(function () { ok++; next(); }, function () { fail++; next(); });
+                }
+                next();
+            }
+
+            function bulkDownload() {
+                if (!fileSelection.size) return;
+                var token = ApiClient.accessToken();
+                Array.from(fileSelection).forEach(function (name) {
+                    var full = joinPath(currentFilePath, name);
+                    window.open(ApiClient.getUrl('MediaDash/Files/Download') + '?path=' + encodeURIComponent(full) + '&api_key=' + encodeURIComponent(token), '_blank');
+                });
+            }
+
+            function bulkMove() {
+                if (!fileSelection.size) return;
+                openPicker(currentFilePath, function (targetDir) {
+                    if (!targetDir) return;
+                    var names = Array.from(fileSelection);
+                    var i = 0, ok = 0, fail = 0;
+                    function next() {
+                        if (i >= names.length) {
+                            window.alert('Moved ' + ok + ' of ' + names.length + (fail ? ' — ' + fail + ' failed.' : '.'));
+                            fileSelection.clear();
+                            loadFiles(currentFilePath);
+                            return;
+                        }
+                        var name = names[i++];
+                        var from = joinPath(currentFilePath, name);
+                        var to = joinPath(targetDir, name);
+                        ApiClient.ajax({
+                            type: 'POST',
+                            url: ApiClient.getUrl('MediaDash/Files/Move'),
+                            contentType: 'application/json',
+                            data: JSON.stringify({ From: from, To: to })
+                        }).then(function () { ok++; next(); }, function () { fail++; next(); });
+                    }
+                    next();
+                });
+            }
+
+            // ---------- Folder picker ----------
+            function openPicker(startPath, onPick) {
+                picker.open = true;
+                picker.onPick = onPick;
+                view.querySelector('#mdPicker').style.display = 'flex';
+                loadPicker(startPath || '');
+            }
+
+            function closePicker() {
+                picker.open = false;
+                picker.onPick = null;
+                view.querySelector('#mdPicker').style.display = 'none';
+            }
+
+            function loadPicker(path) {
+                var listEl = view.querySelector('#mdPickerList');
+                listEl.innerHTML = '<div class="fieldDescription" style="padding:.6em .8em;">Loading…</div>';
+                var url = 'Files/List' + (path ? '?path=' + encodeURIComponent(path) : '');
+                api(url).then(function (d) {
+                    picker.path = d.Path || '';
+                    picker.listing = d;
+                    renderPicker(d);
+                }, function () {
+                    listEl.innerHTML = '<div class="fieldDescription" style="color:#ef4444;padding:.6em .8em;">Could not list this folder.</div>';
+                });
+            }
+
+            function renderPicker(d) {
+                view.querySelector('#mdPickerCrumbs').textContent = d.IsRoot ? 'Choose a library folder' : d.Path;
+                view.querySelector('#mdPickerUp').disabled = d.IsRoot || d.Parent == null;
+                view.querySelector('#mdPickerUp').setAttribute('data-parent', d.Parent == null ? '' : d.Parent);
+                view.querySelector('#mdPickerAccept').disabled = d.IsRoot;
+
+                var dirs = (d.Entries || []).filter(function (e) { return e.IsDirectory; });
+                dirs.sort(function (a, b) { return a.Name.localeCompare(b.Name, undefined, { numeric: true, sensitivity: 'base' }); });
+                if (!dirs.length) {
+                    view.querySelector('#mdPickerList').innerHTML = '<div class="fieldDescription" style="padding:.6em .8em;">No subfolders.</div>';
+                    return;
+                }
+                var html = '';
+                dirs.forEach(function (e, i) {
+                    var target = d.IsRoot ? e.Name : joinPath(d.Path, e.Name);
+                    html += '<div class="mdPickerRow" data-target="' + esc(target) + '" style="display:flex;align-items:center;gap:.6em;padding:.5em .8em;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.05);' + (i % 2 ? 'background:rgba(255,255,255,.02);' : '') + '">' +
+                        '<span class="material-icons" style="color:#f59e0b;">folder</span>' +
+                        '<span>' + esc(e.Name) + '</span>' +
+                        '</div>';
+                });
+                view.querySelector('#mdPickerList').innerHTML = html;
+                Array.from(view.querySelectorAll('.mdPickerRow')).forEach(function (r) {
+                    r.addEventListener('click', function () { loadPicker(r.getAttribute('data-target')); });
                 });
             }
 
@@ -1141,15 +1326,17 @@
                     return;
                 }
                 if (act === 'move') {
-                    var to = window.prompt('Move "' + name + '" to (full path inside a library):', full);
-                    if (!to || to === full) return;
-                    fileMutate('Files/Move', { From: full, To: to });
+                    openPicker(currentFilePath, function (targetDir) {
+                        if (!targetDir) return;
+                        fileMutate('Files/Move', { From: full, To: joinPath(targetDir, name) });
+                    });
                     return;
                 }
                 if (act === 'copy') {
-                    var toc = window.prompt('Copy "' + name + '" to (full path inside a library):', full + '.copy');
-                    if (!toc) return;
-                    fileMutate('Files/Copy', { From: full, To: toc });
+                    openPicker(currentFilePath, function (targetDir) {
+                        if (!targetDir) return;
+                        fileMutate('Files/Copy', { From: full, To: joinPath(targetDir, name) });
+                    });
                     return;
                 }
                 if (act === 'delete') {
@@ -1321,6 +1508,27 @@
                         loadFiles(parent || '');
                     });
                     view.querySelector('#mdFileRefresh').addEventListener('click', function () { loadFiles(currentFilePath); });
+                    view.querySelector('#mdFileFilter').addEventListener('input', function () {
+                        fileFilter = this.value || '';
+                        if (currentFileListing) renderFileList(currentFileListing);
+                    });
+                    view.querySelector('#mdFileBulkDelete').addEventListener('click', bulkDelete);
+                    view.querySelector('#mdFileBulkMove').addEventListener('click', bulkMove);
+                    view.querySelector('#mdFileBulkDownload').addEventListener('click', bulkDownload);
+                    view.querySelector('#mdFileBulkClear').addEventListener('click', function () {
+                        fileSelection.clear();
+                        if (currentFileListing) renderFileList(currentFileListing);
+                    });
+                    view.querySelector('#mdPickerCancel').addEventListener('click', closePicker);
+                    view.querySelector('#mdPickerAccept').addEventListener('click', function () {
+                        var cb = picker.onPick; var p = picker.path;
+                        closePicker();
+                        if (cb) cb(p);
+                    });
+                    view.querySelector('#mdPickerUp').addEventListener('click', function () {
+                        var parent = this.getAttribute('data-parent');
+                        loadPicker(parent || '');
+                    });
                     view.querySelector('#mdFileMkdir').addEventListener('click', function () {
                         if (!currentFilePath) return;
                         var name = window.prompt('New folder name:');
