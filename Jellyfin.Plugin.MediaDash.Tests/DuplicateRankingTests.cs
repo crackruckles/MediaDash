@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Jellyfin.Plugin.MediaDash.Scanners;
+using MediaBrowser.Controller.Entities.Movies;
 using Xunit;
 
 namespace Jellyfin.Plugin.MediaDash.Tests;
@@ -74,6 +75,36 @@ public class DuplicateRankingTests
             ["Size"],
             DefaultCodecs);
         Assert.Equal("720p-small", ranked[0].Path);
+    }
+
+    [Fact]
+    public void GenericNamesWithoutYearOrProviderIdsNeverGroup()
+    {
+        // Two unrelated "1.mp4" files: no provider IDs, no year -> no group key -> never duplicates.
+        var a = new Movie { Name = "1" };
+        var b = new Movie { Name = "1" };
+        Assert.Null(DuplicateScanner.GetGroupKey(a));
+        Assert.Null(DuplicateScanner.GetGroupKey(b));
+    }
+
+    [Fact]
+    public void SameNameAndYearGroupsTogether()
+    {
+        var a = new Movie { Name = "Big Buck Test", ProductionYear = 2020 };
+        var b = new Movie { Name = "Big.Buck.Test", ProductionYear = 2020 };
+        Assert.Equal(DuplicateScanner.GetGroupKey(a), DuplicateScanner.GetGroupKey(b));
+        Assert.NotNull(DuplicateScanner.GetGroupKey(a));
+    }
+
+    [Fact]
+    public void SameProviderIdGroupsRegardlessOfName()
+    {
+        var a = new Movie { Name = "Whatever" };
+        a.ProviderIds["Tmdb"] = "12345";
+        var b = new Movie { Name = "Something Else" };
+        b.ProviderIds["Tmdb"] = "12345";
+        Assert.Equal(DuplicateScanner.GetGroupKey(a), DuplicateScanner.GetGroupKey(b));
+        Assert.NotNull(DuplicateScanner.GetGroupKey(a));
     }
 
     [Fact]

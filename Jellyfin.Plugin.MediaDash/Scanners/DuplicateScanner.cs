@@ -92,7 +92,7 @@ public sealed partial class DuplicateScanner : IScanner
         return issues;
     }
 
-    private static string? GetGroupKey(BaseItem item)
+    internal static string? GetGroupKey(BaseItem item)
     {
         if (item is Episode episode)
         {
@@ -116,10 +116,12 @@ public sealed partial class DuplicateScanner : IScanner
                 }
             }
 
+            // Name-only matching needs a year: without provider IDs and without a year,
+            // two unrelated files with generic names (e.g. "1.mp4") must never be treated as duplicates.
             var name = NormalizeName(movie.Name);
-            return name.Length == 0
+            return name.Length == 0 || movie.ProductionYear is null
                 ? null
-                : string.Create(CultureInfo.InvariantCulture, $"movie:name:{name}:{movie.ProductionYear ?? 0}");
+                : string.Create(CultureInfo.InvariantCulture, $"movie:name:{name}:{movie.ProductionYear}");
         }
 
         return null;
