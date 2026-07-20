@@ -57,4 +57,11 @@ public sealed class StatusResponse
     /// Gets or sets the per-type issue counts.
     /// </summary>
     public IReadOnlyList<TypeCount> Counts { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the number of issues the next fix run would actually touch —
+    /// currently-queued items plus detected items whose type is set to Automatic.
+    /// Zero means "Run fixes now" would be a no-op.
+    /// </summary>
+    public int PendingFixCount { get; set; }
 }

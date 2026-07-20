@@ -130,6 +130,9 @@ public sealed class FfprobeService
         process.StartInfo.UseShellExecute = false;
         process.StartInfo.CreateNoWindow = true;
         process.StartInfo.RedirectStandardError = true;
+        // -xerror makes ffmpeg exit non-zero on real decode errors; anything on stderr without a non-zero exit
+        // is a non-fatal warning (SEI noise, HEVC parser chatter, benign packet issues) and doesn't mean the file is broken.
+        process.StartInfo.ArgumentList.Add("-xerror");
         process.StartInfo.ArgumentList.Add("-v");
         process.StartInfo.ArgumentList.Add("error");
         foreach (var arg in args)
@@ -146,7 +149,12 @@ public sealed class FfprobeService
             var stderrTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
             await process.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false);
             var stderr = await stderrTask.ConfigureAwait(false);
-            return process.ExitCode != 0 && string.IsNullOrWhiteSpace(stderr) ? "ffmpeg exited with an error" : stderr;
+            if (process.ExitCode == 0)
+            {
+                return null;
+            }
+
+            return string.IsNullOrWhiteSpace(stderr) ? "ffmpeg exited with an error" : stderr;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {

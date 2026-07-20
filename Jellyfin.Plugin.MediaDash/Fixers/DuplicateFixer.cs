@@ -40,7 +40,7 @@ public sealed class DuplicateFixer : IFixer
     public bool CanFix(IssueType type) => type == IssueType.Duplicate;
 
     /// <inheritdoc />
-    public Task<FixResult> FixAsync(Issue issue, CancellationToken cancellationToken)
+    public Task<FixResult> FixAsync(Issue issue, IProgress<double>? progress, CancellationToken cancellationToken)
     {
         var config = Plugin.Instance!.Configuration;
 

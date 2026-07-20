@@ -66,4 +66,50 @@ public sealed class MediaDashDbTests : IDisposable
 
         Assert.Empty(_db.GetIssues(IssueType.Playability, IssueStatus.Detected));
     }
+
+    [Fact]
+    public void ResetScanStateWipesIssuesAndCachesButKeepsHistory()
+    {
+        _db.ReplaceDetectedIssues(IssueType.Playability, [Make("A")]);
+        _db.StoreDecode("A", 1, 2, "some error");
+        _db.StoreProbe("A", 1, 2, "{}");
+        _db.AddHistory(new HistoryEntry
+        {
+            IssueId = 1,
+            Type = IssueType.Playability,
+            Path = "A",
+            Action = "removed",
+            BytesFreed = 100,
+            FixedAtUtc = DateTime.UtcNow
+        });
+
+        _db.ResetScanState();
+
+        Assert.Empty(_db.GetIssues());
+        Assert.Null(_db.GetCachedDecode("A", 1, 2));
+        Assert.Null(_db.GetCachedProbe("A", 1, 2));
+        Assert.Single(_db.GetHistory());
+    }
+
+    [Fact]
+    public void SchemaMigrationClearsStaleDecodeCache()
+    {
+        _db.StoreDecode("A", 1, 2, "stale error from old check");
+        Assert.Equal("stale error from old check", _db.GetCachedDecode("A", 1, 2));
+
+        // Simulate an older-version database by resetting user_version to 0 while the file exists.
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder { DataSource = _dbPath }.ToString()))
+        {
+            connection.Open();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "PRAGMA user_version = 0";
+            cmd.ExecuteNonQuery();
+        }
+
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+
+        // A new instance runs the migration; the stale decode entry should be wiped.
+        var reopened = new MediaDashDb(_dbPath);
+        Assert.Null(reopened.GetCachedDecode("A", 1, 2));
+    }
 }

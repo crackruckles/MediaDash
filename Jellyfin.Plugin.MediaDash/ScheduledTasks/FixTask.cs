@@ -117,9 +117,15 @@ public sealed class FixTask : IScheduledTask
                 continue;
             }
 
+            var itemIndex = i;
+            var slot = 100.0 / queue.Count;
+            progress.Report(itemIndex * slot);
+            // Synchronous IProgress: Progress<T> queues callbacks and can reorder reports, leading to a jittery bar.
+            var itemProgress = new SynchronousProgress(fraction => progress.Report((itemIndex + Math.Clamp(fraction, 0, 1)) * slot));
+
             try
             {
-                var result = await fixer.FixAsync(issue, cancellationToken).ConfigureAwait(false);
+                var result = await fixer.FixAsync(issue, itemProgress, cancellationToken).ConfigureAwait(false);
                 _db.AddHistory(new HistoryEntry
                 {
                     IssueId = issue.Id,
@@ -168,5 +174,17 @@ public sealed class FixTask : IScheduledTask
                 TimeOfDayTicks = TimeSpan.FromHours(3).Ticks
             }
         ];
+    }
+
+    private sealed class SynchronousProgress : IProgress<double>
+    {
+        private readonly Action<double> _handler;
+
+        public SynchronousProgress(Action<double> handler)
+        {
+            _handler = handler;
+        }
+
+        public void Report(double value) => _handler(value);
     }
 }

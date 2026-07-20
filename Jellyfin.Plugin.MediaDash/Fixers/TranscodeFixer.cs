@@ -69,7 +69,7 @@ public sealed class TranscodeFixer : IFixer
     public bool CanFix(IssueType type) => type == IssueType.Quality;
 
     /// <inheritdoc />
-    public async Task<FixResult> FixAsync(Issue issue, CancellationToken cancellationToken)
+    public async Task<FixResult> FixAsync(Issue issue, IProgress<double>? progress, CancellationToken cancellationToken)
     {
         var config = Plugin.Instance!.Configuration;
         if (!File.Exists(issue.Path))
@@ -109,11 +109,17 @@ public sealed class TranscodeFixer : IFixer
             return FixResult.DryRun(actionText, issue.SizeSavings);
         }
 
+        // Temp file lives alongside the original during the encode and is aborted if it ever reaches originalSize
+        // (see the newSize >= originalSize check below). Worst case we need room for one more copy of the file plus
+        // a small margin for muxer overhead; batches free space as they progress because the original is removed each round.
         var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(issue.Path))!);
-        if (drive.AvailableFreeSpace < originalSize * 2)
+        const long safetyMarginBytes = 500L * 1024 * 1024;
+        if (drive.AvailableFreeSpace < originalSize + safetyMarginBytes)
         {
-            return FixResult.Fail("Not enough free disk space to safely re-encode (needs about twice the file size).");
+            return FixResult.Fail("Not enough free disk space to re-encode this file (needs its own size plus about 500 MB free).");
         }
+
+        var durationSeconds = double.TryParse(probe.Format?.Duration, NumberStyles.Float, CultureInfo.InvariantCulture, out var d) ? d : 0;
 
         var tempPath = issue.Path + ".mediadash.tmp." + targetContainer;
         try
@@ -123,7 +129,7 @@ public sealed class TranscodeFixer : IFixer
             if (hwEncoder is not null)
             {
                 var hwArgs = BuildArgs(issue.Path, tempPath, probe, video, config, needsDownscale, targetContainer, hwEncoder);
-                error = await _ffmpeg.RunAsync(hwArgs, TranscodeTimeout, cancellationToken).ConfigureAwait(false);
+                error = await _ffmpeg.RunAsync(hwArgs, TranscodeTimeout, cancellationToken, progress, durationSeconds).ConfigureAwait(false);
                 if (error is not null)
                 {
                     _logger.LogWarning("Hardware encoder {Encoder} failed on {Path}; retrying with software. Details: {Error}", hwEncoder, issue.Path, Truncate(error));
@@ -133,13 +139,13 @@ public sealed class TranscodeFixer : IFixer
                     }
 
                     var swArgs = BuildArgs(issue.Path, tempPath, probe, video, config, needsDownscale, targetContainer, null);
-                    error = await _ffmpeg.RunAsync(swArgs, TranscodeTimeout, cancellationToken).ConfigureAwait(false);
+                    error = await _ffmpeg.RunAsync(swArgs, TranscodeTimeout, cancellationToken, progress, durationSeconds).ConfigureAwait(false);
                 }
             }
             else
             {
                 var args = BuildArgs(issue.Path, tempPath, probe, video, config, needsDownscale, targetContainer, null);
-                error = await _ffmpeg.RunAsync(args, TranscodeTimeout, cancellationToken).ConfigureAwait(false);
+                error = await _ffmpeg.RunAsync(args, TranscodeTimeout, cancellationToken, progress, durationSeconds).ConfigureAwait(false);
             }
 
             if (error is not null)

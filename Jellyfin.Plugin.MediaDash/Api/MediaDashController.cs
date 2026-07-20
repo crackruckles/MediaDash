@@ -75,6 +75,11 @@ public class MediaDashController : ControllerBase
             }
         }
 
+        var config = Plugin.Instance!.Configuration;
+        var queuedCount = _db.GetIssues(status: IssueStatus.Queued).Count;
+        var autoQueueableCount = _db.GetIssues(status: IssueStatus.Detected)
+            .Count(i => config.GetFixMode(i.Type) == Configuration.FixMode.Automatic);
+
         return new StatusResponse
         {
             IsScanning = scanTask is not null && scanTask.State != TaskState.Idle,
@@ -91,7 +96,8 @@ public class MediaDashController : ControllerBase
                 Type = s.Type.ToString(),
                 Count = s.Count,
                 PotentialSavings = s.PotentialSavings
-            }).ToList()
+            }).ToList(),
+            PendingFixCount = queuedCount + autoQueueableCount
         };
     }
 
@@ -265,6 +271,29 @@ public class MediaDashController : ControllerBase
     public ActionResult EmptyRecycleBin()
     {
         _recycleBin.EmptyAll();
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Wipes all scan state (issues, probe cache, decode cache) so the next scan starts fresh.
+    /// Refuses while a scan or fix is running to avoid corrupting in-flight state.
+    /// Fix history and the recycle bin are preserved.
+    /// </summary>
+    /// <returns>No content on success, or 409 while a task is running.</returns>
+    [HttpPost("Reset")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public ActionResult ResetScanState()
+    {
+        var scanTask = GetScanTask();
+        var fixTask = _taskManager.ScheduledTasks.FirstOrDefault(w => w.ScheduledTask is FixTask);
+        if ((scanTask is not null && scanTask.State != TaskState.Idle)
+            || (fixTask is not null && fixTask.State != TaskState.Idle))
+        {
+            return Conflict("Cannot reset while a scan or fix is running.");
+        }
+
+        _db.ResetScanState();
         return NoContent();
     }
 

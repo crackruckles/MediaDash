@@ -12,6 +12,10 @@ namespace Jellyfin.Plugin.MediaDash.Data;
 /// </summary>
 public sealed class MediaDashDb
 {
+    // Bump when a semantic change to the decode check would make old cache entries misleading.
+    // v1: -xerror + exit-code-only in the decode check (2026-07-20) — previous stderr-noise-as-error entries invalidated.
+    private const int SchemaVersion = 1;
+
     private readonly string _connectionString;
 
     /// <summary>
@@ -79,6 +83,32 @@ public sealed class MediaDashDb
             );
             """;
         cmd.ExecuteNonQuery();
+
+        MigrateSchema(connection);
+    }
+
+    private static void MigrateSchema(SqliteConnection connection)
+    {
+        using var getVersion = connection.CreateCommand();
+        getVersion.CommandText = "PRAGMA user_version";
+        var current = Convert.ToInt32(getVersion.ExecuteScalar() ?? 0, CultureInfo.InvariantCulture);
+        if (current >= SchemaVersion)
+        {
+            return;
+        }
+
+        if (current < 1)
+        {
+            using var clearDecode = connection.CreateCommand();
+            clearDecode.CommandText = "DELETE FROM decode_cache";
+            clearDecode.ExecuteNonQuery();
+        }
+
+        using var setVersion = connection.CreateCommand();
+#pragma warning disable CA2100 // SchemaVersion is a compile-time constant, and PRAGMA does not accept bound parameters.
+        setVersion.CommandText = $"PRAGMA user_version = {SchemaVersion}";
+#pragma warning restore CA2100
+        setVersion.ExecuteNonQuery();
     }
 
     private static string EnsureDbPath(IApplicationPaths applicationPaths)
@@ -416,6 +446,27 @@ public sealed class MediaDashDb
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Wipes all scan state — issues, probe cache, decode cache — so the next scan starts from scratch.
+    /// Fix history (and the recycle bin it points into) is preserved so users can still restore recently-removed files.
+    /// </summary>
+    public void ResetScanState()
+    {
+        using var connection = Open();
+        using var transaction = connection.BeginTransaction();
+        foreach (var table in new[] { "issues", "probe_cache", "decode_cache" })
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.Transaction = transaction;
+#pragma warning disable CA2100 // table name is a compile-time literal from the enumeration above.
+            cmd.CommandText = "DELETE FROM " + table;
+#pragma warning restore CA2100
+            cmd.ExecuteNonQuery();
+        }
+
+        transaction.Commit();
     }
 
     /// <summary>

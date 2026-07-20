@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.MediaDash.Data;
@@ -20,7 +21,8 @@ public interface IFixer
     /// Applies the fix for one issue. Honors the global dry-run setting.
     /// </summary>
     /// <param name="issue">The issue to fix.</param>
+    /// <param name="progress">Reports 0..1 progress within this single fix, when the fixer supports intra-item progress (long transcodes). May be null.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The outcome.</returns>
-    Task<FixResult> FixAsync(Issue issue, CancellationToken cancellationToken);
+    Task<FixResult> FixAsync(Issue issue, IProgress<double>? progress, CancellationToken cancellationToken);
 }

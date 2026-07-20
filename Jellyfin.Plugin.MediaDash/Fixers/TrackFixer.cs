@@ -64,7 +64,7 @@ public sealed class TrackFixer : IFixer
     public bool CanFix(IssueType type) => type is IssueType.AudioLanguage or IssueType.SubtitleLanguage;
 
     /// <inheritdoc />
-    public async Task<FixResult> FixAsync(Issue issue, CancellationToken cancellationToken)
+    public async Task<FixResult> FixAsync(Issue issue, IProgress<double>? progress, CancellationToken cancellationToken)
     {
         var config = Plugin.Instance!.Configuration;
         if (!File.Exists(issue.Path))
@@ -107,9 +107,10 @@ public sealed class TrackFixer : IFixer
         {
             var tempPath = issue.Path + ".mediadash.tmp" + Path.GetExtension(issue.Path);
             var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(issue.Path))!);
-            if (drive.AvailableFreeSpace < originalSize * 2)
+            const long safetyMarginBytes = 500L * 1024 * 1024;
+            if (drive.AvailableFreeSpace < originalSize + safetyMarginBytes)
             {
-                return FixResult.Fail("Not enough free disk space to safely rebuild the file (needs about twice the file size).");
+                return FixResult.Fail("Not enough free disk space to rebuild this file (needs its own size plus about 500 MB free).");
             }
 
             var args = new List<string> { "-i", issue.Path, "-map", "0" };

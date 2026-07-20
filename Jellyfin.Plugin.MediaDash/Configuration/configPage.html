@@ -285,6 +285,10 @@
                             <button is="emby-button" type="button" id="mdRerunSetup" class="raised" style="font-size:80%;"><span>Run first-time setup again</span></button>
                             <span class="fieldDescription">Brings back the three-question welcome card.</span>
                         </div>
+                        <div style="margin:.6em 0;">
+                            <button is="emby-button" type="button" id="mdResetScan" class="raised" style="font-size:80%;background:#7f1d1d;color:#fff;"><span>Reset scan data</span></button>
+                            <span class="fieldDescription">Clears all detected issues and the probe/decode caches so the next scan starts from scratch. Your fix history and recycle bin are kept. Use this if the scanner gets stuck or shows results that don't make sense.</span>
+                        </div>
 
                         <button is="emby-button" type="submit" class="raised button-submit block" style="max-width:26em;margin-top:1em;">
                             <span>Save</span>
@@ -311,6 +315,7 @@
                 fixRunning: 'Applying fixes… {0}%',
                 fixStarting: 'Starting fix run…',
                 fixDone: 'Fix run finished — see History for what was done.',
+                fixNothingToDo: 'Nothing to fix yet — approve issues on the Issues tab, or switch a fix type to "Fix automatically" in Settings, then click again.',
                 dryRunOn: 'Approved fixes are only rehearsed and logged to History. When the plan looks right, turn off dry-run to let MediaDash make real changes.',
                 diskContext: '{0} free of {1} on your library drives',
                 totalSavings: 'Space you could reclaim',
@@ -339,6 +344,9 @@
                 confirmAuto: 'Automatic mode will change files every night without asking. Removed files go to the recycle bin (unless set to permanent delete). Continue?',
                 confirmPermanent: 'Permanent delete means removed files CANNOT be recovered. Are you sure?',
                 confirmEmptyBin: 'Permanently delete everything in the recycle bin? Restore will no longer be possible for those files.',
+                confirmReset: 'Clear all detected issues and probe/decode caches? Fix history and the recycle bin are kept. No media files will be touched.',
+                resetDone: 'Scan data cleared — click "Scan now" to start fresh.',
+                resetBusy: 'Cannot reset right now: a scan or fix is running. Wait for it to finish, then try again.',
                 binHolding: 'Currently holding {0} file(s) ({1}).',
                 binEmpty: 'The recycle bin is empty.',
                 binViewHide: 'Hide contents',
@@ -1005,6 +1013,11 @@
                     });
 
                     view.querySelector('#mdFixNow').addEventListener('click', function () {
+                        if (lastStatus && !lastStatus.IsFixing && (lastStatus.PendingFixCount || 0) === 0) {
+                            view.querySelector('#mdScanState').textContent = STR.fixNothingToDo;
+                            setProgress(false);
+                            return;
+                        }
                         busy.fix = true;
                         this.disabled = true;
                         view.querySelector('#mdScanState').textContent = STR.fixStarting;
@@ -1072,6 +1085,18 @@
                                 refresh();
                                 window.scrollTo(0, 0);
                             });
+                        });
+                    });
+
+                    view.querySelector('#mdResetScan').addEventListener('click', function () {
+                        if (!window.confirm(STR.confirmReset)) return;
+                        var msg = view.querySelector('#mdSaveMsg');
+                        post('Reset').then(function () {
+                            msg.textContent = STR.resetDone;
+                            refresh();
+                            if (view.querySelector('#mdTab-issues').style.display !== 'none') loadIssues();
+                        }, function (xhr) {
+                            msg.textContent = (xhr && xhr.status === 409) ? STR.resetBusy : ('Reset failed (' + (xhr && xhr.status) + ')');
                         });
                     });
                 }

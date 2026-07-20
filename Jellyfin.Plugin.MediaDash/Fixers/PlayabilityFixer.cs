@@ -51,7 +51,7 @@ public sealed class PlayabilityFixer : IFixer
     public bool CanFix(IssueType type) => type == IssueType.Playability;
 
     /// <inheritdoc />
-    public async Task<FixResult> FixAsync(Issue issue, CancellationToken cancellationToken)
+    public async Task<FixResult> FixAsync(Issue issue, IProgress<double>? progress, CancellationToken cancellationToken)
     {
         var config = Plugin.Instance!.Configuration;
         if (!File.Exists(issue.Path))
