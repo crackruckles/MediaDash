@@ -347,23 +347,28 @@
                 types: {
                     Duplicate: {
                         title: 'Duplicate copies', hint: 'The same movie or episode exists more than once.', color: '#f59e0b', icon: 'content_copy',
-                        action: 'Delete this copy', actionHint: 'Queues deletion of this copy for the next fix run; the better copy stays.', approveAll: 'Delete all {0} duplicate copies shown'
+                        action: 'Delete this copy', actionHint: 'Queues deletion of this copy for the next fix run; the better copy stays.', approveAll: 'Delete all {0} duplicate copies shown',
+                        doRecycle: 'Delete the worse copy — recoverable from the recycle bin', doPermanent: 'Delete the worse copy — permanently'
                     },
                     Playability: {
                         title: "Files that won't play", hint: 'These files are broken or unreadable.', color: '#ef4444', icon: 'play_disabled',
-                        action: 'Remove file', actionHint: 'Queues removal for the next fix run (re-checked as broken before anything is removed).', approveAll: 'Remove all {0} broken files shown'
+                        action: 'Remove file', actionHint: 'Queues removal for the next fix run (re-checked as broken before anything is removed).', approveAll: 'Remove all {0} broken files shown',
+                        doRecycle: 'Remove the broken file — recoverable from the recycle bin', doPermanent: 'Remove the broken file — permanently'
                     },
                     Quality: {
                         title: 'Files wasting space', hint: 'Bigger than your chosen quality ceiling.', color: '#3b82f6', icon: 'compress',
-                        action: 'Re-encode', actionHint: 'Queues a re-encode down to your quality ceiling for the next fix run; the original goes to the recycle bin.', approveAll: 'Re-encode all {0} files shown'
+                        action: 'Re-encode', actionHint: 'Queues a re-encode down to your quality ceiling for the next fix run; the original goes to the recycle bin.', approveAll: 'Re-encode all {0} files shown',
+                        doRecycle: 'Re-encode to the quality ceiling — original kept in recycle bin', doPermanent: 'Re-encode to the quality ceiling — original deleted permanently'
                     },
                     SubtitleLanguage: {
                         title: 'Unwanted subtitles', hint: 'Subtitles in languages you don’t keep.', color: '#8b5cf6', icon: 'subtitles',
-                        action: 'Remove subtitles', actionHint: 'Queues removal of the unwanted subtitle tracks for the next fix run.', approveAll: 'Clean up all {0} files shown'
+                        action: 'Remove subtitles', actionHint: 'Queues removal of the unwanted subtitle tracks for the next fix run.', approveAll: 'Clean up all {0} files shown',
+                        doRecycle: 'Remove unwanted subtitles — original kept in recycle bin', doPermanent: 'Remove unwanted subtitles — original deleted permanently'
                     },
                     AudioLanguage: {
                         title: 'Unwanted audio', hint: 'Audio tracks in languages you don’t keep.', color: '#10b981', icon: 'audiotrack',
-                        action: 'Remove audio tracks', actionHint: 'Queues removal of the unwanted audio tracks for the next fix run.', approveAll: 'Clean up all {0} files shown'
+                        action: 'Remove audio tracks', actionHint: 'Queues removal of the unwanted audio tracks for the next fix run.', approveAll: 'Clean up all {0} files shown',
+                        doRecycle: 'Remove unwanted audio — original kept in recycle bin', doPermanent: 'Remove unwanted audio — original deleted permanently'
                     }
                 },
                 languages: [
@@ -696,9 +701,10 @@
                     '<option value="Automatic">' + esc(STR.modeAuto) + '</option>';
             }
 
-            function disposalOptions() {
-                return '<option value="RecycleBin">' + esc(STR.disposalRecycle) + '</option>' +
-                    '<option value="Permanent">' + esc(STR.disposalPermanent) + '</option>';
+            function disposalOptions(typeKey) {
+                var t = STR.types[typeKey] || {};
+                return '<option value="RecycleBin">' + esc(t.doRecycle || STR.disposalRecycle) + '</option>' +
+                    '<option value="Permanent">' + esc(t.doPermanent || STR.disposalPermanent) + '</option>';
             }
 
             function buildFixTypeRows() {
@@ -713,8 +719,8 @@
                         '<select is="emby-select" id="mdMode' + t.key + '" class="emby-select-withcolor emby-select">' + modeOptions() + '</select>' +
                         '</div>' +
                         '<div class="selectContainer" style="min-width:15em;flex:1;">' +
-                        '<label class="selectLabel" for="mdDisposal' + t.key + '">Removed files go to</label>' +
-                        '<select is="emby-select" id="mdDisposal' + t.key + '" class="emby-select-withcolor emby-select">' + disposalOptions() + '</select>' +
+                        '<label class="selectLabel" for="mdDisposal' + t.key + '">What to do</label>' +
+                        '<select is="emby-select" id="mdDisposal' + t.key + '" class="emby-select-withcolor emby-select">' + disposalOptions(t.key) + '</select>' +
                         '</div>' +
                         '</div></div>';
                 });
