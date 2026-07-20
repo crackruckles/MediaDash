@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.3.2.0",
+        "changelog": "Files tab: sortable columns (Name, Size, Modified), directories stay on top. Up button fixed at library roots. Issues tab: click a file path to open its folder in the Files tab; new 'Approve all N issues (all types)' button when no type filter is set.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.3.2/mediadash_0.3.2.zip",
+        "checksum": "db06d6a17a59cdb3ca751d8970311096",
+        "timestamp": "2026-07-20T11:55:00Z"
+      },
+      {
         "version": "0.3.1.0",
         "changelog": "Files tab: drag-and-drop uploads. Drop one or many files onto the list to upload into the current folder. Multi-file selection via the Upload button too. Admin-only, same safety as before.",
         "targetAbi": "10.11.0.0",
