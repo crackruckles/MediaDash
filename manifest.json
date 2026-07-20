@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.4.3.0",
+        "changelog": "Overview leads with a live System performance card (Jellyfin CPU%, memory, NVIDIA GPU% via nvidia-smi) at the top, then Library drive storage, then everything else. Themed to match the rest of the plugin with green→amber→red bar colouring.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.4.3/mediadash_0.4.3.zip",
+        "checksum": "77b02d8af2e11cc46b8c7a5b64107fa9",
+        "timestamp": "2026-07-21T00:10:00Z"
+      },
+      {
         "version": "0.4.2.0",
         "changelog": "Overview polish. Scan/Fix buttons now cancel the running task (red Stop state) with a matching themed gradient look. Current file shown under the progress bar. Per-drive storage card. No more 3-second flicker while scanning/fixing. Fix run processes smallest files first so early completions free disk space for the big ones.",
         "targetAbi": "10.11.0.0",
