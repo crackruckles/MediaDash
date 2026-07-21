@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.4.6.0",
+        "changelog": "Multi-GPU monitoring (NVIDIA / Windows PDH / Linux sysfs, per-card) with per-GPU cells. New Preferred GPU dropdown routes re-encodes to a specific card via ffmpeg -gpu for NVENC/AMF. Windows GPU counter fix: PDH counters are cached across polls and aggregated max-across-engines so numbers match Task Manager. Overview polls every 3s while visible, and metric cells update in place so the tab no longer flickers. New Errors tab with red badge exposes swallowed plugin exceptions. Approve refreshes status so 'nothing to fix' isn't stale. Approve-all button restyled and aligned. 'Space you could reclaim' card no longer overhangs its container.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.4.6/mediadash_0.4.6.zip",
+        "checksum": "b3a879b4f3ab685e2756df96f3cdc271",
+        "timestamp": "2026-07-21T03:30:00Z"
+      },
+      {
         "version": "0.4.5.0",
         "changelog": "GPU monitoring now covers AMD and modern Intel iGPUs on Linux via /sys/class/drm sysfs when nvidia-smi isn't available. GPU cell shows the data source (NVIDIA / Linux sysfs). Sidebar icon changed from generic 'dashboard' to 'auto_fix_high' so MediaDash stands out at a glance.",
         "targetAbi": "10.11.0.0",
