@@ -523,8 +523,8 @@
                 statGpu: 'GPU',
                 statCpuHint: 'System-wide across {0} cores',
                 statRamHint: '{0} used of {1}',
-                statGpuHint: 'NVIDIA GPUs (nvidia-smi)',
-                statGpuMissing: 'nvidia-smi not available on this host',
+                statGpuHint: 'via {0}',
+                statGpuMissing: 'No GPU counter available (nvidia-smi missing, no AMD/Intel sysfs)',
                 statUnavailable: 'N/A on {0}',
                 statUnknown: '—',
                 statPlatform: 'Host: {0}',
@@ -779,7 +779,7 @@
                     gpuBar = undefined;
                 } else {
                     gpuHtml = sys.GpuPercent.toFixed(1) + '%';
-                    gpuHint = STR.statGpuHint;
+                    gpuHint = fmt(STR.statGpuHint, sys.GpuSource || 'GPU counter');
                     gpuBar = sys.GpuPercent;
                 }
 

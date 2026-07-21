@@ -57,7 +57,10 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                 EmbeddedResourcePath = string.Format(CultureInfo.InvariantCulture, "{0}.Configuration.configPage.html", GetType().Namespace),
                 EnableInMainMenu = true,
                 DisplayName = "MediaDash",
-                MenuIcon = "dashboard"
+                // Jellyfin's dashboard sidebar only supports material-icons for plugin entries — there's no field
+                // to point at the logo PNG. auto_fix_high (the magic wand) matches the plugin's "find & fix
+                // library problems" purpose more distinctly than the generic dashboard icon.
+                MenuIcon = "auto_fix_high"
             }
         ];
     }

@@ -33,6 +33,11 @@ public sealed class SystemStats
     private static double? _cachedGpuPercent;
     private static DateTime _lastGpuSample = DateTime.MinValue;
     private static bool _gpuAvailable = true;
+    private static string? _cachedGpuSource;
+
+    private static double? _cachedSysfsGpuPercent;
+    private static DateTime _lastSysfsGpuSample = DateTime.MinValue;
+    private static bool _sysfsGpuAvailable = true;
 
     private static string? _cachedPlatform;
     private static bool _cachedInContainer;
@@ -55,8 +60,11 @@ public sealed class SystemStats
     /// <summary>Gets or sets whole-system RAM total. Null on macOS, in containers, or when sampling fails.</summary>
     public long? SystemRamTotalBytes { get; set; }
 
-    /// <summary>Gets or sets the mean GPU utilization across NVIDIA GPUs (nvidia-smi). Null when nvidia-smi isn't available.</summary>
+    /// <summary>Gets or sets the mean GPU utilization across detected GPUs. Null when no GPU source is available.</summary>
     public double? GpuPercent { get; set; }
+
+    /// <summary>Gets or sets a short label identifying where the GPU number came from ("NVIDIA", "Linux sysfs"), or null when no GPU data is available.</summary>
+    public string? GpuSource { get; set; }
 
     /// <summary>Gets or sets the number of logical CPU cores on the host.</summary>
     public int CpuCoreCount { get; set; }
@@ -80,12 +88,14 @@ public sealed class SystemStats
             using var proc = Process.GetCurrentProcess();
             proc.Refresh();
 
+            var gpu = SampleGpuPercent();
             var stats = new SystemStats
             {
                 CpuPercent = SampleProcessCpuPercent(proc),
                 RamUsedBytes = proc.WorkingSet64,
                 RamTotalBytes = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes,
-                GpuPercent = SampleGpuPercent(),
+                GpuPercent = gpu,
+                GpuSource = gpu is null ? null : _cachedGpuSource,
                 CpuCoreCount = Environment.ProcessorCount,
                 Platform = _cachedPlatform ?? "Unknown",
                 SystemStatsAvailable = !_cachedInContainer && (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
@@ -368,6 +378,31 @@ public sealed class SystemStats
 
     private static double? SampleGpuPercent()
     {
+        // Prefer nvidia-smi (accurate per-engine data). If that's not present, fall through to Linux sysfs
+        // which handles AMD (and Intel iGPU on modern kernels) via /sys/class/drm/card*/device/gpu_busy_percent.
+        var nv = SampleNvidiaGpuPercent();
+        if (nv is not null)
+        {
+            _cachedGpuSource = "NVIDIA";
+            return nv;
+        }
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            var sysfs = SampleLinuxSysfsGpuPercent();
+            if (sysfs is not null)
+            {
+                _cachedGpuSource = "Linux sysfs";
+                return sysfs;
+            }
+        }
+
+        _cachedGpuSource = null;
+        return null;
+    }
+
+    private static double? SampleNvidiaGpuPercent()
+    {
         if (!_gpuAvailable)
         {
             return null;
@@ -446,6 +481,66 @@ public sealed class SystemStats
         catch (FileNotFoundException)
         {
             _gpuAvailable = false;
+            return null;
+        }
+    }
+
+    [SupportedOSPlatform("linux")]
+    private static double? SampleLinuxSysfsGpuPercent()
+    {
+        if (!_sysfsGpuAvailable)
+        {
+            return null;
+        }
+
+        if ((DateTime.UtcNow - _lastSysfsGpuSample).TotalSeconds < 3)
+        {
+            return _cachedSysfsGpuPercent;
+        }
+
+        _lastSysfsGpuSample = DateTime.UtcNow;
+        try
+        {
+            if (!Directory.Exists("/sys/class/drm/"))
+            {
+                _sysfsGpuAvailable = false;
+                return null;
+            }
+
+            var sum = 0.0;
+            var count = 0;
+            foreach (var card in Directory.EnumerateDirectories("/sys/class/drm/", "card*"))
+            {
+                var busyFile = Path.Combine(card, "device/gpu_busy_percent");
+                if (!File.Exists(busyFile))
+                {
+                    continue;
+                }
+
+                var raw = File.ReadAllText(busyFile).Trim();
+                if (int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v))
+                {
+                    sum += v;
+                    count++;
+                }
+            }
+
+            if (count == 0)
+            {
+                _sysfsGpuAvailable = false;
+                return null;
+            }
+
+            _cachedSysfsGpuPercent = sum / count;
+            return _cachedSysfsGpuPercent;
+        }
+        catch (IOException)
+        {
+            return _cachedSysfsGpuPercent;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            _sysfsGpuAvailable = false;
             return null;
         }
     }
