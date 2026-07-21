@@ -30,8 +30,10 @@ public sealed class SystemStats
     // PDH "Utilization Percentage" is a rate-style counter — the first NextValue() call on a freshly-constructed
     // PerformanceCounter always returns 0 because there's no previous sample to compute a delta against. Cache
     // the counters between polls so the second sample (3s later) can compute a real value.
-    [SuppressMessage("Interoperability", "CA1416:Validate platform compatibility", Justification = "Only accessed from SampleWindowsGpus, which is [SupportedOSPlatform(\"windows\")].")]
-    private static readonly Dictionary<string, PerformanceCounter> WinGpuCounters = new(StringComparer.OrdinalIgnoreCase);
+    // Typed as IDisposable (not Dictionary<string, PerformanceCounter>) so the PerformanceCounter TYPE isn't
+    // resolved at class-load time — on Linux the Windows-specific assembly wouldn't load and the plugin would
+    // fail to initialise. Cast inside Windows-guarded code paths.
+    private static readonly Dictionary<string, IDisposable> WinGpuCounters = new(StringComparer.OrdinalIgnoreCase);
 
     private static TimeSpan _lastProcCpuTime;
     private static DateTime _lastProcCpuSample;
@@ -95,6 +97,26 @@ public sealed class SystemStats
     /// </summary>
     /// <returns>The snapshot.</returns>
     public static SystemStats Sample()
+    {
+        try
+        {
+            return SampleCore();
+        }
+        catch (Exception ex)
+        {
+            // Anything the fine-grained catches below miss (a runtime issue in the Windows-only PerformanceCounter
+            // path on Linux, a permission error in /proc, an assembly-load failure) surfaces here so the Errors
+            // tab has something to look at instead of the API 500ing without explanation.
+            Diagnostics.Record("SystemStats", ex.GetType().Name + ": " + ex.Message);
+            return new SystemStats
+            {
+                CpuCoreCount = Environment.ProcessorCount,
+                Platform = _cachedPlatform ?? "Unknown"
+            };
+        }
+    }
+
+    private static SystemStats SampleCore()
     {
         lock (SampleLock)
         {
@@ -511,6 +533,8 @@ public sealed class SystemStats
                 }
             }
 
+            static double ReadCounter(IDisposable counter) => ((PerformanceCounter)counter).NextValue();
+
             // Instance names look like:
             //   pid_1234_luid_0x00000000_0x0000ABCD_phys_0_eng_3_engtype_3D
             // The luid identifies a physical GPU. Within a card there are multiple engines (3D / VideoDecode /
@@ -530,7 +554,7 @@ public sealed class SystemStats
                 double val;
                 try
                 {
-                    val = pc.NextValue();
+                    val = ReadCounter(pc);
                 }
                 catch (InvalidOperationException)
                 {
