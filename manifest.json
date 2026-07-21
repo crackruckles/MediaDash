@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.4.7.0",
+        "changelog": "Linux hotfix. /Status endpoint crashed on Linux because SystemStats referenced Windows-only PerformanceCounter at class-load time. Now loaded lazily so the type only resolves inside the Windows branch. Sample() also gains a top-level try/catch that surfaces future failures to the Errors tab instead of taking the tab down silently.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.4.7/mediadash_0.4.7.zip",
+        "checksum": "ab9ab175e267c253905c723fef5331ae",
+        "timestamp": "2026-07-21T03:45:00Z"
+      },
+      {
         "version": "0.4.6.0",
         "changelog": "Multi-GPU monitoring (NVIDIA / Windows PDH / Linux sysfs, per-card) with per-GPU cells. New Preferred GPU dropdown routes re-encodes to a specific card via ffmpeg -gpu for NVENC/AMF. Windows GPU counter fix: PDH counters are cached across polls and aggregated max-across-engines so numbers match Task Manager. Overview polls every 3s while visible, and metric cells update in place so the tab no longer flickers. New Errors tab with red badge exposes swallowed plugin exceptions. Approve refreshes status so 'nothing to fix' isn't stale. Approve-all button restyled and aligned. 'Space you could reclaim' card no longer overhangs its container.",
         "targetAbi": "10.11.0.0",
