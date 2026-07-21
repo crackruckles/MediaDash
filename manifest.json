@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.4.4.0",
+        "changelog": "System performance card now reports whole-host CPU and RAM (Windows via GetSystemTimes/GlobalMemoryStatusEx, Linux via /proc). macOS and containers show N/A. Drives card now lists every fixed drive on the host, with a badge on library-hosting drives.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.4.4/mediadash_0.4.4.zip",
+        "checksum": "dbfd0467c649399406c1667a0cf8066b",
+        "timestamp": "2026-07-21T01:55:00Z"
+      },
+      {
         "version": "0.4.3.0",
         "changelog": "Overview leads with a live System performance card (Jellyfin CPU%, memory, NVIDIA GPU% via nvidia-smi) at the top, then Library drive storage, then everything else. Themed to match the rest of the plugin with green→amber→red bar colouring.",
         "targetAbi": "10.11.0.0",
