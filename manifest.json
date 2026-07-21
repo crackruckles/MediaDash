@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.4.5.0",
+        "changelog": "GPU monitoring now covers AMD and modern Intel iGPUs on Linux via /sys/class/drm sysfs when nvidia-smi isn't available. GPU cell shows the data source (NVIDIA / Linux sysfs). Sidebar icon changed from generic 'dashboard' to 'auto_fix_high' so MediaDash stands out at a glance.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.4.5/mediadash_0.4.5.zip",
+        "checksum": "c405f81429c8a2b712f1e24a38ae2224",
+        "timestamp": "2026-07-21T02:15:00Z"
+      },
+      {
         "version": "0.4.4.0",
         "changelog": "System performance card now reports whole-host CPU and RAM (Windows via GetSystemTimes/GlobalMemoryStatusEx, Linux via /proc). macOS and containers show N/A. Drives card now lists every fixed drive on the host, with a badge on library-hosting drives.",
         "targetAbi": "10.11.0.0",
