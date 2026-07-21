@@ -521,11 +521,13 @@
                 statCpu: 'CPU',
                 statRam: 'Memory',
                 statGpu: 'GPU',
-                statCpuHint: 'Jellyfin process, across {0} cores',
+                statCpuHint: 'System-wide across {0} cores',
                 statRamHint: '{0} used of {1}',
                 statGpuHint: 'NVIDIA GPUs (nvidia-smi)',
                 statGpuMissing: 'nvidia-smi not available on this host',
+                statUnavailable: 'N/A on {0}',
                 statUnknown: '—',
+                statPlatform: 'Host: {0}',
                 totalSavings: 'Space you could reclaim',
                 whereSavings: 'Where the savings are',
                 issuesByType: 'Issues found',
@@ -744,13 +746,31 @@
                         '</div>';
                 }
 
-                var cpuHtml = sys.CpuPercent == null ? '<span style="opacity:.5;">' + esc(STR.statUnknown) + '</span>' : (sys.CpuPercent.toFixed(1) + '%');
-                var cpuHint = fmt(STR.statCpuHint, sys.CpuCoreCount || 1);
-                var cpuBar = sys.CpuPercent == null ? undefined : sys.CpuPercent;
+                var naPlain = '<span style="opacity:.5;">N/A</span>';
+                var platformHint = fmt(STR.statUnavailable, sys.Platform || 'this host');
 
-                var ramUsedPct = sys.RamTotalBytes > 0 ? sys.RamUsedBytes / sys.RamTotalBytes * 100 : 0;
-                var ramHtml = bytes(sys.RamUsedBytes);
-                var ramHint = fmt(STR.statRamHint, bytes(sys.RamUsedBytes), bytes(sys.RamTotalBytes));
+                var cpuHtml, cpuHint, cpuBar;
+                if (!sys.SystemStatsAvailable) {
+                    cpuHtml = naPlain; cpuHint = platformHint; cpuBar = undefined;
+                } else if (sys.SystemCpuPercent == null) {
+                    cpuHtml = '<span style="opacity:.5;">' + esc(STR.statUnknown) + '</span>';
+                    cpuHint = fmt(STR.statCpuHint, sys.CpuCoreCount || 1);
+                    cpuBar = undefined;
+                } else {
+                    cpuHtml = sys.SystemCpuPercent.toFixed(1) + '%';
+                    cpuHint = fmt(STR.statCpuHint, sys.CpuCoreCount || 1);
+                    cpuBar = sys.SystemCpuPercent;
+                }
+
+                var ramHtml, ramHint, ramBar;
+                if (!sys.SystemStatsAvailable || sys.SystemRamTotalBytes == null || sys.SystemRamTotalBytes <= 0) {
+                    ramHtml = naPlain; ramHint = platformHint; ramBar = undefined;
+                } else {
+                    var ramUsedPct = sys.SystemRamUsedBytes / sys.SystemRamTotalBytes * 100;
+                    ramHtml = bytes(sys.SystemRamUsedBytes);
+                    ramHint = fmt(STR.statRamHint, bytes(sys.SystemRamUsedBytes), bytes(sys.SystemRamTotalBytes));
+                    ramBar = ramUsedPct;
+                }
 
                 var gpuHtml, gpuHint, gpuBar;
                 if (sys.GpuPercent == null) {
@@ -763,11 +783,13 @@
                     gpuBar = sys.GpuPercent;
                 }
 
-                el.innerHTML = '<div class="mdCard mdFade"><h3 style="margin:.1em 0 .6em;display:flex;align-items:center;gap:.4em;">' +
-                    '<span class="material-icons" style="color:#00a4dc;">speed</span>' + esc(STR.systemStats) + '</h3>' +
+                el.innerHTML = '<div class="mdCard mdFade"><div style="display:flex;align-items:center;justify-content:space-between;gap:.6em;margin:.1em 0 .6em;flex-wrap:wrap;">' +
+                    '<h3 style="margin:0;display:flex;align-items:center;gap:.4em;"><span class="material-icons" style="color:#00a4dc;">speed</span>' + esc(STR.systemStats) + '</h3>' +
+                    '<span class="fieldDescription" style="font-size:.82em;">' + esc(fmt(STR.statPlatform, sys.Platform || 'Unknown')) + '</span>' +
+                    '</div>' +
                     '<div class="mdSysGrid">' +
                     cell('memory', '#00a4dc', STR.statCpu, cpuHtml, cpuHint, cpuBar) +
-                    cell('storage', '#8b5cf6', STR.statRam, ramHtml, ramHint, ramUsedPct) +
+                    cell('storage', '#8b5cf6', STR.statRam, ramHtml, ramHint, ramBar) +
                     cell('videogame_asset', '#f59e0b', STR.statGpu, gpuHtml, gpuHint, gpuBar) +
                     '</div></div>';
             }
@@ -886,8 +908,9 @@
                             var pct = dr.TotalBytes > 0 ? used / dr.TotalBytes * 100 : 0;
                             var pctDisplay = Math.max(3, Math.round(pct));
                             var fillColor = pct >= 90 ? '#ef4444' : pct >= 70 ? '#f59e0b' : '#00a4dc';
+                            var libraryBadge = dr.IsLibraryDrive ? ' <span class="mdBadge" style="background:#00a4dc;font-size:.65em;vertical-align:middle;">library</span>' : '';
                             return '<div class="mdBarRow" style="cursor:default;">' +
-                                '<div class="mdBarLabel" style="font-family:monospace;text-align:left;">' + esc(dr.Root) + '</div>' +
+                                '<div class="mdBarLabel" style="font-family:monospace;text-align:left;">' + esc(dr.Root) + libraryBadge + '</div>' +
                                 '<div class="mdBarTrack" title="' + esc(fmt(STR.driveUsed, bytes(used), bytes(dr.TotalBytes))) + '"><div class="mdBarFill" style="width:' + pctDisplay + '%;background:linear-gradient(90deg,' + fillColor + ',rgba(255,255,255,.15));"></div></div>' +
                                 '<div class="mdBarValue" style="text-align:right;font-variant-numeric:tabular-nums;" title="' + esc(fmt(STR.driveUsed, bytes(used), bytes(dr.TotalBytes))) + '">' + esc(fmt(STR.driveFree, bytes(dr.FreeBytes))) + '</div>' +
                                 '</div>';

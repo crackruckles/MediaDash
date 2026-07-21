@@ -58,21 +58,48 @@ public class MediaDashController : ControllerBase
         var fixTask = _taskManager.ScheduledTasks.FirstOrDefault(w => w.ScheduledTask is FixTask);
         long freeDisk = 0, totalDisk = 0;
         var drives = new List<DriveUsage>();
-        var roots = _libraryManager.GetVirtualFolders()
+
+        // Roots that host a library folder — used to mark library drives and to keep the aggregated
+        // FreeDiskBytes/TotalDiskBytes fields scoped to what MediaDash actually cares about.
+        var libraryRoots = _libraryManager.GetVirtualFolders()
             .SelectMany(f => f.Locations)
             .Select(l => System.IO.Path.GetPathRoot(System.IO.Path.GetFullPath(l)))
             .Where(r => !string.IsNullOrEmpty(r))
-            .Distinct(StringComparer.OrdinalIgnoreCase);
-        foreach (var root in roots)
+            .Select(r => System.IO.Path.TrimEndingDirectorySeparator(r!))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var drive in System.IO.DriveInfo.GetDrives())
         {
             try
             {
-                var drive = new System.IO.DriveInfo(root!);
-                freeDisk += drive.AvailableFreeSpace;
-                totalDisk += drive.TotalSize;
-                drives.Add(new DriveUsage { Root = root!, FreeBytes = drive.AvailableFreeSpace, TotalBytes = drive.TotalSize });
+                // Fixed only — skip CDs, network shares (which may not be ready or may be huge remote mounts we
+                // don't want to poll), and RAM disks. IsReady guards against USB drives that are attached but
+                // not yet mounted.
+                if (drive.DriveType != System.IO.DriveType.Fixed || !drive.IsReady)
+                {
+                    continue;
+                }
+
+                var trimmedName = System.IO.Path.TrimEndingDirectorySeparator(drive.Name);
+                var isLibraryDrive = libraryRoots.Contains(trimmedName);
+                if (isLibraryDrive)
+                {
+                    freeDisk += drive.AvailableFreeSpace;
+                    totalDisk += drive.TotalSize;
+                }
+
+                drives.Add(new DriveUsage
+                {
+                    Root = drive.Name,
+                    FreeBytes = drive.AvailableFreeSpace,
+                    TotalBytes = drive.TotalSize,
+                    IsLibraryDrive = isLibraryDrive
+                });
             }
             catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
             {
             }
         }

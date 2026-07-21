@@ -13,4 +13,7 @@ public sealed class DriveUsage
 
     /// <summary>Gets or sets the total bytes on the drive.</summary>
     public long TotalBytes { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether one or more configured library folders live on this drive.</summary>
+    public bool IsLibraryDrive { get; set; }
 }
