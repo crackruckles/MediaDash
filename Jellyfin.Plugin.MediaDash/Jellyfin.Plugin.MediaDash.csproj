@@ -8,6 +8,9 @@
     <Nullable>enable</Nullable>
     <AnalysisMode>AllEnabledByDefault</AnalysisMode>
     <CodeAnalysisRuleSet>../jellyfin.ruleset</CodeAnalysisRuleSet>
+    <!-- Force NuGet dependencies (System.Diagnostics.PerformanceCounter) to be copied into the plugin output.
+         Jellyfin already ships the standard framework, but Windows-only System packages aren't part of it. -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,6 +24,8 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.11">
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
+    <!-- Windows-only. Referenced everywhere at compile time; runtime code gates by OS so Linux/macOS don't load it. -->
+    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="9.0.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -35,6 +40,24 @@
     <None Remove="Configuration\logo.png" />
     <EmbeddedResource Include="Configuration\logo.png" />
   </ItemGroup>
+
+  <!-- Jellyfin's plugin loader scans every subfolder of the plugin directory and tries to load each .dll it
+       finds as a managed assembly. That means we can't ship anything under runtimes/ — native SQLite DLLs
+       (win-arm/native/e_sqlite3.dll) fail with BadImageFormatException, and the Windows-specific
+       PerformanceCounter DLL (runtimes/win/lib/net9.0/System.Diagnostics.PerformanceCounter.dll) fails
+       because it's a duplicate of the reference assembly already loaded from the plugin root.
+       Solution: hoist runtimes/win/lib/net9.0/*.dll to the plugin root (overwriting the reference-only
+       assembly so the real Windows implementation ships), then wipe the whole runtimes/ tree. -->
+  <Target Name="FlattenWindowsRuntime" AfterTargets="Build;Publish">
+    <ItemGroup>
+      <_WinRuntimeDlls Include="$(OutputPath)runtimes\win\lib\net9.0\*.dll" Condition="Exists('$(OutputPath)runtimes\win\lib\net9.0')" />
+      <_WinRuntimePubDlls Include="$(PublishDir)runtimes\win\lib\net9.0\*.dll" Condition="Exists('$(PublishDir)runtimes\win\lib\net9.0')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_WinRuntimeDlls)" DestinationFolder="$(OutputPath)" OverwriteReadOnlyFiles="true" />
+    <Copy SourceFiles="@(_WinRuntimePubDlls)" DestinationFolder="$(PublishDir)" OverwriteReadOnlyFiles="true" />
+    <RemoveDir Directories="$(OutputPath)runtimes" ContinueOnError="true" />
+    <RemoveDir Directories="$(PublishDir)runtimes" ContinueOnError="true" />
+  </Target>
 
   <ItemGroup>
     <InternalsVisibleTo Include="Jellyfin.Plugin.MediaDash.Tests" />

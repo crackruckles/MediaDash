@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -6,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Text.RegularExpressions;
 
 namespace Jellyfin.Plugin.MediaDash.Api;
 
@@ -23,6 +25,13 @@ public sealed class SystemStats
 
     private static readonly object SampleLock = new();
     private static readonly char[] MeminfoSeparators = [' ', '\t'];
+    private static readonly Regex LuidRegex = new(@"luid_(0x[0-9a-fA-F]+)_(0x[0-9a-fA-F]+)", RegexOptions.Compiled);
+
+    // PDH "Utilization Percentage" is a rate-style counter — the first NextValue() call on a freshly-constructed
+    // PerformanceCounter always returns 0 because there's no previous sample to compute a delta against. Cache
+    // the counters between polls so the second sample (3s later) can compute a real value.
+    [SuppressMessage("Interoperability", "CA1416:Validate platform compatibility", Justification = "Only accessed from SampleWindowsGpus, which is [SupportedOSPlatform(\"windows\")].")]
+    private static readonly Dictionary<string, PerformanceCounter> WinGpuCounters = new(StringComparer.OrdinalIgnoreCase);
 
     private static TimeSpan _lastProcCpuTime;
     private static DateTime _lastProcCpuSample;
@@ -30,14 +39,17 @@ public sealed class SystemStats
     private static (long Idle, long Kernel, long User)? _lastWinCpu;
     private static (long Total, long Idle)? _lastLinuxCpu;
 
-    private static double? _cachedGpuPercent;
+    private static List<GpuInfo>? _cachedNvidiaGpus;
     private static DateTime _lastGpuSample = DateTime.MinValue;
     private static bool _gpuAvailable = true;
-    private static string? _cachedGpuSource;
 
-    private static double? _cachedSysfsGpuPercent;
+    private static List<GpuInfo>? _cachedSysfsGpus;
     private static DateTime _lastSysfsGpuSample = DateTime.MinValue;
     private static bool _sysfsGpuAvailable = true;
+
+    private static List<GpuInfo>? _cachedWinGpus;
+    private static DateTime _lastWinGpuSample = DateTime.MinValue;
+    private static bool _winGpuAvailable = true;
 
     private static string? _cachedPlatform;
     private static bool _cachedInContainer;
@@ -60,11 +72,14 @@ public sealed class SystemStats
     /// <summary>Gets or sets whole-system RAM total. Null on macOS, in containers, or when sampling fails.</summary>
     public long? SystemRamTotalBytes { get; set; }
 
-    /// <summary>Gets or sets the mean GPU utilization across detected GPUs. Null when no GPU source is available.</summary>
+    /// <summary>Gets or sets the mean GPU utilization across detected GPUs. Kept for backward compat; UI should prefer <see cref="Gpus"/>.</summary>
     public double? GpuPercent { get; set; }
 
-    /// <summary>Gets or sets a short label identifying where the GPU number came from ("NVIDIA", "Linux sysfs"), or null when no GPU data is available.</summary>
+    /// <summary>Gets or sets a short label identifying where the aggregate GPU number came from. Null when no GPU data is available.</summary>
     public string? GpuSource { get; set; }
+
+    /// <summary>Gets or sets per-GPU utilization details. Empty when no GPU counter is available on this host.</summary>
+    public IReadOnlyList<GpuInfo> Gpus { get; set; } = [];
 
     /// <summary>Gets or sets the number of logical CPU cores on the host.</summary>
     public int CpuCoreCount { get; set; }
@@ -88,20 +103,23 @@ public sealed class SystemStats
             using var proc = Process.GetCurrentProcess();
             proc.Refresh();
 
-            var gpu = SampleGpuPercent();
+            var gpus = SampleGpus();
             var stats = new SystemStats
             {
                 CpuPercent = SampleProcessCpuPercent(proc),
                 RamUsedBytes = proc.WorkingSet64,
                 RamTotalBytes = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes,
-                GpuPercent = gpu,
-                GpuSource = gpu is null ? null : _cachedGpuSource,
+                Gpus = gpus,
+                GpuPercent = gpus.Count == 0 ? null : gpus.Max(g => g.Percent),
+                GpuSource = gpus.Count == 0 ? null : gpus[0].Source,
                 CpuCoreCount = Environment.ProcessorCount,
-                Platform = _cachedPlatform ?? "Unknown",
-                SystemStatsAvailable = !_cachedInContainer && (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                Platform = _cachedPlatform ?? "Unknown"
             };
 
-            if (stats.SystemStatsAvailable)
+            // Try to sample system-wide regardless of container status. cgroup v2 hosts and many container
+            // runtimes still expose /proc and /sys correctly; the previous strict gate was silently hiding
+            // working numbers. macOS is left null — no cross-platform path we've plumbed yet.
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
@@ -124,6 +142,9 @@ public sealed class SystemStats
                     }
                 }
             }
+
+            // Derived from what we actually got — so a container host that DOES expose /proc still shows data.
+            stats.SystemStatsAvailable = stats.SystemCpuPercent is not null || stats.SystemRamTotalBytes is not null;
 
             return stats;
         }
@@ -167,10 +188,12 @@ public sealed class SystemStats
             if (File.Exists("/proc/1/cgroup"))
             {
                 var cg = File.ReadAllText("/proc/1/cgroup");
+                // LXC is intentionally NOT flagged here — Proxmox and similar LXC hosts pass through /proc,
+                // so we can still sample system-wide there. Only the container runtimes that consistently
+                // sandbox /proc are flagged (docker, kubernetes, containerd).
                 if (cg.Contains("docker", StringComparison.OrdinalIgnoreCase)
                     || cg.Contains("kubepods", StringComparison.OrdinalIgnoreCase)
-                    || cg.Contains("containerd", StringComparison.OrdinalIgnoreCase)
-                    || cg.Contains("lxc", StringComparison.OrdinalIgnoreCase))
+                    || cg.Contains("containerd", StringComparison.OrdinalIgnoreCase))
                 {
                     return true;
                 }
@@ -305,12 +328,14 @@ public sealed class SystemStats
 
             return Math.Clamp((totalDelta - idleDelta) * 100.0 / totalDelta, 0, 100);
         }
-        catch (IOException)
+        catch (IOException ex)
         {
+            Diagnostics.Record("SystemStats.Linux", ex.Message);
             return null;
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException ex)
         {
+            Diagnostics.Record("SystemStats.Linux", ex.Message);
             return null;
         }
     }
@@ -354,12 +379,14 @@ public sealed class SystemStats
             var availableBytes = available > 0 ? available : (free + buffers + cached);
             return (total - availableBytes, total);
         }
-        catch (IOException)
+        catch (IOException ex)
         {
+            Diagnostics.Record("SystemStats.Linux", ex.Message);
             return null;
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException ex)
         {
+            Diagnostics.Record("SystemStats.Linux", ex.Message);
             return null;
         }
     }
@@ -376,32 +403,211 @@ public sealed class SystemStats
         return kb * 1024L;
     }
 
-    private static double? SampleGpuPercent()
+    private static List<GpuInfo> SampleGpus()
     {
-        // Prefer nvidia-smi (accurate per-engine data). If that's not present, fall through to Linux sysfs
-        // which handles AMD (and Intel iGPU on modern kernels) via /sys/class/drm/card*/device/gpu_busy_percent.
-        var nv = SampleNvidiaGpuPercent();
-        if (nv is not null)
+        // On Windows we prefer the PDH source because it enumerates every physical GPU (integrated + dedicated)
+        // in one pass. nvidia-smi only sees NVIDIA cards, which would hide an iGPU that shares the box. On Linux
+        // sysfs covers AMD/Intel, nvidia-smi covers NVIDIA — combine them so users with mixed setups see everything.
+        var results = new List<GpuInfo>();
+        var nvidia = SampleNvidiaGpus() ?? new List<GpuInfo>();
+        results.AddRange(nvidia);
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            _cachedGpuSource = "NVIDIA";
-            return nv;
+            var wins = SampleWindowsGpus();
+            if (wins is not null)
+            {
+                // Windows PDH already sees the NVIDIA cards; only add PDH data for physical devices not covered by nvidia-smi.
+                foreach (var w in wins)
+                {
+                    if (!nvidia.Any(n => string.Equals(n.Name, w.Name, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        results.Add(w);
+                    }
+                }
+            }
         }
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
-            var sysfs = SampleLinuxSysfsGpuPercent();
+            var sysfs = SampleLinuxSysfsGpus();
             if (sysfs is not null)
             {
-                _cachedGpuSource = "Linux sysfs";
-                return sysfs;
+                foreach (var s in sysfs)
+                {
+                    if (!nvidia.Any(n => string.Equals(n.Name, s.Name, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        results.Add(s);
+                    }
+                }
             }
         }
 
-        _cachedGpuSource = null;
-        return null;
+        // Re-index in enumeration order so the UI has a stable, dense set of GPU indices.
+        for (var i = 0; i < results.Count; i++)
+        {
+            results[i].Index = i;
+        }
+
+        return results;
     }
 
-    private static double? SampleNvidiaGpuPercent()
+    [SupportedOSPlatform("windows")]
+    private static List<GpuInfo>? SampleWindowsGpus()
+    {
+        if (!_winGpuAvailable)
+        {
+            return null;
+        }
+
+        if ((DateTime.UtcNow - _lastWinGpuSample).TotalSeconds < 3)
+        {
+            return _cachedWinGpus;
+        }
+
+        _lastWinGpuSample = DateTime.UtcNow;
+        try
+        {
+            if (!PerformanceCounterCategory.Exists("GPU Engine"))
+            {
+                _winGpuAvailable = false;
+                return null;
+            }
+
+            var category = new PerformanceCounterCategory("GPU Engine");
+            var instances = category.GetInstanceNames();
+            if (instances.Length == 0)
+            {
+                _winGpuAvailable = false;
+                return null;
+            }
+
+            // Reconcile cached counters with the current instance list. Stale PIDs (processes that stopped
+            // using the GPU) get disposed; new ones (like ffmpeg starting a transcode) get created and primed
+            // with a throwaway NextValue() call so the *next* poll returns a real delta.
+            var currentSet = new HashSet<string>(instances, StringComparer.OrdinalIgnoreCase);
+            foreach (var stale in WinGpuCounters.Keys.Where(k => !currentSet.Contains(k)).ToList())
+            {
+                WinGpuCounters[stale].Dispose();
+                WinGpuCounters.Remove(stale);
+            }
+
+            foreach (var newInst in currentSet)
+            {
+                if (WinGpuCounters.ContainsKey(newInst))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var pc = new PerformanceCounter("GPU Engine", "Utilization Percentage", newInst, readOnly: true);
+                    pc.NextValue(); // Prime — first call is always 0 on rate counters. Discarded intentionally.
+                    WinGpuCounters[newInst] = pc;
+                }
+                catch (InvalidOperationException)
+                {
+                    // Instance disappeared between GetInstanceNames() and construction. Skip and try next poll.
+                }
+            }
+
+            // Instance names look like:
+            //   pid_1234_luid_0x00000000_0x0000ABCD_phys_0_eng_3_engtype_3D
+            // The luid identifies a physical GPU. Within a card there are multiple engines (3D / VideoDecode /
+            // VideoEncode / Copy) potentially running in parallel across many processes. Task Manager's headline
+            // GPU% is the MAX across engines per adapter — a busy 3D engine + idle copy engine shows as
+            // whatever the 3D engine is doing, not sum. Match that so our numbers line up with Windows.
+            var perLuid = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            var perEngine = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (instance, pc) in WinGpuCounters)
+            {
+                var luid = ExtractLuid(instance);
+                if (luid is null)
+                {
+                    continue;
+                }
+
+                double val;
+                try
+                {
+                    val = pc.NextValue();
+                }
+                catch (InvalidOperationException)
+                {
+                    continue;
+                }
+
+                // Sum concurrent processes on the same engine, then take max across engines per LUID.
+                var engineKey = luid + "|" + ExtractEngineType(instance);
+                perEngine[engineKey] = (perEngine.TryGetValue(engineKey, out var running) ? running : 0) + val;
+            }
+
+            foreach (var (engineKey, engineTotal) in perEngine)
+            {
+                var luid = engineKey.Split('|')[0];
+                var capped = Math.Min(100, engineTotal);
+                if (!perLuid.TryGetValue(luid, out var existing) || capped > existing)
+                {
+                    perLuid[luid] = capped;
+                }
+            }
+
+            if (perLuid.Count == 0)
+            {
+                _winGpuAvailable = false;
+                return null;
+            }
+
+            var gpus = new List<GpuInfo>();
+            var index = 0;
+            foreach (var (luid, pct) in perLuid.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase))
+            {
+                gpus.Add(new GpuInfo
+                {
+                    Index = index++,
+                    Name = $"GPU {luid}",
+                    Percent = Math.Clamp(pct, 0, 100),
+                    Source = "Windows PDH"
+                });
+            }
+
+            _cachedWinGpus = gpus;
+            return gpus;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Diagnostics.Record("SystemStats.WindowsGPU", ex.Message);
+            _winGpuAvailable = false;
+            return null;
+        }
+        catch (InvalidOperationException ex)
+        {
+            Diagnostics.Record("SystemStats.WindowsGPU", ex.Message);
+            _winGpuAvailable = false;
+            return null;
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            Diagnostics.Record("SystemStats.WindowsGPU", ex.Message);
+            _winGpuAvailable = false;
+            return null;
+        }
+    }
+
+    private static string? ExtractLuid(string instanceName)
+    {
+        var m = LuidRegex.Match(instanceName);
+        return m.Success ? $"{m.Groups[1].Value}:{m.Groups[2].Value}" : null;
+    }
+
+    private static string ExtractEngineType(string instanceName)
+    {
+        // Instance format: pid_X_luid_Y_Z_phys_N_eng_E_engtype_TYPE. Return TYPE (e.g., "3D", "VideoDecode").
+        var idx = instanceName.LastIndexOf("engtype_", StringComparison.Ordinal);
+        return idx < 0 ? "unknown" : instanceName[(idx + "engtype_".Length)..];
+    }
+
+    private static List<GpuInfo>? SampleNvidiaGpus()
     {
         if (!_gpuAvailable)
         {
@@ -410,13 +616,13 @@ public sealed class SystemStats
 
         if ((DateTime.UtcNow - _lastGpuSample).TotalSeconds < 3)
         {
-            return _cachedGpuPercent;
+            return _cachedNvidiaGpus;
         }
 
         _lastGpuSample = DateTime.UtcNow;
         try
         {
-            var psi = new ProcessStartInfo(NvidiaSmiCommand, "--query-gpu=utilization.gpu --format=csv,noheader,nounits")
+            var psi = new ProcessStartInfo(NvidiaSmiCommand, "--query-gpu=index,name,utilization.gpu --format=csv,noheader,nounits")
             {
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -440,7 +646,7 @@ public sealed class SystemStats
                 {
                 }
 
-                return _cachedGpuPercent;
+                return _cachedNvidiaGpus;
             }
 
             if (p.ExitCode != 0)
@@ -459,19 +665,32 @@ public sealed class SystemStats
                 return null;
             }
 
-            var sum = 0.0;
-            var count = 0;
+            var gpus = new List<GpuInfo>();
             foreach (var line in lines)
             {
-                if (double.TryParse(line, NumberStyles.Float, CultureInfo.InvariantCulture, out var v))
+                var parts = line.Split(',');
+                if (parts.Length < 3)
                 {
-                    sum += v;
-                    count++;
+                    continue;
                 }
+
+                if (!int.TryParse(parts[0].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var idx)
+                    || !double.TryParse(parts[2].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var util))
+                {
+                    continue;
+                }
+
+                gpus.Add(new GpuInfo
+                {
+                    Index = idx,
+                    Name = parts[1].Trim(),
+                    Percent = util,
+                    Source = "NVIDIA"
+                });
             }
 
-            _cachedGpuPercent = count > 0 ? sum / count : (double?)null;
-            return _cachedGpuPercent;
+            _cachedNvidiaGpus = gpus;
+            return gpus;
         }
         catch (System.ComponentModel.Win32Exception)
         {
@@ -486,7 +705,7 @@ public sealed class SystemStats
     }
 
     [SupportedOSPlatform("linux")]
-    private static double? SampleLinuxSysfsGpuPercent()
+    private static List<GpuInfo>? SampleLinuxSysfsGpus()
     {
         if (!_sysfsGpuAvailable)
         {
@@ -495,7 +714,7 @@ public sealed class SystemStats
 
         if ((DateTime.UtcNow - _lastSysfsGpuSample).TotalSeconds < 3)
         {
-            return _cachedSysfsGpuPercent;
+            return _cachedSysfsGpus;
         }
 
         _lastSysfsGpuSample = DateTime.UtcNow;
@@ -507,10 +726,12 @@ public sealed class SystemStats
                 return null;
             }
 
-            var sum = 0.0;
-            var count = 0;
-            foreach (var card in Directory.EnumerateDirectories("/sys/class/drm/", "card*"))
+            var gpus = new List<GpuInfo>();
+            foreach (var card in Directory.EnumerateDirectories("/sys/class/drm/", "card*").OrderBy(c => c, StringComparer.Ordinal))
             {
+                var name = Path.GetFileName(card);
+                // Only card entries with a device/gpu_busy_percent report — connector nodes (card0-VGA-1 etc.)
+                // and card entries whose driver doesn't expose the counter (some Intel iGPUs on old kernels) are skipped.
                 var busyFile = Path.Combine(card, "device/gpu_busy_percent");
                 if (!File.Exists(busyFile))
                 {
@@ -518,29 +739,64 @@ public sealed class SystemStats
                 }
 
                 var raw = File.ReadAllText(busyFile).Trim();
-                if (int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v))
+                if (!int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v))
                 {
-                    sum += v;
-                    count++;
+                    continue;
                 }
+
+                gpus.Add(new GpuInfo
+                {
+                    Index = gpus.Count,
+                    Name = ReadSysfsVendorLabel(card) ?? name,
+                    Percent = v,
+                    Source = "Linux sysfs"
+                });
             }
 
-            if (count == 0)
+            if (gpus.Count == 0)
             {
                 _sysfsGpuAvailable = false;
                 return null;
             }
 
-            _cachedSysfsGpuPercent = sum / count;
-            return _cachedSysfsGpuPercent;
+            _cachedSysfsGpus = gpus;
+            return gpus;
         }
         catch (IOException)
         {
-            return _cachedSysfsGpuPercent;
+            return _cachedSysfsGpus;
         }
         catch (UnauthorizedAccessException)
         {
             _sysfsGpuAvailable = false;
+            return null;
+        }
+    }
+
+    [SupportedOSPlatform("linux")]
+    private static string? ReadSysfsVendorLabel(string cardDir)
+    {
+        // vendor is a PCI vendor ID in the form 0x1002 (AMD) / 0x10de (NVIDIA) / 0x8086 (Intel).
+        // Best-effort naming so a user with an iGPU + dGPU can tell them apart without exact model names.
+        try
+        {
+            var vendorFile = Path.Combine(cardDir, "device/vendor");
+            if (!File.Exists(vendorFile))
+            {
+                return null;
+            }
+
+            var vendor = File.ReadAllText(vendorFile).Trim();
+            return vendor.ToLowerInvariant() switch
+            {
+                "0x1002" => $"AMD ({Path.GetFileName(cardDir)})",
+                "0x10de" => $"NVIDIA ({Path.GetFileName(cardDir)})",
+                "0x8086" => $"Intel ({Path.GetFileName(cardDir)})",
+                _ => Path.GetFileName(cardDir)
+            };
+        }
+        catch (IOException)
+        {
             return null;
         }
     }

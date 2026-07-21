@@ -12,6 +12,7 @@
                 border: 1px solid rgba(255,255,255,.09);
                 border-radius: 14px;
                 padding: 1.1em 1.4em;
+                box-sizing: border-box;
                 transition: transform .15s ease, border-color .15s ease;
             }
             #MediaDashConfigPage .mdCard:hover { border-color: rgba(255,255,255,.2); }
@@ -203,6 +204,27 @@
             }
             #MediaDashConfigPage .mdSysCell .mdSysHint { font-size: .82em; opacity: .7; }
             #MediaDashConfigPage .mdSysCell .mdBarTrack { height: 6px; }
+            #MediaDashConfigPage .mdIssueFilterRow {
+                display: flex; gap: 1em; align-items: flex-end; flex-wrap: wrap;
+                margin-bottom: .8em;
+            }
+            #MediaDashConfigPage .mdApproveAllBtn {
+                display: inline-flex; align-items: center;
+                padding: .5em 1em !important;
+                border-radius: 10px !important;
+                font-size: .88em !important; font-weight: 600;
+                background: rgba(0,164,220,.18) !important;
+                color: #fff !important;
+                border: 1px solid rgba(0,164,220,.45) !important;
+                /* Sit level with the select input, not the wrapper's bottom (which includes the label). */
+                margin: 0 0 0 0 !important;
+                height: 2.6em;
+            }
+            #MediaDashConfigPage .mdApproveAllBtn:not(:disabled):hover {
+                background: rgba(0,164,220,.32) !important;
+                border-color: rgba(0,164,220,.65) !important;
+            }
+            #MediaDashConfigPage .mdApproveAllBtn .material-icons { color: #00a4dc; }
             @keyframes mdFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
         </style>
         <div data-role="content">
@@ -270,6 +292,7 @@
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="issues"><span>Issues</span></button>
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="history"><span>History</span></button>
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="files"><span>Files</span></button>
+                    <button is="emby-button" type="button" class="raised mdTab" data-tab="errors"><span>Errors</span><span id="mdErrorBadge" class="mdBadge" style="display:none;background:#ef4444;margin-left:.4em;">0</span></button>
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="settings"><span>Settings</span></button>
                 </div>
 
@@ -283,13 +306,13 @@
                 </div>
 
                 <div id="mdTab-issues" style="display:none;">
-                    <div style="display:flex;gap:1em;align-items:flex-end;flex-wrap:wrap;">
-                        <div class="selectContainer" style="max-width:22em;flex:1;">
+                    <div class="mdIssueFilterRow">
+                        <div class="selectContainer" style="max-width:22em;flex:1;margin-bottom:0;">
                             <label class="selectLabel" for="mdTypeFilter">Show</label>
                             <select is="emby-select" id="mdTypeFilter" class="emby-select-withcolor emby-select"></select>
                         </div>
-                        <button is="emby-button" type="button" id="mdApproveAll" class="raised" style="display:none;margin-bottom:.6em;">
-                            <span></span>
+                        <button is="emby-button" type="button" id="mdApproveAll" class="raised mdApproveAllBtn" style="display:none;">
+                            <span class="material-icons" style="font-size:1.1em;margin-right:.3em;">done_all</span><span class="mdApproveAllLabel"></span>
                         </button>
                     </div>
                     <div id="mdApproveAllNote" class="fieldDescription"></div>
@@ -300,6 +323,15 @@
                     <div id="mdHistoryChart" class="mdSection"></div>
                     <div id="mdHistorySummary" class="fieldDescription" style="margin:.5em 0;"></div>
                     <div id="mdHistoryList"></div>
+                </div>
+
+                <div id="mdTab-errors" style="display:none;">
+                    <div class="fieldDescription" style="margin-bottom:.6em;">Anything the plugin has caught and swallowed since the server started — silent scanner failures, system-stats sample errors, unexpected fix errors. Cleared automatically on server restart. Use this if something on Overview or Issues doesn't look right.</div>
+                    <div style="display:flex;gap:.5em;align-items:center;margin-bottom:.6em;">
+                        <button is="emby-button" type="button" id="mdErrorsRefresh" class="raised" style="font-size:80%;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">refresh</span><span>Refresh</span></button>
+                        <button is="emby-button" type="button" id="mdErrorsClear" class="raised" style="font-size:80%;background:#7f1d1d;color:#fff;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">delete_sweep</span><span>Clear</span></button>
+                    </div>
+                    <div id="mdErrorList"></div>
                 </div>
 
                 <div id="mdTab-files" style="display:none;">
@@ -416,6 +448,11 @@
                             </label>
                             <div class="fieldDescription">Uses the graphics card encoder configured in Jellyfin's Playback settings. Much faster, files come out slightly larger. If the hardware encoder fails on a file, MediaDash automatically retries with software. Default: off.</div>
                         </div>
+                        <div class="selectContainer" style="max-width:26em;">
+                            <label class="selectLabel" for="mdGpuIndex">Preferred GPU for re-encodes</label>
+                            <select is="emby-select" id="mdGpuIndex" class="emby-select-withcolor emby-select"></select>
+                            <div class="fieldDescription">If your server has multiple GPUs (typical: iGPU + dGPU), pick the one you want re-encodes to use. Auto lets ffmpeg follow Jellyfin's Playback → Hardware acceleration setting. Only NVENC / AMF encoders honour the plugin override; QSV and VideoToolbox fall back to Jellyfin's device.</div>
+                        </div>
                         <div class="inputContainer" style="max-width:30em;">
                             <label class="inputLabel" for="mdTolerance">Tolerance<span class="mdSliderVal" id="mdToleranceVal"></span></label>
                             <input id="mdTolerance" type="range" min="0" max="50" step="5" />
@@ -524,7 +561,7 @@
                 statCpuHint: 'System-wide across {0} cores',
                 statRamHint: '{0} used of {1}',
                 statGpuHint: 'via {0}',
-                statGpuMissing: 'No GPU counter available (nvidia-smi missing, no AMD/Intel sysfs)',
+                statGpuMissing: 'No GPU counter available on this host',
                 statUnavailable: 'N/A on {0}',
                 statUnknown: '—',
                 statPlatform: 'Host: {0}',
@@ -637,7 +674,9 @@
                 var slider = view.querySelector('#mdMaxBitrate');
                 slider.max = Math.ceil(40 * currentBitrateFactor);
                 slider.value = Math.round(base1080 * currentBitrateFactor * 2) / 2;
-                view.querySelector('#mdMaxBitrateLabel').textContent = 'Maximum video bitrate at ' + view.querySelector('#mdMaxRes').value + 'p';
+                var res = view.querySelector('#mdMaxRes').value;
+                var resLabel = res === '2160' ? '4K' : res === '1440' ? '1440p' : res + 'p';
+                view.querySelector('#mdMaxBitrateLabel').textContent = 'Maximum video bitrate at ' + resLabel;
                 view.querySelector('#mdMaxBitrateVal').textContent = fmt(STR.unitMbps, slider.value);
             }
 
@@ -732,66 +771,104 @@
                 var el = view.querySelector('#mdSystem');
                 if (!sys) { el.innerHTML = ''; return; }
 
-                function cell(icon, iconColor, title, valueHtml, hint, barPct) {
-                    var barHtml = '';
-                    if (typeof barPct === 'number') {
-                        var color = pctColor(barPct);
-                        barHtml = '<div class="mdBarTrack"><div class="mdBarFill" style="width:' + Math.max(3, Math.round(barPct)) + '%;background:linear-gradient(90deg,' + color + ',rgba(255,255,255,.15));"></div></div>';
-                    }
-                    return '<div class="mdSysCell">' +
+                var gpus = sys.Gpus || [];
+                var expectedGpuCells = Math.max(1, gpus.length);
+                var existingGpuCells = el.querySelectorAll('.mdSysCell[data-kind^="gpu"]').length;
+
+                // Only rebuild the DOM structure when the card first appears or when the GPU list changes shape
+                // (adding/removing a card mid-session, or going from "no GPU detected" to detected).
+                if (!el.querySelector('.mdSysCell') || existingGpuCells !== expectedGpuCells) {
+                    el.innerHTML = buildSystemStatsHtml(sys, gpus);
+                }
+
+                updateSystemStatsInPlace(sys, gpus);
+            }
+
+            function buildSystemStatsHtml(sys, gpus) {
+                function cellHtml(icon, iconColor, title, kind) {
+                    return '<div class="mdSysCell" data-kind="' + kind + '">' +
                         '<div class="mdSysHead"><span class="material-icons" style="color:' + iconColor + ';">' + icon + '</span>' + esc(title) + '</div>' +
-                        '<div class="mdSysValue">' + valueHtml + '</div>' +
-                        barHtml +
-                        '<div class="mdSysHint">' + esc(hint || '') + '</div>' +
+                        '<div class="mdSysValue" data-field="value"></div>' +
+                        '<div class="mdBarTrack" data-field="track"><div class="mdBarFill" data-field="bar" style="width:3%;"></div></div>' +
+                        '<div class="mdSysHint" data-field="hint"></div>' +
                         '</div>';
                 }
+
+                var gpuCellsHtml = '';
+                if (gpus.length === 0) {
+                    gpuCellsHtml = cellHtml('videogame_asset', '#f59e0b', STR.statGpu, 'gpu-0');
+                } else {
+                    for (var i = 0; i < gpus.length; i++) {
+                        var title = gpus.length === 1 ? STR.statGpu : STR.statGpu + ' ' + gpus[i].Index;
+                        gpuCellsHtml += cellHtml('videogame_asset', '#f59e0b', title, 'gpu-' + i);
+                    }
+                }
+
+                return '<div class="mdCard"><div style="display:flex;align-items:center;justify-content:space-between;gap:.6em;margin:.1em 0 .6em;flex-wrap:wrap;">' +
+                    '<h3 style="margin:0;display:flex;align-items:center;gap:.4em;"><span class="material-icons" style="color:#00a4dc;">speed</span>' + esc(STR.systemStats) + '</h3>' +
+                    '<span class="fieldDescription" data-field="platform" style="font-size:.82em;"></span>' +
+                    '</div>' +
+                    '<div class="mdSysGrid">' +
+                    cellHtml('memory', '#00a4dc', STR.statCpu, 'cpu') +
+                    cellHtml('storage', '#8b5cf6', STR.statRam, 'ram') +
+                    gpuCellsHtml +
+                    '</div></div>';
+            }
+
+            function updateSystemStatsInPlace(sys, gpus) {
+                var el = view.querySelector('#mdSystem');
+                var platform = el.querySelector('[data-field="platform"]');
+                if (platform) platform.textContent = fmt(STR.statPlatform, sys.Platform || 'Unknown');
 
                 var naPlain = '<span style="opacity:.5;">N/A</span>';
                 var platformHint = fmt(STR.statUnavailable, sys.Platform || 'this host');
 
-                var cpuHtml, cpuHint, cpuBar;
+                // CPU
                 if (!sys.SystemStatsAvailable) {
-                    cpuHtml = naPlain; cpuHint = platformHint; cpuBar = undefined;
+                    setCellValues(el, 'cpu', naPlain, platformHint, null);
                 } else if (sys.SystemCpuPercent == null) {
-                    cpuHtml = '<span style="opacity:.5;">' + esc(STR.statUnknown) + '</span>';
-                    cpuHint = fmt(STR.statCpuHint, sys.CpuCoreCount || 1);
-                    cpuBar = undefined;
+                    setCellValues(el, 'cpu', '<span style="opacity:.5;">' + esc(STR.statUnknown) + '</span>', fmt(STR.statCpuHint, sys.CpuCoreCount || 1), null);
                 } else {
-                    cpuHtml = sys.SystemCpuPercent.toFixed(1) + '%';
-                    cpuHint = fmt(STR.statCpuHint, sys.CpuCoreCount || 1);
-                    cpuBar = sys.SystemCpuPercent;
+                    setCellValues(el, 'cpu', sys.SystemCpuPercent.toFixed(1) + '%', fmt(STR.statCpuHint, sys.CpuCoreCount || 1), sys.SystemCpuPercent);
                 }
 
-                var ramHtml, ramHint, ramBar;
+                // RAM
                 if (!sys.SystemStatsAvailable || sys.SystemRamTotalBytes == null || sys.SystemRamTotalBytes <= 0) {
-                    ramHtml = naPlain; ramHint = platformHint; ramBar = undefined;
+                    setCellValues(el, 'ram', naPlain, platformHint, null);
                 } else {
-                    var ramUsedPct = sys.SystemRamUsedBytes / sys.SystemRamTotalBytes * 100;
-                    ramHtml = bytes(sys.SystemRamUsedBytes);
-                    ramHint = fmt(STR.statRamHint, bytes(sys.SystemRamUsedBytes), bytes(sys.SystemRamTotalBytes));
-                    ramBar = ramUsedPct;
+                    var ramPct = sys.SystemRamUsedBytes / sys.SystemRamTotalBytes * 100;
+                    setCellValues(el, 'ram', bytes(sys.SystemRamUsedBytes), fmt(STR.statRamHint, bytes(sys.SystemRamUsedBytes), bytes(sys.SystemRamTotalBytes)), ramPct);
                 }
 
-                var gpuHtml, gpuHint, gpuBar;
-                if (sys.GpuPercent == null) {
-                    gpuHtml = '<span style="opacity:.5;">' + esc(STR.statUnknown) + '</span>';
-                    gpuHint = STR.statGpuMissing;
-                    gpuBar = undefined;
+                // GPU(s)
+                if (gpus.length === 0) {
+                    setCellValues(el, 'gpu-0', '<span style="opacity:.5;">' + esc(STR.statUnknown) + '</span>', STR.statGpuMissing, null);
                 } else {
-                    gpuHtml = sys.GpuPercent.toFixed(1) + '%';
-                    gpuHint = fmt(STR.statGpuHint, sys.GpuSource || 'GPU counter');
-                    gpuBar = sys.GpuPercent;
+                    for (var i = 0; i < gpus.length; i++) {
+                        var g = gpus[i];
+                        var hint = esc(g.Name) + ' · ' + fmt(STR.statGpuHint, g.Source);
+                        setCellValues(el, 'gpu-' + i, (g.Percent || 0).toFixed(1) + '%', hint, g.Percent, true);
+                    }
                 }
+            }
 
-                el.innerHTML = '<div class="mdCard mdFade"><div style="display:flex;align-items:center;justify-content:space-between;gap:.6em;margin:.1em 0 .6em;flex-wrap:wrap;">' +
-                    '<h3 style="margin:0;display:flex;align-items:center;gap:.4em;"><span class="material-icons" style="color:#00a4dc;">speed</span>' + esc(STR.systemStats) + '</h3>' +
-                    '<span class="fieldDescription" style="font-size:.82em;">' + esc(fmt(STR.statPlatform, sys.Platform || 'Unknown')) + '</span>' +
-                    '</div>' +
-                    '<div class="mdSysGrid">' +
-                    cell('memory', '#00a4dc', STR.statCpu, cpuHtml, cpuHint, cpuBar) +
-                    cell('storage', '#8b5cf6', STR.statRam, ramHtml, ramHint, ramBar) +
-                    cell('videogame_asset', '#f59e0b', STR.statGpu, gpuHtml, gpuHint, gpuBar) +
-                    '</div></div>';
+            function setCellValues(rootEl, kind, valueHtml, hintHtml, barPct, hintIsHtml) {
+                var cell = rootEl.querySelector('.mdSysCell[data-kind="' + kind + '"]');
+                if (!cell) return;
+                cell.querySelector('[data-field="value"]').innerHTML = valueHtml;
+                var hintEl = cell.querySelector('[data-field="hint"]');
+                if (hintIsHtml) hintEl.innerHTML = hintHtml; else hintEl.textContent = hintHtml;
+
+                var track = cell.querySelector('[data-field="track"]');
+                var bar = cell.querySelector('[data-field="bar"]');
+                if (typeof barPct === 'number' && !isNaN(barPct)) {
+                    track.style.display = '';
+                    var color = pctColor(barPct);
+                    bar.style.width = Math.max(3, Math.round(barPct)) + '%';
+                    bar.style.background = 'linear-gradient(90deg,' + color + ',rgba(255,255,255,.15))';
+                } else {
+                    track.style.display = 'none';
+                }
             }
 
             function setProgress(visible, percent) {
@@ -854,13 +931,23 @@
                     activityEl.title = '';
                 }
 
+                // Keep polling while the Overview tab is visible so the system-performance card is actually live
+                // (task-manager-ish). schedulePoll during scan/fix already handles those cases; this adds the idle
+                // case where a user just wants to watch CPU / GPU / RAM tick.
+                if (!s.IsScanning && !s.IsFixing && view.querySelector('#mdTab-overview').style.display !== 'none') {
+                    schedulePoll();
+                }
+
                 // System stats are live — update every poll (values change), regardless of busy state.
                 renderSystemStats(s.System);
 
-                // Skip re-rendering the static content (hero/cards/savings/drives) during silent polls while a
-                // scan/fix is running — none of it changes and re-writing innerHTML every 3s causes the tab to flicker.
+                // Skip re-rendering the static content (hero, per-type cards, savings bars, drives) on silent
+                // polls — it only meaningfully changes when a scan/fix completes (nowBusy transitioning from
+                // true → false) or when the user takes an action (which triggers a non-silent refresh). Skipping
+                // avoids the full-tab flicker while just watching CPU/GPU tick.
                 var nowBusy = s.IsScanning || s.IsFixing;
-                if (silent && nowBusy && wasBusy) {
+                var justFinished = wasBusy && !nowBusy;
+                if (silent && !justFinished) {
                     return;
                 }
 
@@ -957,11 +1044,11 @@
                 if (typeFilter && list.length > 1) {
                     var ft = STR.types[typeFilter] || {};
                     approveAllBtn.style.display = '';
-                    approveAllBtn.querySelector('span').textContent = fmt(ft.approveAll || STR.approveAll, list.length);
+                    approveAllBtn.querySelector('.mdApproveAllLabel').textContent = fmt(ft.approveAll || STR.approveAll, list.length);
                     view.querySelector('#mdApproveAllNote').textContent = STR.approveAllNote;
                 } else if (!typeFilter && list.length > 0) {
                     approveAllBtn.style.display = '';
-                    approveAllBtn.querySelector('span').textContent = fmt(STR.approveAllTypes, list.length);
+                    approveAllBtn.querySelector('.mdApproveAllLabel').textContent = fmt(STR.approveAllTypes, list.length);
                     view.querySelector('#mdApproveAllNote').textContent = STR.approveAllNote;
                 } else {
                     approveAllBtn.style.display = 'none';
@@ -1022,6 +1109,9 @@
                     row.querySelector('.mdRowMsg').textContent = doneText;
                     row.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
                     row.style.opacity = '.55';
+                    // Refresh in the background so PendingFixCount reflects the approval right away — otherwise
+                    // clicking "Run fixes now" immediately after approving reads the stale count and shows "nothing to fix".
+                    refresh(true);
                 });
             }
 
@@ -1190,6 +1280,7 @@
                     view.querySelector('#mdCodec').value = c.PreferredCodec;
                     view.querySelector('#mdContainer').value = c.TargetContainer;
                     view.querySelector('#mdHwEncode').checked = c.UseHardwareEncoder;
+                    populateGpuOptions(c.PreferredGpuIndex);
                     view.querySelector('#mdFileTypes').value = (c.ReencodeFileTypes || []).join(', ');
                     view.querySelector('#mdTolerance').value = c.QualityTolerancePercent;
                     view.querySelector('#mdAudioLangs').value = (c.AllowedAudioLanguages || []).join(', ');
@@ -1205,6 +1296,18 @@
 
             function csv(value) {
                 return value.split(',').map(function (s) { return s.trim().toLowerCase(); }).filter(function (s) { return s.length > 0; });
+            }
+
+            function populateGpuOptions(currentIndex) {
+                var sel = view.querySelector('#mdGpuIndex');
+                var gpus = (lastStatus && lastStatus.System && lastStatus.System.Gpus) || [];
+                var html = '<option value="">Auto (Jellyfin default)</option>';
+                gpus.forEach(function (g) {
+                    var label = 'GPU ' + g.Index + ' — ' + g.Name + ' (' + (g.Source || '') + ')';
+                    html += '<option value="' + g.Index + '">' + esc(label) + '</option>';
+                });
+                sel.innerHTML = html;
+                sel.value = (currentIndex == null) ? '' : String(currentIndex);
             }
 
             function saveSettings(e) {
@@ -1231,6 +1334,8 @@
                     c.PreferredCodec = view.querySelector('#mdCodec').value;
                     c.TargetContainer = view.querySelector('#mdContainer').value;
                     c.UseHardwareEncoder = view.querySelector('#mdHwEncode').checked;
+                    var gpuVal = view.querySelector('#mdGpuIndex').value;
+                    c.PreferredGpuIndex = gpuVal === '' ? null : parseInt(gpuVal, 10);
                     c.ReencodeFileTypes = csv(view.querySelector('#mdFileTypes').value);
                     c.QualityTolerancePercent = parseInt(view.querySelector('#mdTolerance').value, 10) || 15;
                     c.AllowedAudioLanguages = csv(view.querySelector('#mdAudioLangs').value);
@@ -1305,6 +1410,8 @@
                     renderStatus(s, !!silent);
                     if (!silent) Dashboard.hideLoadingMsg();
                 });
+                // Piggyback the error count on every refresh so the tab badge stays live without opening the tab.
+                api('Errors').then(function (errs) { updateErrorBadge((errs || []).length); }, function () { });
                 if (!silent) {
                     ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
                         view.querySelector('#mdDryRunNote').style.display = c.DryRun ? '' : 'none';
@@ -1321,7 +1428,7 @@
             }
 
             function showTab(name) {
-                ['overview', 'issues', 'history', 'files', 'settings'].forEach(function (n) {
+                ['overview', 'issues', 'history', 'files', 'errors', 'settings'].forEach(function (n) {
                     view.querySelector('#mdTab-' + n).style.display = n === name ? '' : 'none';
                 });
                 view.querySelectorAll('.mdTab').forEach(function (b) {
@@ -1331,6 +1438,45 @@
                 if (name === 'history') loadHistory();
                 if (name === 'settings') loadSettings();
                 if (name === 'files') loadFiles(currentFilePath);
+                if (name === 'errors') loadErrors();
+                if (name === 'overview') {
+                    // Kick a fresh silent poll so live values (CPU / GPU / RAM) update as soon as the tab opens.
+                    refresh(true);
+                }
+            }
+
+            // ---------- Errors ----------
+            function loadErrors() {
+                var listEl = view.querySelector('#mdErrorList');
+                listEl.innerHTML = '<div class="fieldDescription">Loading…</div>';
+                api('Errors').then(function (errs) {
+                    updateErrorBadge(errs.length);
+                    if (!errs.length) {
+                        listEl.innerHTML = '<div class="mdCard mdFade" style="text-align:center;padding:2em;"><span class="material-icons" style="font-size:3em;color:#10b981;">check_circle</span><div style="margin-top:.4em;font-weight:600;">No errors recorded.</div><div class="fieldDescription">Nice — everything the plugin has tried has succeeded (or failed silently in a way we haven\'t plumbed yet).</div></div>';
+                        return;
+                    }
+                    var html = errs.map(function (e) {
+                        var source = e.Source || 'unknown';
+                        return '<div class="mdCard mdFade" style="margin:.5em 0;border-left:4px solid #ef4444;">' +
+                            '<div style="display:flex;justify-content:space-between;gap:1em;flex-wrap:wrap;align-items:baseline;">' +
+                            '<span class="mdBadge" style="background:#ef4444;">' + esc(source) + '</span>' +
+                            '<span class="fieldDescription" style="font-size:.82em;">' + new Date(e.AtUtc).toLocaleString() + '</span>' +
+                            '</div>' +
+                            '<div style="margin-top:.4em;font-family:monospace;font-size:.88em;white-space:pre-wrap;word-break:break-word;">' + esc(e.Message) + '</div>' +
+                            '</div>';
+                    }).join('');
+                    listEl.innerHTML = html;
+                });
+            }
+
+            function updateErrorBadge(count) {
+                var badge = view.querySelector('#mdErrorBadge');
+                if (count > 0) {
+                    badge.textContent = count;
+                    badge.style.display = '';
+                } else {
+                    badge.style.display = 'none';
+                }
             }
 
             // ---------- Files tab ----------
@@ -1751,7 +1897,10 @@
 
                     view.querySelector('#mdApproveAll').addEventListener('click', function () {
                         var type = view.querySelector('#mdTypeFilter').value;
-                        post('Issues/ApproveAll' + (type ? '?type=' + type : '')).then(loadIssues);
+                        post('Issues/ApproveAll' + (type ? '?type=' + type : '')).then(function () {
+                            loadIssues();
+                            refresh(true);
+                        });
                     });
 
                     buildFixTypeRows();
@@ -1863,6 +2012,11 @@
                             return;
                         }
                         uploadFiles(e.dataTransfer && e.dataTransfer.files);
+                    });
+
+                    view.querySelector('#mdErrorsRefresh').addEventListener('click', loadErrors);
+                    view.querySelector('#mdErrorsClear').addEventListener('click', function () {
+                        post('Errors/Clear').then(loadErrors);
                     });
 
                     view.querySelector('#mdResetScan').addEventListener('click', function () {

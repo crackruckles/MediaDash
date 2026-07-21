@@ -25,6 +25,7 @@ public class PluginConfiguration : BasePluginConfiguration
         ReencodeFileTypes = [];
         TargetContainer = "mkv";
         UseHardwareEncoder = false;
+        PreferredGpuIndex = null;
         KeeperPolicyOrder = ["Resolution", "Codec", "Bitrate", "Size"];
         ThoroughPlayabilityCheck = true;
         TreatEditionsAsDuplicates = false;
@@ -178,6 +179,13 @@ public class PluginConfiguration : BasePluginConfiguration
     /// (much faster, slightly larger files). Falls back to software per file when the hardware encoder fails.
     /// </summary>
     public bool UseHardwareEncoder { get; set; }
+
+    /// <summary>
+    /// Gets or sets the GPU index re-encodes should target when the host has more than one card
+    /// (e.g., dedicated dGPU alongside an iGPU). Null = let ffmpeg pick (Jellyfin's default). Matches the
+    /// index reported by the /Status endpoint under System.Gpus.
+    /// </summary>
+    public int? PreferredGpuIndex { get; set; }
 
     /// <summary>
     /// Gets or sets the order of criteria used to pick the copy to keep among duplicates.

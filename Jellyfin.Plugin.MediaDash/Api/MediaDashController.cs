@@ -376,6 +376,30 @@ public class MediaDashController : ControllerBase
     }
 
     /// <summary>
+    /// Gets recently-recorded plugin errors (system-stats sample failures, scanner/fixer exceptions).
+    /// Bounded to the last ~100 entries in memory; not persisted across Jellyfin restarts.
+    /// </summary>
+    /// <returns>The entries, newest first.</returns>
+    [HttpGet("Errors")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<IReadOnlyList<DiagnosticEntry>> GetErrors()
+    {
+        return Ok(Diagnostics.Recent());
+    }
+
+    /// <summary>
+    /// Empties the diagnostic buffer.
+    /// </summary>
+    /// <returns>No content.</returns>
+    [HttpPost("Errors/Clear")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public ActionResult ClearErrors()
+    {
+        Diagnostics.Clear();
+        return NoContent();
+    }
+
+    /// <summary>
     /// Gets the plugin logo. Anonymous so image tags can load it without a token header.
     /// </summary>
     /// <returns>The logo PNG.</returns>

@@ -158,6 +158,7 @@ public sealed class FixTask : IScheduledTask
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Unexpected error fixing {Path}", issue.Path);
+                Api.Diagnostics.Record("FixTask", $"{issue.Path}: {ex.Message}");
             }
 
             progress.Report((i + 1) * 100.0 / queue.Count);

@@ -275,6 +275,22 @@ public sealed class TranscodeFixer : IFixer
         }
 
         args.AddRange(["-c:v", encoder]);
+        if (hardwareEncoder is not null && config.PreferredGpuIndex is int gpuIndex && gpuIndex >= 0)
+        {
+            // Encoder-family-specific device selection flag. NVENC and AMF take the index as an encoder option;
+            // QSV and VideoToolbox don't expose a per-encoder index this way, but a Jellyfin server-wide
+            // hardware acceleration device setting covers those. We only send the flag when we know it applies.
+            var gpuStr = gpuIndex.ToString(CultureInfo.InvariantCulture);
+            if (hardwareEncoder.EndsWith("_nvenc", StringComparison.Ordinal))
+            {
+                args.AddRange(["-gpu", gpuStr]);
+            }
+            else if (hardwareEncoder.EndsWith("_amf", StringComparison.Ordinal))
+            {
+                args.AddRange(["-gpu", gpuStr]);
+            }
+        }
+
         if (hardwareEncoder is not null)
         {
             // Hardware encoders don't support CRF; target the configured bitrate ceiling scaled to the output resolution,
