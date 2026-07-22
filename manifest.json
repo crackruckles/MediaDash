@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.4.9.0",
+        "changelog": "Recycle bin pre-checks free space on cross-volume moves and Overview warns when the bin lives on a different volume than your libraries. Issues tab now shows queued items alongside detected ones (they no longer vanish on approval) and refreshes live during a fix run so items disappear as they succeed. New 'Retry all fixes' button on the Errors tab clears the buffer and reruns the queue.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.4.9/mediadash_0.4.9.zip",
+        "checksum": "2b0db8bdf731cc59a5dfd4197e691457",
+        "timestamp": "2026-07-22T03:50:00Z"
+      },
+      {
         "version": "0.4.8.0",
         "changelog": "Polish pass. File browser and fix task catch UnauthorizedAccessException with an actionable message (points at Jellyfin's user needing write access) instead of a generic 500; denied fixes also show in History. New Encode preset dropdown (Faster/Balanced/Best) for software re-encodes. Quality scanner ignores files smaller than a configurable threshold (100 MB default) and skips HDR content by default so naive transcodes don't destroy HDR metadata. Errors tab collapses repeated identical entries into a single row with a count. New live filter-by-filename search on the Issues tab.",
         "targetAbi": "10.11.0.0",
