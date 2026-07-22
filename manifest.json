@@ -1,4 +1,4 @@
-[
+﻿[
   {
     "guid": "38bdb090-b763-4294-934b-b54ade4d9d6d",
     "name": "MediaDash",
@@ -8,6 +8,14 @@
     "category": "General",
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
+      {
+        "version": "0.5.0.0",
+        "changelog": "New \u0027Misplaced files\u0027 fix type: MediaDash spots a movie sitting in your TV folder (or a TV episode sitting in Movies) and moves it into the correct folder. Set the two target folders under Settings \u003e Libraries; classification uses Jellyfin\u0027s own metadata by default with a filename-pattern fallback (SxxExx / NxN =\u003e TV). LibraryGuard refuses moves outside your Jellyfin libraries. Optional new toggle to rename files after a successful re-encode to a canonical form: \u0027Name (Year) - 1080p.mkv\u0027 for movies, \u0027Series - S03E14 - 1080p.mkv\u0027 for TV episodes. Every primary button and settings chip now shows a tooltip on hover.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.5.0/mediadash_0.5.0.zip",
+        "checksum": "77f79febc6b0b9c4c4350b13e616eade",
+        "timestamp": "2026-07-22T13:18:49Z"
+      },
       {
         "version": "0.4.9.0",
         "changelog": "Recycle bin pre-checks free space on cross-volume moves and Overview warns when the bin lives on a different volume than your libraries. Issues tab now shows queued items alongside detected ones (they no longer vanish on approval) and refreshes live during a fix run so items disappear as they succeed. New 'Retry all fixes' button on the Errors tab clears the buffer and reruns the queue.",
@@ -58,7 +66,7 @@
       },
       {
         "version": "0.4.3.0",
-        "changelog": "Overview leads with a live System performance card (Jellyfin CPU%, memory, NVIDIA GPU% via nvidia-smi) at the top, then Library drive storage, then everything else. Themed to match the rest of the plugin with green→amber→red bar colouring.",
+        "changelog": "Overview leads with a live System performance card (Jellyfin CPU%, memory, NVIDIA GPU% via nvidia-smi) at the top, then Library drive storage, then everything else. Themed to match the rest of the plugin with greenâ†’amberâ†’red bar colouring.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.4.3/mediadash_0.4.3.zip",
         "checksum": "77b02d8af2e11cc46b8c7a5b64107fa9",
@@ -131,3 +139,4 @@
     ]
   }
 ]
+
