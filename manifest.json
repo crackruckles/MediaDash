@@ -69,7 +69,7 @@
         "changelog": "Overview polish. Scan/Fix buttons now cancel the running task (red Stop state) with a matching themed gradient look. Current file shown under the progress bar. Per-drive storage card. No more 3-second flicker while scanning/fixing. Fix run processes smallest files first so early completions free disk space for the big ones.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.4.2/mediadash_0.4.2.zip",
-        "checksum": "8707a8a03721d1c86cd686977c174475",
+        "checksum": "e9fd851840a11a191a9402d64ad77fd7",
         "timestamp": "2026-07-20T14:55:00Z"
       },
       {
@@ -85,7 +85,7 @@
         "changelog": "Files tab: multi-select with bulk delete/move/download, filter box, and a modal folder picker that replaces the raw path prompt for move/copy operations.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.4.0/mediadash_0.4.0.zip",
-        "checksum": "20d18325bf2fd6c27c986fc6e56aab13",
+        "checksum": "ef7d1f4b58195abd5dc7c802502ce63c",
         "timestamp": "2026-07-20T12:15:00Z"
       },
       {
@@ -93,7 +93,7 @@
         "changelog": "Files tab: sortable columns (Name, Size, Modified), directories stay on top. Up button fixed at library roots. Issues tab: click a file path to open its folder in the Files tab; new 'Approve all N issues (all types)' button when no type filter is set.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.3.2/mediadash_0.3.2.zip",
-        "checksum": "db06d6a17a59cdb3ca751d8970311096",
+        "checksum": "35f86dcfa51d94c5f421b9a2524b0621",
         "timestamp": "2026-07-20T11:55:00Z"
       },
       {
@@ -101,7 +101,7 @@
         "changelog": "Files tab: drag-and-drop uploads. Drop one or many files onto the list to upload into the current folder. Multi-file selection via the Upload button too. Admin-only, same safety as before.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.3.1/mediadash_0.3.1.zip",
-        "checksum": "2123741c50a3d9a84044c9f5b71c574c",
+        "checksum": "54072379a9596099f5e49b147f8f26d3",
         "timestamp": "2026-07-20T11:35:00Z"
       },
       {
@@ -109,7 +109,7 @@
         "changelog": "New Files tab: browse, upload, download, rename, move, copy and delete files inside your library folders. Deletes go to the recycle bin. Every operation is refused if it targets anything outside a configured library.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.3.0/mediadash_0.3.0.zip",
-        "checksum": "de2112b31b3a34daa759905c16db89c3",
+        "checksum": "862fe134049b9004e3ddfcbaa31a737a",
         "timestamp": "2026-07-20T11:20:00Z"
       },
       {
@@ -125,7 +125,7 @@
         "changelog": "Initial public release.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.1.1/mediadash_0.1.1.zip",
-        "checksum": "07cbd396e0aa9bf9eb198689193fc471",
+        "checksum": "830a9075d427809864975255def245ad",
         "timestamp": "2026-07-20T02:00:00Z"
       }
     ]
