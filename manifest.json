@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.4.8.0",
+        "changelog": "Polish pass. File browser and fix task catch UnauthorizedAccessException with an actionable message (points at Jellyfin's user needing write access) instead of a generic 500; denied fixes also show in History. New Encode preset dropdown (Faster/Balanced/Best) for software re-encodes. Quality scanner ignores files smaller than a configurable threshold (100 MB default) and skips HDR content by default so naive transcodes don't destroy HDR metadata. Errors tab collapses repeated identical entries into a single row with a count. New live filter-by-filename search on the Issues tab.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.4.8/mediadash_0.4.8.zip",
+        "checksum": "12740486970d7005dd76331bf47070b3",
+        "timestamp": "2026-07-22T03:30:00Z"
+      },
+      {
         "version": "0.4.7.0",
         "changelog": "Linux hotfix. /Status endpoint crashed on Linux because SystemStats referenced Windows-only PerformanceCounter at class-load time. Now loaded lazily so the type only resolves inside the Windows branch. Sample() also gains a top-level try/catch that surfaces future failures to the Errors tab instead of taking the tab down silently.",
         "targetAbi": "10.11.0.0",
