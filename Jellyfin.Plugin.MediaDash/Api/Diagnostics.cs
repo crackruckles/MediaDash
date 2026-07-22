@@ -28,13 +28,29 @@ public static class Diagnostics
         }
 
         var trimmed = message.Length > 800 ? message[..800] + "…" : message;
+        var now = DateTime.UtcNow;
         lock (Lock)
         {
+            // Dedup: if the most recent entry has the same source + message, bump its count and update its
+            // last-seen timestamp instead of appending a new row. Keeps the Errors tab readable when a fixer
+            // hits the same permission denial across dozens of files back to back.
+            var head = Entries.First;
+            if (head is not null
+                && string.Equals(head.Value.Source, source, StringComparison.Ordinal)
+                && string.Equals(head.Value.Message, trimmed, StringComparison.Ordinal))
+            {
+                head.Value.Count++;
+                head.Value.LastAtUtc = now;
+                return;
+            }
+
             Entries.AddFirst(new DiagnosticEntry
             {
-                AtUtc = DateTime.UtcNow,
+                AtUtc = now,
+                LastAtUtc = now,
                 Source = source,
-                Message = trimmed
+                Message = trimmed,
+                Count = 1
             });
             while (Entries.Count > MaxEntries)
             {

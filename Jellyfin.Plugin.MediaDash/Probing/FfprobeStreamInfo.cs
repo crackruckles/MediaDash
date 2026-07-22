@@ -56,6 +56,14 @@ public sealed class FfprobeStreamInfo
     [JsonPropertyName("tags")]
     public IReadOnlyDictionary<string, string>? Tags { get; set; }
 
+    /// <summary>Gets or sets the color primaries (e.g., "bt709" for SDR, "bt2020" for HDR).</summary>
+    [JsonPropertyName("color_primaries")]
+    public string? ColorPrimaries { get; set; }
+
+    /// <summary>Gets or sets the color transfer characteristic (e.g., "bt709" for SDR, "smpte2084" for HDR10, "arib-std-b67" for HLG).</summary>
+    [JsonPropertyName("color_transfer")]
+    public string? ColorTransfer { get; set; }
+
     /// <summary>
     /// Gets the stream's ISO 639-2 language code, or null when untagged.
     /// </summary>

@@ -174,7 +174,19 @@ public class FileBrowserController : ControllerBase
             return Conflict("An entry with that name already exists.");
         }
 
-        Directory.CreateDirectory(target);
+        try
+        {
+            Directory.CreateDirectory(target);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return PermissionDenied(parent, ex);
+        }
+        catch (IOException ex)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, "Could not create folder: " + ex.Message);
+        }
+
         _libraryMonitor.ReportFileSystemChanged(target);
         return NoContent();
     }
@@ -213,13 +225,24 @@ public class FileBrowserController : ControllerBase
             return Conflict("An entry with that name already exists.");
         }
 
-        if (Directory.Exists(source))
+        try
         {
-            Directory.Move(source, target);
+            if (Directory.Exists(source))
+            {
+                Directory.Move(source, target);
+            }
+            else
+            {
+                System.IO.File.Move(source, target);
+            }
         }
-        else
+        catch (UnauthorizedAccessException ex)
         {
-            System.IO.File.Move(source, target);
+            return PermissionDenied(source, ex);
+        }
+        catch (IOException ex)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, "Rename failed: " + ex.Message);
         }
 
         _libraryMonitor.ReportFileSystemChanged(source);
@@ -260,14 +283,25 @@ public class FileBrowserController : ControllerBase
             return Conflict("An entry already exists at the destination.");
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-        if (Directory.Exists(source))
+        try
         {
-            Directory.Move(source, target);
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            if (Directory.Exists(source))
+            {
+                Directory.Move(source, target);
+            }
+            else
+            {
+                System.IO.File.Move(source, target);
+            }
         }
-        else
+        catch (UnauthorizedAccessException ex)
         {
-            System.IO.File.Move(source, target);
+            return PermissionDenied(source + " -> " + target, ex);
+        }
+        catch (IOException ex)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, "Move failed: " + ex.Message);
         }
 
         _libraryMonitor.ReportFileSystemChanged(source);
@@ -308,14 +342,25 @@ public class FileBrowserController : ControllerBase
             return Conflict("An entry already exists at the destination.");
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-        if (sourceIsDir)
+        try
         {
-            CopyDirectory(source, target);
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            if (sourceIsDir)
+            {
+                CopyDirectory(source, target);
+            }
+            else
+            {
+                System.IO.File.Copy(source, target, overwrite: false);
+            }
         }
-        else
+        catch (UnauthorizedAccessException ex)
         {
-            System.IO.File.Copy(source, target, overwrite: false);
+            return PermissionDenied(target, ex);
+        }
+        catch (IOException ex)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, "Copy failed: " + ex.Message);
         }
 
         _libraryMonitor.ReportFileSystemChanged(target);
@@ -343,7 +388,19 @@ public class FileBrowserController : ControllerBase
             return NotFound();
         }
 
-        _recycleBin.MoveToBin(full);
+        try
+        {
+            _recycleBin.MoveToBin(full);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return PermissionDenied(full, ex);
+        }
+        catch (IOException ex)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, "Delete failed: " + ex.Message);
+        }
+
         _libraryMonitor.ReportFileSystemChanged(full);
         _logger.LogInformation("File browser recycled {Path}", full);
         return NoContent();
@@ -386,7 +443,20 @@ public class FileBrowserController : ControllerBase
         }
 
         var tempPath = target + UploadTempSuffix;
-        var output = System.IO.File.Create(tempPath);
+        System.IO.FileStream output;
+        try
+        {
+            output = System.IO.File.Create(tempPath);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return PermissionDenied(parent, ex);
+        }
+        catch (IOException ex)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, "Could not create upload file: " + ex.Message);
+        }
+
         try
         {
             await Request.Body.CopyToAsync(output, HttpContext.RequestAborted).ConfigureAwait(false);
@@ -474,6 +544,14 @@ public class FileBrowserController : ControllerBase
         }
 
         return true;
+    }
+
+    private ObjectResult PermissionDenied(string path, UnauthorizedAccessException ex)
+    {
+        var msg = "Jellyfin lacks write access to " + path + ". Check that the file (and its containing folder) is owned by or read+writable by the user Jellyfin runs as (usually 'jellyfin' on Linux).";
+        Diagnostics.Record("FileBrowser.PermissionDenied", msg);
+        _logger.LogWarning(ex, "File browser permission denied on {Path}", path);
+        return StatusCode(StatusCodes.Status403Forbidden, msg);
     }
 
     private static bool IsSimpleName(string? name)

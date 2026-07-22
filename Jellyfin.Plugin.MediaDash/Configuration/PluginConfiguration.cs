@@ -26,6 +26,9 @@ public class PluginConfiguration : BasePluginConfiguration
         TargetContainer = "mkv";
         UseHardwareEncoder = false;
         PreferredGpuIndex = null;
+        SoftwareEncodePreset = EncodePreset.Balanced;
+        MinScanFileSizeMb = 100;
+        SkipHdrContent = true;
         KeeperPolicyOrder = ["Resolution", "Codec", "Bitrate", "Size"];
         ThoroughPlayabilityCheck = true;
         TreatEditionsAsDuplicates = false;
@@ -186,6 +189,25 @@ public class PluginConfiguration : BasePluginConfiguration
     /// index reported by the /Status endpoint under System.Gpus.
     /// </summary>
     public int? PreferredGpuIndex { get; set; }
+
+    /// <summary>
+    /// Gets or sets the speed-vs-quality preset for software re-encodes (ignored by hardware encoders,
+    /// which don't support CRF and use the plugin's bitrate ceiling instead).
+    /// </summary>
+    public EncodePreset SoftwareEncodePreset { get; set; }
+
+    /// <summary>
+    /// Gets or sets the minimum file size in megabytes for a file to be considered by the quality scanner.
+    /// Filters out sample files, trailers, and other small media that shouldn't be re-encoded.
+    /// </summary>
+    public int MinScanFileSizeMb { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether files detected as HDR (color_primaries=bt2020, transfer=smpte2084/arib-std-b67)
+    /// are skipped by the quality scanner. Default: on. Naively re-encoding HDR content without proper color-space
+    /// plumbing destroys HDR metadata, so opting in should be a deliberate choice.
+    /// </summary>
+    public bool SkipHdrContent { get; set; }
 
     /// <summary>
     /// Gets or sets the order of criteria used to pick the copy to keep among duplicates.

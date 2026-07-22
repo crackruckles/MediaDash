@@ -321,13 +321,22 @@ public sealed class TranscodeFixer : IFixer
                 args.AddRange(["-pix_fmt", "yuv420p"]);
             }
         }
-        else if (encoder == "libsvtav1")
-        {
-            args.AddRange(["-crf", "30", "-preset", "8"]);
-        }
         else
         {
-            args.AddRange(["-crf", "23", "-preset", "medium"]);
+            var (crf, preset, av1Crf, av1Preset) = config.SoftwareEncodePreset switch
+            {
+                EncodePreset.Faster => ("25", "fast", "32", "6"),
+                EncodePreset.Best => ("20", "slow", "28", "10"),
+                _ => ("23", "medium", "30", "8")
+            };
+            if (encoder == "libsvtav1")
+            {
+                args.AddRange(["-crf", av1Crf, "-preset", av1Preset]);
+            }
+            else
+            {
+                args.AddRange(["-crf", crf, "-preset", preset]);
+            }
         }
 
         if (needsDownscale)

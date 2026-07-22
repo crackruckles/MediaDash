@@ -307,9 +307,13 @@
 
                 <div id="mdTab-issues" style="display:none;">
                     <div class="mdIssueFilterRow">
-                        <div class="selectContainer" style="max-width:22em;flex:1;margin-bottom:0;">
+                        <div class="selectContainer" style="max-width:18em;flex:1;margin-bottom:0;">
                             <label class="selectLabel" for="mdTypeFilter">Show</label>
                             <select is="emby-select" id="mdTypeFilter" class="emby-select-withcolor emby-select"></select>
+                        </div>
+                        <div class="inputContainer" style="max-width:22em;flex:1;margin-bottom:0;">
+                            <label class="inputLabel" for="mdIssueFilter">Filter by filename</label>
+                            <input id="mdIssueFilter" type="search" is="emby-input" placeholder="Type to filter…" />
                         </div>
                         <button is="emby-button" type="button" id="mdApproveAll" class="raised mdApproveAllBtn" style="display:none;">
                             <span class="material-icons" style="font-size:1.1em;margin-right:.3em;">done_all</span><span class="mdApproveAllLabel"></span>
@@ -495,6 +499,27 @@
                         </div>
 
                         <h2 class="mdSecHead" style="border-color:#64748b;background:linear-gradient(90deg, rgba(100,116,139,.18), transparent 75%);"><span class="material-icons" style="color:#64748b;">tune</span>Advanced</h2>
+                        <div class="selectContainer" style="max-width:26em;">
+                            <label class="selectLabel" for="mdEncodePreset">Encode preset</label>
+                            <select is="emby-select" id="mdEncodePreset" class="emby-select-withcolor emby-select">
+                                <option value="Faster">Faster — roughly half the encode time, slightly larger files</option>
+                                <option value="Balanced">Balanced — recommended</option>
+                                <option value="Best">Best — best quality/size, roughly double the encode time</option>
+                            </select>
+                            <div class="fieldDescription">Speed vs. quality trade-off for software re-encodes (libx264 / libx265 / libsvtav1). Hardware encoders (NVENC / AMF / QSV) use the plugin's bitrate ceiling instead — they don't support CRF.</div>
+                        </div>
+                        <div class="inputContainer" style="max-width:26em;">
+                            <label class="inputLabel inputLabelUnfocused" for="mdMinSize">Ignore files smaller than</label>
+                            <input id="mdMinSize" type="number" is="emby-input" min="0" max="10000" step="10" />
+                            <div class="fieldDescription">Megabytes. Filters out sample files, trailers, and extras that shouldn't be flagged for re-encoding. Default: 100 MB.</div>
+                        </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="mdSkipHdr" type="checkbox" is="emby-checkbox" />
+                                <span>Skip HDR content</span>
+                            </label>
+                            <div class="fieldDescription">HDR files (HDR10 / HDR10+ / HLG) are left alone by the quality scanner. Re-encoding HDR without proper color-space handling destroys HDR metadata and produces washed-out SDR, so opting in should be deliberate. Default: on.</div>
+                        </div>
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label class="emby-checkbox-label">
                                 <input id="mdThorough" type="checkbox" is="emby-checkbox" />
@@ -1036,10 +1061,25 @@
 
             // ---------- Issues ----------
 
+            var lastIssueList = [];
+
             function renderIssues(list) {
+                lastIssueList = list;
+                renderIssuesFiltered();
+            }
+
+            function renderIssuesFiltered() {
                 var el = view.querySelector('#mdIssueList');
                 var approveAllBtn = view.querySelector('#mdApproveAll');
                 var typeFilter = view.querySelector('#mdTypeFilter').value;
+                var textFilter = (view.querySelector('#mdIssueFilter').value || '').trim().toLowerCase();
+                var list = lastIssueList;
+                if (textFilter) {
+                    list = list.filter(function (i) {
+                        return (i.FileName || '').toLowerCase().indexOf(textFilter) >= 0
+                            || (i.Path || '').toLowerCase().indexOf(textFilter) >= 0;
+                    });
+                }
 
                 if (typeFilter && list.length > 1) {
                     var ft = STR.types[typeFilter] || {};
@@ -1280,6 +1320,9 @@
                     view.querySelector('#mdCodec').value = c.PreferredCodec;
                     view.querySelector('#mdContainer').value = c.TargetContainer;
                     view.querySelector('#mdHwEncode').checked = c.UseHardwareEncoder;
+                    view.querySelector('#mdEncodePreset').value = c.SoftwareEncodePreset || 'Balanced';
+                    view.querySelector('#mdMinSize').value = c.MinScanFileSizeMb;
+                    view.querySelector('#mdSkipHdr').checked = c.SkipHdrContent;
                     populateGpuOptions(c.PreferredGpuIndex);
                     view.querySelector('#mdFileTypes').value = (c.ReencodeFileTypes || []).join(', ');
                     view.querySelector('#mdTolerance').value = c.QualityTolerancePercent;
@@ -1336,6 +1379,9 @@
                     c.UseHardwareEncoder = view.querySelector('#mdHwEncode').checked;
                     var gpuVal = view.querySelector('#mdGpuIndex').value;
                     c.PreferredGpuIndex = gpuVal === '' ? null : parseInt(gpuVal, 10);
+                    c.SoftwareEncodePreset = view.querySelector('#mdEncodePreset').value;
+                    c.MinScanFileSizeMb = parseInt(view.querySelector('#mdMinSize').value, 10) || 0;
+                    c.SkipHdrContent = view.querySelector('#mdSkipHdr').checked;
                     c.ReencodeFileTypes = csv(view.querySelector('#mdFileTypes').value);
                     c.QualityTolerancePercent = parseInt(view.querySelector('#mdTolerance').value, 10) || 15;
                     c.AllowedAudioLanguages = csv(view.querySelector('#mdAudioLangs').value);
@@ -1411,7 +1457,10 @@
                     if (!silent) Dashboard.hideLoadingMsg();
                 });
                 // Piggyback the error count on every refresh so the tab badge stays live without opening the tab.
-                api('Errors').then(function (errs) { updateErrorBadge((errs || []).length); }, function () { });
+                api('Errors').then(function (errs) {
+                    var total = (errs || []).reduce(function (sum, e) { return sum + (e.Count || 1); }, 0);
+                    updateErrorBadge(total);
+                }, function () { });
                 if (!silent) {
                     ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
                         view.querySelector('#mdDryRunNote').style.display = c.DryRun ? '' : 'none';
@@ -1455,12 +1504,20 @@
                         listEl.innerHTML = '<div class="mdCard mdFade" style="text-align:center;padding:2em;"><span class="material-icons" style="font-size:3em;color:#10b981;">check_circle</span><div style="margin-top:.4em;font-weight:600;">No errors recorded.</div><div class="fieldDescription">Nice — everything the plugin has tried has succeeded (or failed silently in a way we haven\'t plumbed yet).</div></div>';
                         return;
                     }
+                    var totalOccurrences = errs.reduce(function (sum, e) { return sum + (e.Count || 1); }, 0);
+                    updateErrorBadge(totalOccurrences);
                     var html = errs.map(function (e) {
                         var source = e.Source || 'unknown';
+                        var countBadge = (e.Count || 1) > 1
+                            ? '<span class="mdBadge" style="background:rgba(239,68,68,.35);color:#fff;">×' + e.Count + '</span>'
+                            : '';
+                        var timeText = (e.Count || 1) > 1 && e.LastAtUtc
+                            ? new Date(e.AtUtc).toLocaleString() + ' → ' + new Date(e.LastAtUtc).toLocaleTimeString()
+                            : new Date(e.AtUtc).toLocaleString();
                         return '<div class="mdCard mdFade" style="margin:.5em 0;border-left:4px solid #ef4444;">' +
                             '<div style="display:flex;justify-content:space-between;gap:1em;flex-wrap:wrap;align-items:baseline;">' +
-                            '<span class="mdBadge" style="background:#ef4444;">' + esc(source) + '</span>' +
-                            '<span class="fieldDescription" style="font-size:.82em;">' + new Date(e.AtUtc).toLocaleString() + '</span>' +
+                            '<span><span class="mdBadge" style="background:#ef4444;">' + esc(source) + '</span> ' + countBadge + '</span>' +
+                            '<span class="fieldDescription" style="font-size:.82em;">' + timeText + '</span>' +
                             '</div>' +
                             '<div style="margin-top:.4em;font-family:monospace;font-size:.88em;white-space:pre-wrap;word-break:break-word;">' + esc(e.Message) + '</div>' +
                             '</div>';
@@ -1833,11 +1890,16 @@
                 }).then(function () {
                     loadFiles(currentFilePath);
                 }, function (xhr) {
-                    var msg = 'That operation failed.';
-                    if (xhr && xhr.status === 403) msg = 'Blocked: destination is outside your library folders.';
-                    else if (xhr && xhr.status === 404) msg = 'Not found.';
-                    else if (xhr && xhr.status === 409) msg = 'An entry already exists at the destination.';
-                    else if (xhr && xhr.status === 400) msg = 'Invalid name (no path separators, no "..").';
+                    // Prefer the server's message body — it's specific ("Jellyfin lacks write access to X…") vs the generic fallback below.
+                    var serverMsg = (xhr && xhr.responseText) ? xhr.responseText.replace(/^"|"$/g, '') : '';
+                    var msg = serverMsg;
+                    if (!msg) {
+                        if (xhr && xhr.status === 403) msg = 'Blocked: outside your library folders, or Jellyfin lacks write access.';
+                        else if (xhr && xhr.status === 404) msg = 'Not found.';
+                        else if (xhr && xhr.status === 409) msg = 'An entry already exists at the destination.';
+                        else if (xhr && xhr.status === 400) msg = 'Invalid name (no path separators, no "..").';
+                        else msg = 'That operation failed.';
+                    }
                     window.alert(msg);
                 });
             }
@@ -1856,6 +1918,7 @@
                     });
                     filter.innerHTML = opts;
                     filter.addEventListener('change', loadIssues);
+                    view.querySelector('#mdIssueFilter').addEventListener('input', renderIssuesFiltered);
 
                     view.querySelectorAll('.mdTab').forEach(function (b) {
                         b.addEventListener('click', function () { showTab(b.getAttribute('data-tab')); });

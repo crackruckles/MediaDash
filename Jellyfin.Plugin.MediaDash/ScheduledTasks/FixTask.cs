@@ -155,6 +155,40 @@ public sealed class FixTask : IScheduledTask
             {
                 throw;
             }
+            catch (UnauthorizedAccessException ex)
+            {
+                // Very common on Linux servers where library files aren't owned by the jellyfin user.
+                // Not a plugin bug — surface it with an actionable message and record the failed attempt
+                // in History so the user sees it alongside successful fixes.
+                _logger.LogWarning(ex, "Permission denied fixing {Path}", issue.Path);
+                var message = "Jellyfin lacks write access to " + issue.Path + ". Check that the file (and its folder) is owned by or read+writable by the user Jellyfin runs as (typically 'jellyfin' on Linux).";
+                Api.Diagnostics.Record("FixTask.PermissionDenied", message);
+                _db.AddHistory(new HistoryEntry
+                {
+                    IssueId = issue.Id,
+                    Type = issue.Type,
+                    Path = issue.Path,
+                    Action = "Fix failed — permission denied. " + issue.Path + " isn't writable by the Jellyfin user.",
+                    BytesFreed = 0,
+                    FixedAtUtc = DateTime.UtcNow,
+                    WasDryRun = false
+                });
+            }
+            catch (System.IO.IOException ex)
+            {
+                _logger.LogWarning(ex, "I/O error fixing {Path}", issue.Path);
+                Api.Diagnostics.Record("FixTask.IOError", issue.Path + ": " + ex.Message);
+                _db.AddHistory(new HistoryEntry
+                {
+                    IssueId = issue.Id,
+                    Type = issue.Type,
+                    Path = issue.Path,
+                    Action = "Fix failed — " + ex.Message,
+                    BytesFreed = 0,
+                    FixedAtUtc = DateTime.UtcNow,
+                    WasDryRun = false
+                });
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Unexpected error fixing {Path}", issue.Path);

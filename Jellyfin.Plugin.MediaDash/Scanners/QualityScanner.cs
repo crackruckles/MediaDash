@@ -48,6 +48,29 @@ public sealed class QualityScanner : ProbingScannerBase
             return Task.FromResult<Issue?>(null);
         }
 
+        // Skip small files (samples, trailers, extras) — they aren't the main content and re-encoding them
+        // wastes time. Threshold configurable in Advanced settings.
+        try
+        {
+            var sizeMb = new FileInfo(path).Length / (1024L * 1024L);
+            if (sizeMb < config.MinScanFileSizeMb)
+            {
+                return Task.FromResult<Issue?>(null);
+            }
+        }
+        catch (IOException)
+        {
+            return Task.FromResult<Issue?>(null);
+        }
+
+        // HDR passthrough: transcoding HDR without proper color-space plumbing (colorspace, primaries, transfer
+        // characteristic flags on the encoder) destroys HDR metadata and produces washed-out SDR. Until we handle
+        // it properly, opt out by default and let advanced users flip the switch.
+        if (config.SkipHdrContent && IsHdr(video))
+        {
+            return Task.FromResult<Issue?>(null);
+        }
+
         var tolerance = 1 + (config.QualityTolerancePercent / 100.0);
         var height = video.Height.Value;
         var width = video.Width.Value;
@@ -95,6 +118,13 @@ public sealed class QualityScanner : ProbingScannerBase
             SizeSavings = savings
         };
         return Task.FromResult<Issue?>(issue);
+    }
+
+    private static bool IsHdr(FfprobeStreamInfo video)
+    {
+        return string.Equals(video.ColorPrimaries, "bt2020", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(video.ColorTransfer, "smpte2084", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(video.ColorTransfer, "arib-std-b67", StringComparison.OrdinalIgnoreCase);
     }
 
     private static long? ParseBitrate(string? raw)
