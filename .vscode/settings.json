@@ -16,4 +16,7 @@
     "jellyfinLinuxDataDir": "$HOME/.local/share/jellyfin",
     // The name of the plugin
     "pluginName": "Jellyfin.Plugin.MediaDash",
+    // pluginDeployName : the folder name Jellyfin expects under plugins/
+    // (documented in CLAUDE.md as "MediaDash", distinct from the .sln/project name).
+    "pluginDeployName": "MediaDash",
 }

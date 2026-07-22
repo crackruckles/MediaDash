@@ -40,13 +40,13 @@
         "args": [
           "-Force",
           "-Path",
-          "${config:jellyfinWindowsDataDir}/plugins/${config:pluginName}/"
+          "${config:jellyfinWindowsDataDir}/plugins/${config:pluginDeployName}/"
         ]
       },
       "linux": {
         "args": [
           "-p",
-          "${config:jellyfinLinuxDataDir}/plugins/${config:pluginName}/"
+          "${config:jellyfinLinuxDataDir}/plugins/${config:pluginDeployName}/"
         ]
       }
     },
@@ -61,14 +61,14 @@
       "windows": {
         "args": [
           "./${config:pluginName}/bin/Debug/net9.0/publish/*",
-          "${config:jellyfinWindowsDataDir}/plugins/${config:pluginName}/"
+          "${config:jellyfinWindowsDataDir}/plugins/${config:pluginDeployName}/"
         ]
       },
       "linux": {
         "args": [
           "-r",
           "./${config:pluginName}/bin/Debug/net9.0/publish/*",
-          "${config:jellyfinLinuxDataDir}/plugins/${config:pluginName}/"
+          "${config:jellyfinLinuxDataDir}/plugins/${config:pluginDeployName}/"
         ]
       }
     },
