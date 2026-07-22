@@ -45,7 +45,7 @@ These must hold in every code path and have unit tests. Do not relax them for co
 - All UI strings centralized for future localization; no English-only assumptions in language defaults (first-run setup asks).
 - Follow the template's `jellyfin.ruleset` / analyzers; treat warnings as errors.
 - License: GPLv3 (required by Jellyfin NuGet linkage).
-- Release via plugin repository: `build.yaml` → zip + `manifest.json`, semantic versioning, `targetAbi` = minimum supported Jellyfin version (see PLAN.md §7 step 9).
+- Release via plugin repository: `build.yaml` → zip + `manifest.json`, semantic versioning, `targetAbi` = minimum supported Jellyfin version (see PLAN.md §7 step 9). Cut releases with `tools/release.ps1 -Version X.Y.Z -Changelog "..."` — it builds, zips, uploads to GitHub Releases, then re-downloads the uploaded asset and writes that MD5 into `manifest.json`, so the manifest checksum can't drift from the released zip. Do NOT hand-edit `manifest.json` checksums or hand-upload releases.
 
 ## Verification checklist per phase
 
