@@ -15,6 +15,10 @@ public sealed class RecycleBin
 {
     private readonly string _defaultRoot;
     private readonly ILogger<RecycleBin> _logger;
+    private int _emptyingTotal;
+    private int _emptyingDone;
+    private volatile bool _isEmptying;
+    private volatile string? _lastEmptyError;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RecycleBin"/> class.
@@ -34,6 +38,13 @@ public sealed class RecycleBin
             var configured = Plugin.Instance!.Configuration.RecycleBinPath;
             return string.IsNullOrWhiteSpace(configured) ? _defaultRoot : configured;
         }
+    }
+
+    /// <summary>Gets progress information for an in-flight <see cref="EmptyAll"/> run.</summary>
+    /// <returns>Whether an empty is running, and how many top-level batches have been deleted out of the total.</returns>
+    public (bool IsRunning, int Done, int Total, string? LastError) GetEmptyingProgress()
+    {
+        return (_isEmptying, System.Threading.Volatile.Read(ref _emptyingDone), System.Threading.Volatile.Read(ref _emptyingTotal), _lastEmptyError);
     }
 
     /// <summary>
@@ -180,21 +191,52 @@ public sealed class RecycleBin
     }
 
     /// <summary>
-    /// Permanently deletes everything in the bin, regardless of retention.
+    /// Permanently deletes everything in the bin, regardless of retention. Reports batch-level progress
+    /// via <see cref="GetEmptyingProgress"/> so the UI can show a bar while a large bin is being cleared.
     /// </summary>
     public void EmptyAll()
     {
+        _lastEmptyError = null;
         if (!Directory.Exists(Root))
         {
             return;
         }
 
-        foreach (var dir in Directory.GetDirectories(Root))
+        try
         {
-            Directory.Delete(dir, recursive: true);
-        }
+            var dirs = Directory.GetDirectories(Root);
+            System.Threading.Volatile.Write(ref _emptyingTotal, dirs.Length);
+            System.Threading.Volatile.Write(ref _emptyingDone, 0);
+            _isEmptying = true;
+            foreach (var dir in dirs)
+            {
+                try
+                {
+                    Directory.Delete(dir, recursive: true);
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    // Record the first offender and keep going — deleting the rest still frees space.
+                    _lastEmptyError ??= "Permission denied deleting '" + dir + "'. Grant the user Jellyfin runs as read+write on the recycle bin folder. (" + ex.Message + ")";
+                    _logger.LogWarning(ex, "Permission denied deleting {Dir}", dir);
+                    Api.Diagnostics.Record("RecycleBin.PermissionDenied", _lastEmptyError);
+                }
+                catch (IOException ex)
+                {
+                    _lastEmptyError ??= "Could not delete '" + dir + "': " + ex.Message + ". A file may be open in another program.";
+                    _logger.LogWarning(ex, "I/O error deleting {Dir}", dir);
+                    Api.Diagnostics.Record("RecycleBin.IOError", _lastEmptyError);
+                }
 
-        _logger.LogInformation("Recycle bin emptied by user request");
+                System.Threading.Interlocked.Increment(ref _emptyingDone);
+            }
+
+            _logger.LogInformation("Recycle bin emptied by user request ({Done}/{Total} batches)", _emptyingDone, _emptyingTotal);
+        }
+        finally
+        {
+            _isEmptying = false;
+        }
     }
 
     /// <summary>

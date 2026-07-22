@@ -2257,9 +2257,55 @@
 
                     view.querySelector('#mdBinEmpty').addEventListener('click', function () {
                         if (!window.confirm(STR.confirmEmptyBin)) return;
-                        post('RecycleBin/Empty').then(function () {
-                            loadBinInfo();
-                            view.querySelector('#mdBinList').style.display = 'none';
+                        var btn = this;
+                        var infoEl = view.querySelector('#mdBinInfo');
+                        btn.disabled = true;
+                        view.querySelector('#mdBinList').style.display = 'none';
+                        // Ensure a progress bar container exists directly under the button row.
+                        var bar = view.querySelector('#mdBinEmptyBar');
+                        if (!bar) {
+                            bar = document.createElement('div');
+                            bar.id = 'mdBinEmptyBar';
+                            bar.style.cssText = 'height:10px;background:rgba(255,255,255,.08);border-radius:5px;overflow:hidden;margin:.6em 0;';
+                            bar.innerHTML = '<div style="height:100%;width:0;background:linear-gradient(90deg,#ec4899,#f97316);transition:width .3s;"></div>';
+                            infoEl.parentNode.insertBefore(bar, infoEl.nextSibling);
+                        }
+                        var fill = bar.firstChild;
+                        bar.style.display = 'block';
+                        fill.style.width = '2%';
+
+                        // ponytail: 500ms polling on a user-initiated action; upgrade to server-push if bins routinely take minutes.
+                        function poll() {
+                            api('RecycleBin').then(function (b) {
+                                var total = b.EmptyingTotal || 0;
+                                var done = b.EmptyingDone || 0;
+                                var pct = total > 0 ? Math.max(2, Math.round(done * 100 / total)) : (b.IsEmptying ? 5 : 100);
+                                fill.style.width = pct + '%';
+                                if (b.IsEmptying) {
+                                    infoEl.textContent = 'Emptying… ' + done + ' of ' + total;
+                                    setTimeout(poll, 500);
+                                    return;
+                                }
+                                fill.style.width = '100%';
+                                setTimeout(function () { bar.style.display = 'none'; }, 600);
+                                btn.disabled = false;
+                                if (b.EmptyingError) {
+                                    Dashboard.alert({ title: 'Empty recycle bin', message: b.EmptyingError });
+                                }
+                                loadBinInfo();
+                            }, function () {
+                                // Poll fetch failed (server restart, network blip). Give up cleanly.
+                                fill.style.width = '0';
+                                bar.style.display = 'none';
+                                btn.disabled = false;
+                                loadBinInfo();
+                            });
+                        }
+
+                        post('RecycleBin/Empty').then(poll, function () {
+                            btn.disabled = false;
+                            bar.style.display = 'none';
+                            Dashboard.alert({ title: 'Empty recycle bin', message: 'The server refused the request. Check the Errors tab for details.' });
                         });
                     });
 

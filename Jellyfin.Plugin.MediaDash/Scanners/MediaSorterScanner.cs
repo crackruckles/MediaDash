@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.MediaDash.Configuration;
 using Jellyfin.Plugin.MediaDash.Data;
+using Jellyfin.Plugin.MediaDash.Fixers;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
@@ -23,14 +24,17 @@ namespace Jellyfin.Plugin.MediaDash.Scanners;
 /// </summary>
 public sealed partial class MediaSorterScanner : IScanner
 {
+    private readonly LibraryGuard _guard;
     private readonly ILogger<MediaSorterScanner> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MediaSorterScanner"/> class.
     /// </summary>
+    /// <param name="guard">The library path guard, used to short-circuit the scan when the user's target folders sit outside every Jellyfin library.</param>
     /// <param name="logger">The logger.</param>
-    public MediaSorterScanner(ILogger<MediaSorterScanner> logger)
+    public MediaSorterScanner(LibraryGuard guard, ILogger<MediaSorterScanner> logger)
     {
+        _guard = guard;
         _logger = logger;
     }
 
@@ -58,6 +62,22 @@ public sealed partial class MediaSorterScanner : IScanner
         // Nothing to sort when the user hasn't told us where the two piles live.
         if (moviesTarget is null || tvTarget is null)
         {
+            progress.Report(100);
+            return Task.FromResult<IReadOnlyList<Issue>>([]);
+        }
+
+        // Fail fast on bad config: if a target is misconfigured we would otherwise detect hundreds of
+        // "misplaced" issues whose fix can never succeed. Surface the exact problem to the Errors tab.
+        if (ValidateTarget("Movies", Config.MoviesTargetPath, moviesTarget) is string moviesErr)
+        {
+            Api.Diagnostics.Record("MediaSorter.BadTarget", moviesErr);
+            progress.Report(100);
+            return Task.FromResult<IReadOnlyList<Issue>>([]);
+        }
+
+        if (ValidateTarget("TV", Config.TvTargetPath, tvTarget) is string tvErr)
+        {
+            Api.Diagnostics.Record("MediaSorter.BadTarget", tvErr);
             progress.Report(100);
             return Task.FromResult<IReadOnlyList<Issue>>([]);
         }
@@ -174,6 +194,42 @@ public sealed partial class MediaSorterScanner : IScanner
         return SxxExxRegex().IsMatch(filename) || SeasonEpisodeRegex().IsMatch(filename)
             ? MediaKind.Tv
             : MediaKind.Movie;
+    }
+
+    /// <summary>
+    /// Returns null when the target is usable, or a plain-language error message otherwise.
+    /// The <paramref name="raw"/> value is what the user typed (used in messages); <paramref name="normalized"/> is the resolved full path.
+    /// </summary>
+    private string? ValidateTarget(string label, string raw, string normalized)
+    {
+        if (!Directory.Exists(normalized))
+        {
+            return label + " target folder does not exist: '" + raw + "'. Set it to a folder inside a Jellyfin library.";
+        }
+
+        if (!_guard.IsInsideLibrary(normalized))
+        {
+            return label + " target folder '" + normalized + "' is not inside any Jellyfin library. MediaDash will not move files outside your libraries — set it under one of the folders in Dashboard → Libraries.";
+        }
+
+        // Real permission check: try to create-and-delete a probe file. Property flags on Windows lie about
+        // write permission (ReadOnly attribute vs. ACLs) and Linux modes vary; only an actual write is honest.
+        try
+        {
+            var probe = Path.Combine(normalized, ".mediadash-write-probe-" + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture));
+            File.WriteAllBytes(probe, []);
+            File.Delete(probe);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return "Jellyfin cannot write to the " + label + " target folder '" + normalized + "'. Grant the user Jellyfin runs as (typically 'jellyfin' on Linux) read+write permission on that folder.";
+        }
+        catch (IOException ex)
+        {
+            return label + " target folder '" + normalized + "' is not writable: " + ex.Message;
+        }
+
+        return null;
     }
 
     private static string? NormalizeDir(string path)

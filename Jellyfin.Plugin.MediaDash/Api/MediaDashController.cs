@@ -360,7 +360,16 @@ public class MediaDashController : ControllerBase
     public ActionResult<RecycleBinInfo> GetRecycleBin()
     {
         var (count, size) = _recycleBin.GetContents();
-        return new RecycleBinInfo { FileCount = count, SizeBytes = size };
+        var (running, done, total, error) = _recycleBin.GetEmptyingProgress();
+        return new RecycleBinInfo
+        {
+            FileCount = count,
+            SizeBytes = size,
+            IsEmptying = running,
+            EmptyingDone = done,
+            EmptyingTotal = total,
+            EmptyingError = error
+        };
     }
 
     /// <summary>
@@ -377,15 +386,32 @@ public class MediaDashController : ControllerBase
     }
 
     /// <summary>
-    /// Permanently empties the recycle bin. Files can no longer be restored afterwards.
+    /// Kicks off a background empty of the recycle bin. Returns immediately with the current progress so the
+    /// UI can poll <c>RecycleBin</c> for a bar; older builds ran this synchronously and appeared frozen for
+    /// large bins.
     /// </summary>
-    /// <returns>No content.</returns>
+    /// <returns>The recycle bin state with <c>IsEmptying=true</c> when the run started.</returns>
     [HttpPost("RecycleBin/Empty")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    public ActionResult EmptyRecycleBin()
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<RecycleBinInfo> EmptyRecycleBin()
     {
-        _recycleBin.EmptyAll();
-        return NoContent();
+        var alreadyRunning = _recycleBin.GetEmptyingProgress().IsRunning;
+        if (!alreadyRunning)
+        {
+            _ = System.Threading.Tasks.Task.Run(() => _recycleBin.EmptyAll());
+        }
+
+        var (count, size) = _recycleBin.GetContents();
+        var (running, done, total, error) = _recycleBin.GetEmptyingProgress();
+        return new RecycleBinInfo
+        {
+            FileCount = count,
+            SizeBytes = size,
+            IsEmptying = running,
+            EmptyingDone = done,
+            EmptyingTotal = total,
+            EmptyingError = error
+        };
     }
 
     /// <summary>
