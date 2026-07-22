@@ -46,6 +46,30 @@ public sealed class RecycleBin
         var folder = Path.Combine(Root, DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff", CultureInfo.InvariantCulture));
         Directory.CreateDirectory(folder);
         var target = Path.Combine(folder, Path.GetFileName(path));
+
+        // Cross-volume moves are copy+delete under the hood — they need the file's size to fit on the recycle
+        // bin volume. Pre-check when we can, so users get a clear "put the bin next to the media" message
+        // instead of "No space left on device".
+        if (System.IO.File.Exists(path))
+        {
+            var srcDrive = FindDriveForPath(path);
+            var dstDrive = FindDriveForPath(folder);
+            if (srcDrive is not null && dstDrive is not null
+                && !string.Equals(srcDrive.RootDirectory.FullName, dstDrive.RootDirectory.FullName, StringComparison.OrdinalIgnoreCase))
+            {
+                var size = new FileInfo(path).Length;
+                const long headroom = 100L * 1024 * 1024;
+                if (dstDrive.AvailableFreeSpace < size + headroom)
+                {
+                    var freeMb = dstDrive.AvailableFreeSpace / 1024 / 1024;
+                    var neededMb = size / 1024 / 1024;
+                    throw new IOException(
+                        $"Not enough free space on the recycle bin volume ('{dstDrive.RootDirectory.FullName}' has {freeMb} MB free, need about {neededMb} MB). "
+                        + "Fix: Settings → Recycle bin → change 'Recycle bin folder' to a path on the same volume as your media (e.g. '/mnt/media/.mediadash-recycle'). Moves then become instant renames and don't use extra space.");
+                }
+            }
+        }
+
         if (Directory.Exists(path))
         {
             Directory.Move(path, target);
@@ -58,6 +82,34 @@ public sealed class RecycleBin
         _logger.LogInformation("Recycled {Path} -> {Target}", path, target);
         return target;
     }
+
+    /// <summary>Gets the drive that owns a path — the deepest-matching mount point on Linux, or the drive letter on Windows.</summary>
+    /// <param name="path">A file or directory path.</param>
+    /// <returns>The owning drive, or null if none matches.</returns>
+    public static DriveInfo? FindDriveForPath(string path)
+    {
+        try
+        {
+            var full = Path.GetFullPath(path);
+            return DriveInfo.GetDrives()
+                .Where(d => d.IsReady)
+                .Where(d => full.StartsWith(d.RootDirectory.FullName, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(d => d.RootDirectory.FullName.Length)
+                .FirstOrDefault();
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Gets the effective recycle bin root that <see cref="MoveToBin"/> will use.</summary>
+    /// <returns>The root path.</returns>
+    public string GetEffectiveRoot() => Root;
 
     /// <summary>
     /// Restores a recycled file to its original location.

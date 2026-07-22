@@ -129,8 +129,33 @@ public class MediaDashController : ControllerBase
             PendingFixCount = queuedCount + autoQueueableCount,
             Drives = drives,
             CurrentActivity = Plugin.CurrentActivity,
-            System = SystemStats.Sample()
+            System = SystemStats.Sample(),
+            RecycleBinPath = _recycleBin.GetEffectiveRoot(),
+            RecycleBinCrossVolume = ComputeRecycleBinCrossVolume(drives)
         };
+    }
+
+    private bool ComputeRecycleBinCrossVolume(List<DriveUsage> drives)
+    {
+        // Only warn when there ARE library drives (i.e., the user has configured libraries) and the recycle
+        // bin sits on a different volume. On single-drive setups the answer is trivially "no" — do nothing.
+        var libraryDrives = drives.Where(d => d.IsLibraryDrive).ToList();
+        if (libraryDrives.Count == 0)
+        {
+            return false;
+        }
+
+        var recycleDrive = Fixers.RecycleBin.FindDriveForPath(_recycleBin.GetEffectiveRoot());
+        if (recycleDrive is null)
+        {
+            return false;
+        }
+
+        var recycleRoot = System.IO.Path.TrimEndingDirectorySeparator(recycleDrive.RootDirectory.FullName);
+        return !libraryDrives.Any(d => string.Equals(
+            System.IO.Path.TrimEndingDirectorySeparator(d.Root),
+            recycleRoot,
+            StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -138,13 +163,24 @@ public class MediaDashController : ControllerBase
     /// </summary>
     /// <param name="type">Filter by issue type.</param>
     /// <param name="status">Filter by status; defaults to detected.</param>
+    /// <param name="openOnly">When true, returns Detected + Queued combined (open work) — overrides <paramref name="status"/>.</param>
     /// <returns>The matching issues.</returns>
     [HttpGet("Issues")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult<IReadOnlyList<IssueDto>> GetIssues(
         [FromQuery] IssueType? type = null,
-        [FromQuery] IssueStatus? status = IssueStatus.Detected)
+        [FromQuery] IssueStatus? status = IssueStatus.Detected,
+        [FromQuery] bool openOnly = false)
     {
+        if (openOnly)
+        {
+            var combined = _db.GetIssues(type, IssueStatus.Detected)
+                .Concat(_db.GetIssues(type, IssueStatus.Queued))
+                .Select(IssueDto.FromIssue)
+                .ToList();
+            return Ok(combined);
+        }
+
         return Ok(_db.GetIssues(type, status).Select(IssueDto.FromIssue).ToList());
     }
 

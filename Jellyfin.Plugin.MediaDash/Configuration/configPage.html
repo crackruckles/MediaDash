@@ -297,6 +297,16 @@
                 </div>
 
                 <div id="mdTab-overview">
+                    <div id="mdRecycleWarn" style="display:none;margin-bottom:1em;padding:.8em 1.2em;border-radius:12px;background:rgba(245,158,11,.16);border:2px solid #f59e0b;">
+                        <div style="display:flex;gap:.8em;align-items:center;flex-wrap:wrap;">
+                            <span class="material-icons" style="color:#f59e0b;font-size:1.5em;">warning</span>
+                            <div style="flex:1;min-width:20em;">
+                                <div style="font-weight:600;color:#f59e0b;">Recycle bin is on a different volume than your media</div>
+                                <div class="fieldDescription" id="mdRecycleWarnText" style="margin-top:.2em;"></div>
+                            </div>
+                            <button is="emby-button" type="button" id="mdRecycleWarnFix" class="raised" style="font-size:80%;"><span>Change in Settings</span></button>
+                        </div>
+                    </div>
                     <div id="mdSystem"></div>
                     <div id="mdDrives" class="mdSection"></div>
                     <div id="mdHero" class="mdSection"></div>
@@ -331,9 +341,11 @@
 
                 <div id="mdTab-errors" style="display:none;">
                     <div class="fieldDescription" style="margin-bottom:.6em;">Anything the plugin has caught and swallowed since the server started — silent scanner failures, system-stats sample errors, unexpected fix errors. Cleared automatically on server restart. Use this if something on Overview or Issues doesn't look right.</div>
-                    <div style="display:flex;gap:.5em;align-items:center;margin-bottom:.6em;">
+                    <div style="display:flex;gap:.5em;align-items:center;margin-bottom:.6em;flex-wrap:wrap;">
                         <button is="emby-button" type="button" id="mdErrorsRefresh" class="raised" style="font-size:80%;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">refresh</span><span>Refresh</span></button>
+                        <button is="emby-button" type="button" id="mdErrorsRetry" class="raised button-submit" style="font-size:80%;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">replay</span><span>Retry all fixes</span></button>
                         <button is="emby-button" type="button" id="mdErrorsClear" class="raised" style="font-size:80%;background:#7f1d1d;color:#fff;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">delete_sweep</span><span>Clear</span></button>
+                        <span id="mdErrorsMsg" class="fieldDescription"></span>
                     </div>
                     <div id="mdErrorList"></div>
                 </div>
@@ -963,8 +975,25 @@
                     schedulePoll();
                 }
 
+                // Refresh the Issues tab in the background during a fix run so items visibly disappear as they get
+                // marked Fixed (or stay behind with the failure hint).
+                if (s.IsFixing && view.querySelector('#mdTab-issues').style.display !== 'none') {
+                    loadIssues();
+                }
+
                 // System stats are live — update every poll (values change), regardless of busy state.
                 renderSystemStats(s.System);
+
+                var recycleWarn = view.querySelector('#mdRecycleWarn');
+                if (s.RecycleBinCrossVolume) {
+                    recycleWarn.style.display = '';
+                    view.querySelector('#mdRecycleWarnText').textContent =
+                        'The recycle bin is at "' + (s.RecycleBinPath || '') + '", which is on a different volume than your library. ' +
+                        'Recycling files requires copying them across — needs matching free space and fails when the bin volume fills up. ' +
+                        'Move the recycle bin onto the same volume as your media (e.g. "/mnt/media/.mediadash-recycle") to make recycles instant.';
+                } else {
+                    recycleWarn.style.display = 'none';
+                }
 
                 // Skip re-rendering the static content (hero, per-type cards, savings bars, drives) on silent
                 // polls — it only meaningfully changes when a scan/fix completes (nowBusy transitioning from
@@ -1107,18 +1136,24 @@
                 }
                 list.slice(0, MAX).forEach(function (i) {
                     var t = STR.types[i.Type] || { title: i.Type, color: '#888' };
-                    html += '<div class="mdCard mdIssueCard mdFade" style="margin:.6em 0;border-left-color:' + t.color + ';" data-issue="' + i.Id + '">' +
+                    var isQueued = i.Status === 'Queued';
+                    var statusBadge = isQueued
+                        ? '<span class="mdBadge" style="background:rgba(0,164,220,.35);color:#fff;">queued</span> '
+                        : '';
+                    var actions = isQueued
+                        ? '<span class="fieldDescription" style="color:#00a4dc;"><span class="material-icons" style="font-size:1em;vertical-align:middle;">schedule</span> Waiting for the next fix run. Click "Run fixes now" on Overview.</span>' +
+                          '<button is="emby-button" type="button" class="raised mdDismiss" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(STR.dismiss) + '</span></button>'
+                        : '<button is="emby-button" type="button" class="raised button-submit mdApprove" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(t.action || STR.approve) + '</span></button>' +
+                          '<button is="emby-button" type="button" class="raised mdDismiss" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(STR.dismiss) + '</span></button>' +
+                          '<span class="fieldDescription">' + esc(t.actionHint || STR.approveHint) + ' · ' + esc(STR.dismissHint) + '</span>';
+                    html += '<div class="mdCard mdIssueCard mdFade" style="margin:.6em 0;border-left-color:' + t.color + ';' + (isQueued ? 'opacity:.75;' : '') + '" data-issue="' + i.Id + '">' +
                         '<div style="display:flex;justify-content:space-between;gap:1em;flex-wrap:wrap;align-items:center;">' +
                         '<div style="font-weight:600;">' + esc(i.FileName) + '</div>' +
-                        '<span class="mdBadge" style="background:' + t.color + ';">' + esc(t.title) + '</span></div>' +
+                        '<span>' + statusBadge + '<span class="mdBadge" style="background:' + t.color + ';">' + esc(t.title) + '</span></span></div>' +
                         '<div class="fieldDescription mdIssuePath" data-path="' + esc(i.Path) + '" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" title="Click to open this folder in the Files tab">' + esc(i.Path) + '</div>' +
                         '<div style="margin:.3em 0;">' + esc(i.SuggestedFix) +
                         (i.SizeSavings > 0 ? ' <b style="color:' + t.color + ';">(' + bytes(i.SizeSavings) + ')</b>' : '') + '</div>' +
-                        '<div style="display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">' +
-                        '<button is="emby-button" type="button" class="raised button-submit mdApprove" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(t.action || STR.approve) + '</span></button>' +
-                        '<button is="emby-button" type="button" class="raised mdDismiss" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(STR.dismiss) + '</span></button>' +
-                        '<span class="fieldDescription">' + esc(t.actionHint || STR.approveHint) + ' · ' + esc(STR.dismissHint) + '</span>' +
-                        '</div>' +
+                        '<div style="display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">' + actions + '</div>' +
                         '<div class="fieldDescription mdRowMsg" style="margin-top:.3em;"></div>' +
                         '</div>';
                 });
@@ -1443,7 +1478,8 @@
 
             function loadIssues() {
                 var type = view.querySelector('#mdTypeFilter').value;
-                api('Issues' + (type ? '?type=' + type : '')).then(renderIssues);
+                var url = 'Issues?openOnly=true' + (type ? '&type=' + type : '');
+                api(url).then(renderIssues);
             }
 
             function loadHistory() {
@@ -1951,6 +1987,14 @@
                         post('Fix').then(function () { setTimeout(refresh, 700); });
                     });
 
+                    view.querySelector('#mdRecycleWarnFix').addEventListener('click', function () {
+                        showTab('settings');
+                        setTimeout(function () {
+                            var bin = view.querySelector('#mdBinPath');
+                            if (bin) { bin.scrollIntoView({ block: 'center', behavior: 'smooth' }); bin.focus(); }
+                        }, 200);
+                    });
+
                     view.querySelector('#mdGoDryRun').addEventListener('click', function () {
                         showTab('settings');
                         setTimeout(function () {
@@ -2080,6 +2124,17 @@
                     view.querySelector('#mdErrorsRefresh').addEventListener('click', loadErrors);
                     view.querySelector('#mdErrorsClear').addEventListener('click', function () {
                         post('Errors/Clear').then(loadErrors);
+                    });
+                    view.querySelector('#mdErrorsRetry').addEventListener('click', function () {
+                        var msg = view.querySelector('#mdErrorsMsg');
+                        msg.textContent = 'Retrying queued fixes…';
+                        // Clear existing errors first — anything that fails again will re-populate the tab.
+                        post('Errors/Clear').then(function () {
+                            post('Fix').then(function () {
+                                setTimeout(function () { loadErrors(); refresh(true); }, 700);
+                                msg.textContent = 'Fix run started — see Overview for progress, and this tab will fill up again if the same errors recur.';
+                            });
+                        });
                     });
 
                     view.querySelector('#mdResetScan').addEventListener('click', function () {

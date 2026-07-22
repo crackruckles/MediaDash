@@ -80,4 +80,13 @@ public sealed class StatusResponse
     /// Gets or sets a live resource snapshot for the Jellyfin process (CPU / RAM / GPU).
     /// </summary>
     public SystemStats? System { get; set; }
+
+    /// <summary>Gets or sets the effective recycle bin path (either configured or default).</summary>
+    public string? RecycleBinPath { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the recycle bin lives on a different volume than any library folder.
+    /// When true the plugin has to copy+delete on recycle instead of rename, needing free space on the bin's volume.
+    /// </summary>
+    public bool RecycleBinCrossVolume { get; set; }
 }
