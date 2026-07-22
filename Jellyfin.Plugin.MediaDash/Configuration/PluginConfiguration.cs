@@ -49,6 +49,11 @@ public class PluginConfiguration : BasePluginConfiguration
         PauseDuringPlayback = true;
         FirstRunDone = false;
         EnabledLibraries = [];
+        MisplacedFixMode = FixMode.DetectOnly;
+        MoviesTargetPath = string.Empty;
+        TvTargetPath = string.Empty;
+        MediaSortSource = MediaSortSource.JellyfinMetadata;
+        RenameAfterTranscode = false;
     }
 
     /// <summary>
@@ -231,6 +236,34 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool DryRun { get; set; }
 
     /// <summary>
+    /// Gets or sets how misplaced-media fixes run (a movie in the TV folder, or a TV episode in the Movies folder).
+    /// </summary>
+    public FixMode MisplacedFixMode { get; set; }
+
+    /// <summary>
+    /// Gets or sets the destination folder for movies that need to be moved. Empty disables the sorter.
+    /// Must sit inside a Jellyfin library folder or moves are refused by <see cref="Fixers.LibraryGuard"/>.
+    /// </summary>
+    public string MoviesTargetPath { get; set; }
+
+    /// <summary>
+    /// Gets or sets the destination folder for TV episodes that need to be moved. Empty disables the sorter.
+    /// Must sit inside a Jellyfin library folder or moves are refused by <see cref="Fixers.LibraryGuard"/>.
+    /// </summary>
+    public string TvTargetPath { get; set; }
+
+    /// <summary>
+    /// Gets or sets where the sorter reads a file's movie/TV classification from.
+    /// </summary>
+    public MediaSortSource MediaSortSource { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether successful re-encodes rename the output to a canonical filename
+    /// (Movie: <c>Name (Year) - {height}p.{ext}</c>; TV: <c>SeriesName - S{ss:00}E{ee:00} - {height}p.{ext}</c>).
+    /// </summary>
+    public bool RenameAfterTranscode { get; set; }
+
+    /// <summary>
     /// Gets the fix mode for an issue type.
     /// </summary>
     /// <param name="type">The issue type.</param>
@@ -244,6 +277,7 @@ public class PluginConfiguration : BasePluginConfiguration
             Data.IssueType.SubtitleLanguage => SubtitleFixMode,
             Data.IssueType.AudioLanguage => AudioFixMode,
             Data.IssueType.Playability => PlayabilityFixMode,
+            Data.IssueType.Misplaced => MisplacedFixMode,
             _ => FixMode.DetectOnly
         };
     }

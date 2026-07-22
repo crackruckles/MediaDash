@@ -18,5 +18,8 @@ public enum IssueType
     SubtitleLanguage = 3,
 
     /// <summary>The file contains audio tracks in unwanted languages.</summary>
-    AudioLanguage = 4
+    AudioLanguage = 4,
+
+    /// <summary>The file sits in the wrong library kind (a movie in the TV folder, or a TV episode in the Movies folder).</summary>
+    Misplaced = 5
 }

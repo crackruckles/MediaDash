@@ -31,6 +31,7 @@ public sealed class TranscodeFixer : IFixer
     private readonly LibraryGuard _guard;
     private readonly RecycleBin _recycleBin;
     private readonly ILibraryMonitor _libraryMonitor;
+    private readonly ILibraryManager _libraryManager;
     private readonly IServerConfigurationManager _serverConfig;
     private readonly ILogger<TranscodeFixer> _logger;
 
@@ -43,6 +44,7 @@ public sealed class TranscodeFixer : IFixer
     /// <param name="guard">The library path guard.</param>
     /// <param name="recycleBin">The recycle bin.</param>
     /// <param name="libraryMonitor">Instance of the <see cref="ILibraryMonitor"/> interface.</param>
+    /// <param name="libraryManager">Instance of the <see cref="ILibraryManager"/> interface, used to resolve the item behind an issue for post-encode renaming.</param>
     /// <param name="serverConfig">Instance of the <see cref="IServerConfigurationManager"/> interface, used to read the server's hardware acceleration type.</param>
     /// <param name="logger">The logger.</param>
     public TranscodeFixer(
@@ -52,6 +54,7 @@ public sealed class TranscodeFixer : IFixer
         LibraryGuard guard,
         RecycleBin recycleBin,
         ILibraryMonitor libraryMonitor,
+        ILibraryManager libraryManager,
         IServerConfigurationManager serverConfig,
         ILogger<TranscodeFixer> logger)
     {
@@ -61,6 +64,7 @@ public sealed class TranscodeFixer : IFixer
         _guard = guard;
         _recycleBin = recycleBin;
         _libraryMonitor = libraryMonitor;
+        _libraryManager = libraryManager;
         _serverConfig = serverConfig;
         _logger = logger;
     }
@@ -176,8 +180,21 @@ public sealed class TranscodeFixer : IFixer
             }
 
             File.Move(tempPath, targetPath);
+            var finalPath = targetPath;
+            if (config.RenameAfterTranscode)
+            {
+                // Rename is best-effort: any failure (missing metadata, collision, permission) keeps the
+                // re-encoded file under its original basename, which is a safe fallback.
+                var renamed = TryRenameToCanonical(targetPath, issue.ItemId, video.Height ?? 0, targetContainer);
+                if (renamed is not null)
+                {
+                    finalPath = renamed;
+                    actionText += " (renamed to " + Path.GetFileName(renamed) + ")";
+                }
+            }
+
             _libraryMonitor.ReportFileSystemChanged(issue.Path);
-            _libraryMonitor.ReportFileSystemChanged(targetPath);
+            _libraryMonitor.ReportFileSystemChanged(finalPath);
             _logger.LogInformation("Transcode fix: {Action}", actionText);
             return new FixResult
             {
@@ -349,4 +366,49 @@ public sealed class TranscodeFixer : IFixer
     }
 
     private static string Truncate(string text) => text.Length > 300 ? text[..300] : text;
+
+    private string? TryRenameToCanonical(string currentPath, Guid itemId, int height, string extension)
+    {
+        var item = itemId == Guid.Empty ? null : _libraryManager.GetItemById(itemId);
+        if (item is null)
+        {
+            return null;
+        }
+
+        var canonical = RenameTemplate.Build(item, height, extension);
+        if (canonical is null)
+        {
+            return null;
+        }
+
+        var dir = Path.GetDirectoryName(currentPath);
+        if (string.IsNullOrEmpty(dir))
+        {
+            return null;
+        }
+
+        var targetPath = Path.Combine(dir, canonical);
+        if (string.Equals(Path.GetFullPath(targetPath), Path.GetFullPath(currentPath), StringComparison.OrdinalIgnoreCase))
+        {
+            // Already canonically named — nothing to do.
+            return currentPath;
+        }
+
+        if (File.Exists(targetPath))
+        {
+            _logger.LogInformation("Skip canonical rename: {Target} already exists", targetPath);
+            return null;
+        }
+
+        try
+        {
+            File.Move(currentPath, targetPath);
+            return targetPath;
+        }
+        catch (IOException ex)
+        {
+            _logger.LogWarning(ex, "Canonical rename failed for {Path}", currentPath);
+            return null;
+        }
+    }
 }
