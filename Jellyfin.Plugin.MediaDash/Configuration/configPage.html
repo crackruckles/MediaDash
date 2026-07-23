@@ -8,6 +8,31 @@
     <div id="MediaDashConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-select,emby-input,emby-checkbox">
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+            /* Jellyfin's default pluginConfigurationPage caps content at ~60em and left-aligns it. Widen +
+               centre the whole plugin surface. Override at multiple levels because different Jellyfin
+               versions apply the padding on different ancestors (.page, [data-role=content], .content-primary). */
+            #MediaDashConfigPage {
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+            }
+            #MediaDashConfigPage [data-role="content"] {
+                max-width: none !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+                display: block;
+            }
+            #MediaDashConfigPage .content-primary {
+                max-width: min(1400px, 96vw) !important;
+                width: min(1400px, 96vw) !important;
+                margin-left: auto !important;
+                margin-right: auto !important;
+                padding: 0 24px !important;
+                box-sizing: border-box;
+            }
+
             #MediaDashConfigPage .mdCard {
                 background: rgba(255,255,255,.045);
                 border: 1px solid rgba(255,255,255,.09);
