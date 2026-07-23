@@ -68,6 +68,9 @@ public class MediaDashController : ControllerBase
             .Select(r => System.IO.Path.TrimEndingDirectorySeparator(r!))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+        var recycleDrive = Fixers.RecycleBin.FindDriveForPath(_recycleBin.GetEffectiveRoot());
+        var recycleRoot = recycleDrive is null ? null : System.IO.Path.TrimEndingDirectorySeparator(recycleDrive.RootDirectory.FullName);
+
         foreach (var drive in System.IO.DriveInfo.GetDrives())
         {
             try
@@ -82,6 +85,7 @@ public class MediaDashController : ControllerBase
 
                 var trimmedName = System.IO.Path.TrimEndingDirectorySeparator(drive.Name);
                 var isLibraryDrive = libraryRoots.Contains(trimmedName);
+                var isRecycleDrive = recycleRoot is not null && string.Equals(trimmedName, recycleRoot, StringComparison.OrdinalIgnoreCase);
                 if (isLibraryDrive)
                 {
                     freeDisk += drive.AvailableFreeSpace;
@@ -93,7 +97,33 @@ public class MediaDashController : ControllerBase
                     Root = drive.Name,
                     FreeBytes = drive.AvailableFreeSpace,
                     TotalBytes = drive.TotalSize,
-                    IsLibraryDrive = isLibraryDrive
+                    IsLibraryDrive = isLibraryDrive,
+                    IsRecycleBinDrive = isRecycleDrive
+                });
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
+
+        // Docker overlay / btrfs subvolume / etc. often report as DriveType.Unknown and get filtered out
+        // above. If the recycle bin lives on one of those, its drive wouldn't appear on the Overview and
+        // the user would run out of space with no warning. Force-add it here.
+        if (recycleDrive is not null && !drives.Any(d =>
+            string.Equals(System.IO.Path.TrimEndingDirectorySeparator(d.Root), recycleRoot, StringComparison.OrdinalIgnoreCase)))
+        {
+            try
+            {
+                drives.Add(new DriveUsage
+                {
+                    Root = recycleDrive.Name,
+                    FreeBytes = recycleDrive.AvailableFreeSpace,
+                    TotalBytes = recycleDrive.TotalSize,
+                    IsLibraryDrive = false,
+                    IsRecycleBinDrive = true
                 });
             }
             catch (IOException)
@@ -131,7 +161,8 @@ public class MediaDashController : ControllerBase
             CurrentActivity = Plugin.CurrentActivity,
             System = SystemStats.Sample(),
             RecycleBinPath = _recycleBin.GetEffectiveRoot(),
-            RecycleBinCrossVolume = ComputeRecycleBinCrossVolume(drives)
+            RecycleBinCrossVolume = ComputeRecycleBinCrossVolume(drives),
+            LastFixRun = Plugin.LastFixRun
         };
     }
 
@@ -355,6 +386,67 @@ public class MediaDashController : ControllerBase
     /// Gets the recycle bin contents summary.
     /// </summary>
     /// <returns>File count and total size.</returns>
+    /// <summary>
+    /// Probes each configured library folder for read+write access so first-run setup can flag
+    /// ownership/ACL problems before the user approves anything.
+    /// </summary>
+    /// <returns>One entry per library location.</returns>
+    [HttpGet("LibraryAccessCheck")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<IReadOnlyList<LibraryAccessResult>> CheckLibraryAccess()
+    {
+        var results = new List<LibraryAccessResult>();
+        foreach (var folder in _libraryManager.GetVirtualFolders())
+        {
+            foreach (var location in folder.Locations ?? [])
+            {
+                var entry = new LibraryAccessResult { Name = folder.Name, Path = location };
+                try
+                {
+                    _ = System.IO.Directory.EnumerateFileSystemEntries(location).GetEnumerator().MoveNext();
+                    entry.CanRead = true;
+                }
+                catch (System.IO.DirectoryNotFoundException)
+                {
+                    entry.Error = "Folder does not exist: " + location;
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    entry.Error = "Jellyfin can't read '" + location + "'. Grant the Jellyfin user read access.";
+                }
+                catch (IOException ex)
+                {
+                    entry.Error = "Cannot read '" + location + "': " + ex.Message;
+                }
+
+                if (entry.CanRead)
+                {
+                    var probe = System.IO.Path.Combine(location, ".mediadash-access-probe-" + System.Guid.NewGuid().ToString("N", System.Globalization.CultureInfo.InvariantCulture));
+                    try
+                    {
+                        System.IO.File.WriteAllBytes(probe, []);
+                        System.IO.File.Delete(probe);
+                        entry.CanWrite = true;
+                    }
+                    catch (UnauthorizedAccessException)
+                    {
+                        entry.Error = "Jellyfin can't write to '" + location + "'. On Linux: sudo chown -R jellyfin:jellyfin '" + location + "' (and chmod g+rwx if using a shared group).";
+                    }
+                    catch (IOException ex)
+                    {
+                        entry.Error = "Cannot write to '" + location + "': " + ex.Message;
+                    }
+                }
+
+                results.Add(entry);
+            }
+        }
+
+        return Ok(results);
+    }
+
+    /// <summary>Gets the recycle bin contents summary including any in-flight empty progress.</summary>
+    /// <returns>File count, size, and empty-run progress fields.</returns>
     [HttpGet("RecycleBin")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult<RecycleBinInfo> GetRecycleBin()

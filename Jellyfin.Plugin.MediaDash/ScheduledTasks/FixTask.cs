@@ -95,14 +95,49 @@ public sealed class FixTask : IScheduledTask
             }
         }
 
+        // An issue reaches Queued status either because the auto-queue step above put it there (Automatic mode)
+        // or because the user explicitly approved it in the UI. Manual approval is a stronger signal than the
+        // type's default mode, so DetectOnly does NOT filter it back out — only Off does (the type is disabled
+        // entirely). Previous versions silently dropped DetectOnly-queued items and left users staring at
+        // "Run fixes now" doing nothing.
         // Smallest files first so early re-encodes free disk space for the bigger ones behind them.
         // Missing files sort to the front (size 0) so they fail fast rather than block the queue.
-        var queue = _db.GetIssues(status: IssueStatus.Queued)
-            .Where(i => config.GetFixMode(i.Type) is FixMode.ManualApprove or FixMode.Automatic)
+        var allQueued = _db.GetIssues(status: IssueStatus.Queued).ToList();
+        var offCount = allQueued.Count(i => config.GetFixMode(i.Type) == FixMode.Off);
+        var queue = allQueued
+            .Where(i => config.GetFixMode(i.Type) != FixMode.Off)
             .OrderBy(GetFileSizeOrZero)
             .ToList();
 
         _logger.LogInformation("MediaDash fix run: {Count} queued issues (dry-run: {DryRun})", queue.Count, config.DryRun);
+
+        // Run tallies live here (not thread-local per fixer) so the after-run summary can call out the
+        // dominant failure — e.g. "all 142 fixes failed with permission denied" — via a dashboard alert.
+        var attempted = 0;
+        var succeeded = 0;
+        var failed = 0;
+        var reasonCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        void RecordFailure(string reason)
+        {
+            failed++;
+            var bucket = BucketReason(reason);
+            reasonCounts[bucket] = reasonCounts.TryGetValue(bucket, out var n) ? n + 1 : 1;
+        }
+
+        if (allQueued.Count > 0 && queue.Count == 0)
+        {
+            // All queued issues belong to types the user has set to Off — nothing will run. Say so out
+            // loud on the Errors tab, because otherwise the button appears broken.
+            Api.Diagnostics.Record(
+                "FixTask.NoRunnable",
+                allQueued.Count + " issue(s) are approved but every one belongs to a type set to 'Off' in Settings → What to fix. Switch the type to 'Ask me first' or 'Automatic' to let them run, or dismiss the issues.");
+        }
+        else if (queue.Count > 0 && offCount > 0)
+        {
+            Api.Diagnostics.Record(
+                "FixTask.SomeSkipped",
+                offCount + " approved issue(s) will not run because their type is set to 'Off' in Settings. The other " + queue.Count + " will run.");
+        }
 
         for (var i = 0; i < queue.Count; i++)
         {
@@ -128,6 +163,7 @@ public sealed class FixTask : IScheduledTask
             // Synchronous IProgress: Progress<T> queues callbacks and can reorder reports, leading to a jittery bar.
             var itemProgress = new SynchronousProgress(fraction => progress.Report((itemIndex + Math.Clamp(fraction, 0, 1)) * slot));
 
+            attempted++;
             try
             {
                 var result = await fixer.FixAsync(issue, itemProgress, cancellationToken).ConfigureAwait(false);
@@ -145,10 +181,12 @@ public sealed class FixTask : IScheduledTask
 
                 if (result.Success && !result.WasDryRun)
                 {
+                    succeeded++;
                     _db.UpdateIssueStatus(issue.Id, IssueStatus.Fixed);
                 }
                 else if (!result.Success)
                 {
+                    RecordFailure(result.Message);
                     _logger.LogWarning("Fix failed for {Path}: {Message}", issue.Path, result.Message);
                 }
             }
@@ -158,6 +196,7 @@ public sealed class FixTask : IScheduledTask
             }
             catch (UnauthorizedAccessException ex)
             {
+                RecordFailure("Permission denied");
                 // Very common on Linux servers where library files aren't owned by the jellyfin user.
                 // Not a plugin bug — surface it with an actionable message and record the failed attempt
                 // in History so the user sees it alongside successful fixes.
@@ -177,6 +216,7 @@ public sealed class FixTask : IScheduledTask
             }
             catch (System.IO.IOException ex)
             {
+                RecordFailure("I/O error");
                 _logger.LogWarning(ex, "I/O error fixing {Path}", issue.Path);
                 Api.Diagnostics.Record("FixTask.IOError", issue.Path + ": " + ex.Message);
                 _db.AddHistory(new HistoryEntry
@@ -192,6 +232,7 @@ public sealed class FixTask : IScheduledTask
             }
             catch (Exception ex)
             {
+                RecordFailure("Unexpected error");
                 _logger.LogError(ex, "Unexpected error fixing {Path}", issue.Path);
                 Api.Diagnostics.Record("FixTask", $"{issue.Path}: {ex.Message}");
             }
@@ -201,7 +242,72 @@ public sealed class FixTask : IScheduledTask
 
         _recycleBin.Purge(config.RecycleBinRetentionDays);
         Plugin.CurrentActivity = null;
+
+        // Post the run summary so the dashboard can pop a single alert on completion instead of leaving the
+        // user to click into Errors themselves and count messages.
+        var topReason = reasonCounts
+            .OrderByDescending(kv => kv.Value)
+            .Select(kv => (KeyValuePair<string, int>?)kv)
+            .FirstOrDefault();
+        Plugin.LastFixRun = new Api.FixRunSummary
+        {
+            FinishedAtUtc = DateTime.UtcNow,
+            Attempted = attempted,
+            Succeeded = succeeded,
+            Failed = failed,
+            TopFailureReason = topReason?.Key,
+            TopFailureCount = topReason?.Value ?? 0
+        };
+
         progress.Report(100);
+    }
+
+    // Fold a specific error message into a short reason-family so 142 permission-denied failures collapse to
+    // a single bucket in the summary. Anything unrecognised is capped at 60 chars so long ffmpeg errors
+    // don't turn the alert into a wall of text.
+    private static string BucketReason(string message)
+    {
+        if (string.IsNullOrEmpty(message))
+        {
+            return "Unknown error";
+        }
+
+        if (message.Contains("permission denied", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("lacks write access", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("can't write to", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("cannot write to", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Permission denied";
+        }
+
+        if (message.Contains("not enough free space", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("filled up mid-move", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Not enough free disk space";
+        }
+
+        if (message.Contains("no longer exists", StringComparison.OrdinalIgnoreCase))
+        {
+            return "File or folder went missing between scan and fix";
+        }
+
+        if (message.Contains("outside your library folders", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("isn't inside a Jellyfin library", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Target sits outside your libraries";
+        }
+
+        if (message.Contains("would be larger than the original", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Re-encoded output would be larger than the original";
+        }
+
+        if (message.Contains("verification", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Re-encoded output failed verification";
+        }
+
+        return message.Length > 60 ? message[..60] + "…" : message;
     }
 
     /// <inheritdoc />

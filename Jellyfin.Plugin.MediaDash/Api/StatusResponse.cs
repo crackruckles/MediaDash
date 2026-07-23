@@ -89,4 +89,7 @@ public sealed class StatusResponse
     /// When true the plugin has to copy+delete on recycle instead of rename, needing free space on the bin's volume.
     /// </summary>
     public bool RecycleBinCrossVolume { get; set; }
+
+    /// <summary>Gets or sets the summary of the most-recently-completed fix run (attempted / succeeded / failed / top reason), or null if no run has ever completed.</summary>
+    public FixRunSummary? LastFixRun { get; set; }
 }

@@ -46,6 +46,13 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     /// </summary>
     public static string? CurrentActivity { get; set; }
 
+    /// <summary>
+    /// Gets or sets the summary of the most-recently-completed fix run. The dashboard compares
+    /// <see cref="Api.FixRunSummary.FinishedAtUtc"/> to what it last saw and pops an alert whenever a fresh
+    /// run finished with failures — otherwise a fast all-failed run just flashes the progress bar and vanishes.
+    /// </summary>
+    public static Api.FixRunSummary? LastFixRun { get; set; }
+
     /// <inheritdoc />
     public IEnumerable<PluginPageInfo> GetPages()
     {

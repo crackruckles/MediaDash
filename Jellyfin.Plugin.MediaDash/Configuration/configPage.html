@@ -369,6 +369,11 @@
                         </select>
                         <div class="fieldDescription">Either way, nothing is touched while dry-run stays on, and removed files go to MediaDash's recycle bin for 30 days.</div>
                     </div>
+                    <div style="margin:.4em 0 .8em;">
+                        <button is="emby-button" type="button" id="mdFrCheckAccess" class="raised" title="Reads and writes a tiny probe file inside each library folder to confirm Jellyfin has the permissions it needs. Nothing is left behind." style="font-size:85%;"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;">verified_user</span> <span>Check library access</span></button>
+                        <span class="fieldDescription">Confirms Jellyfin can read AND write every library folder. Fixes fail silently if the underlying files aren't writable by the user Jellyfin runs as — this catches it before you approve anything.</span>
+                    </div>
+                    <div id="mdFrAccessResults" style="display:none;margin:.4em 0 .8em;"></div>
                     <button is="emby-button" type="button" id="mdFrDone" class="raised button-submit"><span>Finish setup</span></button>
                 </div>
 
@@ -1091,6 +1096,29 @@
             }
 
             function renderStatus(s, silent) {
+                // Detect a just-finished fix run — the server sets s.LastFixRun.FinishedAtUtc on completion.
+                // If the timestamp is new since the last poll and any fix failed, pop a dashboard alert.
+                // Fast all-fail runs (e.g. permission denied on every file) finish in under a second, so the
+                // progress bar just flashes; the alert is the only reliable "the button did something" signal.
+                var prevFinishedAt = lastStatus && lastStatus.LastFixRun && lastStatus.LastFixRun.FinishedAtUtc;
+                var curr = s.LastFixRun;
+                if (curr && curr.FinishedAtUtc !== prevFinishedAt && prevFinishedAt !== undefined && (curr.Failed || 0) > 0) {
+                    var reason = curr.TopFailureReason || 'unknown';
+                    var count = curr.TopFailureCount || curr.Failed;
+                    var msg = 'Fix run finished: ' + (curr.Succeeded || 0) + ' succeeded, ' + curr.Failed + ' failed.\n\n'
+                        + 'Most common reason (' + count + '× of ' + curr.Failed + '): ' + reason + '.\n\n'
+                        + 'See the Errors tab for the specific files.';
+                    if (reason === 'Permission denied') {
+                        msg += '\n\nFix on the host: give the user Jellyfin runs as (typically "jellyfin" on Linux) read+write on your library folders. Example: sudo chown -R jellyfin:jellyfin /mnt/media && sudo find /mnt/media -type d -exec chmod g+rwx {} +';
+                    } else if (reason === 'Not enough free disk space') {
+                        msg += '\n\nFree some space on the target drive, then click "Retry all fixes" on the Errors tab.';
+                    }
+                    if (window.Dashboard && Dashboard.alert) {
+                        Dashboard.alert({ title: 'Fix run finished with failures', message: msg });
+                    } else {
+                        alert(msg);
+                    }
+                }
                 lastStatus = s;
                 var state = view.querySelector('#mdScanState');
                 var scanBtn = view.querySelector('#mdScanNow');
@@ -1241,8 +1269,9 @@
                             var pctDisplay = Math.max(3, Math.round(pct));
                             var fillColor = pct >= 90 ? '#ef4444' : pct >= 70 ? '#f59e0b' : '#00a4dc';
                             var libraryBadge = dr.IsLibraryDrive ? ' <span class="mdBadge" style="background:#00a4dc;font-size:.65em;vertical-align:middle;">library</span>' : '';
+                            var recycleBadge = dr.IsRecycleBinDrive ? ' <span class="mdBadge" style="background:#ec4899;font-size:.65em;vertical-align:middle;">recycle bin</span>' : '';
                             return '<div class="mdBarRow" style="cursor:default;">' +
-                                '<div class="mdBarLabel" style="font-family:monospace;text-align:left;">' + esc(dr.Root) + libraryBadge + '</div>' +
+                                '<div class="mdBarLabel" style="font-family:monospace;text-align:left;">' + esc(dr.Root) + libraryBadge + recycleBadge + '</div>' +
                                 '<div class="mdBarTrack" title="' + esc(fmt(STR.driveUsed, bytes(used), bytes(dr.TotalBytes))) + '"><div class="mdBarFill" style="width:' + pctDisplay + '%;background:linear-gradient(90deg,' + fillColor + ',rgba(255,255,255,.15));"></div></div>' +
                                 '<div class="mdBarValue" style="text-align:right;font-variant-numeric:tabular-nums;" title="' + esc(fmt(STR.driveUsed, bytes(used), bytes(dr.TotalBytes))) + '">' + esc(fmt(STR.driveFree, bytes(dr.FreeBytes))) + '</div>' +
                                 '</div>';
@@ -1683,6 +1712,42 @@
                         return '<option value="' + l[0] + '">' + esc(l[1]) + '</option>';
                     }).join('');
                 }
+
+                view.querySelector('#mdFrCheckAccess').addEventListener('click', function () {
+                    var btn = this;
+                    var resultsEl = view.querySelector('#mdFrAccessResults');
+                    btn.disabled = true;
+                    resultsEl.style.display = 'block';
+                    resultsEl.innerHTML = '<div class="fieldDescription">Probing each library folder…</div>';
+                    api('LibraryAccessCheck').then(function (results) {
+                        btn.disabled = false;
+                        if (!results.length) {
+                            resultsEl.innerHTML = '<div class="fieldDescription" style="color:#f59e0b;">No libraries are configured yet. Add a movie or TV library in Dashboard → Libraries first.</div>';
+                            return;
+                        }
+                        var html = '';
+                        results.forEach(function (r) {
+                            var ok = r.CanRead && r.CanWrite;
+                            var icon = ok ? '<span class="material-icons" style="color:#22c55e;font-size:1.1em;vertical-align:-3px;">check_circle</span>'
+                                          : '<span class="material-icons" style="color:#ef4444;font-size:1.1em;vertical-align:-3px;">error</span>';
+                            html += '<div style="padding:.35em .5em;border-left:3px solid ' + (ok ? '#22c55e' : '#ef4444') + ';background:rgba(255,255,255,.03);margin-bottom:.3em;border-radius:4px;">' +
+                                icon + ' <strong>' + esc(r.Name) + '</strong> ' +
+                                '<span style="font-family:monospace;color:rgba(255,255,255,.6);">' + esc(r.Path) + '</span>' +
+                                (ok ? '' : '<div class="fieldDescription" style="margin:.25em 0 0;color:#fca5a5;">' + esc(r.Error || 'Access denied') + '</div>') +
+                                '</div>';
+                        });
+                        var failed = results.filter(function (r) { return !r.CanRead || !r.CanWrite; });
+                        if (failed.length > 0) {
+                            html = '<div style="color:#ef4444;font-weight:600;margin-bottom:.4em;">' + failed.length + ' of ' + results.length + ' libraries are not fully accessible — fixes for files in those libraries will fail.</div>' + html;
+                        } else {
+                            html = '<div style="color:#22c55e;font-weight:600;margin-bottom:.4em;">All ' + results.length + ' libraries are readable and writable. You\'re good to go.</div>' + html;
+                        }
+                        resultsEl.innerHTML = html;
+                    }, function () {
+                        btn.disabled = false;
+                        resultsEl.innerHTML = '<div class="fieldDescription" style="color:#ef4444;">Access check failed to run. Check the Errors tab.</div>';
+                    });
+                });
 
                 view.querySelector('#mdFrDone').addEventListener('click', function () {
                     ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
