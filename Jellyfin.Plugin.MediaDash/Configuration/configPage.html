@@ -7,6 +7,7 @@
 <body>
     <div id="MediaDashConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-select,emby-input,emby-checkbox">
         <style>
+            @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
             #MediaDashConfigPage .mdCard {
                 background: rgba(255,255,255,.045);
                 border: 1px solid rgba(255,255,255,.09);
@@ -227,94 +228,220 @@
             #MediaDashConfigPage .mdApproveAllBtn .material-icons { color: #00a4dc; }
             @keyframes mdFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
-            /* Settings tab — sub-nav + cards */
+            /* ─── Settings tab — 2026 refresh ─────────────────────────────
+               Design tokens ported from Claude Design mock (see git log).
+               Everything scoped to #mdTab-settings so the rest of the plugin
+               is untouched. Font is Plus Jakarta Sans with a system fallback.
+            */
+            #MediaDashConfigPage #mdTab-settings {
+                font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                --md-set-bg: transparent;
+                --md-set-card: rgba(255,255,255,.03);
+                --md-set-card-hover: rgba(255,255,255,.045);
+                --md-set-border: rgba(255,255,255,.07);
+                --md-set-border-strong: rgba(255,255,255,.12);
+                --md-set-text: #e6edf3;
+                --md-set-mute: rgba(230,237,243,.5);
+                --md-set-mute-strong: rgba(230,237,243,.65);
+                --md-set-primary: #22d3ee;
+                --md-set-primary-dark: #0891b2;
+                color: var(--md-set-text);
+            }
+            #MediaDashConfigPage .mdSetPageHead {
+                position: sticky; top: 0; z-index: 8;
+                padding: 1.35em 0 .85em;
+                margin: -.4em -.5em 0;
+                background: linear-gradient(180deg, rgba(15,17,22,.98) 55%, rgba(15,17,22,.6) 100%);
+                backdrop-filter: blur(10px);
+                border-bottom: 1px solid var(--md-set-border);
+            }
+            #MediaDashConfigPage .mdSetPageHeadInner {
+                display: flex; align-items: center; justify-content: space-between; gap: 1.2em; flex-wrap: wrap;
+                padding: 0 .5em;
+            }
+            #MediaDashConfigPage .mdSetPageTitle {
+                font-size: 26px; font-weight: 800; letter-spacing: -.02em;
+                color: var(--md-set-text); margin: 0; line-height: 1.15;
+            }
+            #MediaDashConfigPage .mdSetPageSub {
+                font-size: 13px; color: var(--md-set-mute); margin: .25em 0 0;
+            }
+            #MediaDashConfigPage .mdSetSaveTop {
+                display: inline-flex; align-items: center; gap: .5em;
+                padding: 11px 22px; border-radius: 12px; border: 0;
+                background: linear-gradient(135deg, var(--md-set-primary), var(--md-set-primary-dark));
+                color: #04121a; font-size: 14px; font-weight: 700;
+                cursor: pointer; box-shadow: 0 6px 18px rgba(34,211,238,.3);
+                font-family: inherit;
+                transition: transform .12s ease, box-shadow .12s ease;
+            }
+            #MediaDashConfigPage .mdSetSaveTop:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 10px 22px rgba(34,211,238,.35);
+            }
+            #MediaDashConfigPage .mdSetSaveTop:active { transform: none; }
+            #MediaDashConfigPage .mdSetSaveTop .material-icons { font-size: 20px; }
+
             #MediaDashConfigPage .mdSetNav {
-                position: sticky; top: 0; z-index: 6;
-                display: flex; gap: .35em; flex-wrap: wrap;
-                padding: .75em 0 .7em;
-                margin: 0 -.2em .8em;
-                background: rgba(20,20,20,.88);
-                backdrop-filter: blur(8px);
-                border-bottom: 1px solid rgba(255,255,255,.07);
+                position: sticky; top: 4.7em; z-index: 7;
+                display: flex; gap: .5em; flex-wrap: wrap;
+                padding: .85em .5em .85em;
+                margin: 0 -.5em 1.2em;
+                background: linear-gradient(180deg, rgba(15,17,22,.98) 55%, rgba(15,17,22,.65));
+                backdrop-filter: blur(10px);
+                border-bottom: 1px solid var(--md-set-border);
             }
             #MediaDashConfigPage .mdSetChip {
-                display: inline-flex; align-items: center; gap: .4em;
-                padding: .4em .95em; border-radius: 999px;
-                background: rgba(255,255,255,.04);
-                border: 1px solid rgba(255,255,255,.09);
-                color: inherit; text-decoration: none;
-                font-size: .88em; font-weight: 500;
+                display: inline-flex; align-items: center; gap: .45em;
+                padding: 8px 15px; border-radius: 999px;
+                background: rgba(255,255,255,.05);
+                border: 1px solid rgba(255,255,255,.08);
+                color: var(--md-set-mute-strong); text-decoration: none;
+                font-size: 12.5px; font-weight: 600;
                 cursor: pointer;
-                transition: background .12s ease, border-color .12s ease, transform .12s ease;
+                font-family: inherit;
+                transition: background .12s ease, border-color .12s ease, color .12s ease, transform .12s ease;
             }
             #MediaDashConfigPage .mdSetChip:hover {
-                background: rgba(255,255,255,.08);
+                background: rgba(255,255,255,.09);
                 border-color: rgba(255,255,255,.22);
+                color: var(--md-set-text);
                 transform: translateY(-1px);
             }
-            #MediaDashConfigPage .mdSetChip .material-icons { font-size: 1.05em; }
+            #MediaDashConfigPage .mdSetChip .material-icons { font-size: 15px; color: var(--md-accent, currentColor); opacity: .95; }
             #MediaDashConfigPage .mdSetChip.mdSetChipActive {
-                background: var(--md-chip-bg, rgba(0,164,220,.18));
-                border-color: var(--md-chip-border, rgba(0,164,220,.55));
-                color: #fff;
+                background: var(--md-accent, var(--md-set-primary));
+                border-color: transparent;
+                color: #04121a; font-weight: 700;
             }
+            #MediaDashConfigPage .mdSetChip.mdSetChipActive .material-icons { color: #04121a; }
+
             #MediaDashConfigPage .mdHistFilter { opacity: .75; }
             #MediaDashConfigPage .mdHistFilter.mdHistFilterActive { opacity: 1; background: rgba(0,164,220,.28); border-color: rgba(0,164,220,.55); }
             #MediaDashConfigPage .mdHistCount:not(:empty)::before { content: "("; }
             #MediaDashConfigPage .mdHistCount:not(:empty)::after { content: ")"; }
 
-            #MediaDashConfigPage .mdSetCard {
-                background: rgba(255,255,255,.028);
-                border: 1px solid rgba(255,255,255,.07);
-                border-left: 3px solid var(--md-accent, #00a4dc);
-                border-radius: 12px;
-                padding: 1.1em 1.4em 1.25em;
-                margin: 0 0 1.1em;
-                scroll-margin-top: 5.5em;
+            #MediaDashConfigPage .mdSetGrid {
+                display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.1em;
+                margin-bottom: 1.2em;
             }
+            @media (max-width: 1000px) { #MediaDashConfigPage .mdSetGrid { grid-template-columns: 1fr; } }
+            #MediaDashConfigPage .mdSetCard--full { grid-column: 1 / -1; }
+
+            #MediaDashConfigPage .mdSetCard {
+                background: var(--md-set-card);
+                border: 1px solid var(--md-set-border);
+                border-radius: 16px;
+                padding: 22px 24px 22px;
+                margin: 0;
+                scroll-margin-top: 8.5em;
+                transition: background .18s ease, border-color .18s ease;
+            }
+            #MediaDashConfigPage .mdSetCard:hover { border-color: var(--md-set-border-strong); }
+
             #MediaDashConfigPage .mdSetHead {
-                display: flex; align-items: center; gap: .55em;
-                margin: 0 0 .25em;
-                font-size: 1.08em; font-weight: 600;
-                color: #fff;
+                display: flex; align-items: flex-start; gap: 14px;
+                margin: 0 0 14px;
                 border: none; background: none; padding: 0;
             }
-            #MediaDashConfigPage .mdSetHead .material-icons {
-                font-size: 1.2em; color: var(--md-accent, #00a4dc);
+            #MediaDashConfigPage .mdSetIcon {
+                width: 38px; height: 38px; flex: 0 0 38px;
+                border-radius: 11px;
+                display: inline-flex; align-items: center; justify-content: center;
+                background: var(--md-accent-tint, rgba(34,211,238,.14));
+                color: var(--md-accent, #22d3ee);
             }
+            #MediaDashConfigPage .mdSetIcon .material-icons {
+                font-size: 22px; color: inherit;
+            }
+            #MediaDashConfigPage .mdSetHeadText { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+            #MediaDashConfigPage .mdSetTitle {
+                font-size: 16px; font-weight: 800; letter-spacing: -.01em;
+                color: var(--md-set-text); line-height: 1.25;
+            }
+            #MediaDashConfigPage .mdSetSubtitle {
+                font-size: 12.5px; font-weight: 500; color: var(--md-set-mute);
+                line-height: 1.35;
+            }
+            /* Legacy .mdSetDesc still gets used in a couple of spots — keep it lightly styled. */
             #MediaDashConfigPage .mdSetDesc {
-                color: rgba(255,255,255,.55);
-                font-size: .88em; margin: 0 0 1em;
+                color: var(--md-set-mute); font-size: 12.5px; margin: 0 0 12px;
             }
+
             #MediaDashConfigPage .mdSetSub {
-                border-left: 3px solid var(--md-sub-accent, #94a3b8);
-                padding: .1em 0 .1em 1em;
-                margin-top: 1em;
+                border: 1px solid rgba(255,255,255,.06);
+                background: rgba(255,255,255,.025);
+                border-radius: 13px;
+                padding: 14px 16px 16px;
+                margin-top: 14px;
             }
             #MediaDashConfigPage .mdSetSubHead {
-                display: flex; align-items: center; gap: .4em;
-                font-weight: 600; font-size: .95em;
-                color: var(--md-sub-accent, #fff);
-                margin-bottom: .1em;
+                display: flex; align-items: center; gap: .5em;
+                font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+                color: var(--md-sub-accent, rgba(230,237,243,.5));
+                margin-bottom: 8px;
             }
-            #MediaDashConfigPage .mdSetSubHead .material-icons { font-size: 1.05em; }
+            #MediaDashConfigPage .mdSetSubHead .material-icons { font-size: 16px; color: var(--md-sub-accent, currentColor); }
+
             #MediaDashConfigPage .mdSetCard > *:last-child { margin-bottom: 0; }
             #MediaDashConfigPage .mdSetCard .checkboxContainer,
             #MediaDashConfigPage .mdSetCard .selectContainer,
-            #MediaDashConfigPage .mdSetCard .inputContainer { margin-top: .8em; }
+            #MediaDashConfigPage .mdSetCard .inputContainer { margin-top: 12px; }
             #MediaDashConfigPage .mdSetCard .checkboxContainer:first-of-type,
             #MediaDashConfigPage .mdSetCard .selectContainer:first-of-type,
-            #MediaDashConfigPage .mdSetCard .inputContainer:first-of-type { margin-top: .5em; }
+            #MediaDashConfigPage .mdSetCard .inputContainer:first-of-type { margin-top: 4px; }
+            #MediaDashConfigPage .mdSetCard .fieldDescription {
+                color: var(--md-set-mute); font-size: 11.5px; line-height: 1.5;
+            }
+            #MediaDashConfigPage .mdSetCard label:not(.emby-checkbox-label) {
+                font-size: 12.5px; font-weight: 600; color: var(--md-set-mute-strong);
+            }
+            /* Restyled inputs & selects — keep the emby types intact but polish edges. */
+            #MediaDashConfigPage #mdTab-settings input[type="text"],
+            #MediaDashConfigPage #mdTab-settings input[type="number"],
+            #MediaDashConfigPage #mdTab-settings select {
+                background: rgba(255,255,255,.04) !important;
+                border: 1px solid rgba(255,255,255,.12) !important;
+                border-radius: 11px !important;
+                color: var(--md-set-text) !important;
+                padding: 11px 14px !important;
+                font: 500 13.5px 'Plus Jakarta Sans', system-ui, sans-serif !important;
+                transition: border-color .12s ease, background .12s ease;
+            }
+            #MediaDashConfigPage #mdTab-settings input[type="text"]:focus,
+            #MediaDashConfigPage #mdTab-settings input[type="number"]:focus,
+            #MediaDashConfigPage #mdTab-settings select:focus {
+                border-color: var(--md-set-primary) !important;
+                background: rgba(34,211,238,.06) !important;
+                outline: none;
+            }
+
+            #MediaDashConfigPage #mdTab-settings input[type=range] { height: 6px; }
 
             #MediaDashConfigPage .mdSetSave {
                 display: flex; align-items: center; gap: 1em; flex-wrap: wrap;
-                margin: 1.4em 0 .4em;
-                padding: .9em 0 0;
-                border-top: 1px solid rgba(255,255,255,.07);
+                margin: 1em 0 .4em;
+                padding: 1em 0 0;
+                border-top: 1px solid var(--md-set-border);
             }
             #MediaDashConfigPage .mdSetSave .button-submit {
                 min-width: 9em; margin: 0;
+                background: linear-gradient(135deg, var(--md-set-primary), var(--md-set-primary-dark)) !important;
+                color: #04121a !important;
+                border-radius: 12px !important;
+                font-weight: 700 !important;
+                box-shadow: 0 6px 18px rgba(34,211,238,.3);
             }
+
+            /* Section color palette — set on the section via --md-accent + --md-accent-tint. */
+            #MediaDashConfigPage .mdSetCard--safety     { --md-accent: #22d3ee; --md-accent-tint: rgba(34,211,238,.14); }
+            #MediaDashConfigPage .mdSetCard--languages  { --md-accent: #14b8a6; --md-accent-tint: rgba(20,184,166,.14); }
+            #MediaDashConfigPage .mdSetCard--fix        { --md-accent: #3b82f6; --md-accent-tint: rgba(59,130,246,.14); }
+            #MediaDashConfigPage .mdSetCard--quality    { --md-accent: #3b82f6; --md-accent-tint: rgba(59,130,246,.14); }
+            #MediaDashConfigPage .mdSetCard--libraries  { --md-accent: #06b6d4; --md-accent-tint: rgba(6,182,212,.14); }
+            #MediaDashConfigPage .mdSetCard--advanced   { --md-accent: #cbd5e1; --md-accent-tint: rgba(148,163,184,.16); }
+            #MediaDashConfigPage .mdSetCard--bin        { --md-accent: #ec4899; --md-accent-tint: rgba(236,72,153,.14); }
+            #MediaDashConfigPage .mdSetCard--maintenance{ --md-accent: #94a3b8; --md-accent-tint: rgba(148,163,184,.16); }
         </style>
         <div data-role="content">
             <div class="content-primary">
@@ -490,239 +617,297 @@
 
                 <div id="mdTab-settings" style="display:none;">
                     <form id="mdSettingsForm">
+                        <div class="mdSetPageHead">
+                            <div class="mdSetPageHeadInner">
+                                <div>
+                                    <h2 class="mdSetPageTitle">Settings</h2>
+                                    <p class="mdSetPageSub">Manage what MediaDash scans, how it fixes, and where files go.</p>
+                                </div>
+                                <button is="emby-button" type="submit" class="mdSetSaveTop" title="Save all settings"><span class="material-icons">save</span><span>Save changes</span></button>
+                            </div>
+                        </div>
+
                         <nav class="mdSetNav" aria-label="Settings sections">
-                            <a class="mdSetChip mdSetChipActive" href="#mdSet-safety" title="Guardrails: dry-run and only-when-idle" style="--md-chip-bg:rgba(0,164,220,.18);--md-chip-border:rgba(0,164,220,.55);"><span class="material-icons" style="color:#00a4dc;">shield</span>Safety</a>
-                            <a class="mdSetChip" href="#mdSet-fix" title="Which issue types run automatically vs on approval, and what happens to removed files" style="--md-chip-bg:rgba(0,164,220,.18);--md-chip-border:rgba(0,164,220,.55);"><span class="material-icons" style="color:#00a4dc;">build</span>What to fix</a>
-                            <a class="mdSetChip" href="#mdSet-quality" title="Resolution ceiling, target codec/container, bitrate and hardware encoder settings" style="--md-chip-bg:rgba(59,130,246,.18);--md-chip-border:rgba(59,130,246,.55);"><span class="material-icons" style="color:#3b82f6;">compress</span>Quality</a>
-                            <a class="mdSetChip" href="#mdSet-languages" title="Audio and subtitle languages to keep" style="--md-chip-bg:rgba(20,184,166,.2);--md-chip-border:rgba(20,184,166,.55);"><span class="material-icons" style="color:#14b8a6;">translate</span>Languages</a>
-                            <a class="mdSetChip" href="#mdSet-libraries" title="Which Jellyfin libraries MediaDash is allowed to scan" style="--md-chip-bg:rgba(6,182,212,.2);--md-chip-border:rgba(6,182,212,.55);"><span class="material-icons" style="color:#06b6d4;">video_library</span>Libraries</a>
-                            <a class="mdSetChip" href="#mdSet-bin" title="Where removed files are held before permanent deletion, and how long they're kept" style="--md-chip-bg:rgba(236,72,153,.18);--md-chip-border:rgba(236,72,153,.55);"><span class="material-icons" style="color:#ec4899;">delete</span>Recycle bin</a>
-                            <a class="mdSetChip" href="#mdSet-advanced" title="Encode preset, size floor, HDR handling, and maintenance actions" style="--md-chip-bg:rgba(148,163,184,.22);--md-chip-border:rgba(148,163,184,.5);"><span class="material-icons" style="color:#94a3b8;">tune</span>Advanced</a>
+                            <a class="mdSetChip mdSetChipActive" href="#mdSet-safety" title="Guardrails: dry-run and only-when-idle" style="--md-accent:#22d3ee;"><span class="material-icons">shield</span>Safety</a>
+                            <a class="mdSetChip" href="#mdSet-languages" title="Audio and subtitle languages to keep" style="--md-accent:#14b8a6;"><span class="material-icons">translate</span>Languages</a>
+                            <a class="mdSetChip" href="#mdSet-fix" title="Which issue types run automatically vs on approval, and what happens to removed files" style="--md-accent:#3b82f6;"><span class="material-icons">build</span>What to fix</a>
+                            <a class="mdSetChip" href="#mdSet-quality" title="Resolution ceiling, target codec/container, bitrate and hardware encoder settings" style="--md-accent:#3b82f6;"><span class="material-icons">compress</span>Quality</a>
+                            <a class="mdSetChip" href="#mdSet-libraries" title="Which Jellyfin libraries MediaDash is allowed to scan" style="--md-accent:#06b6d4;"><span class="material-icons">video_library</span>Libraries</a>
+                            <a class="mdSetChip" href="#mdSet-advanced" title="Encode preset, size floor, HDR handling" style="--md-accent:#cbd5e1;"><span class="material-icons">tune</span>Advanced</a>
+                            <a class="mdSetChip" href="#mdSet-bin" title="Where removed files are held before permanent deletion, and how long they're kept" style="--md-accent:#ec4899;"><span class="material-icons">delete</span>Recycle bin</a>
+                            <a class="mdSetChip" href="#mdSet-maintenance" title="Reset and re-run maintenance actions" style="--md-accent:#94a3b8;"><span class="material-icons">handyman</span>Maintenance</a>
                         </nav>
 
-                        <section id="mdSet-safety" class="mdSetCard" style="--md-accent:#00a4dc;">
-                            <h2 class="mdSetHead"><span class="material-icons">shield</span>Safety</h2>
-                            <div class="mdSetDesc">Guardrails that keep every scan and fix reversible.</div>
-                            <div class="checkboxContainer checkboxContainer-withDescription">
-                                <label class="emby-checkbox-label">
-                                    <input id="mdDryRun" type="checkbox" is="emby-checkbox" />
-                                    <span>Dry-run mode</span>
-                                </label>
-                                <div class="fieldDescription">On (default): fix runs only log what they would do — nothing is changed. Turn off once you're happy with the plan shown in History.</div>
-                            </div>
-                            <div class="checkboxContainer checkboxContainer-withDescription">
-                                <label class="emby-checkbox-label">
-                                    <input id="mdPausePlayback" type="checkbox" is="emby-checkbox" />
-                                    <span>Only run when the server is idle</span>
-                                </label>
-                                <div class="fieldDescription">On (default): scheduled scans and fixes wait until nobody is watching anything and nobody has used Jellyfin for 15 minutes. The "Scan now" and "Run fixes now" buttons always run immediately.</div>
-                            </div>
-                        </section>
-
-                        <section id="mdSet-fix" class="mdSetCard" style="--md-accent:#00a4dc;">
-                            <h2 class="mdSetHead"><span class="material-icons">build</span>What to fix</h2>
-                            <div class="mdSetDesc">For each kind of issue: how it runs, and what happens to removed or replaced files. "Ask me first" queues fixes for your approval on the Issues tab.</div>
-                            <div id="mdFixTypeRows"></div>
-                            <div class="selectContainer" style="max-width:26em;">
-                                <label class="selectLabel" for="mdKeeperPolicy">When duplicates are found, keep</label>
-                                <select is="emby-select" id="mdKeeperPolicy" class="emby-select-withcolor emby-select">
-                                    <option value="quality">The best-quality copy (recommended)</option>
-                                    <option value="codec">The most modern format (codec first)</option>
-                                    <option value="size">The smallest file</option>
-                                </select>
-                                <div class="fieldDescription">Decides which copy survives. Best quality compares resolution, then codec, then bitrate; ties go to the smaller file.</div>
-                            </div>
-                        </section>
-
-                        <section id="mdSet-quality" class="mdSetCard" style="--md-accent:#3b82f6;">
-                            <h2 class="mdSetHead"><span class="material-icons">compress</span>Quality ceiling</h2>
-                            <div class="mdSetDesc">Where files get flagged as oversized, and how MediaDash re-encodes them.</div>
-                            <div class="selectContainer" style="max-width:26em;">
-                                <label class="selectLabel" for="mdMaxRes">Maximum resolution</label>
-                                <select is="emby-select" id="mdMaxRes" class="emby-select-withcolor emby-select">
-                                    <option value="2160">4K (2160p)</option>
-                                    <option value="1440">1440p</option>
-                                    <option value="1080">1080p</option>
-                                    <option value="720">720p</option>
-                                </select>
-                                <div class="fieldDescription">Files taller than this are flagged as wasting space. Default: 1080p.</div>
-                            </div>
-                            <div class="inputContainer" style="max-width:30em;">
-                                <label class="inputLabel" for="mdMaxBitrate"><span id="mdMaxBitrateLabel">Maximum video bitrate at 1080p</span><span class="mdSliderVal" id="mdMaxBitrateVal"></span></label>
-                                <input id="mdMaxBitrate" type="range" min="1" max="40" step="0.5" />
-                                <div class="fieldDescription">Follows the resolution you picked above and is scaled automatically for every other resolution. Default: 8 Mbps at 1080p.</div>
-                            </div>
-                            <div class="selectContainer" style="max-width:26em;">
-                                <label class="selectLabel" for="mdCodec">Re-encode to</label>
-                                <select is="emby-select" id="mdCodec" class="emby-select-withcolor emby-select">
-                                    <option value="hevc">H.265 / HEVC (recommended)</option>
-                                    <option value="h264">H.264 (best compatibility)</option>
-                                    <option value="av1">AV1 (smallest files, slow)</option>
-                                </select>
-                                <div class="fieldDescription">The video format oversized files are converted to. Default: H.265.</div>
-                            </div>
-                            <div class="selectContainer" style="max-width:26em;">
-                                <label class="selectLabel" for="mdContainer">Save re-encoded files as</label>
-                                <select is="emby-select" id="mdContainer" class="emby-select-withcolor emby-select">
-                                    <option value="mkv">MKV (recommended — keeps subtitles)</option>
-                                    <option value="mp4">MP4 (subtitle tracks are not carried over)</option>
-                                </select>
-                                <div class="fieldDescription">The file type re-encoded videos are written to. Default: MKV.</div>
-                            </div>
-                            <div class="inputContainer" style="max-width:26em;">
-                                <label class="inputLabel inputLabelUnfocused" for="mdFileTypes">Only re-encode these file types</label>
-                                <input id="mdFileTypes" type="text" is="emby-input" placeholder="all file types" />
-                                <div class="fieldDescription">Comma-separated list like "avi, wmv, mkv". Leave empty (default) to consider every video file.</div>
-                            </div>
-                            <div class="checkboxContainer checkboxContainer-withDescription">
-                                <label class="emby-checkbox-label">
-                                    <input id="mdHwEncode" type="checkbox" is="emby-checkbox" />
-                                    <span>Use hardware encoder for re-encodes</span>
-                                </label>
-                                <div class="fieldDescription">Uses the graphics card encoder configured in Jellyfin's Playback settings. Much faster, files come out slightly larger. If the hardware encoder fails on a file, MediaDash automatically retries with software. Default: off.</div>
-                            </div>
-                            <div class="selectContainer" style="max-width:26em;">
-                                <label class="selectLabel" for="mdGpuIndex">Preferred GPU for re-encodes</label>
-                                <select is="emby-select" id="mdGpuIndex" class="emby-select-withcolor emby-select"></select>
-                                <div class="fieldDescription">If your server has multiple GPUs (typical: iGPU + dGPU), pick the one you want re-encodes to use. Auto lets ffmpeg follow Jellyfin's Playback → Hardware acceleration setting. Only NVENC / AMF encoders honour the plugin override; QSV and VideoToolbox fall back to Jellyfin's device.</div>
-                            </div>
-                            <div class="inputContainer" style="max-width:30em;">
-                                <label class="inputLabel" for="mdTolerance">Tolerance<span class="mdSliderVal" id="mdToleranceVal"></span></label>
-                                <input id="mdTolerance" type="range" min="0" max="50" step="5" />
-                                <div class="fieldDescription">Files only slightly over the limits are left alone. Default: 15%.</div>
-                            </div>
-                        </section>
-
-                        <section id="mdSet-languages" class="mdSetCard" style="--md-accent:#14b8a6;">
-                            <h2 class="mdSetHead"><span class="material-icons">translate</span>Languages</h2>
-                            <div class="mdSetDesc">Which audio and subtitle tracks are worth keeping. Leave a field empty to skip that cleanup.</div>
-                            <div class="mdSetSub" style="--md-sub-accent:#10b981;">
-                                <div class="mdSetSubHead"><span class="material-icons">audiotrack</span>Audio — matches "Unwanted audio" in What to fix</div>
-                                <div class="inputContainer" style="max-width:26em;">
-                                    <label class="inputLabel inputLabelUnfocused" for="mdAudioLangs">Audio languages to keep</label>
-                                    <input id="mdAudioLangs" type="text" is="emby-input" placeholder="not set — audio cleanup off" />
-                                    <div class="fieldDescription">Comma-separated ISO codes like "eng, jpn". Empty turns audio-language cleanup off. A file's only audio track is never removed.</div>
+                        <div class="mdSetGrid">
+                            <section id="mdSet-safety" class="mdSetCard mdSetCard--safety">
+                                <h2 class="mdSetHead">
+                                    <span class="mdSetIcon"><span class="material-icons">shield</span></span>
+                                    <span class="mdSetHeadText">
+                                        <span class="mdSetTitle">Safety</span>
+                                        <span class="mdSetSubtitle">Guardrails that keep every scan and fix reversible.</span>
+                                    </span>
+                                </h2>
+                                <div class="checkboxContainer checkboxContainer-withDescription">
+                                    <label class="emby-checkbox-label">
+                                        <input id="mdDryRun" type="checkbox" is="emby-checkbox" />
+                                        <span>Dry-run mode</span>
+                                    </label>
+                                    <div class="fieldDescription">On (default): fix runs only log what they would do — nothing is changed. Turn off once you're happy with the plan shown in History.</div>
                                 </div>
-                            </div>
-                            <div class="mdSetSub" style="--md-sub-accent:#8b5cf6;">
-                                <div class="mdSetSubHead"><span class="material-icons">subtitles</span>Subtitles — matches "Unwanted subtitles" in What to fix</div>
-                                <div class="inputContainer" style="max-width:26em;">
-                                    <label class="inputLabel inputLabelUnfocused" for="mdSubLangs">Subtitle languages to keep</label>
-                                    <input id="mdSubLangs" type="text" is="emby-input" placeholder="not set — subtitle cleanup off" />
-                                    <div class="fieldDescription">Comma-separated ISO codes like "eng". Empty turns subtitle-language cleanup off.</div>
+                                <div class="checkboxContainer checkboxContainer-withDescription">
+                                    <label class="emby-checkbox-label">
+                                        <input id="mdPausePlayback" type="checkbox" is="emby-checkbox" />
+                                        <span>Only run when the server is idle</span>
+                                    </label>
+                                    <div class="fieldDescription">On (default): scheduled scans and fixes wait until nobody is watching anything and nobody has used Jellyfin for 15 minutes. The "Scan now" and "Run fixes now" buttons always run immediately.</div>
                                 </div>
-                            </div>
-                        </section>
+                            </section>
 
-                        <section id="mdSet-libraries" class="mdSetCard" style="--md-accent:#06b6d4;">
-                            <h2 class="mdSetHead"><span class="material-icons">video_library</span>Libraries</h2>
-                            <div class="mdSetDesc">MediaDash scans these libraries. Nothing selected (default) means all movie and TV libraries.</div>
-                            <div id="mdLibraries"></div>
+                            <section id="mdSet-languages" class="mdSetCard mdSetCard--languages">
+                                <h2 class="mdSetHead">
+                                    <span class="mdSetIcon"><span class="material-icons">translate</span></span>
+                                    <span class="mdSetHeadText">
+                                        <span class="mdSetTitle">Languages</span>
+                                        <span class="mdSetSubtitle">Audio and subtitle tracks worth keeping. Leave a field empty to skip that cleanup.</span>
+                                    </span>
+                                </h2>
+                                <div class="mdSetSub" style="--md-sub-accent:#6ee7b7;">
+                                    <div class="mdSetSubHead"><span class="material-icons">audiotrack</span>Audio — matches "Unwanted audio"</div>
+                                    <div class="inputContainer" style="max-width:26em;">
+                                        <label class="inputLabel inputLabelUnfocused" for="mdAudioLangs">Audio languages to keep</label>
+                                        <input id="mdAudioLangs" type="text" is="emby-input" placeholder="not set — audio cleanup off" />
+                                        <div class="fieldDescription">Comma-separated ISO codes like "eng, jpn". Empty turns audio-language cleanup off. A file's only audio track is never removed.</div>
+                                    </div>
+                                </div>
+                                <div class="mdSetSub" style="--md-sub-accent:#c4b5fd;">
+                                    <div class="mdSetSubHead"><span class="material-icons">subtitles</span>Subtitles — matches "Unwanted subtitles"</div>
+                                    <div class="inputContainer" style="max-width:26em;">
+                                        <label class="inputLabel inputLabelUnfocused" for="mdSubLangs">Subtitle languages to keep</label>
+                                        <input id="mdSubLangs" type="text" is="emby-input" placeholder="not set — subtitle cleanup off" />
+                                        <div class="fieldDescription">Comma-separated ISO codes like "eng". Empty turns subtitle-language cleanup off.</div>
+                                    </div>
+                                </div>
+                            </section>
 
-                            <div class="mdSetSub" style="--md-sub-accent:#f97316;">
-                                <div class="mdSetSubHead"><span class="material-icons">drive_file_move</span>Media sorter — matches "Misplaced files" in What to fix</div>
-                                <div class="fieldDescription" style="margin:.3em 0 .5em;">Set both target folders below to turn the sorter on. Empty either one to turn it off.</div>
-                                <div class="inputContainer" style="max-width:32em;">
-                                    <label class="inputLabel inputLabelUnfocused" for="mdMoviesTarget">Movies folder</label>
-                                    <input id="mdMoviesTarget" type="text" is="emby-input" placeholder="pre-filled from your Movies library, if any" title="Absolute path to the folder movies should live under. Must sit inside a Jellyfin library or moves are refused." />
-                                    <div class="fieldDescription">Absolute path. Must be inside a Jellyfin library folder — MediaDash never moves files outside your libraries.</div>
-                                </div>
-                                <div class="inputContainer" style="max-width:32em;">
-                                    <label class="inputLabel inputLabelUnfocused" for="mdTvTarget">TV folder</label>
-                                    <input id="mdTvTarget" type="text" is="emby-input" placeholder="pre-filled from your TV library, if any" title="Absolute path to the folder TV episodes should live under. Must sit inside a Jellyfin library or moves are refused." />
-                                    <div class="fieldDescription">Absolute path. Must be inside a Jellyfin library folder.</div>
-                                </div>
-                                <div class="selectContainer" style="max-width:32em;">
-                                    <label class="selectLabel" for="mdMediaSortSource">Identify files using</label>
-                                    <select is="emby-select" id="mdMediaSortSource" class="emby-select-withcolor emby-select" title="Where the sorter reads the movie/TV classification of a file from">
-                                        <option value="JellyfinMetadata">Jellyfin metadata (recommended)</option>
-                                        <option value="FilenameHeuristic">Filename pattern (fallback)</option>
+                            <section id="mdSet-fix" class="mdSetCard mdSetCard--fix mdSetCard--full">
+                                <h2 class="mdSetHead">
+                                    <span class="mdSetIcon"><span class="material-icons">build</span></span>
+                                    <span class="mdSetHeadText">
+                                        <span class="mdSetTitle">What to fix</span>
+                                        <span class="mdSetSubtitle">Per-type: how it runs, and where removed files go. "Ask me first" queues fixes for approval on Issues.</span>
+                                    </span>
+                                </h2>
+                                <div id="mdFixTypeRows"></div>
+                                <div class="selectContainer" style="max-width:26em;">
+                                    <label class="selectLabel" for="mdKeeperPolicy">When duplicates are found, keep</label>
+                                    <select is="emby-select" id="mdKeeperPolicy" class="emby-select-withcolor emby-select">
+                                        <option value="quality">The best-quality copy (recommended)</option>
+                                        <option value="codec">The most modern format (codec first)</option>
+                                        <option value="size">The smallest file</option>
                                     </select>
-                                    <div class="fieldDescription">Jellyfin metadata is what Jellyfin itself scraped when it built the library. If your files aren't correctly tagged in Jellyfin, the classification will be incomplete — switch to the filename fallback (looks for SxxExx / NxN patterns to spot TV episodes).</div>
+                                    <div class="fieldDescription">Decides which copy survives. Best quality compares resolution, then codec, then bitrate; ties go to the smaller file.</div>
                                 </div>
-                            </div>
-                        </section>
+                            </section>
 
-                        <section id="mdSet-bin" class="mdSetCard" style="--md-accent:#ec4899;">
-                            <h2 class="mdSetHead"><span class="material-icons">delete</span>Recycle bin</h2>
-                            <div class="mdSetDesc">Removed files are held here so History → Restore can bring them back.</div>
-                            <div id="mdBinInfo" class="fieldDescription" style="margin-bottom:.5em;"></div>
-                            <div style="margin-bottom:.8em;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
-                                <button is="emby-button" type="button" id="mdBinView" class="raised" title="Show the list of files currently held in the recycle bin" style="font-size:80%;"><span>View contents</span></button>
-                                <button is="emby-button" type="button" id="mdBinEmpty" class="raised" title="Permanently deletes every file in the recycle bin. Restore stops working for those files." style="font-size:80%;"><span>Empty recycle bin now</span></button>
-                                <span class="fieldDescription">Emptying permanently deletes everything held in the bin — Restore stops working for those files.</span>
-                            </div>
-                            <div id="mdBinList" style="display:none;margin-bottom:1em;"></div>
-                            <div class="inputContainer" style="max-width:26em;">
-                                <label class="inputLabel inputLabelUnfocused" for="mdBinPath">Recycle bin folder</label>
-                                <input id="mdBinPath" type="text" is="emby-input" placeholder="default (inside Jellyfin's data folder)" />
-                                <div class="fieldDescription">Where removed files are kept. Pick a folder on the same drive as your media to make recycling instant.</div>
-                            </div>
-                            <div class="inputContainer" style="max-width:30em;">
-                                <label class="inputLabel" for="mdRetention">Keep recycled files for<span class="mdSliderVal" id="mdRetentionVal"></span></label>
-                                <input id="mdRetention" type="range" min="1" max="90" step="1" />
-                                <div class="fieldDescription">After this many days, recycled files are deleted for good. Default: 30.</div>
-                            </div>
-                        </section>
+                            <section id="mdSet-quality" class="mdSetCard mdSetCard--quality mdSetCard--full">
+                                <h2 class="mdSetHead">
+                                    <span class="mdSetIcon"><span class="material-icons">compress</span></span>
+                                    <span class="mdSetHeadText">
+                                        <span class="mdSetTitle">Quality ceiling</span>
+                                        <span class="mdSetSubtitle">Where files get flagged as oversized, and how MediaDash re-encodes them.</span>
+                                    </span>
+                                </h2>
+                                <div class="selectContainer" style="max-width:26em;">
+                                    <label class="selectLabel" for="mdMaxRes">Maximum resolution</label>
+                                    <select is="emby-select" id="mdMaxRes" class="emby-select-withcolor emby-select">
+                                        <option value="2160">4K (2160p)</option>
+                                        <option value="1440">1440p</option>
+                                        <option value="1080">1080p</option>
+                                        <option value="720">720p</option>
+                                    </select>
+                                    <div class="fieldDescription">Files taller than this are flagged as wasting space. Default: 1080p.</div>
+                                </div>
+                                <div class="inputContainer" style="max-width:30em;">
+                                    <label class="inputLabel" for="mdMaxBitrate"><span id="mdMaxBitrateLabel">Maximum video bitrate at 1080p</span><span class="mdSliderVal" id="mdMaxBitrateVal"></span></label>
+                                    <input id="mdMaxBitrate" type="range" min="1" max="40" step="0.5" />
+                                    <div class="fieldDescription">Follows the resolution you picked above and is scaled automatically for every other resolution. Default: 8 Mbps at 1080p.</div>
+                                </div>
+                                <div class="selectContainer" style="max-width:26em;">
+                                    <label class="selectLabel" for="mdCodec">Re-encode to</label>
+                                    <select is="emby-select" id="mdCodec" class="emby-select-withcolor emby-select">
+                                        <option value="hevc">H.265 / HEVC (recommended)</option>
+                                        <option value="h264">H.264 (best compatibility)</option>
+                                        <option value="av1">AV1 (smallest files, slow)</option>
+                                    </select>
+                                    <div class="fieldDescription">The video format oversized files are converted to. Default: H.265.</div>
+                                </div>
+                                <div class="selectContainer" style="max-width:26em;">
+                                    <label class="selectLabel" for="mdContainer">Save re-encoded files as</label>
+                                    <select is="emby-select" id="mdContainer" class="emby-select-withcolor emby-select">
+                                        <option value="mkv">MKV (recommended — keeps subtitles)</option>
+                                        <option value="mp4">MP4 (subtitle tracks are not carried over)</option>
+                                    </select>
+                                    <div class="fieldDescription">The file type re-encoded videos are written to. Default: MKV.</div>
+                                </div>
+                                <div class="inputContainer" style="max-width:26em;">
+                                    <label class="inputLabel inputLabelUnfocused" for="mdFileTypes">Only re-encode these file types</label>
+                                    <input id="mdFileTypes" type="text" is="emby-input" placeholder="all file types" />
+                                    <div class="fieldDescription">Comma-separated list like "avi, wmv, mkv". Leave empty (default) to consider every video file.</div>
+                                </div>
+                                <div class="checkboxContainer checkboxContainer-withDescription">
+                                    <label class="emby-checkbox-label">
+                                        <input id="mdHwEncode" type="checkbox" is="emby-checkbox" />
+                                        <span>Use hardware encoder for re-encodes</span>
+                                    </label>
+                                    <div class="fieldDescription">Uses the graphics card encoder configured in Jellyfin's Playback settings. Much faster, files come out slightly larger. If the hardware encoder fails on a file, MediaDash automatically retries with software. Default: off.</div>
+                                </div>
+                                <div class="selectContainer" style="max-width:26em;">
+                                    <label class="selectLabel" for="mdGpuIndex">Preferred GPU for re-encodes</label>
+                                    <select is="emby-select" id="mdGpuIndex" class="emby-select-withcolor emby-select"></select>
+                                    <div class="fieldDescription">If your server has multiple GPUs (typical: iGPU + dGPU), pick the one you want re-encodes to use. Auto lets ffmpeg follow Jellyfin's Playback → Hardware acceleration setting. Only NVENC / AMF encoders honour the plugin override; QSV and VideoToolbox fall back to Jellyfin's device.</div>
+                                </div>
+                                <div class="inputContainer" style="max-width:30em;">
+                                    <label class="inputLabel" for="mdTolerance">Tolerance<span class="mdSliderVal" id="mdToleranceVal"></span></label>
+                                    <input id="mdTolerance" type="range" min="0" max="50" step="5" />
+                                    <div class="fieldDescription">Files only slightly over the limits are left alone. Default: 15%.</div>
+                                </div>
+                            </section>
 
-                        <section id="mdSet-advanced" class="mdSetCard" style="--md-accent:#94a3b8;">
-                            <h2 class="mdSetHead"><span class="material-icons">tune</span>Advanced</h2>
-                            <div class="mdSetDesc">Fine-tuning and maintenance actions. Defaults are safe for most libraries.</div>
-                            <div class="selectContainer" style="max-width:26em;">
-                                <label class="selectLabel" for="mdEncodePreset">Encode preset</label>
-                                <select is="emby-select" id="mdEncodePreset" class="emby-select-withcolor emby-select">
-                                    <option value="Faster">Faster — roughly half the encode time, slightly larger files</option>
-                                    <option value="Balanced">Balanced — recommended</option>
-                                    <option value="Best">Best — best quality/size, roughly double the encode time</option>
-                                </select>
-                                <div class="fieldDescription">Speed vs. quality trade-off for software re-encodes (libx264 / libx265 / libsvtav1). Hardware encoders (NVENC / AMF / QSV) use the plugin's bitrate ceiling instead — they don't support CRF.</div>
-                            </div>
-                            <div class="inputContainer" style="max-width:26em;">
-                                <label class="inputLabel inputLabelUnfocused" for="mdMinSize">Ignore files smaller than</label>
-                                <input id="mdMinSize" type="number" is="emby-input" min="0" max="10000" step="10" />
-                                <div class="fieldDescription">Megabytes. Filters out sample files, trailers, and extras that shouldn't be flagged for re-encoding. Default: 100 MB.</div>
-                            </div>
-                            <div class="checkboxContainer checkboxContainer-withDescription">
-                                <label class="emby-checkbox-label">
-                                    <input id="mdSkipHdr" type="checkbox" is="emby-checkbox" />
-                                    <span>Skip HDR content</span>
-                                </label>
-                                <div class="fieldDescription">HDR files (HDR10 / HDR10+ / HLG) are left alone by the quality scanner. Re-encoding HDR without proper color-space handling destroys HDR metadata and produces washed-out SDR, so opting in should be deliberate. Default: on.</div>
-                            </div>
-                            <div class="checkboxContainer checkboxContainer-withDescription">
-                                <label class="emby-checkbox-label">
-                                    <input id="mdThorough" type="checkbox" is="emby-checkbox" />
-                                    <span>Thorough playability check</span>
-                                </label>
-                                <div class="fieldDescription">Test-plays the start, middle and end of every file (30 seconds each). Catches broken files that look fine on the surface. The first scan is much slower; results are remembered for unchanged files. Default: on.</div>
-                            </div>
-                            <div class="checkboxContainer checkboxContainer-withDescription">
-                                <label class="emby-checkbox-label">
-                                    <input id="mdEditions" type="checkbox" is="emby-checkbox" />
-                                    <span>Treat different editions as duplicates</span>
-                                </label>
-                                <div class="fieldDescription">Off (default): a Director's Cut and the theatrical cut are kept as separate movies.</div>
-                            </div>
-                            <div class="checkboxContainer checkboxContainer-withDescription">
-                                <label class="emby-checkbox-label">
-                                    <input id="mdRenameAfterTranscode" type="checkbox" is="emby-checkbox" />
-                                    <span>Rename re-encoded files to a canonical name</span>
-                                </label>
-                                <div class="fieldDescription">Movies become <code>Name (Year) - {height}p.{ext}</code>; TV episodes become <code>SeriesName - S{ss:00}E{ee:00} - {height}p.{ext}</code>. If Jellyfin doesn't have enough metadata for the file, the re-encode keeps its original basename. Default: off.</div>
-                            </div>
-                            <div class="fieldDescription" style="margin:1em 0 .6em;">Scan and fix schedules can be changed in Dashboard → Scheduled Tasks ("Scan libraries for issues" and "Apply approved fixes").</div>
-                            <div style="margin:.6em 0;">
-                                <button is="emby-button" type="button" id="mdRerunSetup" class="raised" title="Reopen the three-question welcome card at the top of Overview" style="font-size:80%;"><span>Run first-time setup again</span></button>
-                                <span class="fieldDescription">Brings back the three-question welcome card.</span>
-                            </div>
-                            <div style="margin:.6em 0;">
-                                <button is="emby-button" type="button" id="mdResetScan" class="raised" title="Clears every detected issue and the probe/decode caches so the next scan starts from scratch. Fix history and the recycle bin are kept." style="font-size:80%;background:#7f1d1d;color:#fff;"><span>Reset scan data</span></button>
-                                <span class="fieldDescription">Clears all detected issues and the probe/decode caches so the next scan starts from scratch. Your fix history and recycle bin are kept. Use this if the scanner gets stuck or shows results that don't make sense.</span>
-                            </div>
-                        </section>
+                            <section id="mdSet-libraries" class="mdSetCard mdSetCard--libraries mdSetCard--full">
+                                <h2 class="mdSetHead">
+                                    <span class="mdSetIcon"><span class="material-icons">video_library</span></span>
+                                    <span class="mdSetHeadText">
+                                        <span class="mdSetTitle">Libraries</span>
+                                        <span class="mdSetSubtitle">Which Jellyfin libraries MediaDash scans. Nothing selected means all movie and TV libraries.</span>
+                                    </span>
+                                </h2>
+                                <div id="mdLibraries"></div>
+
+                                <div class="mdSetSub" style="--md-sub-accent:#f97316;">
+                                    <div class="mdSetSubHead"><span class="material-icons">drive_file_move</span>Media sorter — matches "Misplaced files"</div>
+                                    <div class="fieldDescription" style="margin:.3em 0 .5em;">Set both target folders below to turn the sorter on. Empty either one to turn it off.</div>
+                                    <div class="inputContainer" style="max-width:32em;">
+                                        <label class="inputLabel inputLabelUnfocused" for="mdMoviesTarget">Movies folder</label>
+                                        <input id="mdMoviesTarget" type="text" is="emby-input" placeholder="pre-filled from your Movies library, if any" title="Absolute path to the folder movies should live under. Must sit inside a Jellyfin library or moves are refused." />
+                                        <div class="fieldDescription">Absolute path. Must be inside a Jellyfin library folder — MediaDash never moves files outside your libraries.</div>
+                                    </div>
+                                    <div class="inputContainer" style="max-width:32em;">
+                                        <label class="inputLabel inputLabelUnfocused" for="mdTvTarget">TV folder</label>
+                                        <input id="mdTvTarget" type="text" is="emby-input" placeholder="pre-filled from your TV library, if any" title="Absolute path to the folder TV episodes should live under. Must sit inside a Jellyfin library or moves are refused." />
+                                        <div class="fieldDescription">Absolute path. Must be inside a Jellyfin library folder.</div>
+                                    </div>
+                                    <div class="selectContainer" style="max-width:32em;">
+                                        <label class="selectLabel" for="mdMediaSortSource">Identify files using</label>
+                                        <select is="emby-select" id="mdMediaSortSource" class="emby-select-withcolor emby-select" title="Where the sorter reads the movie/TV classification of a file from">
+                                            <option value="JellyfinMetadata">Jellyfin metadata (recommended)</option>
+                                            <option value="FilenameHeuristic">Filename pattern (fallback)</option>
+                                        </select>
+                                        <div class="fieldDescription">Jellyfin metadata is what Jellyfin itself scraped when it built the library. If your files aren't correctly tagged in Jellyfin, the classification will be incomplete — switch to the filename fallback (looks for SxxExx / NxN patterns to spot TV episodes).</div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section id="mdSet-advanced" class="mdSetCard mdSetCard--advanced mdSetCard--full">
+                                <h2 class="mdSetHead">
+                                    <span class="mdSetIcon"><span class="material-icons">tune</span></span>
+                                    <span class="mdSetHeadText">
+                                        <span class="mdSetTitle">Advanced</span>
+                                        <span class="mdSetSubtitle">Fine-tuning knobs. Defaults are safe for most libraries.</span>
+                                    </span>
+                                </h2>
+                                <div class="selectContainer" style="max-width:26em;">
+                                    <label class="selectLabel" for="mdEncodePreset">Encode preset</label>
+                                    <select is="emby-select" id="mdEncodePreset" class="emby-select-withcolor emby-select">
+                                        <option value="Faster">Faster — roughly half the encode time, slightly larger files</option>
+                                        <option value="Balanced">Balanced — recommended</option>
+                                        <option value="Best">Best — best quality/size, roughly double the encode time</option>
+                                    </select>
+                                    <div class="fieldDescription">Speed vs. quality trade-off for software re-encodes (libx264 / libx265 / libsvtav1). Hardware encoders (NVENC / AMF / QSV) use the plugin's bitrate ceiling instead — they don't support CRF.</div>
+                                </div>
+                                <div class="inputContainer" style="max-width:26em;">
+                                    <label class="inputLabel inputLabelUnfocused" for="mdMinSize">Ignore files smaller than</label>
+                                    <input id="mdMinSize" type="number" is="emby-input" min="0" max="10000" step="10" />
+                                    <div class="fieldDescription">Megabytes. Filters out sample files, trailers, and extras that shouldn't be flagged for re-encoding. Default: 100 MB.</div>
+                                </div>
+                                <div class="checkboxContainer checkboxContainer-withDescription">
+                                    <label class="emby-checkbox-label">
+                                        <input id="mdSkipHdr" type="checkbox" is="emby-checkbox" />
+                                        <span>Skip HDR content</span>
+                                    </label>
+                                    <div class="fieldDescription">HDR files (HDR10 / HDR10+ / HLG) are left alone by the quality scanner. Re-encoding HDR without proper color-space handling destroys HDR metadata and produces washed-out SDR, so opting in should be deliberate. Default: on.</div>
+                                </div>
+                                <div class="checkboxContainer checkboxContainer-withDescription">
+                                    <label class="emby-checkbox-label">
+                                        <input id="mdThorough" type="checkbox" is="emby-checkbox" />
+                                        <span>Thorough playability check</span>
+                                    </label>
+                                    <div class="fieldDescription">Test-plays the start, middle and end of every file (30 seconds each). Catches broken files that look fine on the surface. The first scan is much slower; results are remembered for unchanged files. Default: on.</div>
+                                </div>
+                                <div class="checkboxContainer checkboxContainer-withDescription">
+                                    <label class="emby-checkbox-label">
+                                        <input id="mdEditions" type="checkbox" is="emby-checkbox" />
+                                        <span>Treat different editions as duplicates</span>
+                                    </label>
+                                    <div class="fieldDescription">Off (default): a Director's Cut and the theatrical cut are kept as separate movies.</div>
+                                </div>
+                                <div class="checkboxContainer checkboxContainer-withDescription">
+                                    <label class="emby-checkbox-label">
+                                        <input id="mdRenameAfterTranscode" type="checkbox" is="emby-checkbox" />
+                                        <span>Rename re-encoded files to a canonical name</span>
+                                    </label>
+                                    <div class="fieldDescription">Movies become <code>Name (Year) - {height}p.{ext}</code>; TV episodes become <code>SeriesName - S{ss:00}E{ee:00} - {height}p.{ext}</code>. If Jellyfin doesn't have enough metadata for the file, the re-encode keeps its original basename. Default: off.</div>
+                                </div>
+                                <div class="fieldDescription" style="margin:1em 0 0;">Scan and fix schedules can be changed in Dashboard → Scheduled Tasks ("Scan libraries for issues" and "Apply approved fixes").</div>
+                            </section>
+
+                            <section id="mdSet-bin" class="mdSetCard mdSetCard--bin">
+                                <h2 class="mdSetHead">
+                                    <span class="mdSetIcon"><span class="material-icons">delete</span></span>
+                                    <span class="mdSetHeadText">
+                                        <span class="mdSetTitle">Recycle bin</span>
+                                        <span class="mdSetSubtitle">Removed files land here so History → Restore can bring them back.</span>
+                                    </span>
+                                </h2>
+                                <div id="mdBinInfo" class="fieldDescription" style="margin-bottom:.5em;"></div>
+                                <div style="margin-bottom:.8em;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
+                                    <button is="emby-button" type="button" id="mdBinView" class="raised" title="Show the list of files currently held in the recycle bin" style="font-size:80%;"><span>View contents</span></button>
+                                    <button is="emby-button" type="button" id="mdBinEmpty" class="raised" title="Permanently deletes every file in the recycle bin. Restore stops working for those files." style="font-size:80%;"><span>Empty recycle bin now</span></button>
+                                    <span class="fieldDescription">Emptying permanently deletes everything held in the bin.</span>
+                                </div>
+                                <div id="mdBinList" style="display:none;margin-bottom:1em;"></div>
+                                <div class="inputContainer" style="max-width:26em;">
+                                    <label class="inputLabel inputLabelUnfocused" for="mdBinPath">Recycle bin folder</label>
+                                    <input id="mdBinPath" type="text" is="emby-input" placeholder="default (inside Jellyfin's data folder)" />
+                                    <div class="fieldDescription">Where removed files are kept. Pick a folder on the same drive as your media to make recycling instant.</div>
+                                </div>
+                                <div class="inputContainer" style="max-width:30em;">
+                                    <label class="inputLabel" for="mdRetention">Keep recycled files for<span class="mdSliderVal" id="mdRetentionVal"></span></label>
+                                    <input id="mdRetention" type="range" min="1" max="90" step="1" />
+                                    <div class="fieldDescription">After this many days, recycled files are deleted for good. Default: 30.</div>
+                                </div>
+                            </section>
+
+                            <section id="mdSet-maintenance" class="mdSetCard mdSetCard--maintenance">
+                                <h2 class="mdSetHead">
+                                    <span class="mdSetIcon"><span class="material-icons">handyman</span></span>
+                                    <span class="mdSetHeadText">
+                                        <span class="mdSetTitle">Maintenance</span>
+                                        <span class="mdSetSubtitle">Reset and re-run actions. Only use these if something looks stuck.</span>
+                                    </span>
+                                </h2>
+                                <div style="margin:.4em 0;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
+                                    <button is="emby-button" type="button" id="mdRerunSetup" class="raised" title="Reopen the three-question welcome card at the top of Overview" style="font-size:80%;"><span>Run first-time setup again</span></button>
+                                    <span class="fieldDescription">Brings back the three-question welcome card.</span>
+                                </div>
+                                <div style="margin:.6em 0;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
+                                    <button is="emby-button" type="button" id="mdResetScan" class="raised" title="Clears every detected issue and the probe/decode caches so the next scan starts from scratch. Fix history and the recycle bin are kept." style="font-size:80%;background:#7f1d1d;color:#fff;"><span>Reset scan data</span></button>
+                                    <span class="fieldDescription">Clears all detected issues and the probe/decode caches so the next scan starts from scratch. Your fix history and recycle bin are kept. Use this if the scanner gets stuck or shows results that don't make sense.</span>
+                                </div>
+                            </section>
+                        </div>
 
                         <div class="mdSetSave">
-                            <button is="emby-button" type="submit" class="raised button-submit"><span>Save</span></button>
+                            <button is="emby-button" type="submit" class="raised button-submit"><span>Save changes</span></button>
                             <div id="mdSaveMsg" class="fieldDescription" style="margin:0;"></div>
                         </div>
                     </form>
