@@ -44,6 +44,12 @@ public sealed class HistoryDto
     public bool WasDryRun { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the fix completed without error. Drives the
+    /// History-tab filter chips (All / Succeeded / Failed / Dry run).
+    /// </summary>
+    public bool Success { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether the file can still be restored from the recycle bin.
     /// </summary>
     public bool CanRestore { get; set; }
@@ -64,6 +70,7 @@ public sealed class HistoryDto
             BytesFreed = entry.BytesFreed,
             FixedAtUtc = entry.FixedAtUtc,
             WasDryRun = entry.WasDryRun,
+            Success = entry.Success,
             CanRestore = !entry.Restored && !string.IsNullOrEmpty(entry.RecyclePath) && System.IO.File.Exists(entry.RecyclePath)
         };
     }

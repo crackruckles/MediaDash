@@ -14,7 +14,7 @@ public sealed class MediaDashDb
 {
     // Bump when a semantic change to the decode check would make old cache entries misleading.
     // v1: -xerror + exit-code-only in the decode check (2026-07-20) — previous stderr-noise-as-error entries invalidated.
-    private const int SchemaVersion = 1;
+    private const int SchemaVersion = 2;
 
     private readonly string _connectionString;
 
@@ -79,7 +79,8 @@ public sealed class MediaDashDb
                 recycle_path TEXT NULL,
                 fixed_at_utc INTEGER NOT NULL,
                 dry_run INTEGER NOT NULL DEFAULT 0,
-                restored INTEGER NOT NULL DEFAULT 0
+                restored INTEGER NOT NULL DEFAULT 0,
+                success INTEGER NOT NULL DEFAULT 1
             );
             """;
         cmd.ExecuteNonQuery();
@@ -102,6 +103,40 @@ public sealed class MediaDashDb
             using var clearDecode = connection.CreateCommand();
             clearDecode.CommandText = "DELETE FROM decode_cache";
             clearDecode.ExecuteNonQuery();
+        }
+
+        if (current < 2)
+        {
+            // Add the success column on an existing v1 database. A fresh install already gets the column
+            // via CREATE TABLE above; guard the ALTER so it doesn't blow up with "duplicate column name".
+            var hasSuccess = false;
+            using (var probe = connection.CreateCommand())
+            {
+                probe.CommandText = "PRAGMA table_info(history)";
+                using var pr = probe.ExecuteReader();
+                while (pr.Read())
+                {
+                    if (string.Equals(pr.GetString(1), "success", StringComparison.Ordinal))
+                    {
+                        hasSuccess = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!hasSuccess)
+            {
+                using var addColumn = connection.CreateCommand();
+                addColumn.CommandText = "ALTER TABLE history ADD COLUMN success INTEGER NOT NULL DEFAULT 1";
+                addColumn.ExecuteNonQuery();
+
+                // Back-fill legacy rows by parsing the action string. FixTask's catch handlers historically
+                // prefixed failure messages with "Fix failed"; other fixer-returned failures don't share the
+                // prefix, but they're rare and any mistake here only mis-labels a History filter chip.
+                using var backfill = connection.CreateCommand();
+                backfill.CommandText = "UPDATE history SET success = 0 WHERE action LIKE 'Fix failed%'";
+                backfill.ExecuteNonQuery();
+            }
         }
 
         using var setVersion = connection.CreateCommand();
@@ -399,8 +434,8 @@ public sealed class MediaDashDb
         using var connection = Open();
         using var cmd = connection.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO history (issue_id, type, path, action, bytes_freed, recycle_path, fixed_at_utc, dry_run, restored)
-            VALUES (@issueId, @type, @path, @action, @bytesFreed, @recyclePath, @fixedAt, @dryRun, 0)
+            INSERT INTO history (issue_id, type, path, action, bytes_freed, recycle_path, fixed_at_utc, dry_run, restored, success)
+            VALUES (@issueId, @type, @path, @action, @bytesFreed, @recyclePath, @fixedAt, @dryRun, 0, @success)
             """;
         cmd.Parameters.AddWithValue("@issueId", entry.IssueId);
         cmd.Parameters.AddWithValue("@type", (int)entry.Type);
@@ -410,6 +445,7 @@ public sealed class MediaDashDb
         cmd.Parameters.AddWithValue("@recyclePath", (object?)entry.RecyclePath ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@fixedAt", entry.FixedAtUtc.Ticks);
         cmd.Parameters.AddWithValue("@dryRun", entry.WasDryRun ? 1 : 0);
+        cmd.Parameters.AddWithValue("@success", entry.Success ? 1 : 0);
         cmd.ExecuteNonQuery();
     }
 
@@ -422,7 +458,7 @@ public sealed class MediaDashDb
     {
         using var connection = Open();
         using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT id, issue_id, type, path, action, bytes_freed, recycle_path, fixed_at_utc, dry_run, restored"
+        cmd.CommandText = "SELECT id, issue_id, type, path, action, bytes_freed, recycle_path, fixed_at_utc, dry_run, restored, success"
             + " FROM history ORDER BY id DESC LIMIT @limit";
         cmd.Parameters.AddWithValue("@limit", limit);
 
@@ -441,7 +477,8 @@ public sealed class MediaDashDb
                 RecyclePath = reader.IsDBNull(6) ? null : reader.GetString(6),
                 FixedAtUtc = new DateTime(reader.GetInt64(7), DateTimeKind.Utc),
                 WasDryRun = reader.GetInt32(8) != 0,
-                Restored = reader.GetInt32(9) != 0
+                Restored = reader.GetInt32(9) != 0,
+                Success = reader.GetInt32(10) != 0
             });
         }
 

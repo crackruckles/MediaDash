@@ -258,6 +258,10 @@
                 border-color: var(--md-chip-border, rgba(0,164,220,.55));
                 color: #fff;
             }
+            #MediaDashConfigPage .mdHistFilter { opacity: .75; }
+            #MediaDashConfigPage .mdHistFilter.mdHistFilterActive { opacity: 1; background: rgba(0,164,220,.28); border-color: rgba(0,164,220,.55); }
+            #MediaDashConfigPage .mdHistCount:not(:empty)::before { content: "("; }
+            #MediaDashConfigPage .mdHistCount:not(:empty)::after { content: ")"; }
 
             #MediaDashConfigPage .mdSetCard {
                 background: rgba(255,255,255,.028);
@@ -426,6 +430,12 @@
                 <div id="mdTab-history" style="display:none;">
                     <div id="mdHistoryChart" class="mdSection"></div>
                     <div id="mdHistorySummary" class="fieldDescription" style="margin:.5em 0;"></div>
+                    <div id="mdHistoryFilterBar" style="display:flex;gap:.4em;align-items:center;flex-wrap:wrap;margin:.4em 0 .6em;">
+                        <button is="emby-button" type="button" class="raised mdHistFilter mdHistFilterActive" data-filter="all" style="font-size:80%;" title="Every history entry"><span>All</span> <span class="mdHistCount" style="opacity:.7;"></span></button>
+                        <button is="emby-button" type="button" class="raised mdHistFilter" data-filter="succeeded" style="font-size:80%;" title="Fixes that completed without error"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;color:#22c55e;">check_circle</span> <span>Succeeded</span> <span class="mdHistCount" style="opacity:.7;"></span></button>
+                        <button is="emby-button" type="button" class="raised mdHistFilter" data-filter="failed" style="font-size:80%;" title="Fixes that failed for any reason"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;color:#ef4444;">error</span> <span>Failed</span> <span class="mdHistCount" style="opacity:.7;"></span></button>
+                        <button is="emby-button" type="button" class="raised mdHistFilter" data-filter="dryrun" style="font-size:80%;" title="Dry-run entries that only logged what they would have done"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;color:#94a3b8;">preview</span> <span>Dry run</span> <span class="mdHistCount" style="opacity:.7;"></span></button>
+                    </div>
                     <div id="mdHistoryList"></div>
                 </div>
 
@@ -1412,14 +1422,38 @@
 
             // ---------- History ----------
 
+            var historyCache = [];
+            var historyFilter = 'all';
+
+            function historyMatches(h, filter) {
+                if (filter === 'succeeded') return h.Success && !h.WasDryRun;
+                if (filter === 'failed') return !h.Success;
+                if (filter === 'dryrun') return h.WasDryRun;
+                return true;
+            }
+
             function renderHistory(list) {
+                if (list) historyCache = list;
+                var full = historyCache;
+
+                // Refresh the per-filter counts on every render so the chip labels stay honest as new
+                // fix runs land, and the disabled-state on empty buckets doesn't drift out of date.
+                view.querySelectorAll('.mdHistFilter').forEach(function (btn) {
+                    var f = btn.getAttribute('data-filter');
+                    var n = full.filter(function (h) { return historyMatches(h, f); }).length;
+                    btn.querySelector('.mdHistCount').textContent = n;
+                    btn.classList.toggle('mdHistFilterActive', f === historyFilter);
+                });
+
+                var filtered = full.filter(function (h) { return historyMatches(h, historyFilter); });
                 var el = view.querySelector('#mdHistoryList');
                 var saved = 0;
-                list.forEach(function (h) { if (!h.WasDryRun) saved += h.BytesFreed; });
+                full.forEach(function (h) { if (!h.WasDryRun && h.Success) saved += h.BytesFreed; });
                 view.querySelector('#mdHistorySummary').textContent = saved > 0 ? fmt(STR.spaceSavedToDate, bytes(saved)) : '';
 
+                // Chart always reflects total savings across every real fix — filter only narrows the row list.
                 var chartEl = view.querySelector('#mdHistoryChart');
-                var real = list.filter(function (h) { return !h.WasDryRun && h.BytesFreed > 0; })
+                var real = full.filter(function (h) { return !h.WasDryRun && h.Success && h.BytesFreed > 0; })
                     .sort(function (a, b) { return new Date(a.FixedAtUtc) - new Date(b.FixedAtUtc); });
                 if (real.length >= 2) {
                     var cum = 0;
@@ -1439,17 +1473,25 @@
                     chartEl.innerHTML = '';
                 }
 
-                if (!list.length) {
-                    el.innerHTML = '<div class="fieldDescription" style="margin-top:1em;">' + esc(STR.noHistory) + '</div>';
+                if (!filtered.length) {
+                    var empty = historyFilter === 'all'
+                        ? esc(STR.noHistory)
+                        : 'No entries match this filter. Try "All" to see everything.';
+                    el.innerHTML = '<div class="fieldDescription" style="margin-top:1em;">' + empty + '</div>';
                     return;
                 }
 
                 var html = '';
-                list.forEach(function (h) {
+                filtered.forEach(function (h) {
                     var t = STR.types[h.Type] || { color: '#888' };
-                    html += '<div class="mdCard mdIssueCard mdFade" style="margin:.6em 0;border-left-color:' + t.color + ';" data-history="' + h.Id + '">' +
-                        '<div style="font-weight:600;">' + esc(h.FileName) +
-                        (h.WasDryRun ? ' <span class="mdBadge" style="background:rgba(255,255,255,.18);">' + esc(STR.dryRunBadge) + '</span>' : '') +
+                    // Statuses live in the file-name row as small badges so filter output is scannable at a glance.
+                    var statusBadge = h.WasDryRun
+                        ? '<span class="mdBadge" style="background:rgba(148,163,184,.35);color:#e2e8f0;">Dry run</span>'
+                        : (h.Success
+                            ? '<span class="mdBadge" style="background:rgba(34,197,94,.25);color:#86efac;">Succeeded</span>'
+                            : '<span class="mdBadge" style="background:rgba(239,68,68,.28);color:#fecaca;">Failed</span>');
+                    html += '<div class="mdCard mdIssueCard mdFade" style="margin:.6em 0;border-left-color:' + (h.WasDryRun ? '#94a3b8' : (h.Success ? t.color : '#ef4444')) + ';" data-history="' + h.Id + '">' +
+                        '<div style="font-weight:600;">' + esc(h.FileName) + ' ' + statusBadge +
                         '</div>' +
                         '<div style="margin:.2em 0;">' + esc(h.Action) +
                         (h.BytesFreed > 0 ? ' <b style="color:' + t.color + ';">(' + bytes(h.BytesFreed) + ' freed)</b>' : '') + '</div>' +
@@ -2466,6 +2508,13 @@
                             return;
                         }
                         uploadFiles(e.dataTransfer && e.dataTransfer.files);
+                    });
+
+                    view.querySelectorAll('.mdHistFilter').forEach(function (btn) {
+                        btn.addEventListener('click', function () {
+                            historyFilter = btn.getAttribute('data-filter');
+                            renderHistory();
+                        });
                     });
 
                     view.querySelector('#mdErrorsRefresh').addEventListener('click', loadErrors);

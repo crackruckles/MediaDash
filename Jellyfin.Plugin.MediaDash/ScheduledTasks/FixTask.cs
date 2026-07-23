@@ -176,7 +176,8 @@ public sealed class FixTask : IScheduledTask
                     BytesFreed = result.Success && !result.WasDryRun ? result.BytesFreed : 0,
                     RecyclePath = result.RecyclePath,
                     FixedAtUtc = DateTime.UtcNow,
-                    WasDryRun = result.WasDryRun
+                    WasDryRun = result.WasDryRun,
+                    Success = result.Success
                 });
 
                 if (result.Success && !result.WasDryRun)
@@ -211,7 +212,8 @@ public sealed class FixTask : IScheduledTask
                     Action = "Fix failed — permission denied. " + issue.Path + " isn't writable by the Jellyfin user.",
                     BytesFreed = 0,
                     FixedAtUtc = DateTime.UtcNow,
-                    WasDryRun = false
+                    WasDryRun = false,
+                    Success = false
                 });
             }
             catch (System.IO.IOException ex)
@@ -227,7 +229,8 @@ public sealed class FixTask : IScheduledTask
                     Action = "Fix failed — " + ex.Message,
                     BytesFreed = 0,
                     FixedAtUtc = DateTime.UtcNow,
-                    WasDryRun = false
+                    WasDryRun = false,
+                    Success = false
                 });
             }
             catch (Exception ex)

@@ -53,6 +53,13 @@ public sealed class HistoryEntry
     public bool WasDryRun { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the fix (or dry-run) completed without error.
+    /// Kept as an explicit column so the History filter never has to guess from the Action string
+    /// (fixer messages change; the flag doesn't).
+    /// </summary>
+    public bool Success { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether the file has been restored from the recycle bin.
     /// </summary>
     public bool Restored { get; set; }
