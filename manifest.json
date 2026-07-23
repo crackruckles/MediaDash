@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.5.2.0",
+        "changelog": "The \u0027Run fixes now\u0027 button used to appear to do nothing when every attempted fix failed fast (typical on a Linux server where the jellyfin user doesn\u0027t own the media files) - the progress bar just flashed and the user was left to click through Errors to find out what happened. Fix runs now finish with a dashboard alert summarising attempted / succeeded / failed and the dominant reason, with reason-specific instructions (e.g. the exact chown command to grant Jellyfin write access). Manually-approved issues under types set to \u0027Detect only\u0027 now actually run - previously they were silently filtered out. The Overview drive list now always shows the drive the recycle bin lives on, even when it\u0027s on a Docker overlay / tmpfs / btrfs subvolume that DriveInfo filters out, so you notice when the bin is filling your system disk. New \u0027Check library access\u0027 button in first-run setup that probes read+write on every library folder and reports pass/fail per folder with a plain-language reason, so ownership/ACL problems get caught before you approve anything.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.5.2/mediadash_0.5.2.zip",
+        "checksum": "5b61e5bfd897a86277e3f807f3f60893",
+        "timestamp": "2026-07-23T01:50:48Z"
+      },
+      {
         "version": "0.5.1.0",
         "changelog": "Media sorter now surfaces a clear, actionable error message on the Errors tab when a target folder is misconfigured (doesn\u0027t exist, sits outside every Jellyfin library, or isn\u0027t writable by the Jellyfin user) instead of silently creating hundreds of unfixable issues. The fixer also distinguishes those cases at fix time and pre-checks free disk space for cross-volume moves. \u0027Empty recycle bin now\u0027 used to freeze the UI on large bins and silently fail on older ApiClient builds - it now runs in the background with a determinate progress bar, and any per-batch permission or I/O errors show as a dashboard alert instead of tanking the whole operation on the first bad file.",
         "targetAbi": "10.11.0.0",
@@ -147,5 +155,6 @@
     ]
   }
 ]
+
 
 
