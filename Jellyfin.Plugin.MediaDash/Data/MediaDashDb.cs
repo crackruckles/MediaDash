@@ -265,15 +265,17 @@ public sealed class MediaDashDb
     }
 
     /// <summary>
-    /// Gets per-type counts and potential savings for issues awaiting a decision, plus the newest detection time.
+    /// Gets per-type counts and potential savings for open issues (Detected + Queued), plus the newest detection time.
+    /// Queued items are already approved and waiting for the fix task, so their savings still count toward "space you could reclaim".
     /// </summary>
-    /// <returns>One summary row per issue type that has detected issues.</returns>
+    /// <returns>One summary row per issue type that has open issues.</returns>
     public IReadOnlyList<IssueSummary> GetSummary()
     {
         using var connection = Open();
         using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT type, COUNT(*), SUM(size_savings), MAX(detected_at_utc) FROM issues WHERE status = @detected GROUP BY type";
+        cmd.CommandText = "SELECT type, COUNT(*), SUM(size_savings), MAX(detected_at_utc) FROM issues WHERE status IN (@detected, @queued) GROUP BY type";
         cmd.Parameters.AddWithValue("@detected", (int)IssueStatus.Detected);
+        cmd.Parameters.AddWithValue("@queued", (int)IssueStatus.Queued);
 
         var result = new List<IssueSummary>();
         using var reader = cmd.ExecuteReader();

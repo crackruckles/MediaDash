@@ -754,16 +754,30 @@ public sealed class SystemStats
             foreach (var card in Directory.EnumerateDirectories("/sys/class/drm/", "card*").OrderBy(c => c, StringComparer.Ordinal))
             {
                 var name = Path.GetFileName(card);
-                // Only card entries with a device/gpu_busy_percent report — connector nodes (card0-VGA-1 etc.)
-                // and card entries whose driver doesn't expose the counter (some Intel iGPUs on old kernels) are skipped.
+                var busy = -1;
+
                 var busyFile = Path.Combine(card, "device/gpu_busy_percent");
-                if (!File.Exists(busyFile))
+                if (File.Exists(busyFile)
+                    && int.TryParse(File.ReadAllText(busyFile).Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var v))
                 {
-                    continue;
+                    busy = v;
                 }
 
-                var raw = File.ReadAllText(busyFile).Trim();
-                if (!int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v))
+                // AMD APUs (Rembrandt / Phoenix — Ryzen 6000/7000 iGPUs) report gpu_busy_percent as a
+                // permanent 0 due to an SMU firmware quirk; the real activity is in the binary gpu_metrics
+                // file, same source rocm-smi and CoreCtrl use. Fall back to it when the plain counter is
+                // absent or pinned at zero.
+                if (busy <= 0)
+                {
+                    var m = TryReadAmdGfxActivity(card);
+                    if (m is int mb)
+                    {
+                        busy = mb;
+                    }
+                }
+
+                // Connector nodes (card0-VGA-1) and drivers with neither counter fall out here.
+                if (busy < 0)
                 {
                     continue;
                 }
@@ -772,7 +786,7 @@ public sealed class SystemStats
                 {
                     Index = gpus.Count,
                     Name = ReadSysfsVendorLabel(card) ?? name,
-                    Percent = v,
+                    Percent = Math.Clamp(busy, 0, 100),
                     Source = "Linux sysfs"
                 });
             }
@@ -793,6 +807,47 @@ public sealed class SystemStats
         catch (UnauthorizedAccessException)
         {
             _sysfsGpuAvailable = false;
+            return null;
+        }
+    }
+
+    [SupportedOSPlatform("linux")]
+    private static int? TryReadAmdGfxActivity(string cardDir)
+    {
+        // Parses /sys/class/drm/cardN/device/gpu_metrics — a small binary blob published by the amdgpu
+        // driver. Header layout (identical across kernels): u16 structure_size, u8 format_revision, u8
+        // content_revision. format_revision == 2 is the APU layout. In that layout, average_gfx_activity
+        // is a u16 at offset 28 (after: gfx temp, soc temp, 8x core temp, 2x l3 temp — all u16).
+        // Value units vary by kernel: some report plain 0-100, others fixed-point 0-10000 (centipercent).
+        // Treat >100 as centipercent and rescale.
+        try
+        {
+            var path = Path.Combine(cardDir, "device/gpu_metrics");
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+
+            var bytes = File.ReadAllBytes(path);
+            if (bytes.Length < 30 || bytes[2] != 2)
+            {
+                return null;
+            }
+
+            int gfx = BitConverter.ToUInt16(bytes, 28);
+            if (gfx > 100)
+            {
+                gfx /= 100;
+            }
+
+            return gfx is >= 0 and <= 100 ? gfx : null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
             return null;
         }
     }
