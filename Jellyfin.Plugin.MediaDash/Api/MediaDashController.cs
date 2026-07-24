@@ -2,10 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using Jellyfin.Plugin.MediaDash.Data;
 using Jellyfin.Plugin.MediaDash.Fixers;
 using Jellyfin.Plugin.MediaDash.ScheduledTasks;
+using MediaBrowser.Controller;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Subtitles;
 using MediaBrowser.Model.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -27,6 +30,8 @@ public class MediaDashController : ControllerBase
     private readonly RecycleBin _recycleBin;
     private readonly ILibraryMonitor _libraryMonitor;
     private readonly ILibraryManager _libraryManager;
+    private readonly IServerApplicationHost _appHost;
+    private readonly IEnumerable<ISubtitleProvider> _subtitleProviders;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MediaDashController"/> class.
@@ -36,13 +41,24 @@ public class MediaDashController : ControllerBase
     /// <param name="recycleBin">The recycle bin.</param>
     /// <param name="libraryMonitor">Instance of the <see cref="ILibraryMonitor"/> interface.</param>
     /// <param name="libraryManager">Instance of the <see cref="ILibraryManager"/> interface.</param>
-    public MediaDashController(MediaDashDb db, ITaskManager taskManager, RecycleBin recycleBin, ILibraryMonitor libraryMonitor, ILibraryManager libraryManager)
+    /// <param name="appHost">Server application host, used for Jellyfin version in diagnostics.</param>
+    /// <param name="subtitleProviders">Registered subtitle providers, used to warn when none are configured.</param>
+    public MediaDashController(
+        MediaDashDb db,
+        ITaskManager taskManager,
+        RecycleBin recycleBin,
+        ILibraryMonitor libraryMonitor,
+        ILibraryManager libraryManager,
+        IServerApplicationHost appHost,
+        IEnumerable<ISubtitleProvider> subtitleProviders)
     {
         _db = db;
         _taskManager = taskManager;
         _recycleBin = recycleBin;
         _libraryMonitor = libraryMonitor;
         _libraryManager = libraryManager;
+        _appHost = appHost;
+        _subtitleProviders = subtitleProviders;
     }
 
     /// <summary>
@@ -551,6 +567,25 @@ public class MediaDashController : ControllerBase
     {
         Diagnostics.Clear();
         return NoContent();
+    }
+
+    /// <summary>
+    /// Gets environment info used by the Errors tab's "Copy diagnostics" button and by the wizard's
+    /// subtitle step to warn when no provider is installed.
+    /// </summary>
+    /// <returns>The env snapshot.</returns>
+    [HttpGet("Environment")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<EnvInfo> GetEnvironment()
+    {
+        return Ok(new EnvInfo
+        {
+            PluginVersion = Plugin.Instance?.Version?.ToString() ?? "unknown",
+            JellyfinVersion = _appHost.ApplicationVersionString ?? string.Empty,
+            Os = RuntimeInformation.OSDescription,
+            Framework = RuntimeInformation.FrameworkDescription,
+            SubtitleProviders = _subtitleProviders.Select(p => p.Name).ToList()
+        });
     }
 
     /// <summary>

@@ -1,17 +1,16 @@
 # Changelog
 
-## 0.1.1 (2026-07-20)
+Release notes for every published version are on GitHub Releases: https://github.com/crackruckles/MediaDash/releases
 
-Initial public release.
+The Jellyfin plugin catalog also shows the changelog for each version — open **Dashboard → Plugins → Catalog** in your Jellyfin server, or read `manifest.json` in this repo.
 
-- Five scanners: duplicate copies, unplayable files, oversized encodes, unwanted audio languages, unwanted subtitle languages
-- Fix engine with per-type modes (Off / Detect only / Ask me first / Automatic) and per-type disposal (recycle bin / permanent)
-- Plugin-managed recycle bin with retention purge and one-click restore
-- Safety: dry-run on by default, verify-before-swap, never touches files outside libraries, never removes the last audio track, free-space check before re-encoding
-- Dashboard with Overview, Issues (approve/dismiss), History (restore) and Settings tabs
-- Three-question first-run setup
-- Configurable re-encode source file types and target container/codec
-- Server-idle gate: scheduled scans and fixes wait until nobody is playing media or has used Jellyfin in the last 15 minutes (toggle in Settings; manual runs bypass it)
-- Thorough playability check now test-plays the start, middle and end of every file (cached per file), and unplayable files can be approved for removal like any other issue — with a fresh is-it-really-broken re-check at fix time
-- Visual dashboard: issue donut chart, per-type savings bars, cumulative space-saved graph, sliders for bitrate/tolerance/retention
-- Optional hardware-accelerated re-encoding using the server's configured accelerator (AMF/NVENC/QSV/VideoToolbox), with automatic per-file software fallback
+## Highlights so far
+
+- **0.6.0** — New *Missing subtitles* fix type (downloads via Jellyfin's configured providers). Multi-step first-run wizard walking each feature one at a time. Hardware GPU picker beside the encoder toggle. AMD APU (Rembrandt / Phoenix) GPU% now reads from `gpu_metrics` when `gpu_busy_percent` is pinned at 0. Queued issues count toward "Space you could reclaim".
+- **0.5.x** — Media sorter (misplaced files), History tab filter chips, first-run library-access check, recycle-bin cross-volume warning, hardware encoder + preferred GPU, Errors tab retry, canonical rename after re-encode, ffprobe cache, HDR-skip default.
+- **0.4.x** — Multi-GPU system stats card (NVIDIA / Windows PDH / Linux sysfs), Files tab, per-fix disposal, permission-error surfacing, thorough playability check, thumbnails.
+- **0.1 – 0.3** — Five original scanners (dupes, playability, quality, subs, audio), dry-run + recycle bin, verify-before-swap, three-question first-run.
+
+## Reporting issues
+
+Use the **Copy diagnostics** button on the Errors tab — it copies plugin/OS/Jellyfin versions and every visible error to your clipboard in a format that pastes cleanly into a new GitHub issue.

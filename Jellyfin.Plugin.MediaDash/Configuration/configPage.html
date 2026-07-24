@@ -688,7 +688,8 @@
                                 <div class="selectContainer">
                                     <label class="selectLabel" for="mdWizMissingSubMode">Missing subtitles</label>
                                     <select is="emby-select" id="mdWizMissingSubMode" class="emby-select-withcolor emby-select" data-mode-for="MissingSubtitlesFixMode"></select>
-                                    <div class="fieldDescription">Downloads from Jellyfin's configured subtitle providers (OpenSubtitles etc.). Set them up under Dashboard → Metadata → Subtitles first.</div>
+                                    <div class="fieldDescription">Downloads from Jellyfin's configured subtitle providers. Providers (e.g. Open Subtitles) install as separate plugins from <b>Dashboard → Plugins → Catalog</b>; the API key lives on that plugin's page, not here.</div>
+                                    <div class="fieldDescription" id="mdWizProviderHint" style="display:none;margin-top:.3em;"></div>
                                 </div>
                             </div>
                         </div>
@@ -706,6 +707,11 @@
                                     <label class="inputLabel inputLabelUnfocused" for="mdWizTvTarget">TV folder</label>
                                     <input id="mdWizTvTarget" type="text" is="emby-input" placeholder="e.g. /mnt/media/TV" />
                                     <div class="fieldDescription">Absolute path inside a Jellyfin library.</div>
+                                </div>
+                                <div class="inputContainer">
+                                    <label class="inputLabel inputLabelUnfocused" for="mdWizAnimeTarget">Anime folder (optional)</label>
+                                    <input id="mdWizAnimeTarget" type="text" is="emby-input" placeholder="leave empty to skip anime routing" />
+                                    <div class="fieldDescription">Items with Jellyfin's "Anime" genre tag go here instead of Movies / TV.</div>
                                 </div>
                                 <div class="selectContainer">
                                     <label class="selectLabel" for="mdWizSortSource">Identify files using</label>
@@ -832,6 +838,7 @@
                     <div style="display:flex;gap:.5em;align-items:center;margin-bottom:.6em;flex-wrap:wrap;">
                         <button is="emby-button" type="button" id="mdErrorsRefresh" class="raised" style="font-size:80%;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">refresh</span><span>Refresh</span></button>
                         <button is="emby-button" type="button" id="mdErrorsRetry" class="raised button-submit" style="font-size:80%;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">replay</span><span>Retry all fixes</span></button>
+                        <button is="emby-button" type="button" id="mdErrorsCopy" class="raised" style="font-size:80%;" title="Copies plugin/OS/Jellyfin versions and every visible error to your clipboard, formatted for a GitHub bug report."><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">content_copy</span><span>Copy diagnostics</span></button>
                         <button is="emby-button" type="button" id="mdErrorsClear" class="raised" style="font-size:80%;background:#7f1d1d;color:#fff;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">delete_sweep</span><span>Clear</span></button>
                         <span id="mdErrorsMsg" class="fieldDescription"></span>
                     </div>
@@ -1057,6 +1064,11 @@
                                         <input id="mdTvTarget" type="text" is="emby-input" placeholder="pre-filled from your TV library, if any" title="Absolute path to the folder TV episodes should live under. Must sit inside a Jellyfin library or moves are refused." />
                                         <div class="fieldDescription">Absolute path. Must be inside a Jellyfin library folder.</div>
                                     </div>
+                                    <div class="inputContainer" style="max-width:32em;">
+                                        <label class="inputLabel inputLabelUnfocused" for="mdAnimeTarget">Anime folder (optional)</label>
+                                        <input id="mdAnimeTarget" type="text" is="emby-input" placeholder="leave empty to keep anime in Movies / TV" title="Absolute path to the folder anime should live under. Must sit inside a Jellyfin library or moves are refused." />
+                                        <div class="fieldDescription">Absolute path inside a Jellyfin library. Items tagged with the "Anime" genre in Jellyfin (case-insensitive) route here instead of Movies or TV. If you don't have anime tagged, install the AniDB scraper from <b>Dashboard → Plugins → Catalog</b> to make Jellyfin add the tag automatically.</div>
+                                    </div>
                                     <div class="selectContainer" style="max-width:32em;">
                                         <label class="selectLabel" for="mdMediaSortSource">Identify files using</label>
                                         <select is="emby-select" id="mdMediaSortSource" class="emby-select-withcolor emby-select" title="Where the sorter reads the movie/TV classification of a file from">
@@ -1158,11 +1170,15 @@
                                 </h2>
                                 <div style="margin:.4em 0;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
                                     <button is="emby-button" type="button" id="mdRerunSetup" class="raised" title="Reopen the first-run walkthrough at the top of Overview" style="font-size:80%;"><span>Run first-time setup again</span></button>
-                                    <span class="fieldDescription">Brings back the three-question welcome card.</span>
+                                    <span class="fieldDescription">Brings back the multi-step first-run walkthrough.</span>
                                 </div>
                                 <div style="margin:.6em 0;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
                                     <button is="emby-button" type="button" id="mdResetScan" class="raised" title="Clears every detected issue and the probe/decode caches so the next scan starts from scratch. Fix history and the recycle bin are kept." style="font-size:80%;background:#7f1d1d;color:#fff;"><span>Reset scan data</span></button>
                                     <span class="fieldDescription">Clears all detected issues and the probe/decode caches so the next scan starts from scratch. Your fix history and recycle bin are kept. Use this if the scanner gets stuck or shows results that don't make sense.</span>
+                                </div>
+                                <div style="margin:.6em 0;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
+                                    <a is="emby-linkbutton" href="https://github.com/crackruckles/MediaDash/issues/new" target="_blank" rel="noopener" class="raised emby-button" style="font-size:80%;text-decoration:none;padding:.5em 1em;"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;margin-right:.3em;">bug_report</span><span>Report an issue</span></a>
+                                    <span class="fieldDescription">Opens the MediaDash issue tracker in a new tab. Use the Errors tab's <b>Copy diagnostics</b> button first and paste that into the issue body.</span>
                                 </div>
                             </section>
                         </div>
@@ -1997,6 +2013,11 @@
                             '<select is="emby-select" id="mdDisposal' + t.key + '" class="emby-select-withcolor emby-select">' + disposalOptions(t.key) + '</select>' +
                             '</div>')
                         : '';
+                    // MissingSubtitles needs a live "is a provider installed?" indicator because the fixer can't
+                    // do anything without one; make the dependency visible on the same card as the mode.
+                    var hintBlock = (t.key === 'MissingSubtitles')
+                        ? '<div class="fieldDescription" id="mdProviderHint" style="display:none;margin-top:.5em;"></div>'
+                        : '';
                     html += '<div class="mdCard" style="margin-bottom:.7em;border-left:4px solid ' + meta.color + ';">' +
                         '<div style="font-weight:600;margin-bottom:.4em;"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;color:' + meta.color + ';">' + meta.icon + '</span> ' + esc(meta.title) + '</div>' +
                         '<div style="display:flex;gap:1em;flex-wrap:wrap;">' +
@@ -2005,7 +2026,7 @@
                         '<select is="emby-select" id="mdMode' + t.key + '" class="emby-select-withcolor emby-select">' + modeOptions() + '</select>' +
                         '</div>' +
                         disposalBlock +
-                        '</div></div>';
+                        '</div>' + hintBlock + '</div>';
                 });
                 view.querySelector('#mdFixTypeRows').innerHTML = html;
             }
@@ -2090,6 +2111,9 @@
 
             function loadSettings() {
                 loadBinInfo();
+                loadEnv().then(function (env) {
+                    applySubtitleProviderHint(view.querySelector('#mdProviderHint'), env);
+                });
                 ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
                     view.querySelector('#mdKeeperPolicy').value = keeperPresetFromConfig(c.KeeperPolicyOrder);
                     view.querySelector('#mdDryRun').checked = c.DryRun;
@@ -2113,6 +2137,7 @@
                     view.querySelector('#mdSubLangs').value = (c.AllowedSubtitleLanguages || []).join(', ');
                     view.querySelector('#mdMoviesTarget').value = c.MoviesTargetPath || '';
                     view.querySelector('#mdTvTarget').value = c.TvTargetPath || '';
+                    view.querySelector('#mdAnimeTarget').value = c.AnimeTargetPath || '';
                     view.querySelector('#mdMediaSortSource').value = c.MediaSortSource || 'JellyfinMetadata';
                     view.querySelector('#mdRenameAfterTranscode').checked = !!c.RenameAfterTranscode;
                     view.querySelector('#mdBinPath').value = c.RecycleBinPath || '';
@@ -2177,6 +2202,7 @@
                     c.AllowedSubtitleLanguages = csv(view.querySelector('#mdSubLangs').value);
                     c.MoviesTargetPath = view.querySelector('#mdMoviesTarget').value.trim();
                     c.TvTargetPath = view.querySelector('#mdTvTarget').value.trim();
+                    c.AnimeTargetPath = view.querySelector('#mdAnimeTarget').value.trim();
                     c.MediaSortSource = view.querySelector('#mdMediaSortSource').value;
                     c.RenameAfterTranscode = view.querySelector('#mdRenameAfterTranscode').checked;
                     c.RecycleBinPath = view.querySelector('#mdBinPath').value.trim();
@@ -2323,6 +2349,7 @@
                 view.querySelector('#mdWizSubLangs').value = (c.AllowedSubtitleLanguages || []).join(', ');
                 view.querySelector('#mdWizMoviesTarget').value = c.MoviesTargetPath || '';
                 view.querySelector('#mdWizTvTarget').value = c.TvTargetPath || '';
+                view.querySelector('#mdWizAnimeTarget').value = c.AnimeTargetPath || '';
                 view.querySelector('#mdWizSortSource').value = c.MediaSortSource || 'JellyfinMetadata';
                 view.querySelector('#mdWizDryRun').checked = c.DryRun !== false;
                 view.querySelector('#mdWizPausePlayback').checked = c.PauseDuringPlayback !== false;
@@ -2390,6 +2417,7 @@
                     case 6:
                         c.MoviesTargetPath = view.querySelector('#mdWizMoviesTarget').value.trim();
                         c.TvTargetPath = view.querySelector('#mdWizTvTarget').value.trim();
+                        c.AnimeTargetPath = view.querySelector('#mdWizAnimeTarget').value.trim();
                         c.MediaSortSource = view.querySelector('#mdWizSortSource').value;
                         c.MisplacedFixMode = view.querySelector('#mdWizSortMode').value;
                         break;
@@ -2439,6 +2467,10 @@
                     wizPopulateFromConfig(c);
                     wizLoadLibraries(c);
                     wizShow(0);
+                });
+
+                loadEnv().then(function (env) {
+                    applySubtitleProviderHint(view.querySelector('#mdWizProviderHint'), env);
                 });
 
                 view.querySelector('#mdWizNext').addEventListener('click', function () {
@@ -2569,6 +2601,80 @@
                     // Kick a fresh silent poll so live values (CPU / GPU / RAM) update as soon as the tab opens.
                     refresh(true);
                 }
+            }
+
+            // ---------- Env / diagnostics ----------
+            // Cache the env snapshot for the wizard + Settings hints so we don't hit /Environment on every
+            // load. Refreshed on demand by copyDiagnostics().
+            var envCache = null;
+
+            function loadEnv(force) {
+                if (envCache && !force) return Promise.resolve(envCache);
+                return api('Environment').then(function (env) { envCache = env; return env; },
+                    function () { return null; });
+            }
+
+            function applySubtitleProviderHint(el, env) {
+                if (!el) return;
+                if (!env) {
+                    el.style.display = 'none';
+                    return;
+                }
+                var providers = env.SubtitleProviders || [];
+                if (providers.length > 0) {
+                    el.style.display = '';
+                    el.style.color = '#22c55e';
+                    el.innerHTML = '<span class="material-icons" style="font-size:1em;vertical-align:-2px;">check_circle</span> Subtitle provider ready: ' + esc(providers.join(', ')) + '.';
+                } else {
+                    el.style.display = '';
+                    el.style.color = '#f59e0b';
+                    el.innerHTML = '<span class="material-icons" style="font-size:1em;vertical-align:-2px;">warning</span> No subtitle provider is installed. Install one from <b>Dashboard → Plugins → Catalog</b> (e.g. Open Subtitles) and configure its API key on that plugin’s page. Missing-subs fixes will fail with "no providers" until you do.';
+                }
+            }
+
+            function copyDiagnostics() {
+                var msg = view.querySelector('#mdErrorsMsg');
+                msg.textContent = 'Assembling diagnostics…';
+                Promise.all([loadEnv(true), api('Errors')]).then(function (r) {
+                    var env = r[0] || {};
+                    var errs = r[1] || [];
+                    var lines = [];
+                    lines.push('**MediaDash diagnostics**');
+                    lines.push('- Plugin: ' + (env.PluginVersion || 'unknown'));
+                    lines.push('- Jellyfin: ' + (env.JellyfinVersion || 'unknown'));
+                    lines.push('- OS: ' + (env.Os || 'unknown'));
+                    lines.push('- Framework: ' + (env.Framework || 'unknown'));
+                    lines.push('- Subtitle providers: ' + ((env.SubtitleProviders || []).join(', ') || 'none installed'));
+                    lines.push('- Captured at: ' + new Date().toISOString());
+                    lines.push('');
+                    if (errs.length === 0) {
+                        lines.push('_No errors recorded since server start._');
+                    } else {
+                        lines.push('```');
+                        errs.forEach(function (e) {
+                            var count = (e.Count || 1) > 1 ? ' (×' + e.Count + ')' : '';
+                            lines.push('[' + e.AtUtc + '] ' + (e.Source || 'unknown') + count + ': ' + (e.Message || ''));
+                        });
+                        lines.push('```');
+                    }
+                    var blob = lines.join('\n');
+                    var done = function () {
+                        msg.textContent = 'Copied to clipboard — paste into your GitHub issue.';
+                        setTimeout(function () { if (msg.textContent.indexOf('Copied') === 0) msg.textContent = ''; }, 6000);
+                    };
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(blob).then(done, function () { promptFallback(blob, msg); });
+                    } else {
+                        promptFallback(blob, msg);
+                    }
+                });
+            }
+
+            function promptFallback(text, msg) {
+                // Fallback for browsers that block programmatic clipboard writes (older Firefox, permission denied,
+                // insecure origin). Dump into a prompt() so the user can Ctrl+A / Ctrl+C by hand.
+                msg.textContent = 'Clipboard blocked — the text is in the prompt below, copy it manually.';
+                window.prompt('Copy this and paste into your GitHub issue:', text);
             }
 
             // ---------- Errors ----------
@@ -3220,6 +3326,7 @@
                     view.querySelector('#mdErrorsClear').addEventListener('click', function () {
                         post('Errors/Clear').then(loadErrors);
                     });
+                    view.querySelector('#mdErrorsCopy').addEventListener('click', copyDiagnostics);
                     view.querySelector('#mdErrorsRetry').addEventListener('click', function () {
                         var msg = view.querySelector('#mdErrorsMsg');
                         msg.textContent = 'Retrying queued fixes…';

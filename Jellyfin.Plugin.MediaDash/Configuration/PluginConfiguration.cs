@@ -55,6 +55,7 @@ public class PluginConfiguration : BasePluginConfiguration
         MediaSortSource = MediaSortSource.JellyfinMetadata;
         RenameAfterTranscode = false;
         MissingSubtitlesFixMode = FixMode.DetectOnly;
+        AnimeTargetPath = string.Empty;
     }
 
     /// <summary>
@@ -269,6 +270,14 @@ public class PluginConfiguration : BasePluginConfiguration
     /// a matching subtitle from the admin-configured providers; requires at least one provider set up in Jellyfin.
     /// </summary>
     public FixMode MissingSubtitlesFixMode { get; set; }
+
+    /// <summary>
+    /// Gets or sets the destination folder anime lands in when the media sorter runs. Empty disables anime
+    /// routing — anime is treated as its underlying kind (Movie or TV episode). Must sit inside a Jellyfin
+    /// library or moves are refused by <see cref="Fixers.LibraryGuard"/>. Detection uses Jellyfin's "Anime"
+    /// genre tag (case-insensitive); falls back to normal movie/TV classification when absent.
+    /// </summary>
+    public string AnimeTargetPath { get; set; }
 
     /// <summary>
     /// Gets the fix mode for an issue type.

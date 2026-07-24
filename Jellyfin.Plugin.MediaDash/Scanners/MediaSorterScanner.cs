@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -45,7 +46,10 @@ public sealed partial class MediaSorterScanner : IScanner
         Movie,
 
         /// <summary>A TV episode.</summary>
-        Tv
+        Tv,
+
+        /// <summary>Anime (movie-length OVA or episodic series). Detected via Jellyfin's "Anime" genre tag.</summary>
+        Anime
     }
 
     /// <inheritdoc />
@@ -58,6 +62,7 @@ public sealed partial class MediaSorterScanner : IScanner
     {
         var moviesTarget = NormalizeDir(Config.MoviesTargetPath);
         var tvTarget = NormalizeDir(Config.TvTargetPath);
+        var animeTarget = NormalizeDir(Config.AnimeTargetPath);
 
         // Nothing to sort when the user hasn't told us where the two piles live.
         if (moviesTarget is null || tvTarget is null)
@@ -82,6 +87,13 @@ public sealed partial class MediaSorterScanner : IScanner
             return Task.FromResult<IReadOnlyList<Issue>>([]);
         }
 
+        if (animeTarget is not null && ValidateTarget("Anime", Config.AnimeTargetPath, animeTarget) is string animeErr)
+        {
+            Api.Diagnostics.Record("MediaSorter.BadTarget", animeErr);
+            progress.Report(100);
+            return Task.FromResult<IReadOnlyList<Issue>>([]);
+        }
+
         var issues = new List<Issue>();
         var processed = 0;
         foreach (var item in items)
@@ -94,17 +106,27 @@ public sealed partial class MediaSorterScanner : IScanner
                     continue;
                 }
 
-                var kind = ClassifyItem(item, path, Config.MediaSortSource);
+                var kind = ClassifyItem(item, path, Config.MediaSortSource, animeEnabled: animeTarget is not null);
                 if (kind is null)
                 {
                     // Unidentified: skip (surfaced as-is; user should fix metadata in Jellyfin).
                     continue;
                 }
 
-                var expectedRoot = kind == MediaKind.Movie ? moviesTarget : tvTarget;
-                var wrongRoot = kind == MediaKind.Movie ? tvTarget : moviesTarget;
+                // Route each kind to its own target. When anime routing is off (animeTarget null), ClassifyItem
+                // never returns Anime — it collapses to Movie/Tv — so the dictionary lookup always resolves.
+                var expectedRoot = kind switch
+                {
+                    MediaKind.Movie => moviesTarget,
+                    MediaKind.Tv => tvTarget,
+                    MediaKind.Anime => animeTarget!,
+                    _ => moviesTarget
+                };
+                var otherRoots = new[] { moviesTarget, tvTarget, animeTarget }
+                    .Where(r => r is not null && !string.Equals(r, expectedRoot, StringComparison.OrdinalIgnoreCase))
+                    .ToArray();
                 var fullPath = Path.GetFullPath(path);
-                if (!Fixers.LibraryGuard.IsUnder(fullPath, wrongRoot))
+                if (!otherRoots.Any(r => Fixers.LibraryGuard.IsUnder(fullPath, r!)))
                 {
                     // Not misplaced (may or may not be under the correct root — the sorter only
                     // fixes files that are visibly in the wrong pile).
@@ -161,20 +183,55 @@ public sealed partial class MediaSorterScanner : IScanner
     /// <param name="item">The library item.</param>
     /// <param name="path">The file path being considered.</param>
     /// <param name="source">Which source to use.</param>
+    /// <param name="animeEnabled">True when an Anime target path is configured; controls whether the anime kind is returned. When false, anime collapses back to Movie/Tv so existing behaviour is preserved.</param>
     /// <returns>The kind, or null if unidentifiable.</returns>
-    internal static MediaKind? ClassifyItem(BaseItem item, string path, MediaSortSource source)
+    internal static MediaKind? ClassifyItem(BaseItem item, string path, MediaSortSource source, bool animeEnabled = false)
     {
         if (source == MediaSortSource.JellyfinMetadata)
         {
-            return item switch
+            var baseKind = item switch
             {
-                Movie => MediaKind.Movie,
-                Episode => MediaKind.Tv,
+                Movie => (MediaKind?)MediaKind.Movie,
+                Episode => (MediaKind?)MediaKind.Tv,
                 _ => null
             };
+
+            if (baseKind is null)
+            {
+                return null;
+            }
+
+            if (animeEnabled && HasAnimeGenre(item))
+            {
+                return MediaKind.Anime;
+            }
+
+            return baseKind;
         }
 
         return ClassifyFilename(Path.GetFileName(path) ?? string.Empty);
+    }
+
+    /// <summary>Checks whether the item's genres include "Anime" (case-insensitive). Public/internal for tests.</summary>
+    /// <param name="item">The library item.</param>
+    /// <returns>True when the anime tag is present.</returns>
+    internal static bool HasAnimeGenre(BaseItem item)
+    {
+        var genres = item.Genres;
+        if (genres is null || genres.Length == 0)
+        {
+            return false;
+        }
+
+        foreach (var g in genres)
+        {
+            if (string.Equals(g, "Anime", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
