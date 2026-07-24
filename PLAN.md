@@ -1,94 +1,114 @@
 # MediaDash — Jellyfin Plugin Project Plan
 
-A Jellyfin plugin that keeps media libraries lean and playable: it scans for duplicates, unplayable files, oversized encodes, and wrong-language subtitle/audio tracks, then fixes them — each fix type independently configurable as automatic or review-first. Managed entirely from a dashboard page inside the Jellyfin web UI.
+**The one plugin a Jellyfin library owner needs to keep their library tidy, complete, and playable.** MediaDash is the housekeeping layer over Jellyfin: everything a self-hoster would otherwise chase across a handful of scripts and second-tab utilities — duplicate copies, unplayable files, oversized encodes, wrong-language tracks, misplaced files, missing subtitles — surfaced on one dashboard and fixed safely on your schedule.
 
-**Goals:** save HDD space, guarantee every file plays, be dead simple to use.
-**Non-goals (v1):** media downloading/acquisition, metadata editing, multi-server support, upscaling.
+**Design commitment:** MediaDash fixes what Jellyfin already knows about. It does not go looking for new media. Anything a user has to *want* rather than *own* stays out of scope. The mission is "make the library you have work perfectly," not "get you more of a library."
 
-**This plugin will be released publicly to the Jellyfin community.** Two consequences run through every decision below:
+**Non-goals:**
 
-1. **Zero machine-specific assumptions.** No hardcoded paths, usernames, drive letters, OS assumptions, or defaults that only make sense on the developer's machine. Everything environment-dependent (library paths, ffmpeg location, data folders) must come from Jellyfin's APIs (`IApplicationPaths`, `IServerApplicationPaths`, encoding options) or plugin configuration. Must work identically on Windows, Linux, macOS, and Docker installs (mind path separators, case sensitivity, permissions). Language defaults must not assume English — first-run setup asks.
-2. **The UI must be intuitive enough for a non-technical user.** A person who has never read the docs should be able to install it, answer 2–3 first-run questions, and understand every screen. Concrete standards in §6.
+- Media acquisition — torrent/usenet, indexer integration, arr-style automation.
+- Metadata authoring — Jellyfin's built-in editor already handles user-curated fields; MediaDash surfaces gaps and triggers refreshes, it doesn't overwrite what the user chose.
+- Multi-server orchestration or cross-library dedup.
+- Upscaling, HDR-to-SDR conversion, or any transform that destroys artistic intent.
+
+**This plugin is released publicly to the Jellyfin community.** Two consequences run through every decision below:
+
+1. **Zero machine-specific assumptions.** No hardcoded paths, usernames, drive letters, OS assumptions, or defaults that only make sense on the developer's machine. Everything environment-dependent (library paths, ffmpeg location, data folders) must come from Jellyfin's APIs (`IApplicationPaths`, `IServerApplicationPaths`, encoding options) or plugin configuration. Must work identically on Windows, Linux, macOS, and Docker installs (mind path separators, case sensitivity, permissions). Language defaults must not assume English — the first-run wizard asks.
+2. **The UI must be intuitive enough for a non-technical user.** A person who has never read the docs should be able to install it, walk through the first-run wizard one feature at a time, and understand every screen. Concrete standards in §6.
 
 ---
 
 ## 1. Tech stack & constraints
 
-- C# class library targeting **net8.0** (Jellyfin 10.x). Reference `Jellyfin.Controller` and `Jellyfin.Model` NuGet packages with `<ExcludeAssets>runtime</ExcludeAssets>`; pin versions to the server version being targeted (mismatched versions cause "NotSupported").
+- C# class library targeting **net9.0** (Jellyfin 10.11+). Reference `Jellyfin.Controller` and `Jellyfin.Model` NuGet packages with `<ExcludeAssets>runtime</ExcludeAssets>`; pin versions to the server version being targeted (mismatched versions cause "NotSupported").
 - Scaffold from the official template: https://github.com/jellyfin/jellyfin-plugin-template (solution layout, `build.yaml`, `.vscode` debug tasks, GPLv3 license).
-- Plugin GUID: generate once with `New-Guid` and never change it.
+- Plugin GUID: generated once with `New-Guid`, never changed.
 - Media analysis via **ffprobe**, transcoding via **ffmpeg** — use the binaries Jellyfin already bundles (resolve path from `IServerConfigurationManager` / `EncodingOptions` rather than requiring a separate install).
+- Subtitle downloading via **Jellyfin's own `ISubtitleManager`** — no bundled provider; MediaDash inherits whatever the admin has configured under Dashboard → Metadata → Subtitles.
 - All state (scan results, fix queue, history) persisted in a **SQLite** DB in the plugin's data folder — not in plugin XML config. Config XML holds settings only.
 
 ## 2. Architecture
 
 ```
 Jellyfin.Plugin.MediaDash/
-├── Plugin.cs                     # BasePlugin<PluginConfiguration>, IHasWebPages
-├── PluginServiceRegistrator.cs   # IPluginServiceRegistrator — DI wiring
+├── Plugin.cs                        # BasePlugin<PluginConfiguration>, IHasWebPages
+├── PluginServiceRegistrator.cs      # IPluginServiceRegistrator — DI wiring
 ├── Configuration/
-│   ├── PluginConfiguration.cs    # settings model (see §5)
-│   └── configPage.html           # embedded dashboard UI (see §6)
+│   ├── PluginConfiguration.cs       # settings model (see §5)
+│   └── configPage.html              # embedded dashboard UI (see §6)
 ├── ScheduledTasks/
-│   ├── ScanTask.cs               # IScheduledTask — runs all enabled scanners
-│   └── FixTask.cs                # IScheduledTask — executes approved/auto fixes
+│   ├── ScanTask.cs                  # IScheduledTask — runs every enabled scanner
+│   └── FixTask.cs                   # IScheduledTask — executes approved/auto fixes
 ├── Scanners/
 │   ├── IScanner.cs
+│   ├── ProbingScannerBase.cs        # shared per-file evaluation loop
 │   ├── DuplicateScanner.cs
 │   ├── PlayabilityScanner.cs
 │   ├── QualityScanner.cs
 │   ├── SubtitleLanguageScanner.cs
-│   └── AudioLanguageScanner.cs
+│   ├── AudioLanguageScanner.cs
+│   ├── MediaSorterScanner.cs        # movies in TV folder / vice versa
+│   └── MissingSubtitleScanner.cs    # no subs in any wanted language
 ├── Fixers/
 │   ├── IFixer.cs
-│   ├── DuplicateFixer.cs         # delete/trash losing copy
-│   ├── TranscodeFixer.cs         # re-encode via ffmpeg
-│   ├── TrackFixer.cs             # strip/remove unwanted audio & sub tracks (remux)
-│   └── RecycleBin.cs             # trash folder + retention purge
+│   ├── DuplicateFixer.cs            # delete/trash losing copy
+│   ├── TranscodeFixer.cs            # re-encode via ffmpeg
+│   ├── TrackFixer.cs                # strip unwanted audio & sub tracks (remux)
+│   ├── PlayabilityFixer.cs          # remove unplayable — re-verified at fix time
+│   ├── MediaSorterFixer.cs          # move file to correct library folder
+│   ├── MissingSubtitleFixer.cs      # download via ISubtitleManager
+│   └── RecycleBin.cs                # trash folder + retention purge
 ├── Data/
-│   ├── MediaDashDb.cs            # SQLite: issues, fix_queue, history, file_probe_cache
-│   └── Models.cs
+│   ├── MediaDashDb.cs               # SQLite: issues, fix_queue, history, file_probe_cache
+│   ├── Issue.cs, IssueType.cs, IssueStatus.cs, IssueSummary.cs, HistoryEntry.cs
 ├── Api/
-│   └── MediaDashController.cs    # ControllerBase — REST endpoints for the UI
+│   └── MediaDashController.cs       # ControllerBase — REST endpoints for the UI
 └── Probing/
-    └── FfprobeService.cs         # runs ffprobe, caches results by path+size+mtime
+    └── FfprobeService.cs            # runs ffprobe, caches results by path+size+mtime
 ```
 
-Key Jellyfin integration points: `ILibraryManager` (enumerate items/paths), `IScheduledTask` (both tasks appear in the standard Scheduled Tasks dashboard), `IPluginServiceRegistrator` + `IHostedService` if background state is needed, `ControllerBase` for the API, `IHasWebPages` for the config/dashboard page.
+Key Jellyfin integration points: `ILibraryManager` (enumerate items/paths), `ISubtitleManager` (search + download subtitles from configured providers), `IScheduledTask` (both tasks appear in the standard Scheduled Tasks dashboard), `IPluginServiceRegistrator` for DI wiring, `ControllerBase` for the API, `IHasWebPages` for the config/dashboard page.
 
-## 3. Scanners (all in v1)
+## 3. Scanners
 
-Each scanner emits `Issue` rows: `{id, type, itemId, path, details(json), suggestedFix, sizeSavings, status: detected|queued|fixed|dismissed}`.
+Each scanner emits `Issue` rows: `{id, type, itemId, path, details(json), suggestedFix, sizeSavings, status: detected|queued|fixed|dismissed}`. Scanners inherit `ProbingScannerBase` (shared per-file loop) unless they need a whole-library view.
 
 1. **DuplicateScanner** — groups items by provider IDs (TMDb/TVDB/IMDb) via `ILibraryManager`, falling back to normalized name+year (movies) / series+season+episode (TV). Within a group, ranks copies by a "keeper" policy (configurable order: resolution > codec preference > bitrate > file size). Suggests deleting the losers. Never compares across different editions unless "treat editions as duplicates" is enabled.
-2. **PlayabilityScanner** — ffprobe every file; flag: probe failure, zero/negative duration, no video stream, container/codec combos Jellyfin can't direct-play or transcode, truncated files (probe `duration` vs container metadata mismatch). Optional deep check (decode first+last 30s with `ffmpeg -v error`) behind a "thorough" toggle since it's slow.
-3. **QualityScanner** — user-set ceiling: max resolution (default 1080p), max video bitrate (default 8 Mbps @1080p, scaled by resolution), preferred codec (default H.265/HEVC). Files above any ceiling are flagged with estimated savings (`currentSize − estimatedSize`). Skip files already at/below ceiling or within a configurable tolerance (default 15%) to avoid churn.
-4. **SubtitleLanguageScanner** — flags embedded subtitle tracks whose language isn't in the allowed list (default: user's chosen language + `und`). External `.srt`/`.ass` files in disallowed languages flagged separately. Suggested fix: strip tracks / delete external files.
-5. **AudioLanguageScanner** — flags files with multiple audio tracks where at least one is outside the allowed list. Never suggests removing the ONLY audio track, and never removes the last allowed track even if it means keeping a disallowed one (safety invariant).
+2. **PlayabilityScanner** — ffprobe every file; flags: probe failure, zero/negative duration, no video stream, container/codec combos Jellyfin can't direct-play or transcode, truncated files. "Thorough" mode (default on) test-plays start + middle + end via ffmpeg; results are cached for unchanged files.
+3. **QualityScanner** — user-set ceiling: max resolution (default 1080p), max video bitrate (default 8 Mbps @1080p, scaled by resolution), preferred codec (default HEVC). Files above any ceiling are flagged with estimated savings (`currentSize − estimatedSize`). Skip files already at/below ceiling or within a configurable tolerance (default 15%) to avoid churn. HDR content skipped by default.
+4. **SubtitleLanguageScanner** — flags embedded subtitle tracks and external `.srt`/`.ass` files whose language isn't in the allowed list. Untagged (`und`) tracks are always kept.
+5. **AudioLanguageScanner** — flags files with audio tracks outside the allowed list. Never suggests removing the ONLY audio track, and never removes the last allowed track even if it means keeping a disallowed one (safety invariant).
+6. **MediaSorterScanner** — a movie physically located under a TV library, or a TV episode under a Movies library. Uses Jellyfin's own classification (`BaseItemKind`) or a filename-heuristic fallback (`SxxExx` / `NxN` patterns) per user choice.
+7. **MissingSubtitleScanner** — Video items with no subtitle track (embedded or external) in any wanted language. Only runs when at least one subtitle language is configured; only meaningfully fixable when the admin has set up a subtitle provider in Jellyfin.
 
 Scan results are incremental: `FfprobeService` caches probe output keyed on `(path, size, mtimeUtc)` so unchanged files are skipped on re-scan.
 
 ## 4. Fix engine
 
-- Each fix type (duplicates / transcode / subtitle-strip / audio-strip) has an independent mode: **Off / Detect only / Manual approve / Automatic** (user requirement: configurable per fix type).
-- `FixTask` (scheduled, default nightly, off-peak window configurable) drains the queue: automatic-mode issues go straight in; manual-mode issues wait for approval from the UI.
-- **Transcode fix:** ffmpeg re-encode to the ceiling (e.g. `-c:v libx265 -crf 23 -preset medium`, hardware encoder used if Jellyfin has one configured), audio copied, all allowed subs/audio mapped. Output to temp file → verify with ffprobe (duration within 2s of original, streams present) → swap in, original goes to recycle bin (or is deleted, per disposal setting).
-- **Track strip fix:** remux with `ffmpeg -map` excluding disallowed tracks, `-c copy` (fast, lossless). Same temp→verify→swap flow.
-- **Duplicate fix:** move losing file(s) to recycle bin or delete, per disposal setting; then trigger a library refresh on the affected item.
-- **Disposal setting (per fix type, user requirement):** *Recycle bin* (plugin-managed trash folder, configurable path, purged after N days — default 30) or *Permanent delete*. Recycle bin preserves relative paths for one-click restore.
-- Concurrency: max 1 transcode at a time by default (configurable); pause when Jellyfin reports active playback sessions if "avoid interfering with playback" is on (default on).
+- Each fix type has an independent mode: **Off / Detect only / Manual approve / Automatic**.
+- Each *removing* fix type has an independent disposal: **Recycle bin** (default, plugin-managed trash folder, configurable retention, one-click restore) or **Permanent**. Media sorter (moves) and missing-subs (adds) have no disposal.
+- `FixTask` (scheduled, default nightly, off-peak) drains the queue: automatic-mode issues go straight in; manual-mode issues wait for approval from the UI.
+- **Transcode fix:** ffmpeg re-encode to the ceiling, hardware encoder (NVENC / AMF / QSV / VideoToolbox) used when available with automatic per-file software fallback. Output → temp file → ffprobe verify (duration within 2s, streams present) → swap in → original disposal per config.
+- **Track strip fix:** remux with `ffmpeg -map` excluding disallowed tracks, `-c copy` (lossless). Same temp→verify→swap flow.
+- **Duplicate fix:** move losing file(s) to disposal target; trigger library refresh on the affected item.
+- **Playability fix:** re-verify at fix time (a scanner-flagged file that plays fine now is never removed).
+- **Media sorter fix:** `File.Move` into the configured target folder inside a Jellyfin library; `LibraryGuard` refuses any target outside a library root.
+- **Missing subtitles fix:** `ISubtitleManager.SearchSubtitles` per wanted language → download the first hit via `DownloadSubtitles`. Failure messages surface the specific reason (no providers configured, no matches, network error).
+- Concurrency: max 1 transcode at a time by default (configurable); pause when Jellyfin reports active playback if "avoid interfering with playback" is on (default on).
 - Every action logged to `history` with before/after size and a restore reference.
 
 ### Safety invariants (non-negotiable, enforce in code + tests)
+
 - Never touch a file outside configured library paths.
 - Never remove the last audio track or the last video stream.
 - Never replace a file whose transcode/remux failed verification.
-- Dry-run mode: global toggle that logs what *would* happen; ship with dry-run ON by default for the first run.
+- Never move a file to a target outside a Jellyfin library root.
+- Dry-run mode: global toggle that logs what *would* happen; ships with dry-run ON by default for the first run.
 - Free-space check before transcoding (need ~2× file size headroom).
 
 ## 5. Configuration model (PluginConfiguration)
 
-Settings: enabled libraries (default all), scan schedule, fix schedule/window; per-fix-type mode (Off/Detect/Manual/Auto) and disposal (Recycle/Permanent); recycle bin path + retention days; quality ceiling (resolution, bitrate table, codec, tolerance %); re-encode source file types (extension list, empty = all) and target container (mkv/mp4) — user requirement 2026-07-19; allowed audio languages, allowed subtitle languages (ISO 639-2 lists, sensible single default the user picks in a first-run setup card); duplicate keeper policy order; thorough playability check on/off; max concurrent transcodes; pause-during-playback; dry-run.
+Enabled libraries (default all); per-fix-type mode + disposal; recycle bin path + retention days; quality ceiling (resolution, bitrate table, codec, tolerance %, HDR skip, encoder preset); re-encode source file types + target container; hardware encoder toggle + preferred GPU index; allowed audio languages + allowed subtitle languages; duplicate keeper policy order + treat-editions-as-duplicates toggle; thorough playability check on/off; media sorter target paths + source (Jellyfin metadata vs filename); rename-after-transcode toggle; max concurrent transcodes; pause-during-playback; dry-run; `FirstRunDone` (gates the wizard).
 
 ## 6. UI (configPage.html — embedded plugin page in Jellyfin web)
 
@@ -96,43 +116,62 @@ Single-page dashboard, plain JS + Jellyfin's built-in `emby-*` web components (m
 
 **Intuitiveness standards (release-blocking, not nice-to-have):**
 
-- First-run setup: 2–3 questions max (preferred language, quality ceiling, auto vs review). Everything else gets safe defaults. User should reach a useful Overview within 60 seconds of install.
+- **First-run wizard** — one feature at a time, in the order: Welcome → Libraries → Duplicates → Broken files → Oversized → Languages → Media sorter → Safety → Done. Progress dots, back / skip / continue, per-step save. Triggered by `!FirstRunDone`; survives plugin updates because config XML is preserved.
 - Plain language everywhere: "Files wasting space" not "QualityScanner issues"; "Safe to delete — a better copy exists" not "duplicate group loser". No codec/bitrate jargon on primary surfaces; details available behind an expand.
 - Every destructive button states its consequence inline ("Moves 3 files (4.2 GB) to MediaDash's recycle bin — recoverable for 30 days").
-- Every setting has a one-line description of what it does and what the default means; risky settings (permanent delete, full-auto mode) carry an explicit warning and require confirmation to enable.
-- Empty states explain what will appear and how to trigger it ("No issues yet — run your first scan").
-- Progress feedback for long operations (scan/transcode) with item counts, not spinners alone.
-- Follows Jellyfin dashboard styling exactly (dark/light themes, mobile-responsive like native pages).
-- All UI strings in one place, structured for future localization (community will ask for translations).
+- Every setting has a one-line description of what it does and what the default means; risky settings (permanent delete, full-auto mode) require an explicit confirmation.
+- Empty states explain what will appear and how to trigger it.
+- Progress feedback for long operations with item counts, not spinners alone.
+- Live system-performance card (CPU / RAM / GPU) at the top of Overview — task-manager-style, host- and per-GPU-aware.
+- Follows Jellyfin dashboard styling (dark/light themes, mobile-responsive).
+- All UI strings in one place, structured for future localization.
 
 Tabs:
 
-1. **Overview** — headline cards: potential space savings, issue counts by type, last scan time, "Scan now" / "Run fixes now" buttons.
-2. **Issues** — filterable table (type, library, status), per-row Approve / Dismiss / details, bulk approve-all-of-type. This is the manual-approve queue.
-3. **History** — completed fixes, space saved to date, Restore button for recycle-bin items.
-4. **Settings** — everything in §5, grouped simply; first-run banner walks through language + quality ceiling in ~3 clicks.
+1. **Overview** — welcome-card wizard when unset, then headline savings / per-type cards / drives / system stats / "Scan now" & "Run fixes now" buttons.
+2. **Issues** — filterable per-type list with per-row Approve / Dismiss and bulk approve-all-of-type.
+3. **History** — completed fixes, space saved over time (area chart), Restore for anything in the recycle bin.
+4. **Files** — scoped file browser for the configured libraries (rename / move / delete inside library boundaries).
+5. **Errors** — swallowed exceptions from scanners/fixers, with per-run retry.
+6. **Settings** — everything in §5, grouped by section (Safety / Languages / What to fix / Quality / Libraries / Advanced / Recycle bin / Maintenance).
 
-API endpoints (`/MediaDash/...`, `[Authorize(Policy = "RequiresElevation")]`): `GET /status`, `GET /issues?type=&status=`, `POST /issues/{id}/approve|dismiss`, `POST /issues/approve-bulk`, `POST /scan`, `POST /fix`, `GET /history`, `POST /history/{id}/restore`, `GET/POST /config`.
+API endpoints (`/MediaDash/...`, `[Authorize(Policy = "RequiresElevation")]`): `GET /Status`, `GET /Issues?type=&status=&openOnly=`, `POST /Issues/{id}/Approve|Dismiss`, `POST /Scan`, `POST /Fix`, `GET /History`, `POST /History/{id}/Restore`, `GET /RecycleBin`, `POST /RecycleBin/Empty`, `GET /Errors`, `POST /Errors/Retry`, `GET /LibraryAccessCheck`, `GET/POST /Files/*`.
 
-## 7. Build order (all v1, but sequenced so each step is testable)
+## 7. Build order
 
-1. **Scaffold** — template clone, rename to `Jellyfin.Plugin.MediaDash`, GUID, builds and loads in a Jellyfin instance, empty config page appears.
-2. **Foundations** — SQLite layer, `FfprobeService` + cache, `ScanTask` shell that enumerates libraries via `ILibraryManager`.
-3. **Scanners** — implement all five against the Issue model; verify counts against a test library seeded with known-bad files.
-4. **API + UI read-only** — controller endpoints + Overview/Issues tabs showing real scan data.
-5. **Fix engine** — RecycleBin, then TrackFixer (safest, `-c copy`), then DuplicateFixer, then TranscodeFixer (riskiest last). Dry-run mode first, real execution behind it.
-6. **Approve flow + FixTask scheduling + History/restore.**
-7. **Settings UI + first-run setup + polish.**
-8. **Hardening** — unit tests for keeper-policy ranking, language matching, safety invariants; integration test script that builds a docker Jellyfin + fixture media files and runs a full scan/fix cycle — run it on both a Linux (Docker) and Windows Jellyfin instance before release.
-9. **Community release** — `build.yaml` + GitHub Actions producing the plugin zip and repository `manifest.json` (users install by adding the repo URL in Dashboard → Plugins → Repositories); semantic versioning with `targetAbi` set to the minimum supported Jellyfin version; README with screenshots, install steps, FAQ, and a prominent "what it will/won't touch" safety section; CHANGELOG; issue templates.
+Shipped (v0.1 → v0.5.x):
 
-## 8. Test fixtures (generate with ffmpeg in a script, commit the script not the files)
+1. Scaffold, DI, SQLite layer, `FfprobeService` + cache.
+2. Five original scanners (dupes, playability, quality, subs, audio).
+3. Read-only API + Overview / Issues UI.
+4. Fix engine (RecycleBin → TrackFixer → DuplicateFixer → TranscodeFixer → PlayabilityFixer) with dry-run.
+5. Approve flow + FixTask + History + one-click Restore.
+6. First-run wizard (multi-step, feature at a time).
+7. Media sorter (scanner + fixer).
+8. Live system stats (CPU / RAM / GPU), including AMD APU `gpu_metrics` fallback.
+9. Missing-subtitle scanner + `ISubtitleManager` fixer.
+10. Files tab, Errors tab, per-fix-type disposal, hardware GPU picker.
 
-Tiny synthetic files: a 4K H.264 high-bitrate clip (quality hit), same movie in two files (duplicate), a truncated file (playability), a clip with eng+fra+deu audio (audio strip), a clip with unwanted sub tracks (sub strip), a clean file (no issues). Script: `tools/make-fixtures.sh`.
+## 8. Whole-library housekeeping roadmap
 
-## 9. Risks / open questions for the build
+The "one plugin you need" ambition is delivered by continuing to fold in library-owner chores that today live in one-off scripts. Each item ships as another `IScanner`/`IFixer` pair reusing the existing infrastructure (issue lifecycle, dry-run, disposal, wizard step, Overview card).
 
-- Jellyfin version support: develop against the developer's installed server version, but define a minimum supported version (`targetAbi`) for release — aim to support the current stable 10.x line, not just one machine's install.
-- Hardware transcode flags vary by platform; v1 can fall back to software (libx265) if reading Jellyfin's encoding options proves messy.
-- After replacing a file, trigger `ILibraryManager` refresh on the item so Jellyfin re-probes; verify watched-status/metadata survive (path is unchanged, so it should).
-- 10.11.x template README shows net9.0 examples; confirm target framework against the installed server's plugin ABI before scaffolding.
+Prioritized by value × safety:
+
+1. **Missing metadata** — items with no poster, no backdrop, no overview, missing year or provider IDs. Fix: trigger Jellyfin's own metadata refresh with a specific replacement strategy per gap.
+2. **Missing chapter markers** — video files with no chapter table. Fix: generate via silence-detection or fixed intervals (user picks).
+3. **Corrupt / stale artwork** — 404'd remote images, orphaned local artwork files. Fix: re-fetch or clean up.
+4. **Duplicate subtitle files** — two `.srt` for the same language, or embedded + external duplicates.
+5. **Series holes** — TV shows missing episodes between existing ones (aired but absent). Detect-only; deliberately no acquisition path.
+6. **Naming drift** — files whose on-disk name no longer matches the plugin's canonical template. Fix: rename in place (already partly implemented as an opt-in post-transcode step).
+7. **Orphaned recycle-bin entries** — files whose original library is gone. Fix: prompt to purge or migrate.
+
+Any addition MUST honour §4 safety invariants and must fit the "surface what Jellyfin already knows" scope commitment — nothing that requires an external service the user hasn't already configured for Jellyfin proper.
+
+## 9. Test fixtures
+
+Tiny synthetic files generated by `tools/make-fixtures.sh`: a 4K H.264 high-bitrate clip (quality hit), same movie in two files (duplicate), a truncated file (playability), a clip with eng+fra+deu audio (audio strip), a clip with unwanted sub tracks (sub strip), a movie under a TV path (misplaced), a movie with no subtitle track (missing subs), a clean file (no issues).
+
+## 10. Release process
+
+`build.yaml` → `manifest.json` → GitHub Releases. `tools/release.ps1 -Version X.Y.Z -Changelog "..."` builds, zips, uploads to GitHub Releases, re-downloads the uploaded asset and writes its MD5 into `manifest.json` — so the manifest checksum can't drift from the released zip. `targetAbi` tracks the minimum supported Jellyfin server; bump it deliberately, not by default.

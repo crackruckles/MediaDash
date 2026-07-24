@@ -467,6 +467,45 @@
             #MediaDashConfigPage .mdSetCard--advanced   { --md-accent: #cbd5e1; --md-accent-tint: rgba(148,163,184,.16); }
             #MediaDashConfigPage .mdSetCard--bin        { --md-accent: #ec4899; --md-accent-tint: rgba(236,72,153,.14); }
             #MediaDashConfigPage .mdSetCard--maintenance{ --md-accent: #94a3b8; --md-accent-tint: rgba(148,163,184,.16); }
+
+            /* First-run wizard */
+            #MediaDashConfigPage #mdFirstRun { padding: 1.4em 1.6em 1.2em; }
+            #MediaDashConfigPage .mdWizHead {
+                display: flex; align-items: center; justify-content: space-between;
+                gap: 1em; flex-wrap: wrap; margin-bottom: 1.1em;
+                padding-bottom: .9em; border-bottom: 1px solid rgba(255,255,255,.08);
+            }
+            #MediaDashConfigPage .mdWizHead h2 { font-size: 1.4em; }
+            #MediaDashConfigPage .mdWizDots { display: flex; gap: .4em; }
+            #MediaDashConfigPage .mdWizDot {
+                width: 10px; height: 10px; border-radius: 50%;
+                background: rgba(255,255,255,.15); transition: background .18s ease, transform .18s ease;
+            }
+            #MediaDashConfigPage .mdWizDot.mdWizDotActive { background: #00a4dc; transform: scale(1.25); }
+            #MediaDashConfigPage .mdWizDot.mdWizDotDone { background: #22c55e; }
+            #MediaDashConfigPage .mdWizStep { display: none; animation: mdWizFade .18s ease; }
+            #MediaDashConfigPage .mdWizStep.mdWizStepActive { display: block; }
+            @keyframes mdWizFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+            #MediaDashConfigPage .mdWizStep h3 {
+                display: flex; align-items: center; gap: .4em;
+                margin: 0 0 .3em; font-size: 1.2em;
+            }
+            #MediaDashConfigPage .mdWizStep .mdWizIntro {
+                margin: 0 0 1em; opacity: .82;
+            }
+            #MediaDashConfigPage .mdWizFoot {
+                display: flex; align-items: center; gap: .6em; flex-wrap: wrap;
+                margin-top: 1.2em; padding-top: 1em;
+                border-top: 1px solid rgba(255,255,255,.08);
+            }
+            #MediaDashConfigPage .mdWizFoot .mdWizSpacer { flex: 1; }
+            #MediaDashConfigPage .mdWizNext { min-width: 8.5em; }
+            #MediaDashConfigPage .mdWizMsg { font-size: .85em; }
+            #MediaDashConfigPage .mdWizMsg.mdWizErr { color: #ef4444; }
+            #MediaDashConfigPage .mdWizGrid {
+                display: grid; gap: 1em;
+                grid-template-columns: repeat(auto-fit, minmax(18em, 1fr));
+            }
         </style>
         <div data-role="content">
             <div class="content-primary">
@@ -502,35 +541,232 @@
                 </div>
 
                 <div id="mdFirstRun" class="mdCard" style="display:none;margin-bottom:1.4em;border-color:rgba(0,164,220,.5);">
-                    <h2 style="margin-top:0;">Welcome! Three quick questions and you're set up.</h2>
-                    <div class="selectContainer" style="max-width:26em;">
-                        <label class="selectLabel" for="mdFrLang">Which language do you keep?</label>
-                        <select is="emby-select" id="mdFrLang" class="emby-select-withcolor emby-select"></select>
-                        <div class="fieldDescription">Audio and subtitles in other languages get flagged for removal. Tracks with no language tag are always kept.</div>
+                    <div class="mdWizHead">
+                        <div>
+                            <h2 style="margin:0;">Get MediaDash set up</h2>
+                            <div class="fieldDescription" id="mdWizStepLabel" style="margin-top:.2em;"></div>
+                        </div>
+                        <div class="mdWizDots" id="mdWizDots"></div>
                     </div>
-                    <div class="selectContainer" style="max-width:26em;">
-                        <label class="selectLabel" for="mdFrQuality">What's the highest quality you want to keep?</label>
-                        <select is="emby-select" id="mdFrQuality" class="emby-select-withcolor emby-select">
-                            <option value="2160">4K — keep everything as-is</option>
-                            <option value="1080" selected>1080p — re-encode anything bigger</option>
-                            <option value="720">720p — save the most space</option>
-                        </select>
-                        <div class="fieldDescription">Files above this get flagged with an estimate of the space a re-encode would save.</div>
+
+                    <div id="mdWizSteps">
+                        <div class="mdWizStep mdWizStepActive" data-step="0">
+                            <h3><span class="material-icons" style="color:#00a4dc;">waving_hand</span>Welcome</h3>
+                            <p class="mdWizIntro">MediaDash looks after your library the way a librarian would: it spots duplicates, broken files, oversized encodes and unwanted language tracks, then fixes them safely on a schedule.</p>
+                            <p class="mdWizIntro">The next few screens step through each feature. Any of them can be turned off entirely — nothing is set in stone, everything here is also in Settings.</p>
+                            <p class="mdWizIntro"><b>Dry-run is on by default</b>, so nothing on disk changes until you decide it should.</p>
+                        </div>
+
+                        <div class="mdWizStep" data-step="1">
+                            <h3><span class="material-icons" style="color:#06b6d4;">video_library</span>Libraries to scan</h3>
+                            <p class="mdWizIntro">Only the libraries ticked here are scanned. Untick a library and MediaDash won't touch any file inside it. Leave everything ticked to include all your movie and TV libraries.</p>
+                            <div id="mdWizLibraries" style="margin:.4em 0 .8em;"></div>
+                            <div style="margin:.6em 0 .3em;">
+                                <button is="emby-button" type="button" id="mdWizCheckAccess" class="raised" title="Reads and writes a tiny probe file inside each ticked library folder to confirm Jellyfin has the permissions it needs. Nothing is left behind." style="font-size:85%;"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;">verified_user</span> <span>Check library access</span></button>
+                                <span class="fieldDescription">Confirms Jellyfin can read AND write the ticked libraries. Fixes fail silently if the underlying files aren't writable by the user Jellyfin runs as.</span>
+                            </div>
+                            <div id="mdWizAccessResults" style="display:none;margin:.4em 0 .8em;"></div>
+                        </div>
+
+                        <div class="mdWizStep" data-step="2">
+                            <h3><span class="material-icons" style="color:#f59e0b;">content_copy</span>Duplicate copies</h3>
+                            <p class="mdWizIntro">Finds the same movie or episode saved more than once and keeps just the best copy. "Best" is decided by the policy below.</p>
+                            <div class="mdWizGrid">
+                                <div class="selectContainer">
+                                    <label class="selectLabel" for="mdWizDupMode">When duplicates are found</label>
+                                    <select is="emby-select" id="mdWizDupMode" class="emby-select-withcolor emby-select" data-mode-for="DuplicateFixMode"></select>
+                                </div>
+                                <div class="selectContainer">
+                                    <label class="selectLabel" for="mdWizDupKeeper">Which copy to keep</label>
+                                    <select is="emby-select" id="mdWizDupKeeper" class="emby-select-withcolor emby-select">
+                                        <option value="quality">Best quality (recommended)</option>
+                                        <option value="codec">Most modern codec</option>
+                                        <option value="size">Smallest file</option>
+                                    </select>
+                                </div>
+                                <div class="selectContainer">
+                                    <label class="selectLabel" for="mdWizDupDisp">The worse copy goes to</label>
+                                    <select is="emby-select" id="mdWizDupDisp" class="emby-select-withcolor emby-select" data-disp-for="DuplicateDisposal"></select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mdWizStep" data-step="3">
+                            <h3><span class="material-icons" style="color:#ef4444;">play_disabled</span>Broken files</h3>
+                            <p class="mdWizIntro">Test-plays every file — start, middle, end — and flags anything that won't decode. Broken files are always re-checked at fix time before removal.</p>
+                            <div class="mdWizGrid">
+                                <div class="selectContainer">
+                                    <label class="selectLabel" for="mdWizPlayMode">When a broken file is found</label>
+                                    <select is="emby-select" id="mdWizPlayMode" class="emby-select-withcolor emby-select" data-mode-for="PlayabilityFixMode"></select>
+                                </div>
+                                <div class="selectContainer">
+                                    <label class="selectLabel" for="mdWizPlayDisp">Broken files go to</label>
+                                    <select is="emby-select" id="mdWizPlayDisp" class="emby-select-withcolor emby-select" data-disp-for="PlayabilityDisposal"></select>
+                                </div>
+                            </div>
+                            <div class="checkboxContainer checkboxContainer-withDescription" style="margin-top:.6em;">
+                                <label class="emby-checkbox-label">
+                                    <input id="mdWizThorough" type="checkbox" is="emby-checkbox" />
+                                    <span>Thorough playability check (recommended)</span>
+                                </label>
+                                <div class="fieldDescription">Test-plays three points in every file. Slower on first scan; results are cached for unchanged files. Turn off for a much faster header-only check.</div>
+                            </div>
+                        </div>
+
+                        <div class="mdWizStep" data-step="4">
+                            <h3><span class="material-icons" style="color:#3b82f6;">compress</span>Oversized files</h3>
+                            <p class="mdWizIntro">Flags files bigger than your quality ceiling. When fixed, they're re-encoded down; the original goes to the recycle bin.</p>
+                            <div class="mdWizGrid">
+                                <div class="selectContainer">
+                                    <label class="selectLabel" for="mdWizQMode">When an oversized file is found</label>
+                                    <select is="emby-select" id="mdWizQMode" class="emby-select-withcolor emby-select" data-mode-for="TranscodeFixMode"></select>
+                                </div>
+                                <div class="selectContainer">
+                                    <label class="selectLabel" for="mdWizMaxRes">Highest quality you want to keep</label>
+                                    <select is="emby-select" id="mdWizMaxRes" class="emby-select-withcolor emby-select">
+                                        <option value="2160">4K — keep everything as-is</option>
+                                        <option value="1080">1080p — re-encode anything bigger</option>
+                                        <option value="720">720p — save the most space</option>
+                                    </select>
+                                </div>
+                                <div class="selectContainer">
+                                    <label class="selectLabel" for="mdWizCodec">Target codec</label>
+                                    <select is="emby-select" id="mdWizCodec" class="emby-select-withcolor emby-select">
+                                        <option value="hevc">HEVC / H.265 (recommended)</option>
+                                        <option value="av1">AV1 (best compression, slowest)</option>
+                                        <option value="h264">H.264 (widest compatibility)</option>
+                                    </select>
+                                </div>
+                                <div class="selectContainer">
+                                    <label class="selectLabel" for="mdWizQDisp">Original file goes to</label>
+                                    <select is="emby-select" id="mdWizQDisp" class="emby-select-withcolor emby-select" data-disp-for="TranscodeDisposal"></select>
+                                </div>
+                            </div>
+                            <div class="checkboxContainer checkboxContainer-withDescription" style="margin-top:.6em;">
+                                <label class="emby-checkbox-label">
+                                    <input id="mdWizHwEncode" type="checkbox" is="emby-checkbox" />
+                                    <span>Use hardware encoder if available</span>
+                                </label>
+                                <div class="fieldDescription">Much faster, slightly larger files. Uses Jellyfin's configured accelerator (NVENC / QSV / AMF / VideoToolbox); falls back to software per-file if it fails.</div>
+                            </div>
+                            <div class="selectContainer" id="mdWizGpuIndexRow" style="max-width:26em;margin-top:.4em;">
+                                <label class="selectLabel" for="mdWizGpuIndex">Preferred GPU</label>
+                                <select is="emby-select" id="mdWizGpuIndex" class="emby-select-withcolor emby-select"></select>
+                                <div class="fieldDescription">Pick the card re-encodes should target when your server has more than one (typical: iGPU + dGPU). "Auto" follows Jellyfin's Playback → Hardware acceleration setting. Only NVENC / AMF honour this override; QSV / VideoToolbox fall back to Jellyfin's device.</div>
+                            </div>
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label class="emby-checkbox-label">
+                                    <input id="mdWizSkipHdr" type="checkbox" is="emby-checkbox" />
+                                    <span>Skip HDR files (recommended)</span>
+                                </label>
+                                <div class="fieldDescription">Re-encoding HDR without proper color-space handling destroys metadata. Leave on unless you know you want to touch HDR content.</div>
+                            </div>
+                        </div>
+
+                        <div class="mdWizStep" data-step="5">
+                            <h3><span class="material-icons" style="color:#10b981;">translate</span>Language cleanup</h3>
+                            <p class="mdWizIntro">Removes audio and subtitle tracks you don't understand. A file's only remaining audio track is never removed, and tracks with no language tag are always kept.</p>
+                            <div class="mdWizGrid">
+                                <div class="inputContainer">
+                                    <label class="inputLabel inputLabelUnfocused" for="mdWizAudioLangs">Audio languages to keep</label>
+                                    <input id="mdWizAudioLangs" type="text" is="emby-input" placeholder="e.g. eng, jpn" />
+                                    <div class="fieldDescription">Comma-separated ISO codes. Empty leaves audio cleanup off.</div>
+                                </div>
+                                <div class="selectContainer">
+                                    <label class="selectLabel" for="mdWizAudioMode">Unwanted audio</label>
+                                    <select is="emby-select" id="mdWizAudioMode" class="emby-select-withcolor emby-select" data-mode-for="AudioFixMode"></select>
+                                </div>
+                                <div class="inputContainer">
+                                    <label class="inputLabel inputLabelUnfocused" for="mdWizSubLangs">Subtitle languages to keep</label>
+                                    <input id="mdWizSubLangs" type="text" is="emby-input" placeholder="e.g. eng" />
+                                    <div class="fieldDescription">Comma-separated ISO codes. Empty leaves subtitle cleanup off.</div>
+                                </div>
+                                <div class="selectContainer">
+                                    <label class="selectLabel" for="mdWizSubMode">Unwanted subtitles</label>
+                                    <select is="emby-select" id="mdWizSubMode" class="emby-select-withcolor emby-select" data-mode-for="SubtitleFixMode"></select>
+                                </div>
+                                <div class="selectContainer">
+                                    <label class="selectLabel" for="mdWizMissingSubMode">Missing subtitles</label>
+                                    <select is="emby-select" id="mdWizMissingSubMode" class="emby-select-withcolor emby-select" data-mode-for="MissingSubtitlesFixMode"></select>
+                                    <div class="fieldDescription">Downloads from Jellyfin's configured subtitle providers (OpenSubtitles etc.). Set them up under Dashboard → Metadata → Subtitles first.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mdWizStep" data-step="6">
+                            <h3><span class="material-icons" style="color:#f97316;">drive_file_move</span>Media sorter</h3>
+                            <p class="mdWizIntro">Spots files in the wrong folder (a movie under TV, or a TV episode under Movies) and moves them where they belong. Set both target folders to turn the sorter on; leave either empty and it stays off.</p>
+                            <div class="mdWizGrid">
+                                <div class="inputContainer">
+                                    <label class="inputLabel inputLabelUnfocused" for="mdWizMoviesTarget">Movies folder</label>
+                                    <input id="mdWizMoviesTarget" type="text" is="emby-input" placeholder="e.g. /mnt/media/Movies" />
+                                    <div class="fieldDescription">Absolute path inside a Jellyfin library. Moves outside your libraries are refused.</div>
+                                </div>
+                                <div class="inputContainer">
+                                    <label class="inputLabel inputLabelUnfocused" for="mdWizTvTarget">TV folder</label>
+                                    <input id="mdWizTvTarget" type="text" is="emby-input" placeholder="e.g. /mnt/media/TV" />
+                                    <div class="fieldDescription">Absolute path inside a Jellyfin library.</div>
+                                </div>
+                                <div class="selectContainer">
+                                    <label class="selectLabel" for="mdWizSortSource">Identify files using</label>
+                                    <select is="emby-select" id="mdWizSortSource" class="emby-select-withcolor emby-select">
+                                        <option value="JellyfinMetadata">Jellyfin metadata (recommended)</option>
+                                        <option value="FilenameHeuristic">Filename pattern (fallback)</option>
+                                    </select>
+                                    <div class="fieldDescription">Metadata is what Jellyfin already scraped. Switch to the filename fallback if your files aren't correctly tagged (looks for SxxExx / NxN patterns).</div>
+                                </div>
+                                <div class="selectContainer">
+                                    <label class="selectLabel" for="mdWizSortMode">When a misplaced file is found</label>
+                                    <select is="emby-select" id="mdWizSortMode" class="emby-select-withcolor emby-select" data-mode-for="MisplacedFixMode"></select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mdWizStep" data-step="7">
+                            <h3><span class="material-icons" style="color:#22d3ee;">shield</span>Safety net</h3>
+                            <p class="mdWizIntro">Two guardrails that keep every scan and fix reversible, plus how long the recycle bin keeps removed files before it purges them.</p>
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label class="emby-checkbox-label">
+                                    <input id="mdWizDryRun" type="checkbox" is="emby-checkbox" />
+                                    <span>Dry-run mode (strongly recommended for the first run)</span>
+                                </label>
+                                <div class="fieldDescription">Fix runs only log what they would do; nothing is changed. Turn off later once you're happy with the plan shown in History.</div>
+                            </div>
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label class="emby-checkbox-label">
+                                    <input id="mdWizPausePlayback" type="checkbox" is="emby-checkbox" />
+                                    <span>Only run when the server is idle</span>
+                                </label>
+                                <div class="fieldDescription">Scheduled scans and fixes wait until nobody is watching anything and nobody has used Jellyfin for 15 minutes. Manual "Scan now" / "Run fixes now" always run immediately.</div>
+                            </div>
+                            <div class="inputContainer" style="max-width:14em;margin-top:.6em;">
+                                <label class="inputLabel inputLabelUnfocused" for="mdWizRetention">Recycle bin retention (days)</label>
+                                <input id="mdWizRetention" type="number" min="1" max="365" is="emby-input" />
+                                <div class="fieldDescription">How long removed files are kept before they are permanently purged.</div>
+                            </div>
+                        </div>
+
+                        <div class="mdWizStep" data-step="8">
+                            <h3><span class="material-icons" style="color:#22c55e;">check_circle</span>You're set up</h3>
+                            <p class="mdWizIntro">MediaDash is ready to go. Every setting from this walkthrough is also on the Settings tab, and you can re-open this wizard any time from <b>Settings → Maintenance</b>.</p>
+                            <div id="mdWizSummary" class="fieldDescription" style="margin:.4em 0 .8em;padding:.6em .8em;border-left:3px solid #22c55e;background:rgba(34,197,94,.06);border-radius:4px;"></div>
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label class="emby-checkbox-label">
+                                    <input id="mdWizScanNow" type="checkbox" is="emby-checkbox" checked />
+                                    <span>Kick off the first scan when I finish</span>
+                                </label>
+                                <div class="fieldDescription">Scans your ticked libraries; nothing is fixed until you approve on the Issues tab (or, in dry-run, the plan shows on History).</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="selectContainer" style="max-width:26em;">
-                        <label class="selectLabel" for="mdFrMode">How should fixes run?</label>
-                        <select is="emby-select" id="mdFrMode" class="emby-select-withcolor emby-select">
-                            <option value="review" selected>Ask me first (recommended)</option>
-                            <option value="auto">Fix automatically every night</option>
-                        </select>
-                        <div class="fieldDescription">Either way, nothing is touched while dry-run stays on, and removed files go to MediaDash's recycle bin for 30 days.</div>
+
+                    <div class="mdWizFoot">
+                        <button is="emby-button" type="button" id="mdWizBack" class="raised" style="font-size:85%;"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;">chevron_left</span><span>Back</span></button>
+                        <span class="mdWizSpacer"></span>
+                        <span id="mdWizMsg" class="fieldDescription mdWizMsg"></span>
+                        <button is="emby-button" type="button" id="mdWizSkip" class="raised" style="font-size:85%;" title="Close the walkthrough — everything is available in Settings."><span>Skip walkthrough</span></button>
+                        <button is="emby-button" type="button" id="mdWizNext" class="raised button-submit mdWizNext"><span id="mdWizNextLabel">Continue</span><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;margin-left:.2em;">chevron_right</span></button>
                     </div>
-                    <div style="margin:.4em 0 .8em;">
-                        <button is="emby-button" type="button" id="mdFrCheckAccess" class="raised" title="Reads and writes a tiny probe file inside each library folder to confirm Jellyfin has the permissions it needs. Nothing is left behind." style="font-size:85%;"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;">verified_user</span> <span>Check library access</span></button>
-                        <span class="fieldDescription">Confirms Jellyfin can read AND write every library folder. Fixes fail silently if the underlying files aren't writable by the user Jellyfin runs as — this catches it before you approve anything.</span>
-                    </div>
-                    <div id="mdFrAccessResults" style="display:none;margin:.4em 0 .8em;"></div>
-                    <button is="emby-button" type="button" id="mdFrDone" class="raised button-submit"><span>Finish setup</span></button>
                 </div>
 
                 <div class="mdTabBar">
@@ -921,7 +1157,7 @@
                                     </span>
                                 </h2>
                                 <div style="margin:.4em 0;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
-                                    <button is="emby-button" type="button" id="mdRerunSetup" class="raised" title="Reopen the three-question welcome card at the top of Overview" style="font-size:80%;"><span>Run first-time setup again</span></button>
+                                    <button is="emby-button" type="button" id="mdRerunSetup" class="raised" title="Reopen the first-run walkthrough at the top of Overview" style="font-size:80%;"><span>Run first-time setup again</span></button>
                                     <span class="fieldDescription">Brings back the three-question welcome card.</span>
                                 </div>
                                 <div style="margin:.6em 0;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
@@ -1050,6 +1286,10 @@
                     Misplaced: {
                         title: 'Misplaced files', hint: 'A movie in the TV folder, or a TV episode in the Movies folder.', color: '#f97316', icon: 'drive_file_move',
                         action: 'Move to correct folder', actionHint: 'Moves the file into the target folder configured in Settings → Libraries.', approveAll: 'Move all {0} misplaced files shown'
+                    },
+                    MissingSubtitles: {
+                        title: 'Missing subtitles', hint: 'No subtitle in any of your kept languages.', color: '#a78bfa', icon: 'closed_caption',
+                        action: 'Download subtitles', actionHint: 'Downloads one via Jellyfin’s configured subtitle providers (OpenSubtitles etc.).', approveAll: 'Download subtitles for all {0} shown'
                     }
                 },
                 languages: [
@@ -1069,7 +1309,9 @@
                 { key: 'SubtitleLanguage', mode: 'SubtitleFixMode', disposal: 'SubtitleDisposal' },
                 { key: 'AudioLanguage', mode: 'AudioFixMode', disposal: 'AudioDisposal' },
                 // Misplaced fixes move files rather than delete them, so there's no disposal choice.
-                { key: 'Misplaced', mode: 'MisplacedFixMode' }
+                { key: 'Misplaced', mode: 'MisplacedFixMode' },
+                // Missing-subtitle fixes add a file rather than remove one; no disposal choice.
+                { key: 'MissingSubtitles', mode: 'MissingSubtitlesFixMode' }
             ];
 
             var KEEPER_PRESETS = {
@@ -1955,19 +2197,290 @@
                 return false;
             }
 
-            // ---------- First run ----------
+            // ---------- First run wizard ----------
+
+            var WIZ_STEP_LABELS = [
+                'Step 1 of 9 — Welcome',
+                'Step 2 of 9 — Libraries',
+                'Step 3 of 9 — Duplicates',
+                'Step 4 of 9 — Broken files',
+                'Step 5 of 9 — Oversized files',
+                'Step 6 of 9 — Languages',
+                'Step 7 of 9 — Media sorter',
+                'Step 8 of 9 — Safety',
+                'Step 9 of 9 — All done'
+            ];
+            var WIZ_MODE_OPTIONS = [
+                ['Off', 'modeOff'],
+                ['DetectOnly', 'modeDetect'],
+                ['ManualApprove', 'modeManual'],
+                ['Automatic', 'modeAuto']
+            ];
+
+            function wizFillSelect(el, options) {
+                if (!el || el.options.length) return;
+                el.innerHTML = options.map(function (o) {
+                    return '<option value="' + o[0] + '">' + esc(o[1]) + '</option>';
+                }).join('');
+            }
+
+            function wizRenderDots(active, total) {
+                var el = view.querySelector('#mdWizDots');
+                var html = '';
+                for (var i = 0; i < total; i++) {
+                    var cls = 'mdWizDot' + (i === active ? ' mdWizDotActive' : (i < active ? ' mdWizDotDone' : ''));
+                    html += '<div class="' + cls + '" title="' + esc(WIZ_STEP_LABELS[i]) + '"></div>';
+                }
+                el.innerHTML = html;
+            }
+
+            function wizShow(step) {
+                var steps = view.querySelectorAll('#mdWizSteps .mdWizStep');
+                for (var i = 0; i < steps.length; i++) {
+                    steps[i].classList.toggle('mdWizStepActive', parseInt(steps[i].getAttribute('data-step'), 10) === step);
+                }
+                view.querySelector('#mdWizStepLabel').textContent = WIZ_STEP_LABELS[step] || '';
+                wizRenderDots(step, WIZ_STEP_LABELS.length);
+                view.querySelector('#mdWizBack').style.visibility = step === 0 ? 'hidden' : '';
+                view.querySelector('#mdWizSkip').style.display = step === WIZ_STEP_LABELS.length - 1 ? 'none' : '';
+                var lastStep = step === WIZ_STEP_LABELS.length - 1;
+                view.querySelector('#mdWizNextLabel').textContent = lastStep ? 'Finish setup' : 'Continue';
+                view.querySelector('#mdWizMsg').textContent = '';
+                view.querySelector('#mdWizMsg').classList.remove('mdWizErr');
+                if (lastStep) {
+                    wizRenderSummary();
+                }
+            }
+
+            function wizRenderSummary() {
+                var libEls = view.querySelectorAll('#mdWizLibraries .mdWizLib:checked');
+                var libCount = libEls.length;
+                var summary = 'MediaDash will scan <b>' + (libCount === 0 ? 'no' : libCount) + ' librar' + (libCount === 1 ? 'y' : 'ies') + '</b>.';
+                var modes = [
+                    ['Duplicates', view.querySelector('#mdWizDupMode').value],
+                    ['Broken files', view.querySelector('#mdWizPlayMode').value],
+                    ['Oversized', view.querySelector('#mdWizQMode').value],
+                    ['Audio', view.querySelector('#mdWizAudioMode').value],
+                    ['Subtitles', view.querySelector('#mdWizSubMode').value],
+                    ['Missing subtitles', view.querySelector('#mdWizMissingSubMode').value],
+                    ['Media sorter', view.querySelector('#mdWizSortMode').value]
+                ];
+                var enabled = modes.filter(function (m) { return m[1] !== 'Off'; }).map(function (m) { return m[0]; });
+                var off = modes.filter(function (m) { return m[1] === 'Off'; }).map(function (m) { return m[0]; });
+                summary += ' Fix types enabled: <b>' + (enabled.length ? enabled.join(', ') : 'none') + '</b>.';
+                if (off.length) summary += ' Off: ' + off.join(', ') + '.';
+                if (view.querySelector('#mdWizDryRun').checked) {
+                    summary += ' Dry-run is <b>on</b> — nothing on disk changes until you turn it off in Settings → Safety.';
+                } else {
+                    summary += ' Dry-run is <b>off</b> — approved fixes actually run.';
+                }
+                view.querySelector('#mdWizSummary').innerHTML = summary;
+            }
+
+            function wizLoadLibraries(config) {
+                ApiClient.getJSON(ApiClient.getUrl('Library/VirtualFolders')).then(function (folders) {
+                    var el = view.querySelector('#mdWizLibraries');
+                    var enabled = config.EnabledLibraries || [];
+                    var eligible = folders.filter(function (f) {
+                        return !f.CollectionType || f.CollectionType === 'movies' || f.CollectionType === 'tvshows';
+                    });
+                    if (!eligible.length) {
+                        el.innerHTML = '<div class="fieldDescription" style="color:#f59e0b;">No movie or TV libraries are configured yet. Add one in Dashboard → Libraries, then re-open this wizard from Settings → Maintenance.</div>';
+                        return;
+                    }
+                    // Empty enabled = "all" by convention elsewhere; pre-tick everything so the checkboxes reflect that.
+                    var effective = enabled.length ? enabled : eligible.map(function (f) { return f.ItemId; });
+                    el.innerHTML = eligible.map(function (f) {
+                        var checked = effective.indexOf(f.ItemId) >= 0 ? ' checked' : '';
+                        var kind = f.CollectionType === 'tvshows' ? 'TV' : (f.CollectionType === 'movies' ? 'Movies' : 'Mixed');
+                        return '<div class="checkboxContainer"><label class="emby-checkbox-label">' +
+                            '<input type="checkbox" is="emby-checkbox" class="mdWizLib" data-id="' + esc(f.ItemId) + '"' + checked + ' />' +
+                            '<span>' + esc(f.Name) + ' <span class="mdBadge" style="background:rgba(0,164,220,.35);font-size:.7em;vertical-align:middle;">' + kind + '</span></span>' +
+                            '</label></div>';
+                    }).join('');
+                });
+            }
+
+            function wizPopulateFromConfig(c) {
+                // Mode + disposal selects. Populate options once, then set current value.
+                view.querySelectorAll('#mdFirstRun [data-mode-for]').forEach(function (sel) {
+                    wizFillSelect(sel, WIZ_MODE_OPTIONS.map(function (o) { return [o[0], STR[o[1]]]; }));
+                    sel.value = c[sel.getAttribute('data-mode-for')] || 'DetectOnly';
+                });
+                view.querySelectorAll('#mdFirstRun [data-disp-for]').forEach(function (sel) {
+                    wizFillSelect(sel, [['RecycleBin', STR.disposalRecycle], ['Permanent', STR.disposalPermanent]]);
+                    sel.value = c[sel.getAttribute('data-disp-for')] || 'RecycleBin';
+                });
+
+                view.querySelector('#mdWizDupKeeper').value = keeperPresetFromConfig(c.KeeperPolicyOrder);
+                view.querySelector('#mdWizThorough').checked = c.ThoroughPlayabilityCheck !== false;
+                view.querySelector('#mdWizMaxRes').value = String(c.MaxResolutionHeight || 1080);
+                view.querySelector('#mdWizCodec').value = c.PreferredCodec || 'hevc';
+                view.querySelector('#mdWizHwEncode').checked = !!c.UseHardwareEncoder;
+                view.querySelector('#mdWizSkipHdr').checked = c.SkipHdrContent !== false;
+                wizPopulateGpuOptions(c.PreferredGpuIndex);
+                view.querySelector('#mdWizAudioLangs').value = (c.AllowedAudioLanguages || []).join(', ');
+                view.querySelector('#mdWizSubLangs').value = (c.AllowedSubtitleLanguages || []).join(', ');
+                view.querySelector('#mdWizMoviesTarget').value = c.MoviesTargetPath || '';
+                view.querySelector('#mdWizTvTarget').value = c.TvTargetPath || '';
+                view.querySelector('#mdWizSortSource').value = c.MediaSortSource || 'JellyfinMetadata';
+                view.querySelector('#mdWizDryRun').checked = c.DryRun !== false;
+                view.querySelector('#mdWizPausePlayback').checked = c.PauseDuringPlayback !== false;
+                view.querySelector('#mdWizRetention').value = c.RecycleBinRetentionDays || 30;
+            }
+
+            function wizPopulateGpuOptions(currentIndex) {
+                var sel = view.querySelector('#mdWizGpuIndex');
+                // Prefer live status if the dashboard has already polled; otherwise fetch it once here so the
+                // dropdown isn't empty when the wizard opens before the first refresh() completes.
+                function render(gpus) {
+                    var html = '<option value="">Auto (Jellyfin default)</option>';
+                    (gpus || []).forEach(function (g) {
+                        var label = 'GPU ' + g.Index + ' — ' + g.Name + ' (' + (g.Source || '') + ')';
+                        html += '<option value="' + g.Index + '">' + esc(label) + '</option>';
+                    });
+                    sel.innerHTML = html;
+                    sel.value = (currentIndex == null) ? '' : String(currentIndex);
+                    view.querySelector('#mdWizGpuIndexRow').style.display = (gpus && gpus.length > 0) ? '' : 'none';
+                }
+                var cached = lastStatus && lastStatus.System && lastStatus.System.Gpus;
+                if (cached) {
+                    render(cached);
+                } else {
+                    api('Status').then(function (s) {
+                        render(s && s.System ? s.System.Gpus : []);
+                    }, function () { render([]); });
+                }
+            }
+
+            function wizApplyStepToConfig(step, c) {
+                switch (step) {
+                    case 1:
+                        c.EnabledLibraries = Array.prototype.map.call(
+                            view.querySelectorAll('#mdWizLibraries .mdWizLib:checked'),
+                            function (cb) { return cb.getAttribute('data-id'); });
+                        break;
+                    case 2:
+                        c.DuplicateFixMode = view.querySelector('#mdWizDupMode').value;
+                        c.DuplicateDisposal = view.querySelector('#mdWizDupDisp').value;
+                        c.KeeperPolicyOrder = KEEPER_PRESETS[view.querySelector('#mdWizDupKeeper').value] || KEEPER_PRESETS.quality;
+                        break;
+                    case 3:
+                        c.PlayabilityFixMode = view.querySelector('#mdWizPlayMode').value;
+                        c.PlayabilityDisposal = view.querySelector('#mdWizPlayDisp').value;
+                        c.ThoroughPlayabilityCheck = view.querySelector('#mdWizThorough').checked;
+                        break;
+                    case 4:
+                        c.TranscodeFixMode = view.querySelector('#mdWizQMode').value;
+                        c.TranscodeDisposal = view.querySelector('#mdWizQDisp').value;
+                        c.MaxResolutionHeight = parseInt(view.querySelector('#mdWizMaxRes').value, 10);
+                        c.PreferredCodec = view.querySelector('#mdWizCodec').value;
+                        c.UseHardwareEncoder = view.querySelector('#mdWizHwEncode').checked;
+                        var gpuVal = view.querySelector('#mdWizGpuIndex').value;
+                        c.PreferredGpuIndex = gpuVal === '' ? null : parseInt(gpuVal, 10);
+                        c.SkipHdrContent = view.querySelector('#mdWizSkipHdr').checked;
+                        break;
+                    case 5:
+                        c.AllowedAudioLanguages = parseLangList(view.querySelector('#mdWizAudioLangs').value);
+                        c.AudioFixMode = view.querySelector('#mdWizAudioMode').value;
+                        c.AllowedSubtitleLanguages = parseLangList(view.querySelector('#mdWizSubLangs').value);
+                        c.SubtitleFixMode = view.querySelector('#mdWizSubMode').value;
+                        c.MissingSubtitlesFixMode = view.querySelector('#mdWizMissingSubMode').value;
+                        break;
+                    case 6:
+                        c.MoviesTargetPath = view.querySelector('#mdWizMoviesTarget').value.trim();
+                        c.TvTargetPath = view.querySelector('#mdWizTvTarget').value.trim();
+                        c.MediaSortSource = view.querySelector('#mdWizSortSource').value;
+                        c.MisplacedFixMode = view.querySelector('#mdWizSortMode').value;
+                        break;
+                    case 7:
+                        c.DryRun = view.querySelector('#mdWizDryRun').checked;
+                        c.PauseDuringPlayback = view.querySelector('#mdWizPausePlayback').checked;
+                        var days = parseInt(view.querySelector('#mdWizRetention').value, 10);
+                        if (!isNaN(days) && days > 0) c.RecycleBinRetentionDays = days;
+                        break;
+                    default:
+                        break;
+                }
+            }
+
+            function parseLangList(raw) {
+                return (raw || '')
+                    .split(',')
+                    .map(function (s) { return s.trim().toLowerCase(); })
+                    .filter(function (s) { return s.length > 0; });
+            }
 
             function setupFirstRun() {
-                var langSelect = view.querySelector('#mdFrLang');
-                if (!langSelect.options.length) {
-                    langSelect.innerHTML = STR.languages.map(function (l) {
-                        return '<option value="' + l[0] + '">' + esc(l[1]) + '</option>';
-                    }).join('');
+                var current = 0;
+                var total = WIZ_STEP_LABELS.length;
+
+                function saveThen(step, next) {
+                    var msg = view.querySelector('#mdWizMsg');
+                    msg.classList.remove('mdWizErr');
+                    msg.textContent = 'Saving…';
+                    ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
+                        wizApplyStepToConfig(step, c);
+                        if (step === total - 1) {
+                            c.FirstRunDone = true;
+                        }
+                        ApiClient.updatePluginConfiguration(PLUGIN_ID, c).then(function (result) {
+                            Dashboard.processPluginConfigurationUpdateResult(result);
+                            msg.textContent = '';
+                            next(c);
+                        }, function () {
+                            msg.textContent = 'Could not save — try again.';
+                            msg.classList.add('mdWizErr');
+                        });
+                    });
                 }
 
-                view.querySelector('#mdFrCheckAccess').addEventListener('click', function () {
+                ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
+                    wizPopulateFromConfig(c);
+                    wizLoadLibraries(c);
+                    wizShow(0);
+                });
+
+                view.querySelector('#mdWizNext').addEventListener('click', function () {
+                    saveThen(current, function (c) {
+                        if (current >= total - 1) {
+                            // Finished. Hide wizard, refresh dashboards, optionally kick off scan.
+                            view.querySelector('#mdFirstRun').style.display = 'none';
+                            loadSettings();
+                            refresh();
+                            if (view.querySelector('#mdWizScanNow').checked) {
+                                post('Scan').then(function () { refresh(); });
+                            }
+                        } else {
+                            current++;
+                            wizShow(current);
+                        }
+                    });
+                });
+
+                view.querySelector('#mdWizBack').addEventListener('click', function () {
+                    if (current === 0) return;
+                    current--;
+                    wizShow(current);
+                });
+
+                view.querySelector('#mdWizSkip').addEventListener('click', function () {
+                    // "Skip" leaves everything else alone but marks the wizard done so it stops nagging.
+                    // Everything is reachable from Settings — this is the "I know what I'm doing" exit.
+                    ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
+                        c.FirstRunDone = true;
+                        ApiClient.updatePluginConfiguration(PLUGIN_ID, c).then(function (result) {
+                            Dashboard.processPluginConfigurationUpdateResult(result);
+                            view.querySelector('#mdFirstRun').style.display = 'none';
+                            loadSettings();
+                            refresh();
+                        });
+                    });
+                });
+
+                view.querySelector('#mdWizCheckAccess').addEventListener('click', function () {
                     var btn = this;
-                    var resultsEl = view.querySelector('#mdFrAccessResults');
+                    var resultsEl = view.querySelector('#mdWizAccessResults');
                     btn.disabled = true;
                     resultsEl.style.display = 'block';
                     resultsEl.innerHTML = '<div class="fieldDescription">Probing each library folder…</div>';
@@ -1998,30 +2511,6 @@
                     }, function () {
                         btn.disabled = false;
                         resultsEl.innerHTML = '<div class="fieldDescription" style="color:#ef4444;">Access check failed to run. Check the Errors tab.</div>';
-                    });
-                });
-
-                view.querySelector('#mdFrDone').addEventListener('click', function () {
-                    ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
-                        var lang = view.querySelector('#mdFrLang').value;
-                        var auto = view.querySelector('#mdFrMode').value === 'auto';
-                        c.AllowedAudioLanguages = [lang];
-                        c.AllowedSubtitleLanguages = [lang];
-                        c.MaxResolutionHeight = parseInt(view.querySelector('#mdFrQuality').value, 10);
-                        var mode = auto ? 'Automatic' : 'ManualApprove';
-                        c.DuplicateFixMode = mode;
-                        c.TranscodeFixMode = mode;
-                        c.SubtitleFixMode = mode;
-                        c.AudioFixMode = mode;
-                        // Deleting broken files always waits for approval, even when everything else is automatic.
-                        c.PlayabilityFixMode = 'ManualApprove';
-                        c.FirstRunDone = true;
-                        ApiClient.updatePluginConfiguration(PLUGIN_ID, c).then(function (result) {
-                            Dashboard.processPluginConfigurationUpdateResult(result);
-                            view.querySelector('#mdFirstRun').style.display = 'none';
-                            loadSettings();
-                            refresh();
-                        });
                     });
                 });
             }

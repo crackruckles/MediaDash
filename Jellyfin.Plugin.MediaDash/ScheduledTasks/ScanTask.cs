@@ -55,7 +55,7 @@ public sealed class ScanTask : IScheduledTask
     public string Key => "MediaDashScan";
 
     /// <inheritdoc />
-    public string Description => "Looks for duplicates, unplayable files, oversized encodes and unwanted language tracks.";
+    public string Description => "Looks for duplicates, unplayable files, oversized encodes, unwanted language tracks, misplaced files and videos missing subtitles.";
 
     /// <inheritdoc />
     public string Category => "MediaDash";

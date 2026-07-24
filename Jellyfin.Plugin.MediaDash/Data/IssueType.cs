@@ -21,5 +21,8 @@ public enum IssueType
     AudioLanguage = 4,
 
     /// <summary>The file sits in the wrong library kind (a movie in the TV folder, or a TV episode in the Movies folder).</summary>
-    Misplaced = 5
+    Misplaced = 5,
+
+    /// <summary>The file has no subtitle track in any of the wanted languages (embedded or external).</summary>
+    MissingSubtitles = 6
 }

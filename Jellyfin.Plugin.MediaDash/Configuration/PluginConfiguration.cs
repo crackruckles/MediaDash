@@ -54,6 +54,7 @@ public class PluginConfiguration : BasePluginConfiguration
         TvTargetPath = string.Empty;
         MediaSortSource = MediaSortSource.JellyfinMetadata;
         RenameAfterTranscode = false;
+        MissingSubtitlesFixMode = FixMode.DetectOnly;
     }
 
     /// <summary>
@@ -264,6 +265,12 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool RenameAfterTranscode { get; set; }
 
     /// <summary>
+    /// Gets or sets how the missing-subtitle scanner acts. Fixes call Jellyfin's ISubtitleManager to download
+    /// a matching subtitle from the admin-configured providers; requires at least one provider set up in Jellyfin.
+    /// </summary>
+    public FixMode MissingSubtitlesFixMode { get; set; }
+
+    /// <summary>
     /// Gets the fix mode for an issue type.
     /// </summary>
     /// <param name="type">The issue type.</param>
@@ -278,6 +285,7 @@ public class PluginConfiguration : BasePluginConfiguration
             Data.IssueType.AudioLanguage => AudioFixMode,
             Data.IssueType.Playability => PlayabilityFixMode,
             Data.IssueType.Misplaced => MisplacedFixMode,
+            Data.IssueType.MissingSubtitles => MissingSubtitlesFixMode,
             _ => FixMode.DetectOnly
         };
     }
