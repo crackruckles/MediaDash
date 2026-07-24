@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.6.0.0",
+        "changelog": "New Missing subtitles fix type: flags videos with no subtitle in any wanted language and downloads one via Jellyfin\u0027s already-configured subtitle providers (OpenSubtitles etc.) - no new API keys. First-run experience is now a multi-step wizard that walks each feature one at a time (Welcome, Libraries + access-check, Duplicates, Broken files, Oversized files, Languages incl. missing-subs mode, Media sorter, Safety net, Done), triggered only on fresh installs (survives plugin updates via FirstRunDone). Preferred-GPU picker moved into the Oversized step alongside the hardware-encoder toggle. AMD APU (Rembrandt / Phoenix - Ryzen 6000/7000 iGPUs) GPU percentage now reads from /sys/class/drm/cardN/device/gpu_metrics when gpu_busy_percent is pinned at 0, fixing the 0.0% GPU reading on affected hosts. Overview \u0027Space you could reclaim\u0027 total now includes issues you\u0027ve already approved (Queued), not just Detected ones - matches what the Issues tab shows. PLAN.md rewritten around a whole-library housekeeping scope with explicit non-goals (no acquisition, no metadata authoring) and a prioritised roadmap for the next scanners.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.6.0/mediadash_0.6.0.zip",
+        "checksum": "6d4bdfb42ca71720a080e9834cd96452",
+        "timestamp": "2026-07-24T01:45:02Z"
+      },
+      {
         "version": "0.5.3.0",
         "changelog": "History tab grows an All / Succeeded / Failed / Dry run filter row with live per-bucket counts so you can jump straight to the failed items after a big fix run instead of scrolling. Backed by a new Success column on the history table (schema v2; legacy rows back-filled). Settings tab redesign: sticky page header with a gradient Save button, restyled chip nav, 2-column grid of glass-effect cards with tinted icon boxes, Plus Jakarta Sans typography, and sections re-ordered so Maintenance actions live in their own card instead of buried in Advanced. Whole plugin surface is now centred and widened to min(1400px, 96vw) so the 2-column grid and drive-storage cards have room to breathe.",
         "targetAbi": "10.11.0.0",
@@ -163,6 +171,7 @@
     ]
   }
 ]
+
 
 
 
