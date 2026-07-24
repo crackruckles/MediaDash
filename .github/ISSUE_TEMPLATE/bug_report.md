@@ -10,12 +10,22 @@ labels: bug
 
 **Was dry-run on or off?**
 
-**Environment**
-- Jellyfin version:
-- MediaDash version:
-- OS / install type (Windows, Linux, Docker, macOS):
+**Diagnostics dump**
 
-**Relevant log lines**
+Open MediaDash → Errors tab → **Copy diagnostics**. Paste the result here — it includes plugin/Jellyfin/OS/runtime versions and every recorded plugin error, pre-formatted.
+
+```
+(paste diagnostics here)
+```
+
+**Steps to reproduce**
+
+1.
+2.
+3.
+
+**Relevant Jellyfin server log lines**
+
 Dashboard → Logs, search for "MediaDash":
 
 ```

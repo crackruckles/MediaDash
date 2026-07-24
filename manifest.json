@@ -2,8 +2,8 @@
   {
     "guid": "38bdb090-b763-4294-934b-b54ade4d9d6d",
     "name": "MediaDash",
-    "description": "Keeps your library lean and playable: finds duplicate copies, broken files, oversized encodes and unwanted language tracks, then fixes them safely. Dry-run mode and a recycle bin protect your media by default.",
-    "overview": "Keeps your library lean and playable.",
+    "description": "Whole-library housekeeping for Jellyfin: finds duplicates, broken files, oversized encodes, unwanted or missing language tracks, and misplaced files — then fixes them safely. Dry-run mode and a recycle bin protect your media by default.",
+    "overview": "The one plugin a Jellyfin library owner needs.",
     "owner": "crackruckles",
     "category": "General",
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",

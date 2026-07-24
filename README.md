@@ -19,6 +19,9 @@ Duplicates, broken files, oversized encodes, wrong-language tracks, misplaced fi
 
 ---
 
+> [!NOTE]
+> MediaDash is a **third-party plugin**, not officially affiliated with the Jellyfin project. It's not yet in the official Jellyfin plugin catalog — install from the community repository URL below.
+
 ## Install (30 seconds)
 
 1. In Jellyfin: **Dashboard → Plugins → Repositories → +** and paste:
@@ -98,13 +101,12 @@ No. MediaDash is explicitly *not* an arr-style acquisition tool. It cleans, veri
 
 ## Development
 
-```
-dotnet build Jellyfin.Plugin.MediaDash.sln
-dotnet test
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for build steps, style, safety invariants, and the release process. Code of conduct: [Contributor Covenant](CODE_OF_CONDUCT.md).
 
-Deploy locally: copy `bin/Debug/net9.0/Jellyfin.Plugin.MediaDash.dll` to your server's `plugins/MediaDash/` folder and restart. Test fixtures: `tools/make-fixtures.sh <dir>` · full docker cycle: `tools/integration-test.sh`.
+## Reporting a bug
+
+Errors tab → **Copy diagnostics** → paste into a new [GitHub issue](https://github.com/crackruckles/MediaDash/issues/new). The dump includes plugin/Jellyfin/OS/runtime versions and every recorded error.
 
 ## License
 
-[GPLv3](LICENSE)
+[GPLv3](LICENSE) — required because Jellyfin's shared libraries are GPLv3, and a plugin compiled against them inherits that licence.
