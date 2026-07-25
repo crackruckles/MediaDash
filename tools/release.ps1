@@ -29,6 +29,17 @@ if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed" }
 
 $publishDir = "Jellyfin.Plugin.MediaDash/bin/Release/net9.0/publish"
 if (-not (Test-Path $publishDir)) { throw "publish output missing: $publishDir" }
+
+# Guardrail against the v0.7.0 breakage: dotnet publish quietly emitted only the main dll (missing
+# System.Diagnostics.PerformanceCounter.dll + siblings), the release script zipped what it saw, users
+# installed a plugin that FileNotFoundExceptioned at load ("NotSupported" in the plugin list). The
+# main assembly is Jellyfin.Plugin.MediaDash.dll — anything else at publish root is a copied NuGet
+# runtime dep. A publish with zero of those is broken; abort before we upload a half-release.
+$dependencyDlls = @(Get-ChildItem $publishDir -File -Filter '*.dll' | Where-Object { $_.Name -ne 'Jellyfin.Plugin.MediaDash.dll' })
+if ($dependencyDlls.Count -eq 0) {
+    throw "Publish output has no dependency DLLs beside the main assembly. CopyLocalLockFileAssemblies didn't run, or publish was incremental against a stale output. Delete Jellyfin.Plugin.MediaDash/bin and re-run."
+}
+
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 New-Item -ItemType Directory -Path $stage | Out-Null
 Get-ChildItem $publishDir -File | Where-Object { $_.Extension -notin '.pdb','.xml' } | Copy-Item -Destination $stage
