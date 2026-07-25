@@ -49,13 +49,13 @@ public sealed class ScanTask : IScheduledTask
     internal static bool BypassIdleCheckOnce { get; set; }
 
     /// <inheritdoc />
-    public string Name => "Scan libraries for issues";
+    public string Name => I18n.I18nCatalog.GetHtml(System.Globalization.CultureInfo.CurrentUICulture.Name, "task.scan.name", "Scan libraries for issues");
 
     /// <inheritdoc />
     public string Key => "MediaDashScan";
 
     /// <inheritdoc />
-    public string Description => "Looks for duplicates, unplayable files, oversized encodes, unwanted language tracks, misplaced files and videos missing subtitles.";
+    public string Description => I18n.I18nCatalog.GetHtml(System.Globalization.CultureInfo.CurrentUICulture.Name, "task.scan.description", "Looks for duplicates, unplayable files, oversized encodes, unwanted language tracks, misplaced files and videos missing subtitles.");
 
     /// <inheritdoc />
     public string Category => "MediaDash";

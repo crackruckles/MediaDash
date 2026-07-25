@@ -58,13 +58,13 @@ public sealed class FixTask : IScheduledTask
     internal static bool BypassIdleCheckOnce { get; set; }
 
     /// <inheritdoc />
-    public string Name => "Apply approved fixes";
+    public string Name => I18n.I18nCatalog.GetHtml(System.Globalization.CultureInfo.CurrentUICulture.Name, "task.fix.name", "Apply approved fixes");
 
     /// <inheritdoc />
     public string Key => "MediaDashFix";
 
     /// <inheritdoc />
-    public string Description => "Applies approved and automatic fixes: removes duplicates, re-encodes oversized files, strips unwanted tracks.";
+    public string Description => I18n.I18nCatalog.GetHtml(System.Globalization.CultureInfo.CurrentUICulture.Name, "task.fix.description", "Applies approved and automatic fixes: removes duplicates, re-encodes oversized files, strips unwanted tracks.");
 
     /// <inheritdoc />
     public string Category => "MediaDash";
@@ -321,9 +321,26 @@ public sealed class FixTask : IScheduledTask
             new TaskTriggerInfo
             {
                 Type = TaskTriggerInfoType.DailyTrigger,
-                TimeOfDayTicks = TimeSpan.FromHours(3).Ticks
+                TimeOfDayTicks = ParseScheduleTicks(Plugin.Instance?.Configuration.ScheduledFixTime)
             }
         ];
+    }
+
+    /// <summary>
+    /// Parses a "HH:mm" string into a <see cref="TimeSpan.Ticks"/> offset from midnight.
+    /// Falls back to 03:00 when the value is missing or malformed so a mistyped setting never leaves the task untriggered.
+    /// </summary>
+    /// <param name="value">The configured time string.</param>
+    /// <returns>Ticks from midnight.</returns>
+    internal static long ParseScheduleTicks(string? value)
+    {
+        if (TimeSpan.TryParseExact(value, @"h\:mm", System.Globalization.CultureInfo.InvariantCulture, out var ts)
+            || TimeSpan.TryParseExact(value, @"hh\:mm", System.Globalization.CultureInfo.InvariantCulture, out ts))
+        {
+            return ts.Ticks;
+        }
+
+        return TimeSpan.FromHours(3).Ticks;
     }
 
     private static long GetFileSizeOrZero(Data.Issue issue)

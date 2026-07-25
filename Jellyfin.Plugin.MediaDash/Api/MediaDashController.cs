@@ -294,6 +294,33 @@ public class MediaDashController : ControllerBase
     }
 
     /// <summary>
+    /// Re-applies the fix task's daily trigger from <see cref="Configuration.PluginConfiguration.ScheduledFixTime"/>.
+    /// Called by the settings page after saving so the new time takes effect without a server restart.
+    /// Jellyfin persists user-modified triggers separately from <see cref="ScheduledTasks.FixTask.GetDefaultTriggers"/>,
+    /// so the trigger has to be pushed in explicitly here.
+    /// </summary>
+    /// <returns>No content.</returns>
+    [HttpPost("Schedule/Apply")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public ActionResult ApplySchedule()
+    {
+        var fixTask = _taskManager.ScheduledTasks.FirstOrDefault(w => w.ScheduledTask is FixTask);
+        if (fixTask is not null)
+        {
+            fixTask.Triggers =
+            [
+                new TaskTriggerInfo
+                {
+                    Type = TaskTriggerInfoType.DailyTrigger,
+                    TimeOfDayTicks = FixTask.ParseScheduleTicks(Plugin.Instance!.Configuration.ScheduledFixTime)
+                }
+            ];
+        }
+
+        return NoContent();
+    }
+
+    /// <summary>
     /// Cancels the running scan, if any.
     /// </summary>
     /// <returns>No content.</returns>
@@ -600,6 +627,21 @@ public class MediaDashController : ControllerBase
     {
         var stream = typeof(Plugin).Assembly.GetManifestResourceStream("Jellyfin.Plugin.MediaDash.Configuration.logo.png");
         return stream is null ? NotFound() : File(stream, "image/png");
+    }
+
+    /// <summary>
+    /// Serves the UI translation dictionary for a locale. Falls back down BCP-47 tags
+    /// ("de-AT" → "de") and finally to English so an unknown locale never breaks the page.
+    /// </summary>
+    /// <param name="locale">The requested locale tag (e.g. "de-AT", "es").</param>
+    /// <returns>The dictionary JSON.</returns>
+    [HttpGet("I18n/{locale}")]
+    [Produces("application/json")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult GetI18n(string locale)
+    {
+        var stream = I18n.I18nCatalog.OpenBestMatch(locale);
+        return File(stream, "application/json");
     }
 
     private IScheduledTaskWorker? GetScanTask()

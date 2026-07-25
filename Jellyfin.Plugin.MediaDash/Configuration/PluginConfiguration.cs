@@ -47,6 +47,7 @@ public class PluginConfiguration : BasePluginConfiguration
         RecycleBinRetentionDays = 30;
         MaxConcurrentTranscodes = 1;
         PauseDuringPlayback = true;
+        ScheduledFixTime = "03:00";
         FirstRunDone = false;
         EnabledLibraries = [];
         MisplacedFixMode = FixMode.DetectOnly;
@@ -136,8 +137,16 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>
     /// Gets or sets a value indicating whether scheduled scans and fixes only run while the server is idle:
     /// nobody playing media and no session active in the last 15 minutes. Manual runs from the dashboard ignore this.
+    /// When on, this acts as a hard veto over <see cref="ScheduledFixTime"/> — the run is skipped if the server
+    /// is busy at the scheduled time and stays queued for the next idle window.
     /// </summary>
     public bool PauseDuringPlayback { get; set; }
+
+    /// <summary>
+    /// Gets or sets the daily time-of-day the fix task fires, formatted as "HH:mm" (24h, server local time).
+    /// Defaults to "03:00". Invalid values fall back to 03:00.
+    /// </summary>
+    public string ScheduledFixTime { get; set; } = "03:00";
 
     /// <summary>
     /// Gets or sets the maximum wanted video height in pixels (e.g. 1080). Files taller than this are flagged as oversized.

@@ -776,12 +776,12 @@
                 </div>
 
                 <div class="mdTabBar">
-                    <button is="emby-button" type="button" class="raised mdTab mdTabActive" data-tab="overview" title="System stats, drive usage and library summary at a glance"><span>Overview</span></button>
-                    <button is="emby-button" type="button" class="raised mdTab" data-tab="issues" title="Detected problems waiting for you to approve or that are queued to fix"><span>Issues</span></button>
-                    <button is="emby-button" type="button" class="raised mdTab" data-tab="history" title="Every fix MediaDash has run, with Restore for anything sent to the recycle bin"><span>History</span></button>
-                    <button is="emby-button" type="button" class="raised mdTab" data-tab="files" title="Browse and manage the files inside your libraries"><span>Files</span></button>
-                    <button is="emby-button" type="button" class="raised mdTab" data-tab="errors" title="Plugin errors captured during scans and fixes"><span>Errors</span><span id="mdErrorBadge" class="mdBadge" style="display:none;background:#ef4444;margin-left:.4em;">0</span></button>
-                    <button is="emby-button" type="button" class="raised mdTab" data-tab="settings" title="Configure MediaDash"><span>Settings</span></button>
+                    <button is="emby-button" type="button" class="raised mdTab mdTabActive" data-tab="overview" title="System stats, drive usage and library summary at a glance"><span data-i18n="tab.overview">Overview</span></button>
+                    <button is="emby-button" type="button" class="raised mdTab" data-tab="issues" title="Detected problems waiting for you to approve or that are queued to fix"><span data-i18n="tab.issues">Issues</span></button>
+                    <button is="emby-button" type="button" class="raised mdTab" data-tab="history" title="Every fix MediaDash has run, with Restore for anything sent to the recycle bin"><span data-i18n="tab.history">History</span></button>
+                    <button is="emby-button" type="button" class="raised mdTab" data-tab="files" title="Browse and manage the files inside your libraries"><span data-i18n="tab.files">Files</span></button>
+                    <button is="emby-button" type="button" class="raised mdTab" data-tab="errors" title="Plugin errors captured during scans and fixes"><span data-i18n="tab.errors">Errors</span><span id="mdErrorBadge" class="mdBadge" style="display:none;background:#ef4444;margin-left:.4em;">0</span></button>
+                    <button is="emby-button" type="button" class="raised mdTab" data-tab="settings" title="Configure MediaDash"><span data-i18n="tab.settings">Settings</span></button>
                 </div>
 
                 <div id="mdTab-overview">
@@ -896,14 +896,14 @@
                         </div>
 
                         <nav class="mdSetNav" aria-label="Settings sections">
-                            <a class="mdSetChip mdSetChipActive" href="#mdSet-safety" title="Guardrails: dry-run and only-when-idle" style="--md-accent:#22d3ee;"><span class="material-icons">shield</span>Safety</a>
-                            <a class="mdSetChip" href="#mdSet-languages" title="Audio and subtitle languages to keep" style="--md-accent:#14b8a6;"><span class="material-icons">translate</span>Languages</a>
-                            <a class="mdSetChip" href="#mdSet-fix" title="Which issue types run automatically vs on approval, and what happens to removed files" style="--md-accent:#3b82f6;"><span class="material-icons">build</span>What to fix</a>
-                            <a class="mdSetChip" href="#mdSet-quality" title="Resolution ceiling, target codec/container, bitrate and hardware encoder settings" style="--md-accent:#3b82f6;"><span class="material-icons">compress</span>Quality</a>
-                            <a class="mdSetChip" href="#mdSet-libraries" title="Which Jellyfin libraries MediaDash is allowed to scan" style="--md-accent:#06b6d4;"><span class="material-icons">video_library</span>Libraries</a>
-                            <a class="mdSetChip" href="#mdSet-advanced" title="Encode preset, size floor, HDR handling" style="--md-accent:#cbd5e1;"><span class="material-icons">tune</span>Advanced</a>
-                            <a class="mdSetChip" href="#mdSet-bin" title="Where removed files are held before permanent deletion, and how long they're kept" style="--md-accent:#ec4899;"><span class="material-icons">delete</span>Recycle bin</a>
-                            <a class="mdSetChip" href="#mdSet-maintenance" title="Reset and re-run maintenance actions" style="--md-accent:#94a3b8;"><span class="material-icons">handyman</span>Maintenance</a>
+                            <a class="mdSetChip mdSetChipActive" href="#mdSet-safety" title="Guardrails: dry-run and only-when-idle" style="--md-accent:#22d3ee;"><span class="material-icons">shield</span><span data-i18n="settings.nav.safety">Safety</span></a>
+                            <a class="mdSetChip" href="#mdSet-languages" title="Audio and subtitle languages to keep" style="--md-accent:#14b8a6;"><span class="material-icons">translate</span><span data-i18n="settings.nav.languages">Languages</span></a>
+                            <a class="mdSetChip" href="#mdSet-fix" title="Which issue types run automatically vs on approval, and what happens to removed files" style="--md-accent:#3b82f6;"><span class="material-icons">build</span><span data-i18n="settings.nav.fix">What to fix</span></a>
+                            <a class="mdSetChip" href="#mdSet-quality" title="Resolution ceiling, target codec/container, bitrate and hardware encoder settings" style="--md-accent:#3b82f6;"><span class="material-icons">compress</span><span data-i18n="settings.nav.quality">Quality</span></a>
+                            <a class="mdSetChip" href="#mdSet-libraries" title="Which Jellyfin libraries MediaDash is allowed to scan" style="--md-accent:#06b6d4;"><span class="material-icons">video_library</span><span data-i18n="settings.nav.libraries">Libraries</span></a>
+                            <a class="mdSetChip" href="#mdSet-advanced" title="Encode preset, size floor, HDR handling" style="--md-accent:#cbd5e1;"><span class="material-icons">tune</span><span data-i18n="settings.nav.advanced">Advanced</span></a>
+                            <a class="mdSetChip" href="#mdSet-bin" title="Where removed files are held before permanent deletion, and how long they're kept" style="--md-accent:#ec4899;"><span class="material-icons">delete</span><span data-i18n="settings.nav.bin">Recycle bin</span></a>
+                            <a class="mdSetChip" href="#mdSet-maintenance" title="Reset and re-run maintenance actions" style="--md-accent:#94a3b8;"><span class="material-icons">handyman</span><span data-i18n="settings.nav.maintenance">Maintenance</span></a>
                         </nav>
 
                         <div class="mdSetGrid">
@@ -911,23 +911,28 @@
                                 <h2 class="mdSetHead">
                                     <span class="mdSetIcon"><span class="material-icons">shield</span></span>
                                     <span class="mdSetHeadText">
-                                        <span class="mdSetTitle">Safety</span>
-                                        <span class="mdSetSubtitle">Guardrails that keep every scan and fix reversible.</span>
+                                        <span class="mdSetTitle" data-i18n="settings.safety.title">Safety</span>
+                                        <span class="mdSetSubtitle" data-i18n="settings.safety.subtitle">Guardrails that keep every scan and fix reversible.</span>
                                     </span>
                                 </h2>
                                 <div class="checkboxContainer checkboxContainer-withDescription">
                                     <label class="emby-checkbox-label">
                                         <input id="mdDryRun" type="checkbox" is="emby-checkbox" />
-                                        <span>Dry-run mode</span>
+                                        <span data-i18n="settings.safety.dryRun">Dry-run mode</span>
                                     </label>
-                                    <div class="fieldDescription">On (default): fix runs only log what they would do — nothing is changed. Turn off once you're happy with the plan shown in History.</div>
+                                    <div class="fieldDescription" data-i18n="settings.safety.dryRunHint">On (default): fix runs only log what they would do — nothing is changed. Turn off once you're happy with the plan shown in History.</div>
                                 </div>
                                 <div class="checkboxContainer checkboxContainer-withDescription">
                                     <label class="emby-checkbox-label">
                                         <input id="mdPausePlayback" type="checkbox" is="emby-checkbox" />
-                                        <span>Only run when the server is idle</span>
+                                        <span data-i18n="settings.safety.idle">Only run when the server is idle</span>
                                     </label>
-                                    <div class="fieldDescription">On (default): scheduled scans and fixes wait until nobody is watching anything and nobody has used Jellyfin for 15 minutes. The "Scan now" and "Run fixes now" buttons always run immediately.</div>
+                                    <div class="fieldDescription" data-i18n="settings.safety.idleHint">On (default): scheduled scans and fixes wait until nobody is watching anything and nobody has used Jellyfin for 15 minutes. The "Scan now" and "Run fixes now" buttons always run immediately. This overrides the scheduled time below — if the server is busy when the schedule fires, the run is skipped.</div>
+                                </div>
+                                <div class="inputContainer" style="max-width:14em;">
+                                    <label class="inputLabel inputLabelUnfocused" for="mdFixScheduleTime" data-i18n="settings.safety.scheduleLabel">Scheduled fix time (server local, 24h)</label>
+                                    <input id="mdFixScheduleTime" type="time" is="emby-input" />
+                                    <div class="fieldDescription" data-i18n="settings.safety.scheduleHint">Time of day the fix task fires daily — including re-encodes. Default 03:00.</div>
                                 </div>
                             </section>
 
@@ -1389,6 +1394,67 @@
 
             function api(path) {
                 return ApiClient.getJSON(ApiClient.getUrl('MediaDash/' + path));
+            }
+
+            // ---------- i18n ----------
+            // Resolves the current UI locale. Jellyfin's dashboard uses a global Globalize helper; when it's absent
+            // (older builds, alternative clients) we fall back to the browser tag, then English.
+            function currentLocale() {
+                try {
+                    if (typeof Globalize !== 'undefined' && typeof Globalize.getCurrentLocale === 'function') {
+                        var loc = Globalize.getCurrentLocale();
+                        if (loc) return loc;
+                    }
+                } catch (e) { /* Globalize sometimes throws on first-load; ignore and fall through. */ }
+                return (navigator.language || 'en');
+            }
+
+            // Overlays translated strings on top of the English STR object. Deep merge for `types` so per-type
+            // color/icon (not localised) survive; arrays and scalars overwrite wholesale.
+            function mergeI18n(dict) {
+                if (!dict) return;
+                Object.keys(dict).forEach(function (k) {
+                    if (k === 'html' || k === 'wizSteps') return;
+                    var v = dict[k];
+                    if (v && typeof v === 'object' && !Array.isArray(v) && STR[k] && typeof STR[k] === 'object') {
+                        Object.keys(v).forEach(function (sub) {
+                            var s = v[sub];
+                            if (s && typeof s === 'object' && !Array.isArray(s) && STR[k][sub]) {
+                                Object.keys(s).forEach(function (leaf) { STR[k][sub][leaf] = s[leaf]; });
+                            } else {
+                                STR[k][sub] = s;
+                            }
+                        });
+                    } else {
+                        STR[k] = v;
+                    }
+                });
+                if (Array.isArray(dict.wizSteps) && dict.wizSteps.length === WIZ_STEP_LABELS.length) {
+                    for (var i = 0; i < dict.wizSteps.length; i++) WIZ_STEP_LABELS[i] = dict.wizSteps[i];
+                }
+                if (dict.html) applyHtmlI18n(dict.html);
+            }
+
+            // Walks the page for elements with data-i18n / data-i18n-title / data-i18n-placeholder,
+            // looks each key up in `html` (the extracted HTML strings) and swaps the visible text.
+            // Silently skips unknown keys so a translation gap doesn't blank a label.
+            function applyHtmlI18n(html) {
+                view.querySelectorAll('[data-i18n]').forEach(function (el) {
+                    var k = el.getAttribute('data-i18n');
+                    if (html[k] != null) el.textContent = html[k];
+                });
+                view.querySelectorAll('[data-i18n-title]').forEach(function (el) {
+                    var k = el.getAttribute('data-i18n-title');
+                    if (html[k] != null) el.setAttribute('title', html[k]);
+                });
+            }
+
+            // Fetches the locale JSON and merges it. Resolves either way — a missing locale falls back to English
+            // on the server side (see I18nCatalog.ResolveLocale), so this promise never rejects the init flow.
+            function loadI18n() {
+                var loc = currentLocale();
+                return ApiClient.getJSON(ApiClient.getUrl('MediaDash/I18n/' + encodeURIComponent(loc)))
+                    .then(mergeI18n, function () { /* offline / 404 — keep English. */ });
             }
 
             function post(path) {
@@ -2118,6 +2184,7 @@
                     view.querySelector('#mdKeeperPolicy').value = keeperPresetFromConfig(c.KeeperPolicyOrder);
                     view.querySelector('#mdDryRun').checked = c.DryRun;
                     view.querySelector('#mdPausePlayback').checked = c.PauseDuringPlayback;
+                    view.querySelector('#mdFixScheduleTime').value = /^\d{1,2}:\d{2}$/.test(c.ScheduledFixTime || '') ? c.ScheduledFixTime : '03:00';
                     FIX_TYPES.forEach(function (t) {
                         view.querySelector('#mdMode' + t.key).value = c[t.mode];
                         if (t.disposal) view.querySelector('#mdDisposal' + t.key).value = c[t.disposal];
@@ -2182,6 +2249,7 @@
 
                     c.DryRun = view.querySelector('#mdDryRun').checked;
                     c.PauseDuringPlayback = view.querySelector('#mdPausePlayback').checked;
+                    c.ScheduledFixTime = /^\d{1,2}:\d{2}$/.test(view.querySelector('#mdFixScheduleTime').value || '') ? view.querySelector('#mdFixScheduleTime').value : '03:00';
                     FIX_TYPES.forEach(function (t) {
                         c[t.mode] = view.querySelector('#mdMode' + t.key).value;
                         if (t.disposal) c[t.disposal] = view.querySelector('#mdDisposal' + t.key).value;
@@ -2217,6 +2285,7 @@
                     ApiClient.updatePluginConfiguration(PLUGIN_ID, c).then(function (result) {
                         view.querySelector('#mdSaveMsg').textContent = STR.saved;
                         Dashboard.processPluginConfigurationUpdateResult(result);
+                        post('Schedule/Apply');
                         refresh();
                     });
                 });
@@ -3091,7 +3160,15 @@
                 view = this;
 
                 view.querySelector('#mdLogo').src = ApiClient.getUrl('MediaDash/Logo');
-                view.querySelector('#mdTagline').textContent = STR.tagline;
+                // i18n is loaded up front so every downstream call sees translated strings. Failure falls back to
+                // the English defaults baked into STR — the page still works if the I18n endpoint 404s.
+                loadI18n().then(function () {
+                    view.querySelector('#mdTagline').textContent = STR.tagline;
+                    initAfterI18n();
+                });
+            });
+
+            function initAfterI18n() {
 
                 var filter = view.querySelector('#mdTypeFilter');
                 if (!filter.options.length) {
@@ -3353,7 +3430,7 @@
                 }
 
                 refresh();
-            });
+            }
 
             document.querySelector('#MediaDashConfigPage').addEventListener('pagehide', function () {
                 clearTimeout(pollTimer);
