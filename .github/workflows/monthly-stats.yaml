@@ -1,0 +1,98 @@
+name: monthly-stats
+
+# Refreshes the "Community impact" numbers on README.md from the MediaDash analytics backend.
+# Runs at 00:05 UTC on the 1st of each month (5-min buffer so the previous month's late
+# fix-run reports have arrived), and on manual dispatch.
+
+on:
+  schedule:
+    - cron: "5 0 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch aggregates
+        id: fetch
+        env:
+          SUPABASE_URL: https://mcgpyjtcqyrffydpfdrd.supabase.co
+          SUPABASE_ANON_KEY: sb_publishable_dstMpg4VGn2tSS_DEhsdZg_n9jwnFXk
+        run: |
+          set -euo pipefail
+          curl -sfL \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            "$SUPABASE_URL/rest/v1/public_lifetime" > lifetime.json
+          curl -sfL \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            "$SUPABASE_URL/rest/v1/public_current_month" > current.json
+
+      - name: Render stats block
+        id: render
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, re
+
+          def fmt_bytes(n):
+              units = ["B", "KB", "MB", "GB", "TB", "PB"]
+              n = float(n or 0)
+              i = 0
+              while n >= 1024 and i < len(units) - 1:
+                  n /= 1024
+                  i += 1
+              return f"{n:.1f} {units[i]}"
+
+          def n(x):
+              return f"{int(x or 0):,}"
+
+          lifetime = json.load(open("lifetime.json"))[0]
+          current  = json.load(open("current.json"))[0]
+
+          block = f"""_Refreshes on the 1st of each month from opt-in installs. See [docs/PRIVACY.md](docs/PRIVACY.md) for exactly what's collected._
+
+          | | Lifetime | This month |
+          |---|---:|---:|
+          | **Storage reclaimed** | {fmt_bytes(lifetime['bytes_freed'])} | {fmt_bytes(current['bytes_freed'])} |
+          | Duplicate copies removed | {n(lifetime['duplicate_fixed'])} | {n(current['duplicate_fixed'])} |
+          | Broken files removed | {n(lifetime['playability_fixed'])} | {n(current['playability_fixed'])} |
+          | Oversized files re-encoded | {n(lifetime['quality_fixed'])} | {n(current['quality_fixed'])} |
+          | Unwanted subtitles stripped | {n(lifetime['subtitle_fixed'])} | {n(current['subtitle_fixed'])} |
+          | Unwanted audio stripped | {n(lifetime['audio_fixed'])} | {n(current['audio_fixed'])} |
+          | Misplaced files moved | {n(lifetime['misplaced_fixed'])} | {n(current['misplaced_fixed'])} |
+          | Missing subtitles downloaded | {n(lifetime['missing_subs_fixed'])} | {n(current['missing_subs_fixed'])} |
+          | **Reporting installs** | {n(lifetime['lifetime_installs'])} lifetime | {n(current['monthly_active_installs'])} this month |"""
+
+          # Strip leading whitespace introduced by the heredoc indent — the pipe table would render broken otherwise.
+          block = "\n".join(line.lstrip() for line in block.splitlines())
+
+          readme = pathlib.Path("README.md").read_text()
+          new = re.sub(
+              r"<!-- STATS:START -->.*?<!-- STATS:END -->",
+              f"<!-- STATS:START -->\n{block}\n<!-- STATS:END -->",
+              readme,
+              count=1,
+              flags=re.DOTALL,
+          )
+          pathlib.Path("README.md").write_text(new)
+          PY
+
+      - name: Commit and push if changed
+        run: |
+          set -euo pipefail
+          if git diff --quiet README.md; then
+            echo "No README changes."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "Refresh community stats"
+          git push

@@ -1,3 +1,4 @@
+using Jellyfin.Plugin.MediaDash.Analytics;
 using Jellyfin.Plugin.MediaDash.Data;
 using Jellyfin.Plugin.MediaDash.Fixers;
 using Jellyfin.Plugin.MediaDash.Probing;
@@ -35,5 +36,6 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IFixer, PlayabilityFixer>();
         serviceCollection.AddSingleton<IFixer, MediaSorterFixer>();
         serviceCollection.AddSingleton<IFixer, MissingSubtitleFixer>();
+        serviceCollection.AddSingleton<AnalyticsReporter>();
     }
 }

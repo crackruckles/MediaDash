@@ -53,6 +53,12 @@ Every fix type runs independently: **Off · Detect only · Ask me first · Autom
 <img src="docs/issues.png" width="850" alt="Issues tab with one-click actions"/>
 </div>
 
+## Community impact
+
+<!-- STATS:START -->
+_Opt-in stats will appear here on the 1st of each month once the first month's data comes in. See [docs/PRIVACY.md](docs/PRIVACY.md) for exactly what's collected._
+<!-- STATS:END -->
+
 ## Built to be trusted with your media
 
 - 🛡 **Dry-run is on by default** — fix runs only log what they *would* do until you say otherwise

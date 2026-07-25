@@ -49,6 +49,8 @@ public class PluginConfiguration : BasePluginConfiguration
         PauseDuringPlayback = true;
         ScheduledFixTime = "03:00";
         FirstRunDone = false;
+        AnalyticsEnabled = false;
+        AnalyticsInstallId = string.Empty;
         EnabledLibraries = [];
         MisplacedFixMode = FixMode.DetectOnly;
         MoviesTargetPath = string.Empty;
@@ -147,6 +149,21 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Defaults to "03:00". Invalid values fall back to 03:00.
     /// </summary>
     public string ScheduledFixTime { get; set; } = "03:00";
+
+    /// <summary>
+    /// Gets or sets a value indicating whether MediaDash reports aggregated, anonymous per-run statistics
+    /// (per-type success counts + bytes freed, plus plugin and Jellyfin versions) to the community stats board.
+    /// Off by default. Enabled via a first-run wizard step or Settings toggle. No paths, no filenames, no
+    /// usernames — only counts, byte totals, and version strings are sent.
+    /// </summary>
+    public bool AnalyticsEnabled { get; set; }
+
+    /// <summary>
+    /// Gets or sets the anonymous ID used to deduplicate this install's monthly rows on the analytics
+    /// backend. Populated on first opt-in with a fresh <see cref="System.Guid"/>. Never leaves this
+    /// config file; the only thing derived from it is the row key on the analytics DB.
+    /// </summary>
+    public string AnalyticsInstallId { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the maximum wanted video height in pixels (e.g. 1080). Files taller than this are flagged as oversized.

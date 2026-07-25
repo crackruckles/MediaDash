@@ -506,6 +506,59 @@
                 display: grid; gap: 1em;
                 grid-template-columns: repeat(auto-fit, minmax(18em, 1fr));
             }
+
+            /* ---------- Mobile (< 640px) ----------
+               Files tab gets the most compression — the desktop row assumes ~26em of non-name content
+               (checkbox + icon + size + date + actions) which overflows on a 375px phone. On narrow
+               viewports: drop the date column, let actions wrap under the name, shrink page gutters,
+               allow the filter search input to fill the row, and stack the bulk-select bar. */
+            @media (max-width: 640px) {
+                #MediaDashConfigPage .content-primary { padding: 0 12px !important; }
+
+                #MediaDashConfigPage .mdFileRow, #MediaDashConfigPage .mdFileHead {
+                    flex-wrap: wrap; padding: .55em .6em;
+                }
+                #MediaDashConfigPage .mdFileHead > .mdFileDate,
+                #MediaDashConfigPage .mdFileRow > .mdFileDate {
+                    display: none;
+                }
+                #MediaDashConfigPage .mdFileMeta {
+                    min-width: 0; margin-left: auto; font-size: .85em;
+                }
+                #MediaDashConfigPage .mdFileActions {
+                    min-width: 0; flex-basis: 100%; justify-content: flex-end; margin-top: .25em;
+                }
+                /* Icon-only action buttons on mobile — labels take too much room. Reveal the icon-only
+                   layout by suppressing every non-icon <span>. The button still has aria labels via title. */
+                #MediaDashConfigPage .mdFileActions .mdFileAct span:not(.material-icons) { display: none; }
+                #MediaDashConfigPage .mdFileActions .mdFileAct .material-icons { margin: 0; }
+
+                #MediaDashConfigPage #mdFileFilter { max-width: none !important; width: 100%; }
+                #MediaDashConfigPage #mdFileBar { gap: .35em; }
+                #MediaDashConfigPage #mdFileBar #mdFileUploadStatus { flex-basis: 100%; }
+
+                #MediaDashConfigPage .mdBulkBar {
+                    flex-wrap: wrap; padding: .5em .7em;
+                }
+                #MediaDashConfigPage .mdBulkBar .emby-button { flex: 1 1 auto; }
+
+                #MediaDashConfigPage .mdCrumbs {
+                    display: flex; max-width: 100%; padding: .3em .6em; font-size: .85em;
+                }
+                #MediaDashConfigPage .mdCrumbs #mdFileCrumbsText { overflow-wrap: anywhere; }
+
+                /* Non-Files-tab: tighten Overview + tabs so they don't need horizontal scroll. */
+                #MediaDashConfigPage .mdTabBar { gap: .25em; margin: .8em 0; }
+                #MediaDashConfigPage .mdTab { padding: .3em .9em; font-size: .9em; }
+                #MediaDashConfigPage .mdStat { min-width: 0; flex-basis: calc(50% - .5em); }
+                #MediaDashConfigPage .mdCard { padding: .8em 1em; }
+                #MediaDashConfigPage .mdBarLabel { width: auto; text-align: left; font-size: .82em; }
+                #MediaDashConfigPage .mdBarRow { flex-wrap: wrap; gap: .3em .6em; }
+                #MediaDashConfigPage .mdBarTrack { flex-basis: 100%; }
+
+                #MediaDashConfigPage .mdWizFoot { gap: .4em; }
+                #MediaDashConfigPage .mdWizNext { min-width: 0; flex: 1; }
+            }
         </style>
         <div data-role="content">
             <div class="content-primary">
@@ -753,6 +806,23 @@
                         </div>
 
                         <div class="mdWizStep" data-step="8">
+                            <h3><span class="material-icons" style="color:#a78bfa;">analytics</span>Community stats (optional)</h3>
+                            <p class="mdWizIntro">MediaDash can send anonymous aggregate stats to a community board so everyone can see how much storage the plugin is reclaiming across all users. <b>Off by default</b> and safe either way — you don't need this on for anything to work.</p>
+                            <div class="fieldDescription" style="margin:.4em 0 .8em;padding:.6em .8em;border-left:3px solid #a78bfa;background:rgba(167,139,250,.06);border-radius:4px;">
+                                <b>What's sent, per fix run:</b> a random UUID we generate for this install (no username, no server name), your plugin version, your Jellyfin version, the current month, and cumulative counts of the fixes MediaDash has completed this month per issue type plus the total bytes freed.<br>
+                                <b>What's never sent:</b> file paths, filenames, library names, IP addresses, media titles, or anything that identifies you or your media.<br>
+                                Change your mind any time in Settings → Safety. See <a href="https://github.com/crackruckles/MediaDash/blob/main/docs/PRIVACY.md" target="_blank" rel="noopener">docs/PRIVACY.md</a> for the full list and the DB schema.
+                            </div>
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label class="emby-checkbox-label">
+                                    <input id="mdWizAnalytics" type="checkbox" is="emby-checkbox" />
+                                    <span>Yes, share anonymous stats to help the community</span>
+                                </label>
+                                <div class="fieldDescription">Aggregated numbers show up on the MediaDash GitHub page, refreshed monthly. Great for seeing collective impact.</div>
+                            </div>
+                        </div>
+
+                        <div class="mdWizStep" data-step="9">
                             <h3><span class="material-icons" style="color:#22c55e;">check_circle</span>You're set up</h3>
                             <p class="mdWizIntro">MediaDash is ready to go. Every setting from this walkthrough is also on the Settings tab, and you can re-open this wizard any time from <b>Settings → Maintenance</b>.</p>
                             <div id="mdWizSummary" class="fieldDescription" style="margin:.4em 0 .8em;padding:.6em .8em;border-left:3px solid #22c55e;background:rgba(34,197,94,.06);border-radius:4px;"></div>
@@ -933,6 +1003,13 @@
                                     <label class="inputLabel inputLabelUnfocused" for="mdFixScheduleTime" data-i18n="settings.safety.scheduleLabel">Scheduled fix time (server local, 24h)</label>
                                     <input id="mdFixScheduleTime" type="time" is="emby-input" />
                                     <div class="fieldDescription" data-i18n="settings.safety.scheduleHint">Time of day the fix task fires daily — including re-encodes. Default 03:00.</div>
+                                </div>
+                                <div class="checkboxContainer checkboxContainer-withDescription" style="margin-top:.6em;">
+                                    <label class="emby-checkbox-label">
+                                        <input id="mdAnalytics" type="checkbox" is="emby-checkbox" />
+                                        <span data-i18n="settings.safety.analytics">Share anonymous stats with the community board</span>
+                                    </label>
+                                    <div class="fieldDescription" data-i18n="settings.safety.analyticsHint">Sends per-month, per-issue-type fix counts + total bytes freed + plugin/Jellyfin version + a random install UUID. Off by default. No paths, no filenames, no usernames. See <a href="https://github.com/crackruckles/MediaDash/blob/main/docs/PRIVACY.md" target="_blank" rel="noopener">docs/PRIVACY.md</a>.</div>
                                 </div>
                             </section>
 
@@ -2185,6 +2262,7 @@
                     view.querySelector('#mdDryRun').checked = c.DryRun;
                     view.querySelector('#mdPausePlayback').checked = c.PauseDuringPlayback;
                     view.querySelector('#mdFixScheduleTime').value = /^\d{1,2}:\d{2}$/.test(c.ScheduledFixTime || '') ? c.ScheduledFixTime : '03:00';
+                    view.querySelector('#mdAnalytics').checked = !!c.AnalyticsEnabled;
                     FIX_TYPES.forEach(function (t) {
                         view.querySelector('#mdMode' + t.key).value = c[t.mode];
                         if (t.disposal) view.querySelector('#mdDisposal' + t.key).value = c[t.disposal];
@@ -2250,6 +2328,7 @@
                     c.DryRun = view.querySelector('#mdDryRun').checked;
                     c.PauseDuringPlayback = view.querySelector('#mdPausePlayback').checked;
                     c.ScheduledFixTime = /^\d{1,2}:\d{2}$/.test(view.querySelector('#mdFixScheduleTime').value || '') ? view.querySelector('#mdFixScheduleTime').value : '03:00';
+                    applyAnalyticsToggle(c, view.querySelector('#mdAnalytics').checked);
                     FIX_TYPES.forEach(function (t) {
                         c[t.mode] = view.querySelector('#mdMode' + t.key).value;
                         if (t.disposal) c[t.disposal] = view.querySelector('#mdDisposal' + t.key).value;
@@ -2295,15 +2374,16 @@
             // ---------- First run wizard ----------
 
             var WIZ_STEP_LABELS = [
-                'Step 1 of 9 — Welcome',
-                'Step 2 of 9 — Libraries',
-                'Step 3 of 9 — Duplicates',
-                'Step 4 of 9 — Broken files',
-                'Step 5 of 9 — Oversized files',
-                'Step 6 of 9 — Languages',
-                'Step 7 of 9 — Media sorter',
-                'Step 8 of 9 — Safety',
-                'Step 9 of 9 — All done'
+                'Step 1 of 10 — Welcome',
+                'Step 2 of 10 — Libraries',
+                'Step 3 of 10 — Duplicates',
+                'Step 4 of 10 — Broken files',
+                'Step 5 of 10 — Oversized files',
+                'Step 6 of 10 — Languages',
+                'Step 7 of 10 — Media sorter',
+                'Step 8 of 10 — Safety',
+                'Step 9 of 10 — Community stats',
+                'Step 10 of 10 — All done'
             ];
             var WIZ_MODE_OPTIONS = [
                 ['Off', 'modeOff'],
@@ -2423,6 +2503,7 @@
                 view.querySelector('#mdWizDryRun').checked = c.DryRun !== false;
                 view.querySelector('#mdWizPausePlayback').checked = c.PauseDuringPlayback !== false;
                 view.querySelector('#mdWizRetention').value = c.RecycleBinRetentionDays || 30;
+                view.querySelector('#mdWizAnalytics').checked = !!c.AnalyticsEnabled;
             }
 
             function wizPopulateGpuOptions(currentIndex) {
@@ -2496,9 +2577,37 @@
                         var days = parseInt(view.querySelector('#mdWizRetention').value, 10);
                         if (!isNaN(days) && days > 0) c.RecycleBinRetentionDays = days;
                         break;
+                    case 8:
+                        applyAnalyticsToggle(c, view.querySelector('#mdWizAnalytics').checked);
+                        break;
                     default:
                         break;
                 }
+            }
+
+            // Applies the analytics opt-in toggle to the config object. Mints a fresh UUID the first time
+            // the user opts in (so the anon install identity is defined) and clears it when they opt out.
+            // Both wizard and settings paths funnel through here.
+            function applyAnalyticsToggle(c, enabled) {
+                c.AnalyticsEnabled = !!enabled;
+                if (enabled && !c.AnalyticsInstallId) {
+                    c.AnalyticsInstallId = newUuid();
+                }
+                if (!enabled) {
+                    c.AnalyticsInstallId = '';
+                }
+            }
+
+            // Small RFC4122 v4 UUID generator. crypto.randomUUID exists on modern browsers; fall back
+            // for older ones so a browser-shim plugin embedded in an old Jellyfin build still works.
+            function newUuid() {
+                if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+                    return crypto.randomUUID();
+                }
+                return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+                    var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
             }
 
             function parseLangList(raw) {

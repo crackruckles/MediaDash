@@ -488,6 +488,38 @@ public sealed class MediaDashDb
     }
 
     /// <summary>
+    /// Aggregates the history for a given month into per-type success counts + total bytes freed.
+    /// Filters to success=1 and dry_run=0 so dry-run rehearsals never inflate the analytics numbers.
+    /// </summary>
+    /// <param name="monthStartUtc">First instant of the target month (UTC).</param>
+    /// <param name="monthEndUtc">First instant of the following month (UTC) — exclusive upper bound.</param>
+    /// <returns>A per-type count map plus the total bytes freed.</returns>
+    public MonthAggregate GetMonthAggregate(DateTime monthStartUtc, DateTime monthEndUtc)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT type, COUNT(*), COALESCE(SUM(bytes_freed), 0)"
+            + " FROM history"
+            + " WHERE success = 1 AND dry_run = 0"
+            + " AND fixed_at_utc >= @start AND fixed_at_utc < @end"
+            + " GROUP BY type";
+        cmd.Parameters.AddWithValue("@start", monthStartUtc.Ticks);
+        cmd.Parameters.AddWithValue("@end", monthEndUtc.Ticks);
+
+        var byType = new Dictionary<IssueType, int>();
+        long totalBytes = 0;
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            var type = (IssueType)reader.GetInt32(0);
+            byType[type] = reader.GetInt32(1);
+            totalBytes += reader.GetInt64(2);
+        }
+
+        return new MonthAggregate(byType, totalBytes);
+    }
+
+    /// <summary>
     /// Wipes all scan state — issues, probe cache, decode cache — so the next scan starts from scratch.
     /// Fix history (and the recycle bin it points into) is preserved so users can still restore recently-removed files.
     /// </summary>

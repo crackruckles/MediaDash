@@ -32,6 +32,7 @@ public sealed class FixTask : IScheduledTask
     private readonly IEnumerable<IFixer> _fixers;
     private readonly RecycleBin _recycleBin;
     private readonly ISessionManager _sessionManager;
+    private readonly Analytics.AnalyticsReporter _analytics;
     private readonly ILogger<FixTask> _logger;
 
     /// <summary>
@@ -41,13 +42,15 @@ public sealed class FixTask : IScheduledTask
     /// <param name="fixers">All registered fixers.</param>
     /// <param name="recycleBin">The recycle bin.</param>
     /// <param name="sessionManager">Instance of the <see cref="ISessionManager"/> interface.</param>
+    /// <param name="analytics">The opt-in analytics reporter.</param>
     /// <param name="logger">The logger.</param>
-    public FixTask(MediaDashDb db, IEnumerable<IFixer> fixers, RecycleBin recycleBin, ISessionManager sessionManager, ILogger<FixTask> logger)
+    public FixTask(MediaDashDb db, IEnumerable<IFixer> fixers, RecycleBin recycleBin, ISessionManager sessionManager, Analytics.AnalyticsReporter analytics, ILogger<FixTask> logger)
     {
         _db = db;
         _fixers = fixers;
         _recycleBin = recycleBin;
         _sessionManager = sessionManager;
+        _analytics = analytics;
         _logger = logger;
     }
 
@@ -261,6 +264,11 @@ public sealed class FixTask : IScheduledTask
             TopFailureReason = topReason?.Key,
             TopFailureCount = topReason?.Value ?? 0
         };
+
+        // Opt-in analytics: month-to-date totals get pushed after every run so a mid-month opt-in
+        // (or a run that only fixed a couple of files) still contributes accurate numbers. Reporter
+        // is fire-and-forget with graceful failure — never blocks progress reporting.
+        await _analytics.ReportMonthToDateAsync(cancellationToken).ConfigureAwait(false);
 
         progress.Report(100);
     }

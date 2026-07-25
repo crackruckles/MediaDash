@@ -27,18 +27,20 @@ public sealed class I18nCatalogTests
     }
 
     [Fact]
-    public void EveryShippedLocaleHasTheSameHtmlKeysAsEnglish()
+    public void NoTranslationHasKeysThatEnglishDoesNot()
     {
+        // English is the moving source of truth. Translations are allowed to lag — a missing key falls
+        // back to English at render time — but they must never define a key en doesn't. That prevents
+        // typos in a locale file (e.g. "tab.overwiev": "…") from silently shipping as dead entries.
         var enKeys = LoadHtmlKeys("en");
         Assert.NotEmpty(enKeys);
 
         foreach (var locale in I18nCatalog.ListLocales().Where(l => l != "en"))
         {
             var keys = LoadHtmlKeys(locale);
-            var missing = enKeys.Except(keys).ToList();
             var extra = keys.Except(enKeys).ToList();
-            Assert.True(missing.Count == 0 && extra.Count == 0,
-                $"Locale '{locale}' has key-shape drift. Missing: [{string.Join(", ", missing)}], extra: [{string.Join(", ", extra)}]");
+            Assert.True(extra.Count == 0,
+                $"Locale '{locale}' has keys not in English: [{string.Join(", ", extra)}]");
         }
     }
 
