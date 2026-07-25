@@ -49,7 +49,7 @@ public class PluginConfiguration : BasePluginConfiguration
         PauseDuringPlayback = true;
         ScheduledFixTime = "03:00";
         FirstRunDone = false;
-        AnalyticsEnabled = false;
+        AnalyticsEnabled = true;
         AnalyticsInstallId = string.Empty;
         EnabledLibraries = [];
         MisplacedFixMode = FixMode.DetectOnly;

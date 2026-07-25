@@ -32,6 +32,10 @@
                 padding: 0 24px !important;
                 box-sizing: border-box;
             }
+            /* Jellyfin's core CSS caps every <form> at 54em on ≥50em viewports. The Settings tab's
+               wrapper is a form, which was squishing the whole settings surface to ~800px on wide
+               monitors even though .content-primary is unrestricted. */
+            #MediaDashConfigPage form { max-width: none !important; }
 
             #MediaDashConfigPage .mdCard {
                 background: rgba(255,255,255,.045);
@@ -815,7 +819,7 @@
 
                         <div class="mdWizStep" data-step="8">
                             <h3><span class="material-icons" style="color:#a78bfa;">analytics</span>Community stats (optional)</h3>
-                            <p class="mdWizIntro">MediaDash can send anonymous aggregate stats to a community board so everyone can see how much storage the plugin is reclaiming across all users. <b>Off by default</b> and safe either way — you don't need this on for anything to work.</p>
+                            <p class="mdWizIntro">MediaDash can send anonymous aggregate stats to a community board so everyone can see how much storage the plugin is reclaiming across all users. <b>Pre-ticked</b> so the community counts include your reclaim total — untick if you'd rather not share, either is fine for the plugin.</p>
                             <div class="fieldDescription" style="margin:.4em 0 .8em;padding:.6em .8em;border-left:3px solid #a78bfa;background:rgba(167,139,250,.06);border-radius:4px;">
                                 <b>What's sent, per fix run:</b> a random UUID we generate for this install (no username, no server name), your plugin version, your Jellyfin version, the current month, and cumulative counts of the fixes MediaDash has completed this month per issue type plus the total bytes freed.<br>
                                 <b>What's never sent:</b> file paths, filenames, library names, IP addresses, media titles, or anything that identifies you or your media.<br>
@@ -1017,7 +1021,7 @@
                                         <input id="mdAnalytics" type="checkbox" is="emby-checkbox" />
                                         <span data-i18n="settings.safety.analytics">Share anonymous stats with the community board</span>
                                     </label>
-                                    <div class="fieldDescription" data-i18n="settings.safety.analyticsHint">Sends per-month, per-issue-type fix counts + total bytes freed + plugin/Jellyfin version + a random install UUID. Off by default. No paths, no filenames, no usernames. See <a href="https://github.com/crackruckles/MediaDash/blob/main/docs/PRIVACY.md" target="_blank" rel="noopener">docs/PRIVACY.md</a>.</div>
+                                    <div class="fieldDescription" data-i18n="settings.safety.analyticsHint">Sends per-month, per-issue-type fix counts + total bytes freed + plugin/Jellyfin version + a random install UUID. On by default; untick and save to opt out. No paths, no filenames, no usernames. See <a href="https://github.com/crackruckles/MediaDash/blob/main/docs/PRIVACY.md" target="_blank" rel="noopener">docs/PRIVACY.md</a>.</div>
                                 </div>
                             </section>
 
