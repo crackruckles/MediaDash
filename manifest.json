@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.7.2.0",
+        "changelog": "Settings tab: fixes width squish on wide monitors. Jellyfin\u0027s core CSS caps every form at 54em on \u003e=50em viewports, and the Settings tab wrapper is a form, so the whole settings surface (page header, nav chips, card grid) was stuck at ~800px on a 1080p monitor. Plugin-scoped `form { max-width: none }` overrides that. Community stats opt-in is now pre-ticked in the first-run wizard and on Settings \u003e Safety - unticking + Save opts you out and clears the install UUID, and nothing about what is/isn\u0027t sent has changed (see docs/PRIVACY.md).",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.7.2/mediadash_0.7.2.zip",
+        "checksum": "59fc44128bd52db5d2ca7bc65a5f428d",
+        "timestamp": "2026-07-25T12:16:45Z"
+      },
+      {
         "version": "0.7.1.0",
         "changelog": "Fixes v0.7.0 which shipped an incomplete zip (only the main dll, missing System.Diagnostics.PerformanceCounter.dll + 3 other dependency dlls). On Windows this made the plugin fail to load with a FileNotFoundException, showing as NotSupported in Dashboard \u003e Plugins. v0.7.1 ships the full dependency set. Also two Settings tab polish fixes: page now uses the full window width instead of capping at 1400px, and the Scheduled fix time input is now visible against the dark card background (Chrome/Edge were rendering the clock indicator in a colour that vanished against the card).",
         "targetAbi": "10.11.0.0",
@@ -195,6 +203,7 @@
     ]
   }
 ]
+
 
 
 
