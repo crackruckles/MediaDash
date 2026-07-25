@@ -25,10 +25,10 @@
                 display: block;
             }
             #MediaDashConfigPage .content-primary {
-                max-width: min(1400px, 96vw) !important;
-                width: min(1400px, 96vw) !important;
-                margin-left: auto !important;
-                margin-right: auto !important;
+                max-width: none !important;
+                width: 100% !important;
+                margin-left: 0 !important;
+                margin-right: 0 !important;
                 padding: 0 24px !important;
                 box-sizing: border-box;
             }
@@ -424,6 +424,7 @@
             /* Restyled inputs & selects — keep the emby types intact but polish edges. */
             #MediaDashConfigPage #mdTab-settings input[type="text"],
             #MediaDashConfigPage #mdTab-settings input[type="number"],
+            #MediaDashConfigPage #mdTab-settings input[type="time"],
             #MediaDashConfigPage #mdTab-settings select {
                 background: rgba(255,255,255,.04) !important;
                 border: 1px solid rgba(255,255,255,.12) !important;
@@ -433,8 +434,15 @@
                 font: 500 13.5px 'Plus Jakarta Sans', system-ui, sans-serif !important;
                 transition: border-color .12s ease, background .12s ease;
             }
+            /* Chrome/Edge render the native time picker with a dark icon that vanishes on our dark card;
+               invert so the clock glyph shows up. Safari/Firefox ignore this and use their own picker. */
+            #MediaDashConfigPage #mdTab-settings input[type="time"]::-webkit-calendar-picker-indicator {
+                filter: invert(1) opacity(.7);
+                cursor: pointer;
+            }
             #MediaDashConfigPage #mdTab-settings input[type="text"]:focus,
             #MediaDashConfigPage #mdTab-settings input[type="number"]:focus,
+            #MediaDashConfigPage #mdTab-settings input[type="time"]:focus,
             #MediaDashConfigPage #mdTab-settings select:focus {
                 border-color: var(--md-set-primary) !important;
                 background: rgba(34,211,238,.06) !important;
