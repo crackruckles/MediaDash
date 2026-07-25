@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.7.0.0",
+        "changelog": "Two features. Configurable fix schedule: Settings > Safety now has a time picker for when the daily fix run fires (default 03:00, including re-encodes) - the existing 'Only run when the server is idle' flag still vetoes runs when someone is watching, and the change takes effect without a Jellyfin restart. UI localisation: the dashboard, tab labels, settings section headings, first-run wizard, and the plugin's scheduled-task names now translate to whichever UI language the current Jellyfin user has selected. English is the source of truth; de/es/fr/it/nl/pt-BR/ru/zh-CN ship as machine-translated seeds and are unproofread - community PRs to refine any locale are welcome. Falls back cleanly (de-AT to de to en) so an unknown locale never breaks the page. Deep settings tooltips (Quality, Advanced, Libraries, Recycle bin internals) stay English for now - the framework accepts new keys without any code change, so those get wrapped as needed.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.7.0/mediadash_0.7.0.zip",
+        "checksum": "bc92c31cee8f488ea644748725abc86d",
+        "timestamp": "2026-07-25T01:37:25Z"
+      },
+      {
         "version": "0.6.1.0",
         "changelog": "Pre-beta polish. New \u0027Copy diagnostics\u0027 button on the Errors tab drops a clipboard-ready markdown blob (plugin/Jellyfin/OS/runtime versions plus all recorded errors) that pastes cleanly into a GitHub issue. New \u0027Report an issue\u0027 link in Settings \u003e Maintenance opens the tracker in a new tab. Wizard step 5 and the Settings \u0027Missing subtitles\u0027 row now show a live indicator whether a subtitle provider is installed - green with the provider name when ready, amber with \u0027Install one from Dashboard \u003e Plugins \u003e Catalog, the API key lives on that plugin\u0027s page, not here\u0027 when not - closing the discovery gap about where subtitle providers are configured (they live inside Jellyfin proper, MediaDash inherits them). Media sorter gains an optional \u0027Anime folder\u0027 target: items with Jellyfin\u0027s \u0027Anime\u0027 genre tag (case-insensitive) route there instead of Movies or TV. Leave it empty to keep existing behaviour. If your anime isn\u0027t tagged, install the AniDB scraper from Dashboard \u003e Plugins \u003e Catalog and Jellyfin will apply the tag automatically. CHANGELOG.md refreshed to point at GitHub Releases.",
         "targetAbi": "10.11.0.0",
