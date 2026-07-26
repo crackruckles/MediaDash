@@ -13,7 +13,7 @@
         "changelog": "Overview: recycle bin banner appears when the bin holds more than 10 GB with a one-click jump to Settings for review or empty.\n\nSettings polish: the \"When duplicates are found, keep\" select moved from the What to fix section into the Quality ceiling section since it scores duplicates using the resolution, codec, and bitrate configured directly below it.\n\nRolls up v0.7.3 for anyone who missed it - Stale content scanner (detect-only, flags media nobody has played in your configured window), Jellyfin 12.0 compatibility (one binary works on both 10.11 and 12.0 host lines via reflection bridge over the User entity changes; manifest advertises both targetAbi entries), and the deep playability checks that catch files that \"sort of play\" - stderr marker scan for \"File ended prematurely\" / \"Truncating packet\", container bitrate x duration vs actual file size sanity check, and decoded time vs requested segment comparison.\n\nDocumentation refresh across README, PLAN, CHANGELOG, and CLAUDE.md.",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.8.0/mediadash_0.8.0.zip",
-        "checksum": "e3477d6edab78555c977c460de10beec",
+        "checksum": "57457c3b5c91e578ecf2b829b18b2c70",
         "timestamp": "2026-07-26T07:47:53Z"
       },
       {
@@ -21,7 +21,7 @@
         "changelog": "Overview: recycle bin banner appears when the bin holds more than 10 GB with a one-click jump to Settings for review or empty.\n\nSettings polish: the \"When duplicates are found, keep\" select moved from the What to fix section into the Quality ceiling section since it scores duplicates using the resolution, codec, and bitrate configured directly below it.\n\nRolls up v0.7.3 for anyone who missed it - Stale content scanner (detect-only, flags media nobody has played in your configured window), Jellyfin 12.0 compatibility (one binary works on both 10.11 and 12.0 host lines via reflection bridge over the User entity changes; manifest advertises both targetAbi entries), and the deep playability checks that catch files that \"sort of play\" - stderr marker scan for \"File ended prematurely\" / \"Truncating packet\", container bitrate x duration vs actual file size sanity check, and decoded time vs requested segment comparison.\n\nDocumentation refresh across README, PLAN, CHANGELOG, and CLAUDE.md.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.8.0/mediadash_0.8.0.zip",
-        "checksum": "e3477d6edab78555c977c460de10beec",
+        "checksum": "57457c3b5c91e578ecf2b829b18b2c70",
         "timestamp": "2026-07-26T07:47:53Z"
       },
       {

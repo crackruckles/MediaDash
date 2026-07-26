@@ -1,7 +1,15 @@
 <Project>
     <PropertyGroup>
-        <Version>0.0.0.0</Version>
-        <AssemblyVersion>0.0.0.0</AssemblyVersion>
-        <FileVersion>0.0.0.0</FileVersion>
+        <!--
+          Default to 0.0.0.0 for developer builds, but only when nothing else has set the version.
+          tools/release.ps1 passes /property:Version=X.Y.Z, which lands as a global MSBuild property
+          before this file evaluates. The Condition="" prevents the hard 0.0.0.0 default here from
+          clobbering the release version - without it, the DLL shipped in every release advertised
+          AssemblyVersion 0.0.0.0 no matter what manifest.json said, which is what showed up on the
+          Jellyfin dashboard.
+        -->
+        <Version Condition=" '$(Version)' == '' ">0.0.0.0</Version>
+        <AssemblyVersion Condition=" '$(AssemblyVersion)' == '' ">$(Version)</AssemblyVersion>
+        <FileVersion Condition=" '$(FileVersion)' == '' ">$(Version)</FileVersion>
     </PropertyGroup>
 </Project>

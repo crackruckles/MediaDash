@@ -24,7 +24,11 @@ $sourceUrl = "https://github.com/crackruckles/MediaDash/releases/download/$tag/$
 $timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 
 Write-Host "Publishing (Release)..."
-& dotnet publish --configuration Release "Jellyfin.Plugin.MediaDash.sln" /property:GenerateFullPaths=true /consoleloggerparameters:NoSummary | Out-Null
+# Stamp the version into the DLL. Without this the compiled AssemblyVersion stays at 0.0.0.0
+# (its default when the csproj sets none), and Jellyfin's dashboard reads the DLL for its
+# "My Plugins" version label - so the label reads 0.0.0.0 no matter what manifest.json says.
+# /property:Version sets AssemblyVersion + FileVersion + InformationalVersion in one shot.
+& dotnet publish --configuration Release "Jellyfin.Plugin.MediaDash.sln" /property:GenerateFullPaths=true /property:Version=$Version /consoleloggerparameters:NoSummary | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed" }
 
 $publishDir = "Jellyfin.Plugin.MediaDash/bin/Release/net9.0/publish"
