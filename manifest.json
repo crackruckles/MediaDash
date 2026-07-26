@@ -10,7 +10,15 @@
     "versions": [
       {
         "version": "0.7.2.0",
-        "changelog": "Settings tab: fixes width squish on wide monitors. Jellyfin\u0027s core CSS caps every form at 54em on \u003e=50em viewports, and the Settings tab wrapper is a form, so the whole settings surface (page header, nav chips, card grid) was stuck at ~800px on a 1080p monitor. Plugin-scoped `form { max-width: none }` overrides that. Community stats opt-in is now pre-ticked in the first-run wizard and on Settings \u003e Safety - unticking + Save opts you out and clears the install UUID, and nothing about what is/isn\u0027t sent has changed (see docs/PRIVACY.md).",
+        "changelog": "Jellyfin 12.0 compatible entry (same binary as the 10.11 entry below). Jellyfin 12 is a version-scheme rename of what would have been 10.12, not a hard API break, so the same zip loads on both host lines. Verified against a running 12.0.0 server.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.7.2/mediadash_0.7.2.zip",
+        "checksum": "59fc44128bd52db5d2ca7bc65a5f428d",
+        "timestamp": "2026-07-26T09:00:00Z"
+      },
+      {
+        "version": "0.7.2.0",
+        "changelog": "Settings tab: fixes width squish on wide monitors. Jellyfin's core CSS caps every form at 54em on >=50em viewports, and the Settings tab wrapper is a form, so the whole settings surface (page header, nav chips, card grid) was stuck at ~800px on a 1080p monitor. Plugin-scoped `form { max-width: none }` overrides that. Community stats opt-in is now pre-ticked in the first-run wizard and on Settings > Safety - unticking + Save opts you out and clears the install UUID, and nothing about what is/isn't sent has changed (see docs/PRIVACY.md).",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.7.2/mediadash_0.7.2.zip",
         "checksum": "59fc44128bd52db5d2ca7bc65a5f428d",
@@ -18,7 +26,7 @@
       },
       {
         "version": "0.7.1.0",
-        "changelog": "Fixes v0.7.0 which shipped an incomplete zip (only the main dll, missing System.Diagnostics.PerformanceCounter.dll + 3 other dependency dlls). On Windows this made the plugin fail to load with a FileNotFoundException, showing as NotSupported in Dashboard \u003e Plugins. v0.7.1 ships the full dependency set. Also two Settings tab polish fixes: page now uses the full window width instead of capping at 1400px, and the Scheduled fix time input is now visible against the dark card background (Chrome/Edge were rendering the clock indicator in a colour that vanished against the card).",
+        "changelog": "Fixes v0.7.0 which shipped an incomplete zip (only the main dll, missing System.Diagnostics.PerformanceCounter.dll + 3 other dependency dlls). On Windows this made the plugin fail to load with a FileNotFoundException, showing as NotSupported in Dashboard > Plugins. v0.7.1 ships the full dependency set. Also two Settings tab polish fixes: page now uses the full window width instead of capping at 1400px, and the Scheduled fix time input is now visible against the dark card background (Chrome/Edge were rendering the clock indicator in a colour that vanished against the card).",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.7.1/mediadash_0.7.1.zip",
         "checksum": "311b96f38e3a547078719a5154c0e65e",
@@ -34,7 +42,7 @@
       },
       {
         "version": "0.6.1.0",
-        "changelog": "Pre-beta polish. New \u0027Copy diagnostics\u0027 button on the Errors tab drops a clipboard-ready markdown blob (plugin/Jellyfin/OS/runtime versions plus all recorded errors) that pastes cleanly into a GitHub issue. New \u0027Report an issue\u0027 link in Settings \u003e Maintenance opens the tracker in a new tab. Wizard step 5 and the Settings \u0027Missing subtitles\u0027 row now show a live indicator whether a subtitle provider is installed - green with the provider name when ready, amber with \u0027Install one from Dashboard \u003e Plugins \u003e Catalog, the API key lives on that plugin\u0027s page, not here\u0027 when not - closing the discovery gap about where subtitle providers are configured (they live inside Jellyfin proper, MediaDash inherits them). Media sorter gains an optional \u0027Anime folder\u0027 target: items with Jellyfin\u0027s \u0027Anime\u0027 genre tag (case-insensitive) route there instead of Movies or TV. Leave it empty to keep existing behaviour. If your anime isn\u0027t tagged, install the AniDB scraper from Dashboard \u003e Plugins \u003e Catalog and Jellyfin will apply the tag automatically. CHANGELOG.md refreshed to point at GitHub Releases.",
+        "changelog": "Pre-beta polish. New 'Copy diagnostics' button on the Errors tab drops a clipboard-ready markdown blob (plugin/Jellyfin/OS/runtime versions plus all recorded errors) that pastes cleanly into a GitHub issue. New 'Report an issue' link in Settings > Maintenance opens the tracker in a new tab. Wizard step 5 and the Settings 'Missing subtitles' row now show a live indicator whether a subtitle provider is installed - green with the provider name when ready, amber with 'Install one from Dashboard > Plugins > Catalog, the API key lives on that plugin's page, not here' when not - closing the discovery gap about where subtitle providers are configured (they live inside Jellyfin proper, MediaDash inherits them). Media sorter gains an optional 'Anime folder' target: items with Jellyfin's 'Anime' genre tag (case-insensitive) route there instead of Movies or TV. Leave it empty to keep existing behaviour. If your anime isn't tagged, install the AniDB scraper from Dashboard > Plugins > Catalog and Jellyfin will apply the tag automatically. CHANGELOG.md refreshed to point at GitHub Releases.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.6.1/mediadash_0.6.1.zip",
         "checksum": "bc61110713b432ee2f44d6cae7d7c348",
@@ -42,7 +50,7 @@
       },
       {
         "version": "0.6.0.0",
-        "changelog": "New Missing subtitles fix type: flags videos with no subtitle in any wanted language and downloads one via Jellyfin\u0027s already-configured subtitle providers (OpenSubtitles etc.) - no new API keys. First-run experience is now a multi-step wizard that walks each feature one at a time (Welcome, Libraries + access-check, Duplicates, Broken files, Oversized files, Languages incl. missing-subs mode, Media sorter, Safety net, Done), triggered only on fresh installs (survives plugin updates via FirstRunDone). Preferred-GPU picker moved into the Oversized step alongside the hardware-encoder toggle. AMD APU (Rembrandt / Phoenix - Ryzen 6000/7000 iGPUs) GPU percentage now reads from /sys/class/drm/cardN/device/gpu_metrics when gpu_busy_percent is pinned at 0, fixing the 0.0% GPU reading on affected hosts. Overview \u0027Space you could reclaim\u0027 total now includes issues you\u0027ve already approved (Queued), not just Detected ones - matches what the Issues tab shows. PLAN.md rewritten around a whole-library housekeeping scope with explicit non-goals (no acquisition, no metadata authoring) and a prioritised roadmap for the next scanners.",
+        "changelog": "New Missing subtitles fix type: flags videos with no subtitle in any wanted language and downloads one via Jellyfin's already-configured subtitle providers (OpenSubtitles etc.) - no new API keys. First-run experience is now a multi-step wizard that walks each feature one at a time (Welcome, Libraries + access-check, Duplicates, Broken files, Oversized files, Languages incl. missing-subs mode, Media sorter, Safety net, Done), triggered only on fresh installs (survives plugin updates via FirstRunDone). Preferred-GPU picker moved into the Oversized step alongside the hardware-encoder toggle. AMD APU (Rembrandt / Phoenix - Ryzen 6000/7000 iGPUs) GPU percentage now reads from /sys/class/drm/cardN/device/gpu_metrics when gpu_busy_percent is pinned at 0, fixing the 0.0% GPU reading on affected hosts. Overview 'Space you could reclaim' total now includes issues you've already approved (Queued), not just Detected ones - matches what the Issues tab shows. PLAN.md rewritten around a whole-library housekeeping scope with explicit non-goals (no acquisition, no metadata authoring) and a prioritised roadmap for the next scanners.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.6.0/mediadash_0.6.0.zip",
         "checksum": "6d4bdfb42ca71720a080e9834cd96452",
@@ -58,7 +66,7 @@
       },
       {
         "version": "0.5.2.0",
-        "changelog": "The \u0027Run fixes now\u0027 button used to appear to do nothing when every attempted fix failed fast (typical on a Linux server where the jellyfin user doesn\u0027t own the media files) - the progress bar just flashed and the user was left to click through Errors to find out what happened. Fix runs now finish with a dashboard alert summarising attempted / succeeded / failed and the dominant reason, with reason-specific instructions (e.g. the exact chown command to grant Jellyfin write access). Manually-approved issues under types set to \u0027Detect only\u0027 now actually run - previously they were silently filtered out. The Overview drive list now always shows the drive the recycle bin lives on, even when it\u0027s on a Docker overlay / tmpfs / btrfs subvolume that DriveInfo filters out, so you notice when the bin is filling your system disk. New \u0027Check library access\u0027 button in first-run setup that probes read+write on every library folder and reports pass/fail per folder with a plain-language reason, so ownership/ACL problems get caught before you approve anything.",
+        "changelog": "The 'Run fixes now' button used to appear to do nothing when every attempted fix failed fast (typical on a Linux server where the jellyfin user doesn't own the media files) - the progress bar just flashed and the user was left to click through Errors to find out what happened. Fix runs now finish with a dashboard alert summarising attempted / succeeded / failed and the dominant reason, with reason-specific instructions (e.g. the exact chown command to grant Jellyfin write access). Manually-approved issues under types set to 'Detect only' now actually run - previously they were silently filtered out. The Overview drive list now always shows the drive the recycle bin lives on, even when it's on a Docker overlay / tmpfs / btrfs subvolume that DriveInfo filters out, so you notice when the bin is filling your system disk. New 'Check library access' button in first-run setup that probes read+write on every library folder and reports pass/fail per folder with a plain-language reason, so ownership/ACL problems get caught before you approve anything.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.5.2/mediadash_0.5.2.zip",
         "checksum": "5b61e5bfd897a86277e3f807f3f60893",
@@ -66,7 +74,7 @@
       },
       {
         "version": "0.5.1.0",
-        "changelog": "Media sorter now surfaces a clear, actionable error message on the Errors tab when a target folder is misconfigured (doesn\u0027t exist, sits outside every Jellyfin library, or isn\u0027t writable by the Jellyfin user) instead of silently creating hundreds of unfixable issues. The fixer also distinguishes those cases at fix time and pre-checks free disk space for cross-volume moves. \u0027Empty recycle bin now\u0027 used to freeze the UI on large bins and silently fail on older ApiClient builds - it now runs in the background with a determinate progress bar, and any per-batch permission or I/O errors show as a dashboard alert instead of tanking the whole operation on the first bad file.",
+        "changelog": "Media sorter now surfaces a clear, actionable error message on the Errors tab when a target folder is misconfigured (doesn't exist, sits outside every Jellyfin library, or isn't writable by the Jellyfin user) instead of silently creating hundreds of unfixable issues. The fixer also distinguishes those cases at fix time and pre-checks free disk space for cross-volume moves. 'Empty recycle bin now' used to freeze the UI on large bins and silently fail on older ApiClient builds - it now runs in the background with a determinate progress bar, and any per-batch permission or I/O errors show as a dashboard alert instead of tanking the whole operation on the first bad file.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.5.1/mediadash_0.5.1.zip",
         "checksum": "687a7a583af341bbe7639c75dc99f404",
@@ -74,7 +82,7 @@
       },
       {
         "version": "0.5.0.0",
-        "changelog": "New \u0027Misplaced files\u0027 fix type: MediaDash spots a movie sitting in your TV folder (or a TV episode sitting in Movies) and moves it into the correct folder. Set the two target folders under Settings \u003e Libraries; classification uses Jellyfin\u0027s own metadata by default with a filename-pattern fallback (SxxExx / NxN =\u003e TV). LibraryGuard refuses moves outside your Jellyfin libraries. Optional new toggle to rename files after a successful re-encode to a canonical form: \u0027Name (Year) - 1080p.mkv\u0027 for movies, \u0027Series - S03E14 - 1080p.mkv\u0027 for TV episodes. Every primary button and settings chip now shows a tooltip on hover.",
+        "changelog": "New 'Misplaced files' fix type: MediaDash spots a movie sitting in your TV folder (or a TV episode sitting in Movies) and moves it into the correct folder. Set the two target folders under Settings > Libraries; classification uses Jellyfin's own metadata by default with a filename-pattern fallback (SxxExx / NxN => TV). LibraryGuard refuses moves outside your Jellyfin libraries. Optional new toggle to rename files after a successful re-encode to a canonical form: 'Name (Year) - 1080p.mkv' for movies, 'Series - S03E14 - 1080p.mkv' for TV episodes. Every primary button and settings chip now shows a tooltip on hover.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.5.0/mediadash_0.5.0.zip",
         "checksum": "77f79febc6b0b9c4c4350b13e616eade",
@@ -203,11 +211,3 @@
     ]
   }
 ]
-
-
-
-
-
-
-
-
