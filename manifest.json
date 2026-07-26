@@ -9,6 +9,22 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.8.1.0",
+        "changelog": "Version-stamp hotfix. v0.8.0 shipped a DLL that self-identified as 0.0.0.0 on the Jellyfin dashboard because a stale Directory.Build.props was pinning AssemblyVersion. Same code as v0.8.0; the DLL now correctly stamps to 0.8.1.0 so the dashboard label matches the manifest. If you saw MediaDash 0.0.0.0 on your My Plugins page after updating to 0.8.0, this release fixes that.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.8.1/mediadash_0.8.1.zip",
+        "checksum": "acfc37eba7bf91e90d2479a5d7796f0a",
+        "timestamp": "2026-07-26T08:02:16Z"
+      },
+      {
+        "version": "0.8.1.0",
+        "changelog": "Version-stamp hotfix. v0.8.0 shipped a DLL that self-identified as 0.0.0.0 on the Jellyfin dashboard because a stale Directory.Build.props was pinning AssemblyVersion. Same code as v0.8.0; the DLL now correctly stamps to 0.8.1.0 so the dashboard label matches the manifest. If you saw MediaDash 0.0.0.0 on your My Plugins page after updating to 0.8.0, this release fixes that.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.8.1/mediadash_0.8.1.zip",
+        "checksum": "acfc37eba7bf91e90d2479a5d7796f0a",
+        "timestamp": "2026-07-26T08:02:16Z"
+      },
+      {
         "version": "0.8.0.0",
         "changelog": "Overview: recycle bin banner appears when the bin holds more than 10 GB with a one-click jump to Settings for review or empty.\n\nSettings polish: the \"When duplicates are found, keep\" select moved from the What to fix section into the Quality ceiling section since it scores duplicates using the resolution, codec, and bitrate configured directly below it.\n\nRolls up v0.7.3 for anyone who missed it - Stale content scanner (detect-only, flags media nobody has played in your configured window), Jellyfin 12.0 compatibility (one binary works on both 10.11 and 12.0 host lines via reflection bridge over the User entity changes; manifest advertises both targetAbi entries), and the deep playability checks that catch files that \"sort of play\" - stderr marker scan for \"File ended prematurely\" / \"Truncating packet\", container bitrate x duration vs actual file size sanity check, and decoded time vs requested segment comparison.\n\nDocumentation refresh across README, PLAN, CHANGELOG, and CLAUDE.md.",
         "targetAbi": "12.0.0.0",
@@ -243,3 +259,4 @@
     ]
   }
 ]
+

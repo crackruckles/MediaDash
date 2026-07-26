@@ -55,9 +55,14 @@ $md5 = (Get-FileHash $zip -Algorithm MD5).Hash.ToLower()
 Write-Host "Zip MD5: $md5"
 
 # Upload BEFORE writing manifest, so manifest never advertises a version that
-# doesn't exist on Releases.
-& gh release create $tag $zip --title $tag --notes $Changelog
+# doesn't exist on Releases. Pass notes via a temp file: --notes with an inline
+# string breaks whenever the changelog contains characters PowerShell splits on
+# ("," "(" ">" quotes...), and shell-safe changelogs aren't the point.
+$notesPath = Join-Path $env:TEMP "release-notes-$Version.txt"
+Set-Content -Path $notesPath -Value $Changelog -Encoding utf8
+& gh release create $tag $zip --title $tag --notes-file $notesPath
 if ($LASTEXITCODE -ne 0) { throw "gh release create failed" }
+Remove-Item $notesPath -ErrorAction SilentlyContinue
 
 # The one check that makes the drift impossible: re-download the asset gh just
 # uploaded, hash it, and abort if it differs from what we're about to write.
@@ -67,11 +72,20 @@ $verifyMd5 = (Get-FileHash $verifyPath -Algorithm MD5).Hash.ToLower()
 if ($verifyMd5 -ne $md5) { throw "DRIFT: uploaded md5=$md5, downloaded md5=$verifyMd5" }
 Write-Host "Verified: released zip MD5 == $md5"
 
-# Prepend the new entry to manifest.json[0].versions via raw text insertion so
-# existing formatting (2-space indent) is preserved.
+# Prepend TWO new entries to manifest.json[0].versions (same zip, different targetAbi)
+# so both the 10.11 and 12.0 host lines see this version as installable. Raw text
+# insertion preserves existing 2-space indent.
 # ponytail: string surgery, not parse+reserialize; a schema change to manifest.json breaks this script - update it then.
 $changelogJson = $Changelog | ConvertTo-Json  # produces a JSON-safe quoted string
 $newEntry = @"
+      {
+        "version": "$ver4",
+        "changelog": $changelogJson,
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "$sourceUrl",
+        "checksum": "$md5",
+        "timestamp": "$timestamp"
+      },
       {
         "version": "$ver4",
         "changelog": $changelogJson,
