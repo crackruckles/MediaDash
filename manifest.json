@@ -9,6 +9,22 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.8.2.0",
+        "changelog": "Overview banners are now dismissible - both the cross-volume recycle bin warning and the \"bin is over 10 GB\" reminder grow a close button. Dismissal is session-scoped so a fresh browser session brings the reminder back if the underlying condition (bin still on a different drive, still over 10 GB) is still true. Per-item Restore in Settings \u003e Recycle bin \u003e View contents: every recycled file now has its own Restore button that puts it back at the original location. Backed by a join against the history table (matching bin path to history entry). The existing safety guard that refuses to overwrite a live file at the destination still applies - the conflict message surfaces inline on the row. Errors tab: the \"Copy diagnostics\" button is now \"Report an issue\" - one click copies diagnostics to the clipboard AND opens the GitHub issue tracker in a new tab. Tooltip pass across the plugin: added hover descriptions to Errors tab actions (Refresh, Retry all, Clear), Files tab bulk actions (Delete, Move, Download, Deselect), the New folder button, folder-picker buttons, and the dry-run banner action. Short but load-bearing.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.8.2/mediadash_0.8.2.zip",
+        "checksum": "8db1a73981481a00c4b5d769ef7f7ce5",
+        "timestamp": "2026-07-26T09:26:04Z"
+      },
+      {
+        "version": "0.8.2.0",
+        "changelog": "Overview banners are now dismissible - both the cross-volume recycle bin warning and the \"bin is over 10 GB\" reminder grow a close button. Dismissal is session-scoped so a fresh browser session brings the reminder back if the underlying condition (bin still on a different drive, still over 10 GB) is still true. Per-item Restore in Settings \u003e Recycle bin \u003e View contents: every recycled file now has its own Restore button that puts it back at the original location. Backed by a join against the history table (matching bin path to history entry). The existing safety guard that refuses to overwrite a live file at the destination still applies - the conflict message surfaces inline on the row. Errors tab: the \"Copy diagnostics\" button is now \"Report an issue\" - one click copies diagnostics to the clipboard AND opens the GitHub issue tracker in a new tab. Tooltip pass across the plugin: added hover descriptions to Errors tab actions (Refresh, Retry all, Clear), Files tab bulk actions (Delete, Move, Download, Deselect), the New folder button, folder-picker buttons, and the dry-run banner action. Short but load-bearing.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.8.2/mediadash_0.8.2.zip",
+        "checksum": "8db1a73981481a00c4b5d769ef7f7ce5",
+        "timestamp": "2026-07-26T09:26:04Z"
+      },
+      {
         "version": "0.8.1.0",
         "changelog": "Version-stamp hotfix. v0.8.0 shipped a DLL that self-identified as 0.0.0.0 on the Jellyfin dashboard because a stale Directory.Build.props was pinning AssemblyVersion. Same code as v0.8.0; the DLL now correctly stamps to 0.8.1.0 so the dashboard label matches the manifest. If you saw MediaDash 0.0.0.0 on your My Plugins page after updating to 0.8.0, this release fixes that.",
         "targetAbi": "12.0.0.0",
@@ -259,4 +275,5 @@
     ]
   }
 ]
+
 
