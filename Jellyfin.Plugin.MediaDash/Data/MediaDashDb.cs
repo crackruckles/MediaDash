@@ -503,6 +503,36 @@ public sealed class MediaDashDb
     }
 
     /// <summary>
+    /// Per-type breakdown of the lifetime reclaim total. Powers the donut on the right half of the
+    /// Overview reclaim card so the user can see which fix type has recovered the most disk.
+    /// </summary>
+    /// <returns>One row per type that ever produced a successful non-dry-run fix.</returns>
+    public IReadOnlyList<IssueSummary> GetLifetimeSummary()
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT type, COUNT(*), COALESCE(SUM(bytes_freed), 0)"
+            + " FROM history"
+            + " WHERE success = 1 AND dry_run = 0"
+            + " GROUP BY type";
+
+        var result = new List<IssueSummary>();
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            result.Add(new IssueSummary
+            {
+                Type = (IssueType)reader.GetInt32(0),
+                Count = reader.GetInt32(1),
+                PotentialSavings = reader.GetInt64(2),
+                NewestDetectedUtc = DateTime.MinValue
+            });
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// Aggregates the history for a given month into per-type success counts + total bytes freed.
     /// Filters to success=1 and dry_run=0 so dry-run rehearsals never inflate the analytics numbers.
     /// </summary>

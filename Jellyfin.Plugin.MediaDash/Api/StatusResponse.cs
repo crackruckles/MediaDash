@@ -60,6 +60,13 @@ public sealed class StatusResponse
     public long LifetimeBytesReclaimed { get; set; }
 
     /// <summary>
+    /// Gets or sets the per-type breakdown of lifetime reclaim (Count = successful fixes,
+    /// PotentialSavings reused as "bytes actually freed"). Powers the donut on the right half
+    /// of the Overview reclaim card.
+    /// </summary>
+    public IReadOnlyList<TypeCount> LifetimeCounts { get; set; } = [];
+
+    /// <summary>
     /// Gets or sets the per-type issue counts.
     /// </summary>
     public IReadOnlyList<TypeCount> Counts { get; set; } = [];

@@ -1915,35 +1915,40 @@
                 }
 
                 var counts = s.Counts || [];
+                var lifetimeCounts = s.LifetimeCounts || [];
                 var hero = view.querySelector('#mdHero');
                 var lifetime = s.LifetimeBytesReclaimed || 0;
                 if (s.TotalPotentialSavings > 0 || counts.length > 0 || lifetime > 0) {
-                    var donut = donutSvg(counts.map(function (c) {
-                        var t = STR.types[c.Type] || { color: '#888' };
-                        return { value: c.Count, color: t.color };
-                    }), 110);
-                    var legend = counts.map(function (c) {
-                        var t = STR.types[c.Type] || { title: c.Type, color: '#888' };
-                        return '<div style="margin:.15em 0;"><span class="mdBadge" style="background:' + t.color + ';">' + c.Count + '</span> ' + esc(t.title) + '</div>';
-                    }).join('');
-                    // Two-column reclaim card: left = what's still open, right = what's already been recovered.
-                    // Split with a subtle vertical divider so at a glance the two numbers read as "before vs. after".
-                    var reclaimSplit = '<div class="mdCard mdFade" style="display:grid;grid-template-columns:1fr 1px 1fr;gap:1.4em;align-items:center;padding:1.2em 1.6em;">' +
+                    // Each half of the reclaim card gets its own donut. Left donut sizes by open-issue COUNT
+                    // (how many things need attention). Right donut sizes by BYTES-FREED per type (which fixer
+                    // has done the most disk-wise). Legends stay compact — badge + label, no per-row bytes.
+                    function halfDonut(items, sizeBy) {
+                        if (!items.length) return '';
+                        var donut = donutSvg(items.map(function (c) {
+                            var t = STR.types[c.Type] || { color: '#888' };
+                            return { value: sizeBy === 'bytes' ? Math.max(1, c.PotentialSavings || 0) : c.Count, color: t.color };
+                        }), 90);
+                        var legend = items.map(function (c) {
+                            var t = STR.types[c.Type] || { title: c.Type, color: '#888' };
+                            var label = sizeBy === 'bytes' && c.PotentialSavings > 0 ? bytes(c.PotentialSavings) : String(c.Count);
+                            return '<div style="margin:.15em 0;font-size:.85em;"><span class="mdBadge" style="background:' + t.color + ';">' + esc(label) + '</span> ' + esc(t.title) + '</div>';
+                        }).join('');
+                        return '<div style="display:flex;gap:.9em;align-items:center;margin-top:.6em;">' + donut + '<div>' + legend + '</div></div>';
+                    }
+                    var reclaimSplit = '<div class="mdCard mdFade" style="display:grid;grid-template-columns:1fr 1px 1fr;gap:1.4em;align-items:start;padding:1.2em 1.6em;">' +
                         '<div>' +
                         '<div class="fieldDescription">' + esc(STR.totalSavings) + '</div>' +
                         '<div class="mdNum" style="font-size:2.4em;color:#00a4dc;line-height:1.1;">' + bytes(s.TotalPotentialSavings) + '</div>' +
+                        halfDonut(counts, 'count') +
                         '</div>' +
-                        '<div style="background:rgba(255,255,255,.08);height:70%;width:1px;justify-self:center;"></div>' +
+                        '<div style="background:rgba(255,255,255,.08);width:1px;align-self:stretch;justify-self:center;"></div>' +
                         '<div>' +
                         '<div class="fieldDescription" title="' + esc(STR.lifetimeSavedHint) + '">' + esc(STR.lifetimeSaved) + '</div>' +
                         '<div class="mdNum" style="font-size:2.4em;color:#22c55e;line-height:1.1;">' + bytes(lifetime) + '</div>' +
+                        halfDonut(lifetimeCounts, 'bytes') +
                         '</div>' +
                         '</div>';
-                    // Donut + legend live in a separate card below now that the reclaim tile owns the row.
-                    var donutCard = counts.length > 0
-                        ? '<div class="mdCard mdFade" style="display:flex;gap:1.4em;align-items:center;margin-top:1em;padding:1em 1.4em;">' + donut + '<div>' + legend + '</div></div>'
-                        : '';
-                    hero.innerHTML = reclaimSplit + donutCard;
+                    hero.innerHTML = reclaimSplit;
                 } else {
                     hero.innerHTML = '';
                 }

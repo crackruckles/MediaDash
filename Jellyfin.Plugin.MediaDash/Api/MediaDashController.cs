@@ -172,6 +172,12 @@ public class MediaDashController : ControllerBase
             LastScanUtc = summary.Count > 0 ? summary.Max(s => s.NewestDetectedUtc) : null,
             TotalPotentialSavings = summary.Sum(s => s.PotentialSavings),
             LifetimeBytesReclaimed = _db.GetLifetimeBytesFreed(),
+            LifetimeCounts = _db.GetLifetimeSummary().Select(s => new TypeCount
+            {
+                Type = s.Type.ToString(),
+                Count = s.Count,
+                PotentialSavings = s.PotentialSavings
+            }).ToList(),
             Counts = summary.Select(s => new TypeCount
             {
                 Type = s.Type.ToString(),
