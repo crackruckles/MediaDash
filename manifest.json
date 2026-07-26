@@ -9,6 +9,22 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.7.3.0",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.7.3/mediadash_0.7.3.zip",
+        "checksum": "381aa1e18c9503a02c2be6b742ce9382",
+        "changelog": "New Stale-content scanner: flags media that has been on the server past a configured threshold (default 365 days) without any user playing it in that window. Detect-only - no auto-delete. Wizard grows a \"Stale content\" step with a threshold input, Settings > What to fix picks it up, Issues tab filter and Overview \"Space you could reclaim\" totals include it automatically. Jellyfin 12.0 compatibility: the User entity moved namespaces (Jellyfin.Data.Entities to Jellyfin.Database.Implementations.Entities) and IUserManager.Users was renamed to GetUsers(). One binary now works on both 10.11 and 12.0 via a reflection bridge over the User-touching API. Manifest advertises both targetAbi 10.11.0.0 and 12.0.0.0. Playability scanner: three new checks catch files that \"sort of play\" - files that ffprobe accepts but that stop short during decode. (1) stderr marker scan for \"File ended prematurely\" / \"Truncating packet\" (ffmpeg emits these but still exits 0, hiding truncation from the old exit-code-only check); (2) bitrate-vs-file-size sanity check when the container reports both; (3) decoded-time vs requested-segment check (-stats output parsed for the last time= value; flags anything more than 10% short). All three run only when Thorough playability check is on in Settings.",
+        "timestamp": "2026-07-26T07:12:35Z"
+      },
+      {
+        "version": "0.7.3.0",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.7.3/mediadash_0.7.3.zip",
+        "checksum": "381aa1e18c9503a02c2be6b742ce9382",
+        "changelog": "New Stale-content scanner: flags media that has been on the server past a configured threshold (default 365 days) without any user playing it in that window. Detect-only - no auto-delete. Wizard grows a \"Stale content\" step with a threshold input, Settings > What to fix picks it up, Issues tab filter and Overview \"Space you could reclaim\" totals include it automatically. Jellyfin 12.0 compatibility: the User entity moved namespaces (Jellyfin.Data.Entities to Jellyfin.Database.Implementations.Entities) and IUserManager.Users was renamed to GetUsers(). One binary now works on both 10.11 and 12.0 via a reflection bridge over the User-touching API. Manifest advertises both targetAbi 10.11.0.0 and 12.0.0.0. Playability scanner: three new checks catch files that \"sort of play\" - files that ffprobe accepts but that stop short during decode. (1) stderr marker scan for \"File ended prematurely\" / \"Truncating packet\" (ffmpeg emits these but still exits 0, hiding truncation from the old exit-code-only check); (2) bitrate-vs-file-size sanity check when the container reports both; (3) decoded-time vs requested-segment check (-stats output parsed for the last time= value; flags anything more than 10% short). All three run only when Thorough playability check is on in Settings.",
+        "timestamp": "2026-07-26T07:12:35Z"
+      },
+      {
         "version": "0.7.2.0",
         "changelog": "Jellyfin 12.0 compatible entry (same binary as the 10.11 entry below). Jellyfin 12 is a version-scheme rename of what would have been 10.12, not a hard API break, so the same zip loads on both host lines. Verified against a running 12.0.0 server.",
         "targetAbi": "12.0.0.0",
