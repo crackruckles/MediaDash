@@ -290,6 +290,7 @@ public sealed class FfprobeService
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             _logger.LogWarning("ffprobe timed out after {Timeout} on {Path}", ProbeTimeout, path);
+            Api.Diagnostics.Record("Ffprobe.Timeout", "ffprobe took more than " + ProbeTimeout.TotalSeconds + "s on " + path + " — the file is being skipped this scan. Very large files or slow storage can hit this.");
             TryKill(process);
             return null;
         }
@@ -301,6 +302,7 @@ public sealed class FfprobeService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to run ffprobe at {ProbePath}", probePath);
+            Api.Diagnostics.Record("Ffprobe.RunFailed", "Could not execute ffprobe at '" + probePath + "': " + ex.Message + ". Every scan that depends on file analysis (Playability, Quality, Audio/Sub language) is blocked until this is fixed.");
             return null;
         }
     }

@@ -408,6 +408,7 @@ public sealed class TranscodeFixer : IFixer
         catch (IOException ex)
         {
             _logger.LogWarning(ex, "Canonical rename failed for {Path}", currentPath);
+            Api.Diagnostics.Record("Transcode.RenameFailed", "Re-encode of '" + currentPath + "' succeeded, but the canonical rename step could not run: " + ex.Message + ". The re-encoded file is at its old name — you can rename it by hand or ignore it. Turn off 'Rename after re-encode' in Settings > Quality to stop this attempt.");
             return null;
         }
     }

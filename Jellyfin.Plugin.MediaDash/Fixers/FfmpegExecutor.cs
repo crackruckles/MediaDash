@@ -140,6 +140,7 @@ public sealed class FfmpegExecutor
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to run ffmpeg at {Path}", encoderPath);
+            Api.Diagnostics.Record("Ffmpeg.RunFailed", "Could not execute ffmpeg at '" + encoderPath + "': " + ex.Message + ". Every re-encode fix is blocked until this is fixed.");
             return ex.Message;
         }
     }

@@ -2966,6 +2966,33 @@
             }
 
             // ---------- Errors ----------
+            // Map raw diagnostic source codes to user-facing titles + optional action hints.
+            // Order matters: first matching prefix wins.
+            var ERROR_META = [
+                { prefix: 'FixTask.PermissionDenied', title: 'Fix run — permission denied', icon: 'block', hint: 'Jellyfin cannot write to a library folder or the recycle bin. Check the folder owner + ACLs match the user running Jellyfin.' },
+                { prefix: 'FixTask.IOError', title: 'Fix run — disk error', icon: 'sd_card_alert', hint: 'A file was locked, missing, or the drive filled up mid-fix. Check free space and that no other process has the file open.' },
+                { prefix: 'FixTask', title: 'Fix run failed', icon: 'build', hint: 'The fix pipeline threw an unexpected error. Retry from the Errors tab; if it happens again, use "Report an issue".' },
+                { prefix: 'Ffprobe.Timeout', title: 'ffprobe timed out', icon: 'hourglass_empty', hint: 'A file took over 2 minutes to probe and was skipped. Usually a huge file on slow storage or a container ffprobe cannot parse.' },
+                { prefix: 'Ffprobe.RunFailed', title: 'ffprobe could not run', icon: 'terminal', hint: 'The Jellyfin server has no working ffprobe. Every scan that inspects files is blocked. Check Dashboard > Playback > Transcoding.' },
+                { prefix: 'Ffmpeg.RunFailed', title: 'ffmpeg could not run', icon: 'terminal', hint: 'The Jellyfin server has no working ffmpeg. Every re-encode is blocked. Check Dashboard > Playback > Transcoding.' },
+                { prefix: 'Transcode.RenameFailed', title: 'Re-encode renamed step skipped', icon: 'drive_file_rename_outline', hint: 'Re-encode itself succeeded — only the "rename to canonical name" step failed. The file is safe under its old name.' },
+                { prefix: 'FileBrowser.PermissionDenied', title: 'File browser — permission denied', icon: 'lock', hint: 'The Files tab tried to touch a path the Jellyfin user does not have permission for. Same fix as fix-run permission errors.' },
+                { prefix: 'RecycleBin.PermissionDenied', title: 'Recycle bin — permission denied', icon: 'lock', hint: 'The recycle-bin location is not writable by the Jellyfin user, or a specific recycled file is locked.' },
+                { prefix: 'RecycleBin.IOError', title: 'Recycle bin — disk error', icon: 'sd_card_alert', hint: 'A recycled file could not be purged. Usually a lock; sometimes a full or offline drive.' },
+                { prefix: 'MediaSorter.BadTarget', title: 'Media sorter — bad target folder', icon: 'folder_off', hint: 'The Movies / TV / Anime target in Settings > Libraries is missing, or sits outside every Jellyfin library. Media sorter is a no-op until fixed.' },
+                { prefix: 'StaleScanner.UserApi', title: 'Stale scanner — Jellyfin API mismatch', icon: 'error_outline', hint: 'MediaDash could not enumerate users on this Jellyfin build. The Stale scanner is skipped this run; other scanners are unaffected.' },
+                { prefix: 'SystemStats.Linux', title: 'System monitoring (Linux)', icon: 'monitoring', hint: 'A one-off failure reading /proc or /sys. The Overview stats card may show N/A for one poll. Not user-facing.' },
+                { prefix: 'SystemStats.WindowsGPU', title: 'System monitoring (Windows GPU)', icon: 'monitoring', hint: 'A GPU perf counter briefly failed. Overview GPU% may show N/A for one poll. Not user-facing.' },
+                { prefix: 'SystemStats', title: 'System monitoring', icon: 'monitoring', hint: 'A one-off system-stats sample failed. The Overview card may skip one poll. Not user-facing.' }
+            ];
+
+            function errorMeta(source) {
+                for (var i = 0; i < ERROR_META.length; i++) {
+                    if (source && source.indexOf(ERROR_META[i].prefix) === 0) return ERROR_META[i];
+                }
+                return { prefix: source, title: source || 'Unknown', icon: 'error', hint: null };
+            }
+
             function loadErrors() {
                 var listEl = view.querySelector('#mdErrorList');
                 listEl.innerHTML = '<div class="fieldDescription">Loading…</div>';
@@ -2977,20 +3004,27 @@
                     }
                     var totalOccurrences = errs.reduce(function (sum, e) { return sum + (e.Count || 1); }, 0);
                     updateErrorBadge(totalOccurrences);
-                    var html = errs.map(function (e) {
-                        var source = e.Source || 'unknown';
+                    var html = errs.map(function (e, i) {
+                        var meta = errorMeta(e.Source);
                         var countBadge = (e.Count || 1) > 1
-                            ? '<span class="mdBadge" style="background:rgba(239,68,68,.35);color:#fff;">×' + e.Count + '</span>'
+                            ? '<span class="mdBadge" style="background:rgba(239,68,68,.35);color:#fff;margin-left:.4em;">×' + e.Count + '</span>'
                             : '';
                         var timeText = (e.Count || 1) > 1 && e.LastAtUtc
                             ? new Date(e.AtUtc).toLocaleString() + ' → ' + new Date(e.LastAtUtc).toLocaleTimeString()
                             : new Date(e.AtUtc).toLocaleString();
+                        var hintBlock = meta.hint
+                            ? '<div class="fieldDescription" style="margin-top:.5em;padding:.5em .7em;border-left:3px solid #f59e0b;background:rgba(245,158,11,.08);border-radius:4px;">' + esc(meta.hint) + '</div>'
+                            : '';
                         return '<div class="mdCard mdFade" style="margin:.5em 0;border-left:4px solid #ef4444;">' +
-                            '<div style="display:flex;justify-content:space-between;gap:1em;flex-wrap:wrap;align-items:baseline;">' +
-                            '<span><span class="mdBadge" style="background:#ef4444;">' + esc(source) + '</span> ' + countBadge + '</span>' +
+                            '<div style="display:flex;justify-content:space-between;gap:1em;flex-wrap:wrap;align-items:center;">' +
+                            '<span style="font-weight:600;"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;color:#ef4444;margin-right:.3em;">' + meta.icon + '</span>' + esc(meta.title) + countBadge + '</span>' +
                             '<span class="fieldDescription" style="font-size:.82em;">' + timeText + '</span>' +
                             '</div>' +
-                            '<div style="margin-top:.4em;font-family:monospace;font-size:.88em;white-space:pre-wrap;word-break:break-word;">' + esc(e.Message) + '</div>' +
+                            hintBlock +
+                            '<details style="margin-top:.5em;">' +
+                            '<summary class="fieldDescription" style="cursor:pointer;font-size:.85em;user-select:none;">Technical detail (source: <code>' + esc(e.Source || 'unknown') + '</code>)</summary>' +
+                            '<div style="margin-top:.4em;font-family:monospace;font-size:.85em;white-space:pre-wrap;word-break:break-word;opacity:.85;">' + esc(e.Message) + '</div>' +
+                            '</details>' +
                             '</div>';
                     }).join('');
                     listEl.innerHTML = html;
