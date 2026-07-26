@@ -949,7 +949,7 @@
                     <div style="display:flex;gap:.5em;align-items:center;margin-bottom:.6em;flex-wrap:wrap;">
                         <button is="emby-button" type="button" id="mdErrorsRefresh" class="raised" style="font-size:80%;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">refresh</span><span>Refresh</span></button>
                         <button is="emby-button" type="button" id="mdErrorsRetry" class="raised button-submit" style="font-size:80%;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">replay</span><span>Retry all fixes</span></button>
-                        <button is="emby-button" type="button" id="mdErrorsCopy" class="raised" style="font-size:80%;" title="Copies plugin/OS/Jellyfin versions and every visible error to your clipboard, formatted for a GitHub bug report."><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">content_copy</span><span>Copy diagnostics</span></button>
+                        <button is="emby-button" type="button" id="mdErrorsCopy" class="raised" style="font-size:80%;" title="Copies plugin/OS/Jellyfin versions and every visible error to your clipboard, then opens the MediaDash issue tracker in a new tab so you can paste it into a new bug report."><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">bug_report</span><span>Report an issue</span></button>
                         <button is="emby-button" type="button" id="mdErrorsClear" class="raised" style="font-size:80%;background:#7f1d1d;color:#fff;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">delete_sweep</span><span>Clear</span></button>
                         <span id="mdErrorsMsg" class="fieldDescription"></span>
                     </div>
@@ -1301,7 +1301,7 @@
                                 </div>
                                 <div style="margin:.6em 0;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
                                     <a is="emby-linkbutton" href="https://github.com/crackruckles/MediaDash/issues/new" target="_blank" rel="noopener" class="raised emby-button" style="font-size:80%;text-decoration:none;padding:.5em 1em;"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;margin-right:.3em;">bug_report</span><span>Report an issue</span></a>
-                                    <span class="fieldDescription">Opens the MediaDash issue tracker in a new tab. Use the Errors tab's <b>Copy diagnostics</b> button first and paste that into the issue body.</span>
+                                    <span class="fieldDescription">Opens the MediaDash issue tracker in a new tab. For bug reports, the <b>Errors</b> tab's <b>Report an issue</b> button copies plugin diagnostics to the clipboard and opens the tracker in one click — start there.</span>
                                 </div>
                             </section>
                         </div>
@@ -2893,9 +2893,15 @@
                 }
             }
 
+            var ISSUE_URL = 'https://github.com/crackruckles/MediaDash/issues/new';
+
             function copyDiagnostics() {
                 var msg = view.querySelector('#mdErrorsMsg');
                 msg.textContent = 'Assembling diagnostics…';
+                // Open the issue tracker synchronously from the click event so popup blockers stay off.
+                // Doing the window.open inside the Promise.then below would be a non-gesture async open
+                // and Chrome/Firefox would block it. On failure, issueWindow is null and we tell the user.
+                var issueWindow = window.open(ISSUE_URL, '_blank', 'noopener');
                 Promise.all([loadEnv(true), api('Errors')]).then(function (r) {
                     var env = r[0] || {};
                     var errs = r[1] || [];
@@ -2920,8 +2926,12 @@
                     }
                     var blob = lines.join('\n');
                     var done = function () {
-                        msg.textContent = 'Copied to clipboard — paste into your GitHub issue.';
-                        setTimeout(function () { if (msg.textContent.indexOf('Copied') === 0) msg.textContent = ''; }, 6000);
+                        if (issueWindow) {
+                            msg.textContent = 'Diagnostics copied — paste into the GitHub issue that just opened.';
+                        } else {
+                            msg.innerHTML = 'Diagnostics copied. Your browser blocked the popup, so <a href="' + ISSUE_URL + '" target="_blank" rel="noopener">open the issue tracker here</a> and paste the diagnostics into the issue body.';
+                        }
+                        setTimeout(function () { if (msg.textContent.indexOf('Diagnostics copied') === 0) msg.textContent = ''; }, 8000);
                     };
                     if (navigator.clipboard && navigator.clipboard.writeText) {
                         navigator.clipboard.writeText(blob).then(done, function () { promptFallback(blob, msg); });
