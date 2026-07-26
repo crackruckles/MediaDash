@@ -818,6 +818,23 @@
                         </div>
 
                         <div class="mdWizStep" data-step="8">
+                            <h3><span class="material-icons" style="color:#64748b;">hourglass_bottom</span>Stale content</h3>
+                            <p class="mdWizIntro">Optional: MediaDash can also list media that has sat on the server for a long time without anyone playing it. Off by default because "stale" is a personal call — surface the list only if you'd like a nudge to prune it.</p>
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label class="emby-checkbox-label">
+                                    <input id="mdWizStaleEnabled" type="checkbox" is="emby-checkbox" />
+                                    <span>Yes, flag media that has been sitting unwatched</span>
+                                </label>
+                                <div class="fieldDescription">Detect-only. MediaDash never deletes stale files automatically — the list shows on the Issues tab so you decide.</div>
+                            </div>
+                            <div class="inputContainer" style="max-width:14em;margin-top:.6em;">
+                                <label class="inputLabel inputLabelUnfocused" for="mdWizStaleThreshold">Consider stale after (days)</label>
+                                <input id="mdWizStaleThreshold" type="number" min="1" max="3650" is="emby-input" />
+                                <div class="fieldDescription">Nothing is flagged until the item has both been on the server this long AND not been played by anyone in that window. Default 365.</div>
+                            </div>
+                        </div>
+
+                        <div class="mdWizStep" data-step="9">
                             <h3><span class="material-icons" style="color:#a78bfa;">analytics</span>Community stats (optional)</h3>
                             <p class="mdWizIntro">MediaDash can send anonymous aggregate stats to a community board so everyone can see how much storage the plugin is reclaiming across all users. <b>Pre-ticked</b> so the community counts include your reclaim total — untick if you'd rather not share, either is fine for the plugin.</p>
                             <div class="fieldDescription" style="margin:.4em 0 .8em;padding:.6em .8em;border-left:3px solid #a78bfa;background:rgba(167,139,250,.06);border-radius:4px;">
@@ -834,7 +851,7 @@
                             </div>
                         </div>
 
-                        <div class="mdWizStep" data-step="9">
+                        <div class="mdWizStep" data-step="10">
                             <h3><span class="material-icons" style="color:#22c55e;">check_circle</span>You're set up</h3>
                             <p class="mdWizIntro">MediaDash is ready to go. Every setting from this walkthrough is also on the Settings tab, and you can re-open this wizard any time from <b>Settings → Maintenance</b>.</p>
                             <div id="mdWizSummary" class="fieldDescription" style="margin:.4em 0 .8em;padding:.6em .8em;border-left:3px solid #22c55e;background:rgba(34,197,94,.06);border-radius:4px;"></div>
@@ -2404,16 +2421,17 @@
             // ---------- First run wizard ----------
 
             var WIZ_STEP_LABELS = [
-                'Step 1 of 10 — Welcome',
-                'Step 2 of 10 — Libraries',
-                'Step 3 of 10 — Duplicates',
-                'Step 4 of 10 — Broken files',
-                'Step 5 of 10 — Oversized files',
-                'Step 6 of 10 — Languages',
-                'Step 7 of 10 — Media sorter',
-                'Step 8 of 10 — Safety',
-                'Step 9 of 10 — Community stats',
-                'Step 10 of 10 — All done'
+                'Step 1 of 11 — Welcome',
+                'Step 2 of 11 — Libraries',
+                'Step 3 of 11 — Duplicates',
+                'Step 4 of 11 — Broken files',
+                'Step 5 of 11 — Oversized files',
+                'Step 6 of 11 — Languages',
+                'Step 7 of 11 — Media sorter',
+                'Step 8 of 11 — Safety',
+                'Step 9 of 11 — Stale content',
+                'Step 10 of 11 — Community stats',
+                'Step 11 of 11 — All done'
             ];
             var WIZ_MODE_OPTIONS = [
                 ['Off', 'modeOff'],
@@ -2468,7 +2486,8 @@
                     ['Audio', view.querySelector('#mdWizAudioMode').value],
                     ['Subtitles', view.querySelector('#mdWizSubMode').value],
                     ['Missing subtitles', view.querySelector('#mdWizMissingSubMode').value],
-                    ['Media sorter', view.querySelector('#mdWizSortMode').value]
+                    ['Media sorter', view.querySelector('#mdWizSortMode').value],
+                    ['Stale content', view.querySelector('#mdWizStaleEnabled').checked ? 'DetectOnly' : 'Off']
                 ];
                 var enabled = modes.filter(function (m) { return m[1] !== 'Off'; }).map(function (m) { return m[0]; });
                 var off = modes.filter(function (m) { return m[1] === 'Off'; }).map(function (m) { return m[0]; });
@@ -2533,6 +2552,8 @@
                 view.querySelector('#mdWizDryRun').checked = c.DryRun !== false;
                 view.querySelector('#mdWizPausePlayback').checked = c.PauseDuringPlayback !== false;
                 view.querySelector('#mdWizRetention').value = c.RecycleBinRetentionDays || 30;
+                view.querySelector('#mdWizStaleEnabled').checked = c.StaleFixMode && c.StaleFixMode !== 'Off';
+                view.querySelector('#mdWizStaleThreshold').value = c.StaleThresholdDays > 0 ? c.StaleThresholdDays : 365;
                 view.querySelector('#mdWizAnalytics').checked = !!c.AnalyticsEnabled;
             }
 
@@ -2608,6 +2629,11 @@
                         if (!isNaN(days) && days > 0) c.RecycleBinRetentionDays = days;
                         break;
                     case 8:
+                        c.StaleFixMode = view.querySelector('#mdWizStaleEnabled').checked ? 'DetectOnly' : 'Off';
+                        var staleDays = parseInt(view.querySelector('#mdWizStaleThreshold').value, 10);
+                        if (!isNaN(staleDays) && staleDays > 0) c.StaleThresholdDays = staleDays;
+                        break;
+                    case 9:
                         applyAnalyticsToggle(c, view.querySelector('#mdWizAnalytics').checked);
                         break;
                     default:
