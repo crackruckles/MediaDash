@@ -604,6 +604,18 @@
                         </button>
                     </div>
                 </div>
+                <div id="mdBinFullNote" style="display:none;margin-bottom:1em;padding:.8em 1.2em;border-radius:12px;background:rgba(236,72,153,.16);border:2px solid #ec4899;">
+                    <div style="display:flex;gap:.8em;align-items:center;flex-wrap:wrap;">
+                        <span class="material-icons" style="color:#ec4899;font-size:1.8em;">delete_sweep</span>
+                        <div style="flex:1;min-width:16em;">
+                            <div style="font-weight:700;color:#ec4899;" id="mdBinFullTitle"></div>
+                            <div class="fieldDescription" id="mdBinFullText"></div>
+                        </div>
+                        <button is="emby-button" type="button" id="mdGoBinReview" class="raised" style="font-size:80%;border:1px solid #ec4899;" title="Open Settings → Recycle bin to review contents, restore anything you still want, and empty the rest.">
+                            <span>Review recycle bin</span>
+                        </button>
+                    </div>
+                </div>
 
                 <div id="mdFirstRun" class="mdCard" style="display:none;margin-bottom:1.4em;border-color:rgba(0,164,220,.5);">
                     <div class="mdWizHead">
@@ -1077,15 +1089,6 @@
                                     </span>
                                 </h2>
                                 <div id="mdFixTypeRows"></div>
-                                <div class="selectContainer" style="max-width:26em;">
-                                    <label class="selectLabel" for="mdKeeperPolicy">When duplicates are found, keep</label>
-                                    <select is="emby-select" id="mdKeeperPolicy" class="emby-select-withcolor emby-select">
-                                        <option value="quality">The best-quality copy (recommended)</option>
-                                        <option value="codec">The most modern format (codec first)</option>
-                                        <option value="size">The smallest file</option>
-                                    </select>
-                                    <div class="fieldDescription">Decides which copy survives. Best quality compares resolution, then codec, then bitrate; ties go to the smaller file.</div>
-                                </div>
                             </section>
 
                             <section id="mdSet-quality" class="mdSetCard mdSetCard--quality mdSetCard--full">
@@ -1096,6 +1099,15 @@
                                         <span class="mdSetSubtitle">Where files get flagged as oversized, and how MediaDash re-encodes them.</span>
                                     </span>
                                 </h2>
+                                <div class="selectContainer" style="max-width:26em;">
+                                    <label class="selectLabel" for="mdKeeperPolicy">When duplicates are found, keep</label>
+                                    <select is="emby-select" id="mdKeeperPolicy" class="emby-select-withcolor emby-select">
+                                        <option value="quality">The best-quality copy (recommended)</option>
+                                        <option value="codec">The most modern format (codec first)</option>
+                                        <option value="size">The smallest file</option>
+                                    </select>
+                                    <div class="fieldDescription">Decides which duplicate survives. Best quality compares resolution, then codec, then bitrate; ties go to the smaller file. Uses the resolution / bitrate / codec settings below to score.</div>
+                                </div>
                                 <div class="selectContainer" style="max-width:26em;">
                                     <label class="selectLabel" for="mdMaxRes">Maximum resolution</label>
                                     <select is="emby-select" id="mdMaxRes" class="emby-select-withcolor emby-select">
@@ -1325,6 +1337,8 @@
                 fixDone: 'Fix run finished — see History for what was done.',
                 fixNothingToDo: 'Nothing to fix yet — approve issues on the Issues tab, or switch a fix type to "Fix automatically" in Settings, then click again.',
                 dryRunOn: 'Approved fixes are only rehearsed and logged to History. When the plan looks right, turn off dry-run to let MediaDash make real changes.',
+                binFullTitle: 'Recycle bin is holding {0} across {1} file{2}',
+                binFullBody: 'Files are auto-purged after the retention window in Settings → Recycle bin. Restore anything you still want, or empty the bin to reclaim the space now.',
                 diskContext: '{0} free of {1} on your library drives',
                 driveStorage: 'Library drive storage',
                 driveUsed: '{0} used of {1}',
@@ -2804,6 +2818,19 @@
                     var total = (errs || []).reduce(function (sum, e) { return sum + (e.Count || 1); }, 0);
                     updateErrorBadge(total);
                 }, function () { });
+                // Recycle-bin size banner. 10 GB is arbitrary; the point is to nudge users before
+                // the bin silently eats a chunk of their library drive. Auto-purge still runs after
+                // the retention window, but a visible banner is a lot louder than a settings hint.
+                api('RecycleBin').then(function (b) {
+                    var over = b && b.SizeBytes > 10 * 1024 * 1024 * 1024;
+                    var banner = view.querySelector('#mdBinFullNote');
+                    banner.style.display = over ? '' : 'none';
+                    if (over) {
+                        var s = b.FileCount === 1 ? '' : 's';
+                        view.querySelector('#mdBinFullTitle').textContent = fmt(STR.binFullTitle, bytes(b.SizeBytes), b.FileCount, s);
+                        view.querySelector('#mdBinFullText').textContent = STR.binFullBody;
+                    }
+                }, function () { });
                 if (!silent) {
                     ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
                         view.querySelector('#mdDryRunNote').style.display = c.DryRun ? '' : 'none';
@@ -3388,6 +3415,16 @@
                         showTab('settings');
                         setTimeout(function () {
                             view.querySelector('#mdDryRun').scrollIntoView({ block: 'center', behavior: 'smooth' });
+                        }, 200);
+                    });
+
+                    view.querySelector('#mdGoBinReview').addEventListener('click', function () {
+                        showTab('settings');
+                        setTimeout(function () {
+                            var chip = view.querySelector('.mdSetChip[href="#mdSet-bin"]');
+                            if (chip) chip.click();
+                            var bin = view.querySelector('#mdSet-bin');
+                            if (bin) { bin.scrollIntoView({ block: 'center', behavior: 'smooth' }); bin.focus(); }
                         }, 200);
                     });
 

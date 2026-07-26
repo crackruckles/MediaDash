@@ -6,11 +6,11 @@
 
 **The one plugin a Jellyfin library owner needs.**
 
-Duplicates, broken files, oversized encodes, wrong-language tracks, misplaced files, missing subtitles — surfaced on one dashboard and fixed safely on your schedule.
+Duplicates, broken files, oversized encodes, wrong-language tracks, misplaced files, missing subtitles, stale unwatched content — surfaced on one dashboard and fixed safely on your schedule.
 
 [![CI](https://github.com/crackruckles/MediaDash/actions/workflows/ci.yaml/badge.svg)](https://github.com/crackruckles/MediaDash/actions/workflows/ci.yaml)
 [![Release](https://img.shields.io/github/v/release/crackruckles/MediaDash?label=release&color=00a4dc)](https://github.com/crackruckles/MediaDash/releases/latest)
-[![Jellyfin](https://img.shields.io/badge/jellyfin-10.11%2B-aa5cc3)](https://jellyfin.org)
+[![Jellyfin](https://img.shields.io/badge/jellyfin-10.11%20%7C%2012.0-aa5cc3)](https://jellyfin.org)
 [![License](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
 <img src="docs/overview.png" width="850" alt="MediaDash overview dashboard"/>
@@ -33,7 +33,7 @@ Duplicates, broken files, oversized encodes, wrong-language tracks, misplaced fi
 2. Open **Catalog**, find **MediaDash**, click **Install**, restart Jellyfin.
 3. Open **Dashboard → My Plugins → MediaDash** — the first-run wizard walks you through each feature, one step at a time.
 
-Requires Jellyfin **10.11+**.
+Requires Jellyfin **10.11+** or **12.0+**. One binary covers both — the manifest advertises `targetAbi` for each host line, and the plugin bridges the `IUserManager` / `User` entity changes between 10.11 and 12.0 via reflection so the same install works everywhere.
 
 ## What it does
 
@@ -46,8 +46,9 @@ Requires Jellyfin **10.11+**.
 | 🔊 **Unwanted audio** | Extra audio tracks outside your language list | Lossless remux — never touches a file's only audio track |
 | 📥 **Missing subtitles** | Videos with no subtitle in any language you keep | Downloads via Jellyfin's configured providers (OpenSubtitles etc.) |
 | 🚚 **Misplaced files** | A movie under TV or a TV episode under Movies | Moves it into the right library folder |
+| ⏳ **Stale content** | Media nobody has played in your configured window (default 365 days) | Detect-only — surfaces the list so you can decide whether to prune |
 
-Every fix type runs independently: **Off · Detect only · Ask me first · Automatic**.
+Every fix type runs independently: **Off · Detect only · Ask me first · Automatic**. Stale content is detect-only (no auto-delete).
 
 <div align="center">
 <img src="docs/issues.png" width="850" alt="Issues tab with one-click actions"/>
@@ -77,7 +78,9 @@ _Opt-in stats will appear here on the 1st of each month once the first month's d
 - **Live system stats on Overview** — CPU / RAM / per-GPU utilisation, Windows and Linux, with an AMD APU `gpu_metrics` fallback for Rembrandt / Phoenix iGPUs where the plain busy-percent counter is broken.
 - **Hardware-accelerated re-encoding** — uses the AMF / NVENC / QSV / VideoToolbox encoder Jellyfin already knows about, with a preferred-GPU picker and automatic per-file software fallback.
 - **Subtitle downloading via your Jellyfin providers** — MediaDash surfaces missing subs; the download itself uses whatever provider you already configured in Jellyfin (no new API keys to manage).
+- **Deep playability check** — beyond ffprobe headers, MediaDash test-plays the start (and end, and middle for long files), scans ffmpeg's stderr for truncation markers, cross-checks container bitrate × duration against actual file size, and compares decoded seconds against what was requested. Catches files that "sort of play" — ones ffprobe reports as valid but that stop short during actual playback.
 - **Smart test-play cache** — thorough playability checks only re-run on files that changed.
+- **Recycle-bin size banner** — a visible reminder on Overview when the bin exceeds 10 GB, so it doesn't quietly eat a chunk of your library drive.
 - **Files tab** — scoped file browser inside your library folders (rename / move / delete, admin only, deletes go to the recycle bin).
 - **Scan & fix schedules live in Jellyfin's own Scheduled Tasks dashboard.**
 

@@ -14,7 +14,8 @@ A Jellyfin plugin (C#, net8.0 class library) that scans libraries for duplicates
 ## Reference
 
 - Official plugin template & docs: https://github.com/jellyfin/jellyfin-plugin-template — scaffold from this.
-- Pin `Jellyfin.Controller` / `Jellyfin.Model` NuGet versions to the user's installed server version (ask if unknown) and set `<ExcludeAssets>runtime</ExcludeAssets>` on both, or the plugin shows as NotSupported.
+- Pin `Jellyfin.Controller` / `Jellyfin.Model` NuGet to the 10.11 line; set `<ExcludeAssets>runtime</ExcludeAssets>` on both. Do NOT bump these packages to the 12.0 line — the 10.11 SDK is forward-compatible with a 12.0 host, but the reverse isn't true. `System.Diagnostics.PerformanceCounter` must be a full package reference (no `ExcludeAssets`) so its DLLs ship in the plugin zip; otherwise the plugin fails to load on Windows with `FileNotFoundException`.
+- Cross-version compatibility: one binary targets both Jellyfin **10.11+** and **12.0+**. The manifest declares two `targetAbi` entries per version. Any API that references the `User` entity type must be invoked via reflection (see `Scanners/StaleContentScanner.cs`'s `UserApiBridge`) because the type moved namespaces and `IUserManager.Users` was renamed to `GetUsers()` in 12.0. Adding a static reference to `User` from a new scanner will `MissingMethodException` on the other host line — check both when touching user-data code.
 
 ## Build & test
 
@@ -23,7 +24,7 @@ dotnet build Jellyfin.Plugin.MediaDash.sln /property:GenerateFullPaths=true /con
 dotnet test
 ```
 
-Deploy for local testing: copy `bin/Debug/net8.0/publish/*` to `%LOCALAPPDATA%\jellyfin\plugins\MediaDash\` and restart the server (see template README §6 for .vscode automation).
+Deploy for local testing: copy `bin/Debug/net9.0/publish/*` to `%LOCALAPPDATA%\jellyfin\plugins\MediaDash_X.Y.Z.0\` and restart the server (see template README §6 for .vscode automation). The plugin now targets `net9.0`, not `net8.0`, since Jellyfin 10.11 moved to .NET 9 and 12.0 to .NET 10 (net9.0 assemblies are forward-compatible with both hosts).
 
 ## Hard rules — safety invariants
 

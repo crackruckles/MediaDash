@@ -20,7 +20,7 @@
 
 ## 1. Tech stack & constraints
 
-- C# class library targeting **net9.0** (Jellyfin 10.11+). Reference `Jellyfin.Controller` and `Jellyfin.Model` NuGet packages with `<ExcludeAssets>runtime</ExcludeAssets>`; pin versions to the server version being targeted (mismatched versions cause "NotSupported").
+- C# class library targeting **net9.0** — one binary covers both **Jellyfin 10.11+** and **Jellyfin 12.0+**. Reference `Jellyfin.Controller` and `Jellyfin.Model` NuGet packages (pinned to the 10.11 line) with `<ExcludeAssets>runtime</ExcludeAssets>`; the manifest advertises `targetAbi` entries for both host lines. Cross-version API differences that touch the `User` entity (moved namespaces from `Jellyfin.Data.Entities` to `Jellyfin.Database.Implementations.Entities`, plus `IUserManager.Users` property → `GetUsers()` method) are bridged via reflection in `Scanners/StaleContentScanner.cs` so the same DLL loads on both hosts without a `MissingMethodException`.
 - Scaffold from the official template: https://github.com/jellyfin/jellyfin-plugin-template (solution layout, `build.yaml`, `.vscode` debug tasks, GPLv3 license).
 - Plugin GUID: generated once with `New-Guid`, never changed.
 - Media analysis via **ffprobe**, transcoding via **ffmpeg** — use the binaries Jellyfin already bundles (resolve path from `IServerConfigurationManager` / `EncodingOptions` rather than requiring a separate install).
@@ -48,7 +48,8 @@ Jellyfin.Plugin.MediaDash/
 │   ├── SubtitleLanguageScanner.cs
 │   ├── AudioLanguageScanner.cs
 │   ├── MediaSorterScanner.cs        # movies in TV folder / vice versa
-│   └── MissingSubtitleScanner.cs    # no subs in any wanted language
+│   ├── MissingSubtitleScanner.cs    # no subs in any wanted language
+│   └── StaleContentScanner.cs       # unwatched past a threshold (detect-only)
 ├── Fixers/
 │   ├── IFixer.cs
 │   ├── DuplicateFixer.cs            # delete/trash losing copy
@@ -74,12 +75,13 @@ Key Jellyfin integration points: `ILibraryManager` (enumerate items/paths), `ISu
 Each scanner emits `Issue` rows: `{id, type, itemId, path, details(json), suggestedFix, sizeSavings, status: detected|queued|fixed|dismissed}`. Scanners inherit `ProbingScannerBase` (shared per-file loop) unless they need a whole-library view.
 
 1. **DuplicateScanner** — groups items by provider IDs (TMDb/TVDB/IMDb) via `ILibraryManager`, falling back to normalized name+year (movies) / series+season+episode (TV). Within a group, ranks copies by a "keeper" policy (configurable order: resolution > codec preference > bitrate > file size). Suggests deleting the losers. Never compares across different editions unless "treat editions as duplicates" is enabled.
-2. **PlayabilityScanner** — ffprobe every file; flags: probe failure, zero/negative duration, no video stream, container/codec combos Jellyfin can't direct-play or transcode, truncated files. "Thorough" mode (default on) test-plays start + middle + end via ffmpeg; results are cached for unchanged files.
+2. **PlayabilityScanner** — ffprobe every file; flags: probe failure, zero/negative duration, no video stream, container/codec combos Jellyfin can't direct-play or transcode, truncated files. "Thorough" mode (default on) test-plays start + middle + end via ffmpeg; results are cached for unchanged files. Beyond exit code, thorough mode scans stderr for `File ended prematurely` / `Truncating packet` (ffmpeg quirk: emits these but exits 0), cross-checks container `bit_rate × duration` against actual file size, and compares the last `time=HH:MM:SS.ms` from ffmpeg's `-stats` output against what was requested. Together these catch files that "sort of play" — files ffprobe accepts as valid but that stop short during actual decode.
 3. **QualityScanner** — user-set ceiling: max resolution (default 1080p), max video bitrate (default 8 Mbps @1080p, scaled by resolution), preferred codec (default HEVC). Files above any ceiling are flagged with estimated savings (`currentSize − estimatedSize`). Skip files already at/below ceiling or within a configurable tolerance (default 15%) to avoid churn. HDR content skipped by default.
 4. **SubtitleLanguageScanner** — flags embedded subtitle tracks and external `.srt`/`.ass` files whose language isn't in the allowed list. Untagged (`und`) tracks are always kept.
 5. **AudioLanguageScanner** — flags files with audio tracks outside the allowed list. Never suggests removing the ONLY audio track, and never removes the last allowed track even if it means keeping a disallowed one (safety invariant).
 6. **MediaSorterScanner** — a movie physically located under a TV library, or a TV episode under a Movies library. Uses Jellyfin's own classification (`BaseItemKind`) or a filename-heuristic fallback (`SxxExx` / `NxN` patterns) per user choice.
 7. **MissingSubtitleScanner** — Video items with no subtitle track (embedded or external) in any wanted language. Only runs when at least one subtitle language is configured; only meaningfully fixable when the admin has set up a subtitle provider in Jellyfin.
+8. **StaleContentScanner** — media that has been on the server past `StaleThresholdDays` (default 365) AND has no play record within that window across any user account. Both conditions must hold, so freshly-imported items aren't flagged immediately. Detect-only: MediaDash doesn't ship a stale-content fixer because pruning old-but-unwatched media is a subjective call. `SizeSavings` is populated so the Overview "Space you could reclaim" total reflects the stale bytes.
 
 Scan results are incremental: `FfprobeService` caches probe output keyed on `(path, size, mtimeUtc)` so unchanged files are skipped on re-scan.
 
