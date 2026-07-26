@@ -69,11 +69,44 @@ public sealed class PlayabilityScanner : ProbingScannerBase
         }
         else if (Config.ThoroughPlayabilityCheck)
         {
-            var decodeError = await Ffprobe.DecodeCheckAsync(path, duration, cancellationToken).ConfigureAwait(false);
-            if (decodeError is not null)
+            // Bitrate-vs-size sanity check first (cheap, no ffmpeg). If the container claims duration D
+            // and bitrate B, expected file size ≈ B*D/8. When the actual file is meaningfully smaller,
+            // the file was truncated even though its header still advertises the full duration. Only
+            // fires when both bit_rate and duration are known and positive. Tolerance 40% accommodates
+            // both VBR variance and containers where the reported bitrate is the video stream only
+            // (which is common) — we deliberately want false negatives over false positives here.
+            var bitrate = TryParseLong(probe.Format?.BitRate);
+            long actualSize = 0;
+            try
             {
-                reason = "decode-error";
-                detail = decodeError;
+                actualSize = new System.IO.FileInfo(path).Length;
+            }
+            catch (System.IO.IOException)
+            {
+            }
+
+            if (bitrate is > 0 && duration > 0 && actualSize > 0)
+            {
+                var expectedBytes = bitrate.Value / 8.0 * duration;
+                if (actualSize < expectedBytes * 0.6)
+                {
+                    reason = "size-truncated";
+                    detail = string.Format(
+                        CultureInfo.InvariantCulture,
+                        "File is {0} bytes but the container's bitrate × duration expects ~{1:F0} bytes — the file appears to hold much less content than it advertises.",
+                        actualSize,
+                        expectedBytes);
+                }
+            }
+
+            if (reason is null)
+            {
+                var decodeError = await Ffprobe.DecodeCheckAsync(path, duration, cancellationToken).ConfigureAwait(false);
+                if (decodeError is not null)
+                {
+                    reason = "decode-error";
+                    detail = decodeError;
+                }
             }
         }
 
@@ -104,5 +137,10 @@ public sealed class PlayabilityScanner : ProbingScannerBase
         duration = 0;
         var raw = probe.Format?.Duration ?? probe.Streams?.FirstOrDefault(s => s.Duration is not null)?.Duration;
         return raw is not null && double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out duration);
+    }
+
+    private static long? TryParseLong(string? raw)
+    {
+        return long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : null;
     }
 }

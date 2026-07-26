@@ -99,17 +99,22 @@ public sealed class FfprobeService
             return cached.Length == 0 ? null : cached;
         }
 
-        var error = await RunFfmpegDecodeAsync(["-i", path, "-t", "30", "-f", "null", "-"], cancellationToken).ConfigureAwait(false);
+        // Start: decode the first 30s (or the whole file if it's shorter). If ffmpeg's decoded time
+        // falls significantly short of what we asked for, treat that as truncation regardless of any
+        // stderr markers — ffmpeg sometimes hits EOF cleanly without emitting one.
+        var startExpected = durationSeconds > 0 ? Math.Min(30.0, durationSeconds) : 30.0;
+        var error = await RunFfmpegDecodeAsync(["-i", path, "-t", "30", "-f", "null", "-"], startExpected, cancellationToken).ConfigureAwait(false);
 
         if (string.IsNullOrWhiteSpace(error) && durationSeconds > 90)
         {
             var middle = ((long)(durationSeconds / 2)).ToString(System.Globalization.CultureInfo.InvariantCulture);
-            error = await RunFfmpegDecodeAsync(["-ss", middle, "-i", path, "-t", "30", "-f", "null", "-"], cancellationToken).ConfigureAwait(false);
+            error = await RunFfmpegDecodeAsync(["-ss", middle, "-i", path, "-t", "30", "-f", "null", "-"], 30.0, cancellationToken).ConfigureAwait(false);
         }
 
         if (string.IsNullOrWhiteSpace(error))
         {
-            error = await RunFfmpegDecodeAsync(["-sseof", "-30", "-i", path, "-f", "null", "-"], cancellationToken).ConfigureAwait(false);
+            var endExpected = durationSeconds > 0 ? Math.Min(30.0, durationSeconds) : 30.0;
+            error = await RunFfmpegDecodeAsync(["-sseof", "-30", "-i", path, "-f", "null", "-"], endExpected, cancellationToken).ConfigureAwait(false);
         }
 
         var result = string.IsNullOrWhiteSpace(error) ? null : error;
@@ -117,7 +122,7 @@ public sealed class FfprobeService
         return result;
     }
 
-    private async Task<string?> RunFfmpegDecodeAsync(string[] args, CancellationToken cancellationToken)
+    private async Task<string?> RunFfmpegDecodeAsync(string[] args, double expectedSeconds, CancellationToken cancellationToken)
     {
         var encoderPath = _mediaEncoder.EncoderPath;
         if (string.IsNullOrEmpty(encoderPath))
@@ -135,6 +140,9 @@ public sealed class FfprobeService
         process.StartInfo.ArgumentList.Add("-xerror");
         process.StartInfo.ArgumentList.Add("-v");
         process.StartInfo.ArgumentList.Add("error");
+        // -stats enables the periodic "frame= ... time=HH:MM:SS.ms" progress line on stderr. Zero cost at -v error;
+        // we need it so we can compare what ffmpeg actually decoded against what we asked for.
+        process.StartInfo.ArgumentList.Add("-stats");
         foreach (var arg in args)
         {
             process.StartInfo.ArgumentList.Add(arg);
@@ -149,12 +157,30 @@ public sealed class FfprobeService
             var stderrTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
             await process.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false);
             var stderr = await stderrTask.ConfigureAwait(false);
-            if (process.ExitCode == 0 && !HasTruncationMarker(stderr))
+
+            if (process.ExitCode != 0 || HasTruncationMarker(stderr))
             {
-                return null;
+                return string.IsNullOrWhiteSpace(stderr) ? "ffmpeg exited with an error" : stderr;
             }
 
-            return string.IsNullOrWhiteSpace(stderr) ? "ffmpeg exited with an error" : stderr;
+            // ffmpeg sometimes hits EOF cleanly (exit 0, no truncation marker) but still stopped short of the
+            // requested segment. When the last time= we saw is meaningfully less than we asked for, the file
+            // had less playable content than the container advertised — that's a truncation the shallow check
+            // would miss. 10% tolerance covers seek imprecision at segment boundaries.
+            if (expectedSeconds > 1.0)
+            {
+                var decoded = ParseLastTimeSeconds(stderr);
+                if (decoded is double d && d < expectedSeconds * 0.9)
+                {
+                    return string.Format(
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        "Decoded only {0:F2}s of {1:F0}s requested — the container claims more content than the file actually holds.",
+                        d,
+                        expectedSeconds);
+                }
+            }
+
+            return null;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -181,6 +207,38 @@ public sealed class FfprobeService
 
         return stderr.Contains("File ended prematurely", StringComparison.Ordinal)
             || stderr.Contains("Truncating packet", StringComparison.Ordinal);
+    }
+
+    // ffmpeg's -stats output prints progress lines like:
+    //   frame=  190 fps=0.0 q=-0.0 Lsize=N/A time=00:00:07.84 bitrate=N/A speed=205x elapsed=0:00:00.03
+    // The last such line's time= is what actually got decoded. Compare to the requested segment to catch
+    // clean-EOF truncation the marker-scan misses (some containers stop early without printing a marker).
+    internal static double? ParseLastTimeSeconds(string? stderr)
+    {
+        if (string.IsNullOrEmpty(stderr))
+        {
+            return null;
+        }
+
+        // Rightmost match; -stats emits multiple lines during a decode, only the last one matters.
+        var matches = System.Text.RegularExpressions.Regex.Matches(
+            stderr,
+            @"\btime=(\d+):(\d{2}):(\d{2}(?:\.\d+)?)");
+        if (matches.Count == 0)
+        {
+            return null;
+        }
+
+        var m = matches[matches.Count - 1];
+        var invariant = System.Globalization.CultureInfo.InvariantCulture;
+        if (!int.TryParse(m.Groups[1].Value, System.Globalization.NumberStyles.Integer, invariant, out var h)
+            || !int.TryParse(m.Groups[2].Value, System.Globalization.NumberStyles.Integer, invariant, out var mm)
+            || !double.TryParse(m.Groups[3].Value, System.Globalization.NumberStyles.Float, invariant, out var ss))
+        {
+            return null;
+        }
+
+        return (h * 3600.0) + (mm * 60.0) + ss;
     }
 
     private FfprobeData? Deserialize(string json, string path)

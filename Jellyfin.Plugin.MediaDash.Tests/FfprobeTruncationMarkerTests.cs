@@ -37,4 +37,37 @@ public sealed class FfprobeTruncationMarkerTests
         var stderr = "[hevc @ 0x7f] Invalid NAL unit size (12345 > 456)\n[hevc @ 0x7f] SEI parsing failed";
         Assert.False(FfprobeService.HasTruncationMarker(stderr));
     }
+
+    // --- ParseLastTimeSeconds ---
+
+    [Fact]
+    public void ParseLastTime_TypicalStatsLine()
+    {
+        // Real -stats output from the truncated fixture run:
+        //   frame= 190 fps=0.0 q=-0.0 Lsize=N/A time=00:00:07.84 bitrate=N/A speed=205x
+        var stderr = "frame=  190 fps=0.0 q=-0.0 Lsize=N/A time=00:00:07.84 bitrate=N/A speed= 205x elapsed=0:00:00.03";
+        Assert.Equal(7.84, FfprobeService.ParseLastTimeSeconds(stderr) ?? -1, 2);
+    }
+
+    [Fact]
+    public void ParseLastTime_MultipleLines_TakesTheLast()
+    {
+        // -stats emits many progress lines during a long decode; the LAST one is where ffmpeg stopped.
+        var stderr = "frame=100 time=00:00:04.16\nframe=200 time=00:00:08.33\nframe=250 time=00:00:10.42";
+        Assert.Equal(10.42, FfprobeService.ParseLastTimeSeconds(stderr) ?? -1, 2);
+    }
+
+    [Fact]
+    public void ParseLastTime_HoursAndFractionalSeconds()
+    {
+        Assert.Equal(3723.5, FfprobeService.ParseLastTimeSeconds("time=01:02:03.5") ?? -1, 2);
+    }
+
+    [Fact]
+    public void ParseLastTime_NoTimeInStderr_ReturnsNull()
+    {
+        Assert.Null(FfprobeService.ParseLastTimeSeconds("[hevc] some warning"));
+        Assert.Null(FfprobeService.ParseLastTimeSeconds(string.Empty));
+        Assert.Null(FfprobeService.ParseLastTimeSeconds(null));
+    }
 }
