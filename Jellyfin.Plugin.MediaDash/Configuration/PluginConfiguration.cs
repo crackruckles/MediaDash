@@ -61,6 +61,7 @@ public class PluginConfiguration : BasePluginConfiguration
         AnimeTargetPath = string.Empty;
         StaleFixMode = FixMode.Off;
         StaleThresholdDays = 365;
+        PostV12CleanupCompleted = false;
     }
 
     /// <summary>
@@ -319,6 +320,13 @@ public class PluginConfiguration : BasePluginConfiguration
     /// so freshly-imported items are never flagged as stale on their first scan.
     /// </summary>
     public int StaleThresholdDays { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the one-shot post-Jellyfin-12 upgrade cleanup has been run
+    /// (or dismissed). Once true, the Overview banner offering the sweep stops appearing forever - by
+    /// design, this is a "run once after your 10.x -> 12.x jump" action, not something to keep offering.
+    /// </summary>
+    public bool PostV12CleanupCompleted { get; set; }
 
     /// <summary>
     /// Gets the fix mode for an issue type.

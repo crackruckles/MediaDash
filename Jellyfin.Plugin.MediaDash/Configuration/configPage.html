@@ -604,6 +604,20 @@
                         </button>
                     </div>
                 </div>
+                <div id="mdPostUpgradeNote" style="display:none;margin-bottom:1em;padding:.8em 1.2em;border-radius:12px;background:rgba(139,92,246,.16);border:2px solid #8b5cf6;">
+                    <div style="display:flex;gap:.8em;align-items:center;flex-wrap:wrap;">
+                        <span class="material-icons" style="color:#8b5cf6;font-size:1.8em;">upgrade</span>
+                        <div style="flex:1;min-width:16em;">
+                            <div style="font-weight:700;color:#8b5cf6;">Post-Jellyfin-12 cleanup available</div>
+                            <div class="fieldDescription" id="mdPostUpgradeText" style="margin-top:.2em;">Jellyfin 12's library rewrite doesn't clean up orphaned trickplay images left over from your pre-12 install. Run this one-shot sweep to reclaim that disk space. This offer only appears once — after you run it or dismiss it, it's gone.</div>
+                            <div class="fieldDescription" id="mdPostUpgradeResult" style="margin-top:.4em;display:none;color:#a78bfa;"></div>
+                        </div>
+                        <button is="emby-button" type="button" id="mdPostUpgradeRun" class="raised" style="font-size:80%;border:1px solid #8b5cf6;" title="Sweep the trickplay folder for orphaned image directories, delete them, and record the total bytes freed to History. Non-recoverable — the images are auto-regenerated on demand for any item that still needs them.">
+                            <span class="material-icons" style="font-size:1.1em;vertical-align:-3px;margin-right:.3em;">cleaning_services</span><span>Run cleanup</span>
+                        </button>
+                        <button is="emby-button" type="button" id="mdPostUpgradeDismiss" style="background:transparent;border:0;color:#8b5cf6;padding:.3em;min-width:0;" title="Mark the offer as handled without running anything. Same once-only guarantee — this banner will not appear again."><span class="material-icons" style="font-size:1.2em;">close</span></button>
+                    </div>
+                </div>
                 <div id="mdBinFullNote" style="display:none;margin-bottom:1em;padding:.8em 1.2em;border-radius:12px;background:rgba(236,72,153,.16);border:2px solid #ec4899;">
                     <div style="display:flex;gap:.8em;align-items:center;flex-wrap:wrap;">
                         <span class="material-icons" style="color:#ec4899;font-size:1.8em;">delete_sweep</span>
@@ -2569,8 +2583,12 @@
                 view.querySelector('#mdWizDryRun').checked = c.DryRun !== false;
                 view.querySelector('#mdWizPausePlayback').checked = c.PauseDuringPlayback !== false;
                 view.querySelector('#mdWizRetention').value = c.RecycleBinRetentionDays || 30;
-                view.querySelector('#mdWizStaleEnabled').checked = c.StaleFixMode && c.StaleFixMode !== 'Off';
-                view.querySelector('#mdWizStaleThreshold').value = c.StaleThresholdDays > 0 ? c.StaleThresholdDays : 365;
+                var staleOn = c.StaleFixMode && c.StaleFixMode !== 'Off';
+                view.querySelector('#mdWizStaleEnabled').checked = staleOn;
+                // Only surface a persisted threshold when the user has actually opted in. A first-run wizard
+                // should present the recommended 365 even if a previous session or test run wrote something
+                // shorter — the wizard is where users get the "sane defaults" pitch.
+                view.querySelector('#mdWizStaleThreshold').value = (staleOn && c.StaleThresholdDays > 0) ? c.StaleThresholdDays : 365;
                 view.querySelector('#mdWizAnalytics').checked = !!c.AnalyticsEnabled;
             }
 
@@ -2833,6 +2851,17 @@
                         var s = b.FileCount === 1 ? '' : 's';
                         view.querySelector('#mdBinFullTitle').textContent = fmt(STR.binFullTitle, bytes(b.SizeBytes), b.FileCount, s);
                         view.querySelector('#mdBinFullText').textContent = STR.binFullBody;
+                    }
+                }, function () { });
+                // Post-Jellyfin-12 one-shot cleanup availability. Server tells us whether to show the banner
+                // (host is on Jellyfin 12+ AND the user has not yet run or dismissed the offer). Once run or
+                // dismissed the flag persists in plugin config, so the banner never comes back.
+                api('PostUpgradeCleanup/Status').then(function (r) {
+                    var banner = view.querySelector('#mdPostUpgradeNote');
+                    if (r && r.Available) {
+                        banner.style.display = '';
+                    } else {
+                        banner.style.display = 'none';
                     }
                 }, function () { });
                 if (!silent) {
@@ -3475,6 +3504,38 @@
                     // Delegated so future banners with class="mdDismissBanner" don't need separate wiring.
                     view.querySelectorAll('.mdDismissBanner').forEach(function (btn) {
                         btn.addEventListener('click', function () { dismissBanner(btn.getAttribute('data-banner')); });
+                    });
+
+                    view.querySelector('#mdPostUpgradeRun').addEventListener('click', function () {
+                        var runBtn = this;
+                        var dismissBtn = view.querySelector('#mdPostUpgradeDismiss');
+                        var resultEl = view.querySelector('#mdPostUpgradeResult');
+                        runBtn.disabled = true;
+                        dismissBtn.disabled = true;
+                        resultEl.style.display = '';
+                        resultEl.textContent = 'Running sweep — this can take a moment on large libraries…';
+                        post('PostUpgradeCleanup/Run').then(function (r) {
+                            var data = r; // Ajax helpers already return parsed JSON.
+                            var freed = (data && data.BytesFreed) || 0;
+                            var count = (data && data.OrphanedFoldersDeleted) || 0;
+                            resultEl.textContent = 'Cleanup done. Reclaimed ' + bytes(freed) + ' from ' + count + ' orphaned trickplay folder' + (count === 1 ? '' : 's') + '. Logged to History.';
+                            setTimeout(function () {
+                                view.querySelector('#mdPostUpgradeNote').style.display = 'none';
+                                refresh(true);
+                            }, 3500);
+                        }, function (err) {
+                            resultEl.style.color = '#ef4444';
+                            resultEl.textContent = 'Cleanup failed: ' + ((err && err.statusText) || 'unknown error') + '. Errors tab has details.';
+                            runBtn.disabled = false;
+                            dismissBtn.disabled = false;
+                        });
+                    });
+
+                    view.querySelector('#mdPostUpgradeDismiss').addEventListener('click', function () {
+                        // Same permanent flag as Run — dismissal is also "handled forever".
+                        post('PostUpgradeCleanup/Run?dismissOnly=true').then(function () {
+                            view.querySelector('#mdPostUpgradeNote').style.display = 'none';
+                        });
                     });
 
                     view.querySelector('#mdGoDryRun').addEventListener('click', function () {

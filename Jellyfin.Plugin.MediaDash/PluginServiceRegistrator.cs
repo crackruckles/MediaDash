@@ -38,5 +38,6 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IFixer, MediaSorterFixer>();
         serviceCollection.AddSingleton<IFixer, MissingSubtitleFixer>();
         serviceCollection.AddSingleton<AnalyticsReporter>();
+        serviceCollection.AddSingleton<PostUpgradeCleanup>();
     }
 }

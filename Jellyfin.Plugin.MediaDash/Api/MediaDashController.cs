@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using Jellyfin.Plugin.MediaDash.Data;
 using Jellyfin.Plugin.MediaDash.Fixers;
 using Jellyfin.Plugin.MediaDash.ScheduledTasks;
@@ -32,6 +33,7 @@ public class MediaDashController : ControllerBase
     private readonly ILibraryManager _libraryManager;
     private readonly IServerApplicationHost _appHost;
     private readonly IEnumerable<ISubtitleProvider> _subtitleProviders;
+    private readonly PostUpgradeCleanup _postUpgradeCleanup;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MediaDashController"/> class.
@@ -43,6 +45,7 @@ public class MediaDashController : ControllerBase
     /// <param name="libraryManager">Instance of the <see cref="ILibraryManager"/> interface.</param>
     /// <param name="appHost">Server application host, used for Jellyfin version in diagnostics.</param>
     /// <param name="subtitleProviders">Registered subtitle providers, used to warn when none are configured.</param>
+    /// <param name="postUpgradeCleanup">The one-shot post-Jellyfin-12 upgrade cleaner.</param>
     public MediaDashController(
         MediaDashDb db,
         ITaskManager taskManager,
@@ -50,7 +53,8 @@ public class MediaDashController : ControllerBase
         ILibraryMonitor libraryMonitor,
         ILibraryManager libraryManager,
         IServerApplicationHost appHost,
-        IEnumerable<ISubtitleProvider> subtitleProviders)
+        IEnumerable<ISubtitleProvider> subtitleProviders,
+        PostUpgradeCleanup postUpgradeCleanup)
     {
         _db = db;
         _taskManager = taskManager;
@@ -59,6 +63,7 @@ public class MediaDashController : ControllerBase
         _libraryManager = libraryManager;
         _appHost = appHost;
         _subtitleProviders = subtitleProviders;
+        _postUpgradeCleanup = postUpgradeCleanup;
     }
 
     /// <summary>
@@ -587,6 +592,61 @@ public class MediaDashController : ControllerBase
 
         _db.ResetScanState();
         return NoContent();
+    }
+
+    /// <summary>
+    /// Returns whether the one-shot post-Jellyfin-12 upgrade cleanup should be offered to the user.
+    /// True only when the host is on Jellyfin 12+ and the user has not yet run or dismissed it.
+    /// </summary>
+    /// <returns>Availability + host version metadata.</returns>
+    [HttpGet("PostUpgradeCleanup/Status")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<object> GetPostUpgradeCleanupStatus()
+    {
+        var v = _appHost.ApplicationVersion;
+        var configFlag = Plugin.Instance!.Configuration.PostV12CleanupCompleted;
+        var available = v.Major >= 12 && !configFlag;
+        return Ok(new
+        {
+            Available = available,
+            Completed = configFlag,
+            JellyfinMajor = v.Major
+        });
+    }
+
+    /// <summary>
+    /// Executes the one-shot post-Jellyfin-12 cleanup: filesystem sweep of the trickplay data directory
+    /// removing subfolders whose GUID no longer resolves to any BaseItem. Writes a History row summarising
+    /// what was reclaimed and permanently sets the "already run" config flag so the offer never appears again.
+    /// </summary>
+    /// <param name="dismissOnly">When true, marks the cleanup as dismissed WITHOUT running the sweep. Same
+    /// once-only guarantee — user gets no more banners about it — but no filesystem work happens.</param>
+    /// <returns>The sweep result, or an empty result on dismiss-only.</returns>
+    [HttpPost("PostUpgradeCleanup/Run")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<object>> RunPostUpgradeCleanup([FromQuery] bool dismissOnly = false)
+    {
+        var config = Plugin.Instance!.Configuration;
+        if (dismissOnly)
+        {
+            config.PostV12CleanupCompleted = true;
+            Plugin.Instance!.SaveConfiguration();
+            return Ok(new { OrphanedFoldersDeleted = 0, BytesFreed = 0L, Errors = Array.Empty<string>(), Dismissed = true });
+        }
+
+        var result = await _postUpgradeCleanup.RunAsync().ConfigureAwait(false);
+        _db.AddHistory(new Data.HistoryEntry
+        {
+            Type = Data.IssueType.Stale,
+            Path = "(post-Jellyfin-12 cleanup)",
+            Action = $"Removed {result.OrphanedFoldersDeleted} orphaned trickplay folder(s) reclaiming {result.BytesFreed} bytes.",
+            FixedAtUtc = DateTime.UtcNow,
+            BytesFreed = result.BytesFreed,
+            Success = true
+        });
+        config.PostV12CleanupCompleted = true;
+        Plugin.Instance!.SaveConfiguration();
+        return Ok(new { OrphanedFoldersDeleted = result.OrphanedFoldersDeleted, BytesFreed = result.BytesFreed, Errors = result.Errors, Dismissed = false });
     }
 
     /// <summary>
