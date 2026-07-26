@@ -488,6 +488,21 @@ public sealed class MediaDashDb
     }
 
     /// <summary>
+    /// Returns the lifetime total of bytes reclaimed by successful non-dry-run fixes. Same
+    /// success=1 AND dry_run=0 filter as the monthly aggregate so the number the user sees on
+    /// Overview matches what actually happened to their disk. Returns 0 for a fresh install.
+    /// </summary>
+    /// <returns>Total bytes freed across the entire history.</returns>
+    public long GetLifetimeBytesFreed()
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT COALESCE(SUM(bytes_freed), 0) FROM history WHERE success = 1 AND dry_run = 0";
+        var raw = cmd.ExecuteScalar();
+        return raw is long l ? l : 0L;
+    }
+
+    /// <summary>
     /// Aggregates the history for a given month into per-type success counts + total bytes freed.
     /// Filters to success=1 and dry_run=0 so dry-run rehearsals never inflate the analytics numbers.
     /// </summary>

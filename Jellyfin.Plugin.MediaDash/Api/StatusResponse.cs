@@ -54,6 +54,12 @@ public sealed class StatusResponse
     public long TotalPotentialSavings { get; set; }
 
     /// <summary>
+    /// Gets or sets the lifetime bytes actually freed by successful non-dry-run fixes since
+    /// the plugin was first installed. Feeds the "Reclaimed since install" tile on Overview.
+    /// </summary>
+    public long LifetimeBytesReclaimed { get; set; }
+
+    /// <summary>
     /// Gets or sets the per-type issue counts.
     /// </summary>
     public IReadOnlyList<TypeCount> Counts { get; set; } = [];

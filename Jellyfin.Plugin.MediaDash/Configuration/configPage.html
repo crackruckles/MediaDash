@@ -1371,6 +1371,8 @@
                 statUnknown: '—',
                 statPlatform: 'Host: {0}',
                 totalSavings: 'Space you could reclaim',
+                lifetimeSaved: 'Reclaimed since install',
+                lifetimeSavedHint: 'Bytes freed by every successful non-dry-run fix. Includes the post-Jellyfin-12 cleanup.',
                 whereSavings: 'Where the savings are',
                 issuesByType: 'Issues found',
                 noIssues: 'No issues found — your library is in good shape. New scans run automatically every night.',
@@ -1914,20 +1916,34 @@
 
                 var counts = s.Counts || [];
                 var hero = view.querySelector('#mdHero');
-                if (s.TotalPotentialSavings > 0 || counts.length > 0) {
+                var lifetime = s.LifetimeBytesReclaimed || 0;
+                if (s.TotalPotentialSavings > 0 || counts.length > 0 || lifetime > 0) {
                     var donut = donutSvg(counts.map(function (c) {
                         var t = STR.types[c.Type] || { color: '#888' };
                         return { value: c.Count, color: t.color };
-                    }), 130);
+                    }), 110);
                     var legend = counts.map(function (c) {
                         var t = STR.types[c.Type] || { title: c.Type, color: '#888' };
                         return '<div style="margin:.15em 0;"><span class="mdBadge" style="background:' + t.color + ';">' + c.Count + '</span> ' + esc(t.title) + '</div>';
                     }).join('');
-                    hero.innerHTML = '<div class="mdCard mdHero mdFade" style="width:100%;">' +
-                        '<div><div class="fieldDescription">' + esc(STR.totalSavings) + '</div>' +
-                        '<div class="mdNum" style="font-size:2.6em;color:#00a4dc;">' + bytes(s.TotalPotentialSavings) + '</div></div>' +
-                        '<div style="display:flex;gap:1.4em;align-items:center;">' + donut + '<div>' + legend + '</div></div>' +
+                    // Two-column reclaim card: left = what's still open, right = what's already been recovered.
+                    // Split with a subtle vertical divider so at a glance the two numbers read as "before vs. after".
+                    var reclaimSplit = '<div class="mdCard mdFade" style="display:grid;grid-template-columns:1fr 1px 1fr;gap:1.4em;align-items:center;padding:1.2em 1.6em;">' +
+                        '<div>' +
+                        '<div class="fieldDescription">' + esc(STR.totalSavings) + '</div>' +
+                        '<div class="mdNum" style="font-size:2.4em;color:#00a4dc;line-height:1.1;">' + bytes(s.TotalPotentialSavings) + '</div>' +
+                        '</div>' +
+                        '<div style="background:rgba(255,255,255,.08);height:70%;width:1px;justify-self:center;"></div>' +
+                        '<div>' +
+                        '<div class="fieldDescription" title="' + esc(STR.lifetimeSavedHint) + '">' + esc(STR.lifetimeSaved) + '</div>' +
+                        '<div class="mdNum" style="font-size:2.4em;color:#22c55e;line-height:1.1;">' + bytes(lifetime) + '</div>' +
+                        '</div>' +
                         '</div>';
+                    // Donut + legend live in a separate card below now that the reclaim tile owns the row.
+                    var donutCard = counts.length > 0
+                        ? '<div class="mdCard mdFade" style="display:flex;gap:1.4em;align-items:center;margin-top:1em;padding:1em 1.4em;">' + donut + '<div>' + legend + '</div></div>'
+                        : '';
+                    hero.innerHTML = reclaimSplit + donutCard;
                 } else {
                     hero.innerHTML = '';
                 }
