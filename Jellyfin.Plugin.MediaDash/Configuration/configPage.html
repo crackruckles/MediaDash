@@ -599,7 +599,7 @@
                             <div style="font-weight:700;color:#f59e0b;">Safe mode (dry-run) is ON — nothing is actually being changed</div>
                             <div class="fieldDescription" id="mdDryRunText"></div>
                         </div>
-                        <button is="emby-button" type="button" id="mdGoDryRun" class="raised" style="font-size:80%;border:1px solid #f59e0b;">
+                        <button is="emby-button" type="button" id="mdGoDryRun" class="raised" style="font-size:80%;border:1px solid #f59e0b;" title="Jump to Settings → Safety → Dry-run so you can turn it off. Approved fixes will start making real file changes on the next fix run.">
                             <span>Turn it off in Settings</span>
                         </button>
                     </div>
@@ -614,6 +614,7 @@
                         <button is="emby-button" type="button" id="mdGoBinReview" class="raised" style="font-size:80%;border:1px solid #ec4899;" title="Open Settings → Recycle bin to review contents, restore anything you still want, and empty the rest.">
                             <span>Review recycle bin</span>
                         </button>
+                        <button is="emby-button" type="button" class="mdDismissBanner" data-banner="mdBinFullNote" style="background:transparent;border:0;color:#ec4899;padding:.3em;min-width:0;" title="Hide this notice for this browser session. It comes back on next tab open if the bin is still over 10 GB."><span class="material-icons" style="font-size:1.2em;">close</span></button>
                     </div>
                 </div>
 
@@ -903,7 +904,8 @@
                                 <div style="font-weight:600;color:#f59e0b;">Recycle bin is on a different volume than your media</div>
                                 <div class="fieldDescription" id="mdRecycleWarnText" style="margin-top:.2em;"></div>
                             </div>
-                            <button is="emby-button" type="button" id="mdRecycleWarnFix" class="raised" style="font-size:80%;"><span>Change in Settings</span></button>
+                            <button is="emby-button" type="button" id="mdRecycleWarnFix" class="raised" style="font-size:80%;" title="Jump to Settings → Recycle bin to change the location."><span>Change in Settings</span></button>
+                            <button is="emby-button" type="button" class="mdDismissBanner" data-banner="mdRecycleWarn" style="background:transparent;border:0;color:#f59e0b;padding:.3em;min-width:0;" title="Hide this notice for this browser session. It comes back on next tab open if the condition still holds."><span class="material-icons" style="font-size:1.2em;">close</span></button>
                         </div>
                     </div>
                     <div id="mdSystem"></div>
@@ -947,10 +949,10 @@
                 <div id="mdTab-errors" style="display:none;">
                     <div class="fieldDescription" style="margin-bottom:.6em;">Anything the plugin has caught and swallowed since the server started — silent scanner failures, system-stats sample errors, unexpected fix errors. Cleared automatically on server restart. Use this if something on Overview or Issues doesn't look right.</div>
                     <div style="display:flex;gap:.5em;align-items:center;margin-bottom:.6em;flex-wrap:wrap;">
-                        <button is="emby-button" type="button" id="mdErrorsRefresh" class="raised" style="font-size:80%;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">refresh</span><span>Refresh</span></button>
-                        <button is="emby-button" type="button" id="mdErrorsRetry" class="raised button-submit" style="font-size:80%;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">replay</span><span>Retry all fixes</span></button>
+                        <button is="emby-button" type="button" id="mdErrorsRefresh" class="raised" style="font-size:80%;" title="Reload the errors list from the server. Useful after retrying fixes or restarting the plugin."><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">refresh</span><span>Refresh</span></button>
+                        <button is="emby-button" type="button" id="mdErrorsRetry" class="raised button-submit" style="font-size:80%;" title="Re-run every issue whose last fix attempt failed. Errors that survive a retry probably need config or file-system attention, not another try."><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">replay</span><span>Retry all fixes</span></button>
                         <button is="emby-button" type="button" id="mdErrorsCopy" class="raised" style="font-size:80%;" title="Copies plugin/OS/Jellyfin versions and every visible error to your clipboard, then opens the MediaDash issue tracker in a new tab so you can paste it into a new bug report."><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">bug_report</span><span>Report an issue</span></button>
-                        <button is="emby-button" type="button" id="mdErrorsClear" class="raised" style="font-size:80%;background:#7f1d1d;color:#fff;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">delete_sweep</span><span>Clear</span></button>
+                        <button is="emby-button" type="button" id="mdErrorsClear" class="raised" style="font-size:80%;background:#7f1d1d;color:#fff;" title="Wipes every error from the list. The underlying condition (bad path, missing provider, permission denied) is not fixed — the list just goes quiet until an operation trips the same error again."><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">delete_sweep</span><span>Clear</span></button>
                         <span id="mdErrorsMsg" class="fieldDescription"></span>
                     </div>
                     <div id="mdErrorList"></div>
@@ -961,7 +963,7 @@
                     <div id="mdFileBar">
                         <button is="emby-button" type="button" id="mdFileUp" class="raised" style="font-size:80%;" title="Up one level"><span class="material-icons" style="font-size:1.2em;">arrow_upward</span></button>
                         <button is="emby-button" type="button" id="mdFileRefresh" class="raised" style="font-size:80%;" title="Refresh"><span class="material-icons" style="font-size:1.2em;">refresh</span></button>
-                        <button is="emby-button" type="button" id="mdFileMkdir" class="raised" style="font-size:80%;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">create_new_folder</span><span>New folder</span></button>
+                        <button is="emby-button" type="button" id="mdFileMkdir" class="raised" style="font-size:80%;" title="Create a new subfolder inside the currently-viewed library folder. Not allowed outside your Jellyfin library roots."><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">create_new_folder</span><span>New folder</span></button>
                         <label is="emby-button" class="raised emby-button" style="font-size:80%;cursor:pointer;"><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">upload</span><span>Upload file</span><input id="mdFileUpload" type="file" multiple style="display:none;" /></label>
                         <input id="mdFileFilter" type="search" is="emby-input" placeholder="Filter in this folder…" style="max-width:16em;font-size:80%;" />
                         <div id="mdFileUploadStatus" class="fieldDescription" style="flex:1;"></div>
@@ -971,10 +973,10 @@
                         <span class="material-icons" style="color:#00a4dc;">check_box</span>
                         <span><b id="mdFileBulkCount"></b> selected</span>
                         <span style="flex:1;"></span>
-                        <button is="emby-button" type="button" id="mdFileBulkDelete" class="raised" style="font-size:80%;background:#7f1d1d;color:#fff;"><span class="material-icons" style="font-size:1em;margin-right:.3em;">delete</span><span>Delete</span></button>
-                        <button is="emby-button" type="button" id="mdFileBulkMove" class="raised" style="font-size:80%;"><span class="material-icons" style="font-size:1em;margin-right:.3em;">drive_file_move</span><span>Move to…</span></button>
-                        <button is="emby-button" type="button" id="mdFileBulkDownload" class="raised" style="font-size:80%;"><span class="material-icons" style="font-size:1em;margin-right:.3em;">download</span><span>Download</span></button>
-                        <button is="emby-button" type="button" id="mdFileBulkClear" class="raised" style="font-size:80%;"><span>Deselect</span></button>
+                        <button is="emby-button" type="button" id="mdFileBulkDelete" class="raised" style="font-size:80%;background:#7f1d1d;color:#fff;" title="Send the selected files to the recycle bin. Restorable from Settings → Recycle bin until the retention window purges them."><span class="material-icons" style="font-size:1em;margin-right:.3em;">delete</span><span>Delete</span></button>
+                        <button is="emby-button" type="button" id="mdFileBulkMove" class="raised" style="font-size:80%;" title="Pick a destination folder for the selected files. LibraryGuard refuses any target that isn't inside one of your Jellyfin library roots."><span class="material-icons" style="font-size:1em;margin-right:.3em;">drive_file_move</span><span>Move to…</span></button>
+                        <button is="emby-button" type="button" id="mdFileBulkDownload" class="raised" style="font-size:80%;" title="Download the selected files to your browser. Large files stream one at a time; do not close the tab until the download finishes."><span class="material-icons" style="font-size:1em;margin-right:.3em;">download</span><span>Download</span></button>
+                        <button is="emby-button" type="button" id="mdFileBulkClear" class="raised" style="font-size:80%;" title="Clear the current selection without touching any files."><span>Deselect</span></button>
                     </div>
                     <div id="mdFileDrop">
                         <div id="mdFileList"></div>
@@ -987,8 +989,8 @@
                         <div style="display:flex;align-items:center;gap:.5em;margin-bottom:.6em;">
                             <button is="emby-button" type="button" id="mdPickerUp" class="raised" style="font-size:80%;" title="Up one level"><span class="material-icons" style="font-size:1.2em;">arrow_upward</span></button>
                             <div id="mdPickerCrumbs" class="mdCrumbs" style="flex:1;margin-bottom:0;"><span class="material-icons">folder_open</span><span id="mdPickerCrumbsText"></span></div>
-                            <button is="emby-button" type="button" id="mdPickerCancel" class="raised" style="font-size:80%;"><span>Cancel</span></button>
-                            <button is="emby-button" type="button" id="mdPickerAccept" class="raised button-submit" style="font-size:80%;"><span>Select this folder</span></button>
+                            <button is="emby-button" type="button" id="mdPickerCancel" class="raised" style="font-size:80%;" title="Close the picker without changing anything."><span>Cancel</span></button>
+                            <button is="emby-button" type="button" id="mdPickerAccept" class="raised button-submit" style="font-size:80%;" title="Use the currently-highlighted folder as the destination. Must sit inside a Jellyfin library root."><span>Select this folder</span></button>
                         </div>
                         <div id="mdPickerList"></div>
                     </div>
@@ -1389,6 +1391,7 @@
                 binViewHide: 'Hide contents',
                 binViewShow: 'View contents',
                 binRestoreHint: 'To put a file back, use the Restore button on the History tab.',
+                binPerItemRestoreHint: 'Click Restore on any row to put that file back at its original location. Files without a "no history" tag can also be restored from the History tab.',
                 modeOff: "Off — don't even scan",
                 modeDetect: 'Detect only — just show me',
                 modeManual: 'Ask me first',
@@ -1875,7 +1878,7 @@
                 renderSystemStats(s.System);
 
                 var recycleWarn = view.querySelector('#mdRecycleWarn');
-                if (s.RecycleBinCrossVolume) {
+                if (s.RecycleBinCrossVolume && !bannerDismissed('mdRecycleWarn')) {
                     recycleWarn.style.display = '';
                     view.querySelector('#mdRecycleWarnText').textContent =
                         'The recycle bin is at "' + (s.RecycleBinPath || '') + '", which is on a different volume than your library. ' +
@@ -2824,8 +2827,9 @@
                 api('RecycleBin').then(function (b) {
                     var over = b && b.SizeBytes > 10 * 1024 * 1024 * 1024;
                     var banner = view.querySelector('#mdBinFullNote');
-                    banner.style.display = over ? '' : 'none';
-                    if (over) {
+                    var show = over && !bannerDismissed('mdBinFullNote');
+                    banner.style.display = show ? '' : 'none';
+                    if (show) {
                         var s = b.FileCount === 1 ? '' : 's';
                         view.querySelector('#mdBinFullTitle').textContent = fmt(STR.binFullTitle, bytes(b.SizeBytes), b.FileCount, s);
                         view.querySelector('#mdBinFullText').textContent = STR.binFullBody;
@@ -2862,6 +2866,19 @@
                     // Kick a fresh silent poll so live values (CPU / GPU / RAM) update as soon as the tab opens.
                     refresh(true);
                 }
+            }
+
+            // ---------- Dismissible banners ----------
+            // Session-scoped: dismissal survives page reloads within the same tab, gets cleared when the tab
+            // closes. Deliberate over localStorage because these are self-clearing conditions (bin gets emptied,
+            // volume gets moved) - if the user hasn't fixed it by next session, seeing the reminder again is fine.
+            function bannerDismissed(id) {
+                try { return sessionStorage.getItem('mdBannerDismissed:' + id) === '1'; } catch (e) { return false; }
+            }
+            function dismissBanner(id) {
+                try { sessionStorage.setItem('mdBannerDismissed:' + id, '1'); } catch (e) { }
+                var el = view.querySelector('#' + id);
+                if (el) el.style.display = 'none';
             }
 
             // ---------- Env / diagnostics ----------
@@ -3421,6 +3438,11 @@
                         }, 200);
                     });
 
+                    // Delegated so future banners with class="mdDismissBanner" don't need separate wiring.
+                    view.querySelectorAll('.mdDismissBanner').forEach(function (btn) {
+                        btn.addEventListener('click', function () { dismissBanner(btn.getAttribute('data-banner')); });
+                    });
+
                     view.querySelector('#mdGoDryRun').addEventListener('click', function () {
                         showTab('settings');
                         setTimeout(function () {
@@ -3519,16 +3541,46 @@
                             return;
                         }
                         api('RecycleBin/Items').then(function (items) {
-                            var html = '<div class="fieldDescription" style="margin:.3em 0;">' + esc(STR.binRestoreHint) + '</div>';
+                            var html = '<div class="fieldDescription" style="margin:.3em 0;">' + esc(STR.binPerItemRestoreHint) + '</div>';
                             items.forEach(function (f) {
-                                html += '<div style="display:flex;justify-content:space-between;gap:1em;padding:.3em .6em;border-bottom:1px solid rgba(255,255,255,.07);">' +
-                                    '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(f.FileName) + '</span>' +
-                                    '<span style="white-space:nowrap;opacity:.8;">' + bytes(f.SizeBytes) + ' · ' + new Date(f.RecycledAtUtc).toLocaleDateString() + '</span>' +
+                                var origTitle = f.OriginalPath
+                                    ? 'Restore to ' + f.OriginalPath
+                                    : "This bin file has no matching history row — it was recycled before MediaDash tracked restore destinations, or the row was purged. Use file browser to move it back manually if needed.";
+                                var restoreBtn = f.HistoryId
+                                    ? '<button is="emby-button" type="button" class="raised mdBinRestore" data-history-id="' + f.HistoryId + '" style="font-size:75%;padding:.25em .8em;" title="' + esc(origTitle) + '"><span class="material-icons" style="font-size:1em;vertical-align:-3px;">restore</span> <span>' + esc(STR.restore) + '</span></button>'
+                                    : '<span class="fieldDescription" title="' + esc(origTitle) + '" style="opacity:.5;">no history</span>';
+                                html += '<div class="mdBinRow" style="display:flex;justify-content:space-between;align-items:center;gap:1em;padding:.4em .6em;border-bottom:1px solid rgba(255,255,255,.07);">' +
+                                    '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;" title="' + esc(f.OriginalPath || f.FileName) + '">' + esc(f.FileName) + '</span>' +
+                                    '<span style="white-space:nowrap;opacity:.8;font-size:.9em;">' + bytes(f.SizeBytes) + ' · ' + new Date(f.RecycledAtUtc).toLocaleDateString() + '</span>' +
+                                    '<span class="mdBinRowMsg" style="white-space:nowrap;opacity:.8;font-size:.85em;color:#22c55e;"></span>' +
+                                    restoreBtn +
                                     '</div>';
                             });
+                            if (items.length === 0) {
+                                html += '<div class="fieldDescription" style="margin:.6em;">' + esc(STR.binEmpty) + '</div>';
+                            }
                             listEl.innerHTML = html;
                             listEl.style.display = '';
                             btn.querySelector('span').textContent = STR.binViewHide;
+                            listEl.querySelectorAll('.mdBinRestore').forEach(function (rb) {
+                                rb.addEventListener('click', function () {
+                                    var id = rb.getAttribute('data-history-id');
+                                    var row = rb.closest('.mdBinRow');
+                                    var msg = row.querySelector('.mdBinRowMsg');
+                                    rb.disabled = true;
+                                    msg.style.color = '#22c55e';
+                                    msg.textContent = 'Restoring…';
+                                    post('History/' + id + '/Restore').then(function () {
+                                        msg.textContent = STR.restored;
+                                        rb.style.display = 'none';
+                                        loadBinInfo();
+                                    }, function (err) {
+                                        msg.style.color = '#ef4444';
+                                        msg.textContent = fmt(STR.restoreFailed, (err && err.statusText) || '');
+                                        rb.disabled = false;
+                                    });
+                                });
+                            });
                         });
                     });
 

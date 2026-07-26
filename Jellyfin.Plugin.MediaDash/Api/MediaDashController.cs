@@ -515,8 +515,25 @@ public class MediaDashController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult<IReadOnlyList<RecycleBinItem>> GetRecycleBinItems()
     {
+        // Join each bin file back to its history row so the UI can show a per-item Restore button.
+        // History is authoritative for the original destination path; the bin itself doesn't store it.
+        var byRecyclePath = _db.GetHistory()
+            .Where(h => !h.Restored && !string.IsNullOrEmpty(h.RecyclePath))
+            .GroupBy(h => h.RecyclePath!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(h => h.FixedAtUtc).First(), StringComparer.OrdinalIgnoreCase);
+
         return Ok(_recycleBin.ListContents()
-            .Select(e => new RecycleBinItem { FileName = e.FileName, SizeBytes = e.SizeBytes, RecycledAtUtc = e.RecycledAtUtc })
+            .Select(e =>
+            {
+                var item = new RecycleBinItem { FileName = e.FileName, SizeBytes = e.SizeBytes, RecycledAtUtc = e.RecycledAtUtc };
+                if (byRecyclePath.TryGetValue(e.BinPath, out var h))
+                {
+                    item.HistoryId = h.Id;
+                    item.OriginalPath = h.Path;
+                }
+
+                return item;
+            })
             .ToList());
     }
 

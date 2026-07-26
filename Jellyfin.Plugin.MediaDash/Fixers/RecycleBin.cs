@@ -166,9 +166,9 @@ public sealed class RecycleBin
     /// </summary>
     /// <param name="limit">Maximum entries returned.</param>
     /// <returns>File name, size and when it was recycled.</returns>
-    public IReadOnlyList<(string FileName, long SizeBytes, DateTime RecycledAtUtc)> ListContents(int limit = 500)
+    public IReadOnlyList<(string FileName, string BinPath, long SizeBytes, DateTime RecycledAtUtc)> ListContents(int limit = 500)
     {
-        var result = new List<(string, long, DateTime)>();
+        var result = new List<(string, string, long, DateTime)>();
         if (!Directory.Exists(Root))
         {
             return result;
@@ -179,7 +179,7 @@ public sealed class RecycleBin
             foreach (var file in Directory.EnumerateFiles(dir))
             {
                 var info = new FileInfo(file);
-                result.Add((info.Name, info.Length, Directory.GetCreationTimeUtc(dir)));
+                result.Add((info.Name, file, info.Length, Directory.GetCreationTimeUtc(dir)));
                 if (result.Count >= limit)
                 {
                     return result;
