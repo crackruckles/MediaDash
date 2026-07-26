@@ -9,6 +9,22 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.8.3.0",
+        "changelog": "Overview reclaim card is now a split hero with two donuts. Left side \"Space you could reclaim\" (open issues, cyan) has a donut sized by issue count with a per-type legend. Right side \"Reclaimed since install\" (green) has a donut sized by bytes-freed-per-type so you can see at a glance which fixer has done the most disk-wise (e.g. 7.6 MB Quality re-encodes, 684 KB post-v12 cleanup). Post-Jellyfin-12 one-shot cleanup: a purple banner appears on Overview for hosts running Jellyfin 12+ (once, until you run or dismiss it) offering to sweep orphaned trickplay image folders that survived the 10 to 12 library rewrite. The reclaim lands in History and adds to the lifetime tally. Errors tab: friendly per-error titles + actionable hints in an amber box telling you what to check. The raw source code and exception message collapse behind a Technical detail toggle so bug reports still have everything but day-to-day reading is a lot easier. Setup wizard defaults the stale-content threshold to 365 days when the scanner is off; a previously-saved value only surfaces if you have already opted in.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.8.3/mediadash_0.8.3.zip",
+        "checksum": "0bb18fd37878e1b7230d176d53004ef1",
+        "timestamp": "2026-07-26T16:05:34Z"
+      },
+      {
+        "version": "0.8.3.0",
+        "changelog": "Overview reclaim card is now a split hero with two donuts. Left side \"Space you could reclaim\" (open issues, cyan) has a donut sized by issue count with a per-type legend. Right side \"Reclaimed since install\" (green) has a donut sized by bytes-freed-per-type so you can see at a glance which fixer has done the most disk-wise (e.g. 7.6 MB Quality re-encodes, 684 KB post-v12 cleanup). Post-Jellyfin-12 one-shot cleanup: a purple banner appears on Overview for hosts running Jellyfin 12+ (once, until you run or dismiss it) offering to sweep orphaned trickplay image folders that survived the 10 to 12 library rewrite. The reclaim lands in History and adds to the lifetime tally. Errors tab: friendly per-error titles + actionable hints in an amber box telling you what to check. The raw source code and exception message collapse behind a Technical detail toggle so bug reports still have everything but day-to-day reading is a lot easier. Setup wizard defaults the stale-content threshold to 365 days when the scanner is off; a previously-saved value only surfaces if you have already opted in.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.8.3/mediadash_0.8.3.zip",
+        "checksum": "0bb18fd37878e1b7230d176d53004ef1",
+        "timestamp": "2026-07-26T16:05:34Z"
+      },
+      {
         "version": "0.8.2.0",
         "changelog": "Overview banners are now dismissible - both the cross-volume recycle bin warning and the \"bin is over 10 GB\" reminder grow a close button. Dismissal is session-scoped so a fresh browser session brings the reminder back if the underlying condition (bin still on a different drive, still over 10 GB) is still true. Per-item Restore in Settings \u003e Recycle bin \u003e View contents: every recycled file now has its own Restore button that puts it back at the original location. Backed by a join against the history table (matching bin path to history entry). The existing safety guard that refuses to overwrite a live file at the destination still applies - the conflict message surfaces inline on the row. Errors tab: the \"Copy diagnostics\" button is now \"Report an issue\" - one click copies diagnostics to the clipboard AND opens the GitHub issue tracker in a new tab. Tooltip pass across the plugin: added hover descriptions to Errors tab actions (Refresh, Retry all, Clear), Files tab bulk actions (Delete, Move, Download, Deselect), the New folder button, folder-picker buttons, and the dry-run banner action. Short but load-bearing.",
         "targetAbi": "12.0.0.0",
@@ -275,5 +291,6 @@
     ]
   }
 ]
+
 
 
