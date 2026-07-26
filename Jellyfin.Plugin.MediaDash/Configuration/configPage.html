@@ -1400,6 +1400,10 @@
                     MissingSubtitles: {
                         title: 'Missing subtitles', hint: 'No subtitle in any of your kept languages.', color: '#a78bfa', icon: 'closed_caption',
                         action: 'Download subtitles', actionHint: 'Downloads one via Jellyfin’s configured subtitle providers (OpenSubtitles etc.).', approveAll: 'Download subtitles for all {0} shown'
+                    },
+                    Stale: {
+                        title: 'Stale content', hint: 'Nobody has played it in a long time.', color: '#64748b', icon: 'hourglass_bottom',
+                        action: 'Review', actionHint: 'Detect-only for now — MediaDash surfaces the list, you decide whether to delete or keep.', approveAll: 'Review all {0} stale items shown'
                     }
                 },
                 languages: [
@@ -1421,7 +1425,10 @@
                 // Misplaced fixes move files rather than delete them, so there's no disposal choice.
                 { key: 'Misplaced', mode: 'MisplacedFixMode' },
                 // Missing-subtitle fixes add a file rather than remove one; no disposal choice.
-                { key: 'MissingSubtitles', mode: 'MissingSubtitlesFixMode' }
+                { key: 'MissingSubtitles', mode: 'MissingSubtitlesFixMode' },
+                // Stale content is detect-only for now — no fixer, no disposal choice; the "How it runs" select
+                // hides its Automatic option (see buildFixTypeRows) since there's nothing to automate.
+                { key: 'Stale', mode: 'StaleFixMode' }
             ];
 
             var KEEPER_PRESETS = {
@@ -2170,9 +2177,17 @@
                         : '';
                     // MissingSubtitles needs a live "is a provider installed?" indicator because the fixer can't
                     // do anything without one; make the dependency visible on the same card as the mode.
-                    var hintBlock = (t.key === 'MissingSubtitles')
-                        ? '<div class="fieldDescription" id="mdProviderHint" style="display:none;margin-top:.5em;"></div>'
-                        : '';
+                    // Stale needs a threshold input — the mode toggle alone doesn't say HOW old counts as stale.
+                    var hintBlock = '';
+                    if (t.key === 'MissingSubtitles') {
+                        hintBlock = '<div class="fieldDescription" id="mdProviderHint" style="display:none;margin-top:.5em;"></div>';
+                    } else if (t.key === 'Stale') {
+                        hintBlock = '<div class="inputContainer" style="max-width:14em;margin-top:.7em;">' +
+                            '<label class="inputLabel inputLabelUnfocused" for="mdStaleThresholdDays">Consider stale after (days)</label>' +
+                            '<input id="mdStaleThresholdDays" type="number" min="1" max="3650" is="emby-input" />' +
+                            '<div class="fieldDescription">Nothing is flagged until the item has both been on the server this long AND not been played by anyone in that window. Default 365.</div>' +
+                            '</div>';
+                    }
                     html += '<div class="mdCard" style="margin-bottom:.7em;border-left:4px solid ' + meta.color + ';">' +
                         '<div style="font-weight:600;margin-bottom:.4em;"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;color:' + meta.color + ';">' + meta.icon + '</span> ' + esc(meta.title) + '</div>' +
                         '<div style="display:flex;gap:1em;flex-wrap:wrap;">' +
@@ -2279,6 +2294,7 @@
                         view.querySelector('#mdMode' + t.key).value = c[t.mode];
                         if (t.disposal) view.querySelector('#mdDisposal' + t.key).value = c[t.disposal];
                     });
+                    view.querySelector('#mdStaleThresholdDays').value = c.StaleThresholdDays > 0 ? c.StaleThresholdDays : 365;
                     view.querySelector('#mdMaxRes').value = String(c.MaxResolutionHeight);
                     setBitrateSliderForResolution(c.MaxBitrateMbpsAt1080p);
                     view.querySelector('#mdCodec').value = c.PreferredCodec;
@@ -2345,6 +2361,8 @@
                         c[t.mode] = view.querySelector('#mdMode' + t.key).value;
                         if (t.disposal) c[t.disposal] = view.querySelector('#mdDisposal' + t.key).value;
                     });
+                    var staleDays = parseInt(view.querySelector('#mdStaleThresholdDays').value, 10);
+                    if (!isNaN(staleDays) && staleDays > 0) c.StaleThresholdDays = staleDays;
                     c.MaxResolutionHeight = parseInt(view.querySelector('#mdMaxRes').value, 10);
                     c.MaxBitrateMbpsAt1080p = bitrateBaseFromSlider();
                     c.PreferredCodec = view.querySelector('#mdCodec').value;

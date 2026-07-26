@@ -59,6 +59,8 @@ public class PluginConfiguration : BasePluginConfiguration
         RenameAfterTranscode = false;
         MissingSubtitlesFixMode = FixMode.DetectOnly;
         AnimeTargetPath = string.Empty;
+        StaleFixMode = FixMode.Off;
+        StaleThresholdDays = 365;
     }
 
     /// <summary>
@@ -306,6 +308,19 @@ public class PluginConfiguration : BasePluginConfiguration
     public string AnimeTargetPath { get; set; }
 
     /// <summary>
+    /// Gets or sets how the stale-content scanner runs. Off by default because "stale" is a subjective call
+    /// and no fixer exists yet — DetectOnly surfaces the list on the Issues tab so the owner can decide.
+    /// </summary>
+    public FixMode StaleFixMode { get; set; }
+
+    /// <summary>
+    /// Gets or sets the age in days above which an unwatched file is considered stale. Both the "no user has
+    /// played it in this window" AND "the item has been on the server this long" conditions must be true —
+    /// so freshly-imported items are never flagged as stale on their first scan.
+    /// </summary>
+    public int StaleThresholdDays { get; set; }
+
+    /// <summary>
     /// Gets the fix mode for an issue type.
     /// </summary>
     /// <param name="type">The issue type.</param>
@@ -321,6 +336,7 @@ public class PluginConfiguration : BasePluginConfiguration
             Data.IssueType.Playability => PlayabilityFixMode,
             Data.IssueType.Misplaced => MisplacedFixMode,
             Data.IssueType.MissingSubtitles => MissingSubtitlesFixMode,
+            Data.IssueType.Stale => StaleFixMode,
             _ => FixMode.DetectOnly
         };
     }

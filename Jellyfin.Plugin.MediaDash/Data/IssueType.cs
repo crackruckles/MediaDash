@@ -24,5 +24,8 @@ public enum IssueType
     Misplaced = 5,
 
     /// <summary>The file has no subtitle track in any of the wanted languages (embedded or external).</summary>
-    MissingSubtitles = 6
+    MissingSubtitles = 6,
+
+    /// <summary>The file has existed on the server longer than the stale threshold and no user has played it within that window.</summary>
+    Stale = 7
 }
