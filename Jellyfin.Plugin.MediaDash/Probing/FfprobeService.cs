@@ -149,7 +149,7 @@ public sealed class FfprobeService
             var stderrTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
             await process.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false);
             var stderr = await stderrTask.ConfigureAwait(false);
-            if (process.ExitCode == 0)
+            if (process.ExitCode == 0 && !HasTruncationMarker(stderr))
             {
                 return null;
             }
@@ -166,6 +166,21 @@ public sealed class FfprobeService
             TryKill(process);
             throw;
         }
+    }
+
+    // ffmpeg quirk: "File ended prematurely" during decode is emitted to stderr but treated as clean EOF —
+    // exit code stays 0, even with -xerror. That silently hides truncated files ("sort of plays") from
+    // the shallow decode check. Same story for "Truncating packet". If we see either marker in stderr,
+    // treat it as an error regardless of exit code.
+    internal static bool HasTruncationMarker(string? stderr)
+    {
+        if (string.IsNullOrEmpty(stderr))
+        {
+            return false;
+        }
+
+        return stderr.Contains("File ended prematurely", StringComparison.Ordinal)
+            || stderr.Contains("Truncating packet", StringComparison.Ordinal);
     }
 
     private FfprobeData? Deserialize(string json, string path)
