@@ -9,6 +9,22 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.8.5.0",
+        "changelog": "Settings tab restructured into per-scanner task cards. Every scanner (Duplicate, Playability, Quality, Sub/Audio, Stale, Misplaced, Missing subs) is now one self-contained card that owns its own mode, disposal, and settings. Segmented mode picker replaces the How-it-runs dropdown; Off collapses and dims the card. Language pickers become chip inputs. Quality card carries every re-encode knob including a new Advanced disclosure for the fine-tuning ones. Stale card gains library and genre excludes; Duplicate gains a wait-N-days-after-import gate. Chip rail is per-task and dims when a task is Off; a Cleanup-tasks header adds Collapse-all and a live N-of-8-active counter. History tab replaces the cumulative savings chart with a per-library saved-bytes breakdown. Disposal dropdown greys out in Detect-only / Off since it doesn\u0027t apply. New GitHub Pages landing at crackruckles.github.io/MediaDash and a repo social-preview card in docs/.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.8.5/mediadash_0.8.5.zip",
+        "checksum": "a01e286570fe2842e691ae8c055c6515",
+        "timestamp": "2026-07-27T07:36:36Z"
+      },
+      {
+        "version": "0.8.5.0",
+        "changelog": "Settings tab restructured into per-scanner task cards. Every scanner (Duplicate, Playability, Quality, Sub/Audio, Stale, Misplaced, Missing subs) is now one self-contained card that owns its own mode, disposal, and settings. Segmented mode picker replaces the How-it-runs dropdown; Off collapses and dims the card. Language pickers become chip inputs. Quality card carries every re-encode knob including a new Advanced disclosure for the fine-tuning ones. Stale card gains library and genre excludes; Duplicate gains a wait-N-days-after-import gate. Chip rail is per-task and dims when a task is Off; a Cleanup-tasks header adds Collapse-all and a live N-of-8-active counter. History tab replaces the cumulative savings chart with a per-library saved-bytes breakdown. Disposal dropdown greys out in Detect-only / Off since it doesn\u0027t apply. New GitHub Pages landing at crackruckles.github.io/MediaDash and a repo social-preview card in docs/.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.8.5/mediadash_0.8.5.zip",
+        "checksum": "a01e286570fe2842e691ae8c055c6515",
+        "timestamp": "2026-07-27T07:36:36Z"
+      },
+      {
         "version": "0.8.4.0",
         "changelog": "History tab: replaced the cumulative savings chart with a per-library saved-bytes breakdown, sorted highest to lowest, so you can see which library each fixer has helped most. New GitHub Pages landing at crackruckles.github.io/MediaDash.",
         "targetAbi": "12.0.0.0",
@@ -307,6 +323,7 @@
     ]
   }
 ]
+
 
 
 
