@@ -30,6 +30,17 @@ public sealed class PlayabilityScanner : ProbingScannerBase
     /// <inheritdoc />
     public override IssueType Type => IssueType.Playability;
 
+    /// <summary>
+    /// True when the file is short enough that ffmpeg's regional start/middle/end sampling collapses;
+    /// a short (e.g. spoken-word or one-track) audio file is best sampled end-to-end.
+    /// </summary>
+    /// <param name="durationSeconds">Duration in seconds as reported by the probe.</param>
+    /// <returns>True when the whole file should be decoded rather than sampled.</returns>
+    public static bool ShouldSampleWholeFile(double durationSeconds)
+    {
+        return durationSeconds > 0 && durationSeconds < 60;
+    }
+
     /// <inheritdoc />
     protected override async Task<Issue?> EvaluateAsync(BaseItem item, string path, FfprobeData? probe, CancellationToken cancellationToken)
     {
@@ -57,10 +68,17 @@ public sealed class PlayabilityScanner : ProbingScannerBase
             reason = "unreadable";
             detail = probe.Error?.Message ?? "The file could not be read as a media file.";
         }
-        else if (!probe.Streams.Any(s => string.Equals(s.CodecType, "video", StringComparison.OrdinalIgnoreCase)))
+        else if (item is not MediaBrowser.Controller.Entities.Audio.Audio
+            && !probe.Streams.Any(s => string.Equals(s.CodecType, "video", StringComparison.OrdinalIgnoreCase)))
         {
             reason = "no-video";
             detail = "The file contains no video stream.";
+        }
+        else if (item is MediaBrowser.Controller.Entities.Audio.Audio
+            && !probe.Streams.Any(s => string.Equals(s.CodecType, "audio", StringComparison.OrdinalIgnoreCase)))
+        {
+            reason = "no-audio";
+            detail = "The file contains no audio stream.";
         }
         else if (!TryGetDuration(probe, out var duration) || duration <= 0)
         {
@@ -101,7 +119,9 @@ public sealed class PlayabilityScanner : ProbingScannerBase
 
             if (reason is null)
             {
-                var decodeError = await Ffprobe.DecodeCheckAsync(path, duration, cancellationToken).ConfigureAwait(false);
+                var decodeError = ShouldSampleWholeFile(duration)
+                    ? await Ffprobe.DecodeCheckAsync(path, durationSeconds: 0, cancellationToken).ConfigureAwait(false)
+                    : await Ffprobe.DecodeCheckAsync(path, duration, cancellationToken).ConfigureAwait(false);
                 if (decodeError is not null)
                 {
                     reason = "decode-error";

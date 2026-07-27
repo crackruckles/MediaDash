@@ -99,22 +99,31 @@ public sealed class FfprobeService
             return cached.Length == 0 ? null : cached;
         }
 
-        // Start: decode the first 30s (or the whole file if it's shorter). If ffmpeg's decoded time
-        // falls significantly short of what we asked for, treat that as truncation regardless of any
-        // stderr markers — ffmpeg sometimes hits EOF cleanly without emitting one.
-        var startExpected = durationSeconds > 0 ? Math.Min(30.0, durationSeconds) : 30.0;
-        var error = await RunFfmpegDecodeAsync(["-i", path, "-t", "30", "-f", "null", "-"], startExpected, cancellationToken).ConfigureAwait(false);
-
-        if (string.IsNullOrWhiteSpace(error) && durationSeconds > 90)
+        string? error;
+        if (durationSeconds <= 0)
         {
-            var middle = ((long)(durationSeconds / 2)).ToString(System.Globalization.CultureInfo.InvariantCulture);
-            error = await RunFfmpegDecodeAsync(["-ss", middle, "-i", path, "-t", "30", "-f", "null", "-"], 30.0, cancellationToken).ConfigureAwait(false);
+            // ponytail: sentinel for whole-file decode (short clips where regional sampling collapses)
+            error = await RunFfmpegDecodeAsync(["-i", path, "-f", "null", "-"], expectedSeconds: 0, cancellationToken).ConfigureAwait(false);
         }
-
-        if (string.IsNullOrWhiteSpace(error))
+        else
         {
-            var endExpected = durationSeconds > 0 ? Math.Min(30.0, durationSeconds) : 30.0;
-            error = await RunFfmpegDecodeAsync(["-sseof", "-30", "-i", path, "-f", "null", "-"], endExpected, cancellationToken).ConfigureAwait(false);
+            // Start: decode the first 30s (or the whole file if it's shorter). If ffmpeg's decoded time
+            // falls significantly short of what we asked for, treat that as truncation regardless of any
+            // stderr markers — ffmpeg sometimes hits EOF cleanly without emitting one.
+            var startExpected = Math.Min(30.0, durationSeconds);
+            error = await RunFfmpegDecodeAsync(["-i", path, "-t", "30", "-f", "null", "-"], startExpected, cancellationToken).ConfigureAwait(false);
+
+            if (string.IsNullOrWhiteSpace(error) && durationSeconds > 90)
+            {
+                var middle = ((long)(durationSeconds / 2)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                error = await RunFfmpegDecodeAsync(["-ss", middle, "-i", path, "-t", "30", "-f", "null", "-"], 30.0, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (string.IsNullOrWhiteSpace(error))
+            {
+                var endExpected = Math.Min(30.0, durationSeconds);
+                error = await RunFfmpegDecodeAsync(["-sseof", "-30", "-i", path, "-f", "null", "-"], endExpected, cancellationToken).ConfigureAwait(false);
+            }
         }
 
         var result = string.IsNullOrWhiteSpace(error) ? null : error;
