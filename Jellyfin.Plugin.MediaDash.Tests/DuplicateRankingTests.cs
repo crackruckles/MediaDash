@@ -163,4 +163,32 @@ public class DuplicateRankingTests
 
         Assert.Null(DuplicateScanner.GetGroupKey(audio));
     }
+
+    [Fact]
+    public void GetGroupKey_Book_UsesIsbn_WhenPresent()
+    {
+        var book = new MediaBrowser.Controller.Entities.Book
+        {
+            Name = "Dune",
+            ProviderIds = new System.Collections.Generic.Dictionary<string, string> { ["Isbn"] = "9780441172719" }
+        };
+
+        var key = DuplicateScanner.GetGroupKey(book);
+        Assert.Equal("book:isbn:9780441172719", key);
+    }
+
+    [Fact]
+    public void GetGroupKey_Book_FallsBackToNormalisedName()
+    {
+        var book = new MediaBrowser.Controller.Entities.Book { Name = "Dune" };
+        var key = DuplicateScanner.GetGroupKey(book);
+        Assert.Equal("book:name:dune", key);
+    }
+
+    [Fact]
+    public void GetGroupKey_Book_ReturnsNullWhenNameMissing()
+    {
+        var book = new MediaBrowser.Controller.Entities.Book { Name = string.Empty };
+        Assert.Null(DuplicateScanner.GetGroupKey(book));
+    }
 }

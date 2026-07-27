@@ -17,14 +17,18 @@ namespace Jellyfin.Plugin.MediaDash.Scanners;
 /// </summary>
 public sealed class PlayabilityScanner : ProbingScannerBase
 {
+    private readonly Probing.BookProbeService _bookProbe;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="PlayabilityScanner"/> class.
     /// </summary>
     /// <param name="ffprobe">The probe service.</param>
+    /// <param name="bookProbe">The book probe service.</param>
     /// <param name="logger">The logger.</param>
-    public PlayabilityScanner(FfprobeService ffprobe, ILogger<PlayabilityScanner> logger)
+    public PlayabilityScanner(FfprobeService ffprobe, Probing.BookProbeService bookProbe, ILogger<PlayabilityScanner> logger)
         : base(ffprobe, logger)
     {
+        _bookProbe = bookProbe;
     }
 
     /// <inheritdoc />
@@ -54,6 +58,31 @@ public sealed class PlayabilityScanner : ProbingScannerBase
                 DetailsJson = JsonSerializer.Serialize(new { reason = "missing", detail = "The library entry points to a file that no longer exists." }),
                 SuggestedFix = "The file is gone but Jellyfin still lists it. Restore the file, or run a library scan in Jellyfin to remove the dead entry.",
                 SizeSavings = 0
+            };
+        }
+
+        if (item is MediaBrowser.Controller.Entities.Book)
+        {
+            var bp = await _bookProbe.ProbeAsync(path, cancellationToken).ConfigureAwait(false);
+            if (bp.Ok)
+            {
+                return null;
+            }
+
+            long bookSize = 0;
+            try
+            {
+                bookSize = new System.IO.FileInfo(path).Length;
+            }
+            catch (System.IO.IOException)
+            {
+            }
+
+            return new Issue
+            {
+                DetailsJson = JsonSerializer.Serialize(new { reason = "book-corrupt", detail = bp.Reason }),
+                SuggestedFix = "This book file can't be read. Approve to remove it — it goes to the recycle bin first unless you chose permanent delete.",
+                SizeSavings = bookSize
             };
         }
 

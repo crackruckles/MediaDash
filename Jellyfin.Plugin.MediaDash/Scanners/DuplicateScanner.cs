@@ -137,6 +137,19 @@ public sealed partial class DuplicateScanner : IScanner
                 : string.Create(CultureInfo.InvariantCulture, $"movie:name:{name}:{movie.ProductionYear}");
         }
 
+        if (item is MediaBrowser.Controller.Entities.Book book)
+        {
+            if (book.ProviderIds.TryGetValue("Isbn", out var isbn) && !string.IsNullOrEmpty(isbn))
+            {
+                return $"book:isbn:{isbn}".ToLowerInvariant();
+            }
+
+            var titleNorm = NormalizeName(book.Name);
+            return titleNorm.Length == 0
+                ? null
+                : $"book:name:{titleNorm}";
+        }
+
         if (item is Audio audio)
         {
             if (audio.ProviderIds.TryGetValue("MusicBrainzTrack", out var mbid) && !string.IsNullOrEmpty(mbid))
@@ -194,8 +207,29 @@ public sealed partial class DuplicateScanner : IScanner
         var candidates = new List<Candidate>();
         foreach (var (item, path) in group)
         {
-            var fileInfo = new FileInfo(path);
-            if (!fileInfo.Exists)
+            if (item is MediaBrowser.Controller.Entities.Book)
+            {
+                var fileInfo = new FileInfo(path);
+                if (!fileInfo.Exists)
+                {
+                    continue;
+                }
+
+                candidates.Add(new Candidate
+                {
+                    Item = item,
+                    Path = path,
+                    Size = fileInfo.Length,
+                    Pixels = 0,
+                    Codec = string.Empty,
+                    Bitrate = 0,
+                    Resolution = "book"
+                });
+                continue;
+            }
+
+            var fileInfo2 = new FileInfo(path);
+            if (!fileInfo2.Exists)
             {
                 continue;
             }
@@ -215,7 +249,7 @@ public sealed partial class DuplicateScanner : IScanner
             {
                 Item = item,
                 Path = path,
-                Size = fileInfo.Length,
+                Size = fileInfo2.Length,
                 Pixels = isAudioItem ? 0 : (long)(stream.Width ?? 0) * (stream.Height ?? 0),
                 Codec = stream.CodecName ?? string.Empty,
                 Bitrate = long.TryParse(stream.BitRate, NumberStyles.Integer, CultureInfo.InvariantCulture, out var b) ? b : 0,
