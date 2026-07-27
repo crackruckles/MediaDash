@@ -36,6 +36,13 @@ Bug fixes for these are the highest-priority PRs.
 - Plain-language UI copy over jargon; every destructive button states its consequence inline.
 - No hardcoded paths, drive letters, usernames, or English-only defaults.
 
+## Cross-ABI verification before a release
+
+MediaDash ships one binary that loads on both Jellyfin 10.11 and 12.0. See
+[`tools/verify-cross-abi.md`](tools/verify-cross-abi.md) for the manual audit + smoke-test steps
+to run before every release. This document is authoritative — do not merge a release without
+running through it.
+
 ## Releasing (maintainers only)
 
 ```
