@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using Jellyfin.Plugin.MediaDash.Data;
 using Jellyfin.Plugin.MediaDash.Probing;
 using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Entities.Audio;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
 using Microsoft.Extensions.Logging;
@@ -136,6 +137,29 @@ public sealed partial class DuplicateScanner : IScanner
                 : string.Create(CultureInfo.InvariantCulture, $"movie:name:{name}:{movie.ProductionYear}");
         }
 
+        if (item is Audio audio)
+        {
+            if (audio.ProviderIds.TryGetValue("MusicBrainzTrack", out var mbid) && !string.IsNullOrEmpty(mbid))
+            {
+                return $"audio:musicbrainztrack:{mbid}".ToLowerInvariant();
+            }
+
+            var artistNorm = NormalizeName(audio.Artists is { Count: > 0 } ? audio.Artists[0] : null);
+            var albumNorm = NormalizeName(audio.Album);
+            var titleNorm = NormalizeName(audio.Name);
+            if (titleNorm.Length == 0)
+            {
+                return null;
+            }
+
+            var seconds = audio.RunTimeTicks is long ticks && ticks > 0
+                ? (int)TimeSpan.FromTicks(ticks).TotalSeconds
+                : 0;
+            return string.Create(
+                CultureInfo.InvariantCulture,
+                $"audio:name:{artistNorm}:{albumNorm}:{titleNorm}:{seconds}");
+        }
+
         return null;
     }
 
@@ -177,8 +201,11 @@ public sealed partial class DuplicateScanner : IScanner
             }
 
             var probe = await _ffprobe.ProbeAsync(path, cancellationToken).ConfigureAwait(false);
-            var video = probe?.Streams?.FirstOrDefault(s => string.Equals(s.CodecType, "video", StringComparison.OrdinalIgnoreCase));
-            if (video is null)
+            var isAudioItem = item is Audio;
+            var stream = isAudioItem
+                ? probe?.Streams?.FirstOrDefault(s => string.Equals(s.CodecType, "audio", StringComparison.OrdinalIgnoreCase))
+                : probe?.Streams?.FirstOrDefault(s => string.Equals(s.CodecType, "video", StringComparison.OrdinalIgnoreCase));
+            if (stream is null)
             {
                 // Unreadable copies are the playability scanner's business; don't rank them here.
                 continue;
@@ -189,10 +216,12 @@ public sealed partial class DuplicateScanner : IScanner
                 Item = item,
                 Path = path,
                 Size = fileInfo.Length,
-                Pixels = (long)(video.Width ?? 0) * (video.Height ?? 0),
-                Codec = video.CodecName ?? string.Empty,
-                Bitrate = long.TryParse(video.BitRate, NumberStyles.Integer, CultureInfo.InvariantCulture, out var b) ? b : 0,
-                Resolution = $"{video.Width}x{video.Height}"
+                Pixels = isAudioItem ? 0 : (long)(stream.Width ?? 0) * (stream.Height ?? 0),
+                Codec = stream.CodecName ?? string.Empty,
+                Bitrate = long.TryParse(stream.BitRate, NumberStyles.Integer, CultureInfo.InvariantCulture, out var b) ? b : 0,
+                Resolution = isAudioItem
+                    ? (stream.CodecName ?? "audio")
+                    : $"{stream.Width}x{stream.Height}"
             });
         }
 

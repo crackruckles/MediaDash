@@ -3,6 +3,7 @@ using System.Linq;
 using Jellyfin.Plugin.MediaDash.Scanners;
 using MediaBrowser.Controller.Entities.Movies;
 using Xunit;
+using AudioEntity = MediaBrowser.Controller.Entities.Audio.Audio;
 
 namespace Jellyfin.Plugin.MediaDash.Tests;
 
@@ -119,5 +120,47 @@ public class DuplicateRankingTests
         var ranked = DuplicateScanner.Rank(candidates, DefaultPolicy, DefaultCodecs);
         Assert.Equal("b", ranked[0].Path);
         Assert.Equal(2, ranked.Skip(1).Count());
+    }
+
+    [Fact]
+    public void GetGroupKey_Audio_UsesMusicBrainzTrackId_WhenPresent()
+    {
+        var audio = new AudioEntity
+        {
+            Name = "Song",
+            Album = "Album",
+            Artists = new System.Collections.Generic.List<string> { "Artist" },
+            ProviderIds = new System.Collections.Generic.Dictionary<string, string> { ["MusicBrainzTrack"] = "MB-123" }
+        };
+
+        var key = DuplicateScanner.GetGroupKey(audio);
+        Assert.Equal("audio:musicbrainztrack:mb-123", key);
+    }
+
+    [Fact]
+    public void GetGroupKey_Audio_FallsBackToArtistAlbumTitleDuration()
+    {
+        var audio = new AudioEntity
+        {
+            Name = "Blue in Green",
+            Album = "Kind of Blue",
+            Artists = new System.Collections.Generic.List<string> { "Miles Davis" },
+            RunTimeTicks = System.TimeSpan.FromSeconds(337).Ticks
+        };
+
+        var key = DuplicateScanner.GetGroupKey(audio);
+        Assert.Equal("audio:name:milesdavis:kindofblue:blueingreen:337", key);
+    }
+
+    [Fact]
+    public void GetGroupKey_Audio_ReturnsNullWhenTitleMissing()
+    {
+        var audio = new AudioEntity
+        {
+            Album = "Album",
+            Artists = new System.Collections.Generic.List<string> { "Artist" }
+        };
+
+        Assert.Null(DuplicateScanner.GetGroupKey(audio));
     }
 }
