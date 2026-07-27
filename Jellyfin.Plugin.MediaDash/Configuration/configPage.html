@@ -1393,7 +1393,8 @@
                 restored: 'Restored.',
                 restoreFailed: 'Could not restore: {0}',
                 spaceSavedToDate: 'Space saved to date: {0}',
-                savedOverTime: 'Space saved over time',
+                savedPerLibrary: 'Saved per library',
+                unassignedLibrary: 'Unassigned',
                 dryRunBadge: 'dry run',
                 saved: 'Saved.',
                 confirmAuto: 'Automatic mode will change files every night without asking. Removed files go to the recycle bin (unless set to permanent delete). Continue?',
@@ -1622,25 +1623,6 @@
                         ' stroke-dasharray="' + (frac * c - 1.5) + ' ' + (c - frac * c + 1.5) + '"' +
                         ' stroke-dashoffset="' + offset + '"></circle>';
                     offset -= frac * c;
-                });
-                svg += '</svg>';
-                return svg;
-            }
-
-            function areaChartSvg(points, width, height) {
-                if (points.length < 2) return '';
-                var max = points[points.length - 1].y || 1;
-                var px = function (i) { return (i / (points.length - 1)) * (width - 20) + 10; };
-                var py = function (v) { return height - 22 - (v / max) * (height - 40); };
-                var line = points.map(function (p, i) { return (i ? 'L' : 'M') + px(i).toFixed(1) + ' ' + py(p.y).toFixed(1); }).join(' ');
-                var area = line + ' L' + px(points.length - 1).toFixed(1) + ' ' + (height - 22) + ' L10 ' + (height - 22) + ' Z';
-                var svg = '<svg width="100%" viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none" style="max-height:' + height + 'px;">' +
-                    '<defs><linearGradient id="mdGrad" x1="0" y1="0" x2="0" y2="1">' +
-                    '<stop offset="0%" stop-color="#00a4dc" stop-opacity=".45"/><stop offset="100%" stop-color="#00a4dc" stop-opacity="0"/></linearGradient></defs>' +
-                    '<path d="' + area + '" fill="url(#mdGrad)"></path>' +
-                    '<path d="' + line + '" fill="none" stroke="#00a4dc" stroke-width="2.5" stroke-linejoin="round"></path>';
-                points.forEach(function (p, i) {
-                    svg += '<circle cx="' + px(i).toFixed(1) + '" cy="' + py(p.y).toFixed(1) + '" r="3" fill="#00a4dc"></circle>';
                 });
                 svg += '</svg>';
                 return svg;
@@ -2150,24 +2132,28 @@
                 full.forEach(function (h) { if (!h.WasDryRun && h.Success) saved += h.BytesFreed; });
                 view.querySelector('#mdHistorySummary').textContent = saved > 0 ? fmt(STR.spaceSavedToDate, bytes(saved)) : '';
 
-                // Chart always reflects total savings across every real fix — filter only narrows the row list.
+                // Per-library saved totals, sorted highest → lowest so the biggest wins lead.
+                // Filter only narrows the row list below; this always aggregates every real fix.
                 var chartEl = view.querySelector('#mdHistoryChart');
-                var real = full.filter(function (h) { return !h.WasDryRun && h.Success && h.BytesFreed > 0; })
-                    .sort(function (a, b) { return new Date(a.FixedAtUtc) - new Date(b.FixedAtUtc); });
-                if (real.length >= 2) {
-                    var cum = 0;
-                    var points = real.map(function (h) { cum += h.BytesFreed; return { y: cum }; });
-                    var diskHtml = '';
-                    if (lastStatus && lastStatus.TotalDiskBytes > 0) {
-                        var usedPct = Math.round((lastStatus.TotalDiskBytes - lastStatus.FreeDiskBytes) / lastStatus.TotalDiskBytes * 100);
-                        diskHtml = '<div style="margin-top:.8em;">' +
-                            '<div class="fieldDescription" style="margin-bottom:.3em;">' + esc(fmt(STR.diskContext, bytes(lastStatus.FreeDiskBytes), bytes(lastStatus.TotalDiskBytes))) + '</div>' +
-                            '<div class="mdBarTrack" style="height:10px;"><div class="mdBarFill" style="width:' + usedPct + '%;background:linear-gradient(90deg,#00a4dc,#8b5cf6);"></div></div>' +
-                            '</div>';
-                    }
-                    chartEl.innerHTML = '<div class="mdCard mdFade"><h3 style="margin:.1em 0 .4em;">' + esc(STR.savedOverTime) + '</h3>' +
-                        '<div class="fieldDescription" style="margin-bottom:.4em;">' + bytes(cum) + ' total saved</div>' +
-                        areaChartSvg(points, 640, 160) + diskHtml + '</div>';
+                var byLib = {};
+                full.forEach(function (h) {
+                    if (h.WasDryRun || !h.Success || !h.BytesFreed) return;
+                    var key = h.Library || STR.unassignedLibrary;
+                    byLib[key] = (byLib[key] || 0) + h.BytesFreed;
+                });
+                var libRows = Object.keys(byLib).map(function (k) { return { name: k, saved: byLib[k] }; })
+                    .sort(function (a, b) { return b.saved - a.saved; });
+                if (libRows.length) {
+                    var maxSaved = libRows[0].saved || 1;
+                    chartEl.innerHTML = '<div class="mdCard mdFade"><h3 style="margin:.1em 0 .7em;">' + esc(STR.savedPerLibrary) + '</h3>' +
+                        libRows.map(function (r) {
+                            var pct = Math.max(3, Math.round(r.saved / maxSaved * 100));
+                            return '<div class="mdBarRow">' +
+                                '<div class="mdBarLabel">' + esc(r.name) + '</div>' +
+                                '<div class="mdBarTrack"><div class="mdBarFill" style="width:' + pct + '%;background:linear-gradient(90deg,#00a4dc,#8b5cf6);"></div></div>' +
+                                '<div class="mdBarValue">' + bytes(r.saved) + '</div>' +
+                                '</div>';
+                        }).join('') + '</div>';
                 } else {
                     chartEl.innerHTML = '';
                 }

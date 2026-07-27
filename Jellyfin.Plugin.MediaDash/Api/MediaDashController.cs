@@ -398,7 +398,41 @@ public class MediaDashController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult<IReadOnlyList<HistoryDto>> GetHistory()
     {
-        return Ok(_db.GetHistory().Select(HistoryDto.FromEntry).ToList());
+        // Cache library locations once per request so per-row lookup is a linear scan over a small
+        // in-memory list, not a fresh call into ILibraryManager for every history row.
+        var libraryLocations = _libraryManager.GetVirtualFolders()
+            .SelectMany(f => (f.Locations ?? []).Select(l => (Name: f.Name, Root: Path.TrimEndingDirectorySeparator(Path.GetFullPath(l)))))
+            .ToList();
+
+        return Ok(_db.GetHistory().Select(entry =>
+        {
+            var dto = HistoryDto.FromEntry(entry);
+            dto.Library = ResolveLibraryName(entry.Path, libraryLocations);
+            return dto;
+        }).ToList());
+    }
+
+    private static string ResolveLibraryName(string path, List<(string Name, string Root)> libraries)
+    {
+        string fullPath;
+        try
+        {
+            fullPath = Path.GetFullPath(path);
+        }
+        catch (ArgumentException)
+        {
+            return string.Empty;
+        }
+
+        foreach (var (name, root) in libraries)
+        {
+            if (LibraryGuard.IsUnder(fullPath, root))
+            {
+                return name;
+            }
+        }
+
+        return string.Empty;
     }
 
     /// <summary>

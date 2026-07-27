@@ -24,6 +24,12 @@ public sealed class HistoryDto
     public string FileName { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the name of the Jellyfin library the affected file belongs to.
+    /// Empty when the path isn't inside a known virtual folder (e.g. post-upgrade cleanup rows).
+    /// </summary>
+    public string Library { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the plain-language description of what was done.
     /// </summary>
     public string Action { get; set; } = string.Empty;
