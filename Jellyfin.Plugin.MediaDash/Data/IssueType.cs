@@ -27,5 +27,8 @@ public enum IssueType
     MissingSubtitles = 6,
 
     /// <summary>The file has existed on the server longer than the stale threshold and no user has played it within that window.</summary>
-    Stale = 7
+    Stale = 7,
+
+    /// <summary>Local artwork (poster / backdrop / thumb) is zero-byte, truncated, or fails to decode.</summary>
+    CorruptArtwork = 8
 }
