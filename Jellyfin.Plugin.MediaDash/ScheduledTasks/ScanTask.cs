@@ -72,9 +72,18 @@ public sealed class ScanTask : IScheduledTask
             return;
         }
 
+        // ponytail: widened for v0.9 to include non-video kinds (music, audiobook, book, comic)
         var items = _libraryManager.GetItemList(new InternalItemsQuery
         {
-            IncludeItemTypes = [BaseItemKind.Movie, BaseItemKind.Episode],
+            IncludeItemTypes =
+            [
+                BaseItemKind.Movie,
+                BaseItemKind.Episode,
+                BaseItemKind.Audio,
+                BaseItemKind.AudioBook,
+                BaseItemKind.Book,
+                BaseItemKind.MusicVideo
+            ],
             IsVirtualItem = false,
             Recursive = true
         });
