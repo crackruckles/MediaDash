@@ -20,6 +20,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<MediaDashDb>();
         serviceCollection.AddSingleton<FfprobeService>();
         serviceCollection.AddSingleton<BookProbeService>();
+        serviceCollection.AddSingleton<ComicProbeService>();
         serviceCollection.AddSingleton<IScanner, DuplicateScanner>();
         serviceCollection.AddSingleton<IScanner, PlayabilityScanner>();
         serviceCollection.AddSingleton<IScanner, QualityScanner>();

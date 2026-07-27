@@ -18,17 +18,20 @@ namespace Jellyfin.Plugin.MediaDash.Scanners;
 public sealed class PlayabilityScanner : ProbingScannerBase
 {
     private readonly Probing.BookProbeService _bookProbe;
+    private readonly Probing.ComicProbeService _comicProbe;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PlayabilityScanner"/> class.
     /// </summary>
     /// <param name="ffprobe">The probe service.</param>
     /// <param name="bookProbe">The book probe service.</param>
+    /// <param name="comicProbe">The comic probe service.</param>
     /// <param name="logger">The logger.</param>
-    public PlayabilityScanner(FfprobeService ffprobe, Probing.BookProbeService bookProbe, ILogger<PlayabilityScanner> logger)
+    public PlayabilityScanner(FfprobeService ffprobe, Probing.BookProbeService bookProbe, Probing.ComicProbeService comicProbe, ILogger<PlayabilityScanner> logger)
         : base(ffprobe, logger)
     {
         _bookProbe = bookProbe;
+        _comicProbe = comicProbe;
     }
 
     /// <inheritdoc />
@@ -63,8 +66,23 @@ public sealed class PlayabilityScanner : ProbingScannerBase
 
         if (item is MediaBrowser.Controller.Entities.Book)
         {
-            var bp = await _bookProbe.ProbeAsync(path, cancellationToken).ConfigureAwait(false);
-            if (bp.Ok)
+            var ext = System.IO.Path.GetExtension(path).ToLowerInvariant();
+            bool ok;
+            string? probeReason;
+            if (ext is ".cbz" or ".cbr" or ".cb7")
+            {
+                var cp = await _comicProbe.ProbeAsync(path, cancellationToken).ConfigureAwait(false);
+                ok = cp.Ok;
+                probeReason = cp.Reason;
+            }
+            else
+            {
+                var bp = await _bookProbe.ProbeAsync(path, cancellationToken).ConfigureAwait(false);
+                ok = bp.Ok;
+                probeReason = bp.Reason;
+            }
+
+            if (ok)
             {
                 return null;
             }
@@ -80,8 +98,8 @@ public sealed class PlayabilityScanner : ProbingScannerBase
 
             return new Issue
             {
-                DetailsJson = JsonSerializer.Serialize(new { reason = "book-corrupt", detail = bp.Reason }),
-                SuggestedFix = "This book file can't be read. Approve to remove it — it goes to the recycle bin first unless you chose permanent delete.",
+                DetailsJson = JsonSerializer.Serialize(new { reason = "book-or-comic-corrupt", detail = probeReason }),
+                SuggestedFix = "This file can't be read. Approve to remove it — it goes to the recycle bin first unless you chose permanent delete.",
                 SizeSavings = bookSize
             };
         }
