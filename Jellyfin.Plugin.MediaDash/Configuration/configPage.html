@@ -2225,7 +2225,7 @@
                 FIX_TYPES.forEach(function (t) {
                     var meta = STR.types[t.key];
                     var disposalBlock = t.disposal
-                        ? ('<div class="selectContainer" style="min-width:15em;flex:1;">' +
+                        ? ('<div class="selectContainer" style="min-width:0;">' +
                             '<label class="selectLabel" for="mdDisposal' + t.key + '">What to do</label>' +
                             '<select is="emby-select" id="mdDisposal' + t.key + '" class="emby-select-withcolor emby-select">' + disposalOptions(t.key) + '</select>' +
                             '</div>')
@@ -2244,9 +2244,11 @@
                             '</div>';
                     }
                     html += '<div class="mdCard" style="margin-bottom:.7em;border-left:4px solid ' + meta.color + ';">' +
-                        '<div style="font-weight:600;margin-bottom:.4em;"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;color:' + meta.color + ';">' + meta.icon + '</span> ' + esc(meta.title) + '</div>' +
-                        '<div style="display:flex;gap:1em;flex-wrap:wrap;">' +
-                        '<div class="selectContainer" style="min-width:15em;flex:1;">' +
+                        '<div style="font-weight:600;margin-bottom:.4em;color:' + meta.color + ';"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;color:' + meta.color + ';">' + meta.icon + '</span> ' + esc(meta.title) + '</div>' +
+                        // Two-column grid keeps "How it runs" the same width across every card, whether the
+                        // scanner has a disposal option or not. Single-dropdown cards leave the right slot empty.
+                        '<div style="display:grid;grid-template-columns:repeat(2,minmax(15em,1fr));gap:1em;">' +
+                        '<div class="selectContainer" style="min-width:0;">' +
                         '<label class="selectLabel" for="mdMode' + t.key + '">How it runs</label>' +
                         '<select is="emby-select" id="mdMode' + t.key + '" class="emby-select-withcolor emby-select">' + modeOptions() + '</select>' +
                         '</div>' +
