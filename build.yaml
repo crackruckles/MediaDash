@@ -1,7 +1,7 @@
 ---
 name: "MediaDash"
 guid: "38bdb090-b763-4294-934b-b54ade4d9d6d"
-version: "0.6.1.0"
+version: "0.9.0.0"
 targetAbi: "10.11.0.0"
 framework: "net9.0"
 overview: "The one plugin a Jellyfin library owner needs: finds duplicates, broken files, oversized encodes, unwanted or missing language tracks, and misplaced files — then fixes them safely."
