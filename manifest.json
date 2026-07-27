@@ -9,6 +9,22 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.8.4.0",
+        "changelog": "History tab: replaced the cumulative savings chart with a per-library saved-bytes breakdown, sorted highest to lowest, so you can see which library each fixer has helped most. New GitHub Pages landing at crackruckles.github.io/MediaDash.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.8.4/mediadash_0.8.4.zip",
+        "checksum": "b82eedfb92953e85b3c6a32ff1b1d9d8",
+        "timestamp": "2026-07-27T02:41:12Z"
+      },
+      {
+        "version": "0.8.4.0",
+        "changelog": "History tab: replaced the cumulative savings chart with a per-library saved-bytes breakdown, sorted highest to lowest, so you can see which library each fixer has helped most. New GitHub Pages landing at crackruckles.github.io/MediaDash.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.8.4/mediadash_0.8.4.zip",
+        "checksum": "b82eedfb92953e85b3c6a32ff1b1d9d8",
+        "timestamp": "2026-07-27T02:41:12Z"
+      },
+      {
         "version": "0.8.3.0",
         "changelog": "Overview reclaim card is now a split hero with two donuts. Left side \"Space you could reclaim\" (open issues, cyan) has a donut sized by issue count with a per-type legend. Right side \"Reclaimed since install\" (green) has a donut sized by bytes-freed-per-type so you can see at a glance which fixer has done the most disk-wise (e.g. 7.6 MB Quality re-encodes, 684 KB post-v12 cleanup). Post-Jellyfin-12 one-shot cleanup: a purple banner appears on Overview for hosts running Jellyfin 12+ (once, until you run or dismiss it) offering to sweep orphaned trickplay image folders that survived the 10 to 12 library rewrite. The reclaim lands in History and adds to the lifetime tally. Errors tab: friendly per-error titles + actionable hints in an amber box telling you what to check. The raw source code and exception message collapse behind a Technical detail toggle so bug reports still have everything but day-to-day reading is a lot easier. Setup wizard defaults the stale-content threshold to 365 days when the scanner is off; a previously-saved value only surfaces if you have already opted in.",
         "targetAbi": "12.0.0.0",
@@ -291,6 +307,7 @@
     ]
   }
 ]
+
 
 
 
