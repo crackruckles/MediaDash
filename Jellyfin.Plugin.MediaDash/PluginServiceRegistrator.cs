@@ -25,12 +25,14 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IScanner, SubtitleLanguageScanner>();
         serviceCollection.AddSingleton<IScanner, AudioLanguageScanner>();
         serviceCollection.AddSingleton<IScanner, MediaSorterScanner>();
+        serviceCollection.AddSingleton<IScanner, ArtworkScanner>();
         serviceCollection.AddSingleton<IScanner, MissingSubtitleScanner>();
         serviceCollection.AddSingleton<IScanner, StaleContentScanner>();
         serviceCollection.AddSingleton<LibraryGuard>();
         serviceCollection.AddSingleton<RecycleBin>();
         serviceCollection.AddSingleton<FfmpegExecutor>();
         serviceCollection.AddSingleton<OutputVerifier>();
+        serviceCollection.AddSingleton<IFixer, ArtworkFixer>();
         serviceCollection.AddSingleton<IFixer, DuplicateFixer>();
         serviceCollection.AddSingleton<IFixer, TrackFixer>();
         serviceCollection.AddSingleton<IFixer, TranscodeFixer>();

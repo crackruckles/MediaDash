@@ -20,6 +20,7 @@ public sealed class FixTask : IScheduledTask
 {
     private static readonly IssueType[] FixableTypes =
     [
+        IssueType.CorruptArtwork,
         IssueType.Duplicate,
         IssueType.Quality,
         IssueType.SubtitleLanguage,
