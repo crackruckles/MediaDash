@@ -26,6 +26,8 @@
     </PackageReference>
     <!-- Windows-only. Referenced everywhere at compile time; runtime code gates by OS so Linux/macOS don't load it. -->
     <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="9.0.0" />
+    <!-- Jellyfin does not ship SkiaSharp transitively; needed for artwork decode validation. -->
+    <PackageReference Include="SkiaSharp" Version="2.88.9" />
   </ItemGroup>
 
   <ItemGroup>
