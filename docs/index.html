@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MediaDash — Jellyfin library maintenance, on autopilot</title>
+    <meta name="description" content="Duplicates, broken files, oversized encodes, wrong-language tracks, misplaced files, missing subtitles, stale content — one dashboard, fixed safely on your schedule.">
+    <link rel="icon" type="image/png" href="logo.png">
+    <meta property="og:title" content="MediaDash — the one plugin a Jellyfin library owner needs">
+    <meta property="og:description" content="Finds duplicates, broken files, oversized encodes and unwanted tracks. Fixes them safely, on your schedule.">
+    <meta property="og:image" content="overview.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0f1116;
+            --bg-elev: rgba(255,255,255,.03);
+            --card: rgba(255,255,255,.045);
+            --card-hover: rgba(255,255,255,.07);
+            --border: rgba(255,255,255,.09);
+            --border-strong: rgba(255,255,255,.2);
+            --text: #e6edf3;
+            --mute: rgba(230,237,243,.62);
+            --mute-strong: rgba(230,237,243,.8);
+            --primary: #00a4dc;
+            --primary-bright: #22d3ee;
+            --accent: #8b5cf6;
+            --amber: #f59e0b;
+            --green: #22c55e;
+            --red: #ef4444;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 16px;
+            line-height: 1.55;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            background:
+                radial-gradient(60em 30em at 15% -10%, rgba(0,164,220,.16), transparent 60%),
+                radial-gradient(50em 30em at 90% 5%, rgba(139,92,246,.14), transparent 60%);
+        }
+
+        main, header, footer { position: relative; z-index: 1; }
+
+        a { color: var(--primary-bright); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        .wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+        /* Hero */
+        header.hero { padding: 5em 0 3.5em; text-align: center; }
+        .hero img.logo { width: 128px; height: 128px; display: block; margin: 0 auto 1.2em; }
+        .hero h1 {
+            font-size: clamp(2.4em, 5vw, 3.6em);
+            font-weight: 800;
+            letter-spacing: -.03em;
+            margin: 0 0 .3em;
+            background: linear-gradient(90deg, #ffffff 0%, #a8d8ee 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .hero .tagline {
+            font-size: 1.25em;
+            color: var(--mute-strong);
+            max-width: 42em;
+            margin: 0 auto 1.5em;
+        }
+        .badges { display: flex; justify-content: center; gap: .5em; flex-wrap: wrap; margin: 1.2em 0 2em; }
+        .badges img { height: 22px; }
+        .cta {
+            display: inline-flex; align-items: center; gap: .5em;
+            padding: .8em 1.6em;
+            background: linear-gradient(135deg, #00a4dc, #0891b2);
+            color: #fff;
+            border-radius: 999px;
+            font-weight: 700;
+            font-size: 1.02em;
+            transition: transform .15s ease, box-shadow .15s ease;
+            box-shadow: 0 4px 20px rgba(0,164,220,.35);
+        }
+        .cta:hover { transform: translateY(-1px); text-decoration: none; box-shadow: 0 6px 24px rgba(0,164,220,.5); }
+        .cta.secondary {
+            background: transparent;
+            border: 1px solid var(--border-strong);
+            box-shadow: none;
+            color: var(--text);
+        }
+        .cta.secondary:hover { background: rgba(255,255,255,.05); }
+        .cta-row { display: flex; gap: .8em; justify-content: center; flex-wrap: wrap; }
+
+        .hero-shot { margin: 3em auto 0; max-width: 1000px; }
+        .hero-shot img {
+            width: 100%; height: auto; display: block;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            box-shadow: 0 30px 80px rgba(0,0,0,.5);
+        }
+
+        /* Sections */
+        section { padding: 3.5em 0; }
+        .sec-head {
+            display: flex; align-items: center; gap: .5em;
+            border-left: 5px solid var(--primary);
+            border-radius: 5px;
+            padding: .3em .8em;
+            margin: 0 0 1.4em;
+            font-size: 1.6em; font-weight: 700;
+            letter-spacing: -.01em;
+        }
+        .sec-head.purple { border-left-color: var(--accent); }
+        .sec-head.amber { border-left-color: var(--amber); }
+        .sec-head.green { border-left-color: var(--green); }
+        .sec-sub { color: var(--mute); margin: -.6em 0 1.6em; font-size: 1.02em; }
+
+        /* Cards */
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 1.4em 1.6em;
+            transition: border-color .15s ease, transform .15s ease;
+        }
+        .card:hover { border-color: var(--border-strong); }
+
+        /* Install */
+        .install-card {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 1.5em;
+            align-items: center;
+        }
+        .install-card .step {
+            width: 2.4em; height: 2.4em;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #00a4dc, #8b5cf6);
+            color: #fff; font-weight: 700; border-radius: 999px;
+            flex-shrink: 0;
+        }
+        .install-card + .install-card { margin-top: .8em; }
+        .repo-url {
+            display: flex;
+            align-items: center;
+            gap: .6em;
+            font-family: ui-monospace, 'Cascadia Mono', 'SF Mono', Consolas, monospace;
+            font-size: .95em;
+            background: rgba(0,164,220,.08);
+            border: 1px solid rgba(0,164,220,.28);
+            border-radius: 10px;
+            padding: .55em .9em;
+            margin: .6em 0 0;
+            word-break: break-all;
+        }
+        .repo-url code { flex: 1; color: var(--primary-bright); }
+        .copy-btn {
+            background: transparent;
+            border: 1px solid var(--border-strong);
+            color: var(--text);
+            font: inherit;
+            font-size: .82em;
+            padding: .3em .8em;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background .15s;
+        }
+        .copy-btn:hover { background: rgba(255,255,255,.06); }
+        .copy-btn.copied { background: rgba(34,197,94,.2); border-color: rgba(34,197,94,.5); }
+
+        /* Feature table */
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1em;
+        }
+        .feature {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--primary);
+            border-radius: 12px;
+            padding: 1.1em 1.3em;
+        }
+        .feature h3 {
+            margin: 0 0 .4em;
+            font-size: 1.05em;
+            display: flex; align-items: center; gap: .5em;
+        }
+        .feature h3 .material-icons { font-size: 1.3em; color: var(--primary-bright); }
+        .feature p { margin: 0; color: var(--mute-strong); font-size: .96em; }
+        .feature .fix { display: block; margin-top: .5em; font-size: .88em; color: var(--mute); }
+        .feature .fix strong { color: var(--primary-bright); font-weight: 600; }
+
+        /* Walkthrough */
+        .walk { display: grid; gap: 2.5em; }
+        .walk-step {
+            display: grid;
+            grid-template-columns: 1fr 1.4fr;
+            gap: 2em;
+            align-items: center;
+        }
+        .walk-step.reverse { grid-template-columns: 1.4fr 1fr; }
+        .walk-step.reverse .walk-text { order: 2; }
+        .walk-num {
+            font-size: 3.4em; font-weight: 800; line-height: 1;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin: 0 0 .1em;
+            letter-spacing: -.04em;
+        }
+        .walk-text h3 { margin: .2em 0 .5em; font-size: 1.5em; font-weight: 700; letter-spacing: -.01em; }
+        .walk-text p { margin: 0; color: var(--mute-strong); font-size: 1.05em; }
+        .walk-shot img {
+            width: 100%; height: auto; display: block;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            box-shadow: 0 20px 50px rgba(0,0,0,.4);
+        }
+
+        /* Trust */
+        .trust-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 1em;
+        }
+        .trust {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.1em 1.3em;
+        }
+        .trust .material-icons {
+            display: block;
+            font-size: 1.6em;
+            margin-bottom: .3em;
+            color: var(--primary-bright);
+        }
+        .trust strong { display: block; margin-bottom: .2em; }
+        .trust p { margin: 0; color: var(--mute); font-size: .95em; }
+
+        /* FAQ */
+        .faq { display: grid; gap: .8em; }
+        details.faq-item {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: .1em 1.3em;
+            transition: border-color .15s;
+        }
+        details.faq-item[open] { border-color: var(--border-strong); }
+        details.faq-item summary {
+            list-style: none;
+            padding: 1em 0;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1em;
+        }
+        details.faq-item summary::-webkit-details-marker { display: none; }
+        details.faq-item summary::after {
+            content: 'expand_more';
+            font-family: 'Material Icons';
+            color: var(--primary-bright);
+            transition: transform .2s;
+        }
+        details.faq-item[open] summary::after { transform: rotate(180deg); }
+        details.faq-item .faq-body {
+            padding: 0 0 1.1em;
+            color: var(--mute-strong);
+        }
+
+        /* Footer */
+        footer {
+            padding: 3em 0 4em;
+            border-top: 1px solid var(--border);
+            margin-top: 2em;
+            color: var(--mute);
+            font-size: .95em;
+            text-align: center;
+        }
+        footer .links { margin-bottom: .8em; }
+        footer .links a { margin: 0 .8em; }
+
+        /* Responsive */
+        @media (max-width: 720px) {
+            header.hero { padding: 3em 0 2em; }
+            section { padding: 2.5em 0; }
+            .walk-step, .walk-step.reverse {
+                grid-template-columns: 1fr;
+                gap: 1em;
+            }
+            .walk-step.reverse .walk-text { order: initial; }
+            .install-card {
+                grid-template-columns: 1fr;
+                gap: .8em;
+                text-align: center;
+            }
+            .install-card .step { margin: 0 auto; }
+        }
+    </style>
+</head>
+<body>
+    <header class="hero">
+        <div class="wrap">
+            <img src="logo.png" alt="MediaDash logo" class="logo">
+            <h1>MediaDash</h1>
+            <p class="tagline">The one plugin a Jellyfin library owner needs. Duplicates, broken files, oversized encodes, wrong-language tracks, misplaced files, missing subtitles, stale content — surfaced on one dashboard and fixed safely on your schedule.</p>
+            <div class="badges">
+                <a href="https://github.com/crackruckles/MediaDash/actions/workflows/ci.yaml"><img src="https://github.com/crackruckles/MediaDash/actions/workflows/ci.yaml/badge.svg" alt="CI status"></a>
+                <a href="https://github.com/crackruckles/MediaDash/releases/latest"><img src="https://img.shields.io/github/v/release/crackruckles/MediaDash?label=release&amp;color=00a4dc" alt="Latest release"></a>
+                <a href="https://jellyfin.org"><img src="https://img.shields.io/badge/jellyfin-10.11%20%7C%2012.0-aa5cc3" alt="Jellyfin 10.11 or 12.0"></a>
+                <a href="https://github.com/crackruckles/MediaDash/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-GPLv3-blue" alt="GPLv3 license"></a>
+            </div>
+            <div class="cta-row">
+                <a class="cta" href="#install"><span class="material-icons">download</span>Install in 30 seconds</a>
+                <a class="cta secondary" href="https://github.com/crackruckles/MediaDash"><span class="material-icons">code</span>View on GitHub</a>
+            </div>
+            <div class="hero-shot">
+                <img src="overview.png" alt="MediaDash overview dashboard showing system stats, drive usage and open issues by type">
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section id="install">
+            <div class="wrap">
+                <h2 class="sec-head">Install</h2>
+                <p class="sec-sub">Requires Jellyfin <strong>10.11+</strong> or <strong>12.0+</strong>. One binary covers both host lines.</p>
+
+                <div class="card install-card">
+                    <div class="step">1</div>
+                    <div>
+                        <strong>Add the repository</strong>
+                        <div style="color:var(--mute);margin-top:.2em;">In Jellyfin: <b>Dashboard → Plugins → Repositories → +</b> and paste this URL:</div>
+                        <div class="repo-url">
+                            <code id="repoUrl">https://raw.githubusercontent.com/crackruckles/MediaDash/main/manifest.json</code>
+                            <button class="copy-btn" type="button" onclick="copyRepoUrl(this)">Copy</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card install-card">
+                    <div class="step">2</div>
+                    <div>
+                        <strong>Install from the Catalog</strong>
+                        <div style="color:var(--mute);margin-top:.2em;">Open the <b>Catalog</b>, find <b>MediaDash</b>, click <b>Install</b>, then restart Jellyfin.</div>
+                    </div>
+                </div>
+
+                <div class="card install-card">
+                    <div class="step">3</div>
+                    <div>
+                        <strong>Open MediaDash</strong>
+                        <div style="color:var(--mute);margin-top:.2em;"><b>Dashboard → My Plugins → MediaDash</b> — the first-run wizard walks you through each feature, one step at a time.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <div class="wrap">
+                <h2 class="sec-head purple">What it finds &amp; fixes</h2>
+                <p class="sec-sub">Every fix type runs independently: Off · Detect only · Ask me first · Automatic.</p>
+
+                <div class="features">
+                    <div class="feature"><h3><span class="material-icons">content_copy</span>Duplicate copies</h3><p>Same movie or episode twice — matched by TMDb/IMDb/TVDb id, or name + year.</p><span class="fix"><strong>Fix:</strong> deletes the worse copy — you choose what "worse" means.</span></div>
+                    <div class="feature" style="border-left-color:var(--red);"><h3><span class="material-icons" style="color:#f87171;">block</span>Files that won't play</h3><p>Broken / unreadable files. Every file is test-played at start, middle and end.</p><span class="fix"><strong>Fix:</strong> removes them, after re-checking they're really broken.</span></div>
+                    <div class="feature" style="border-left-color:var(--amber);"><h3><span class="material-icons" style="color:#fbbf24;">compress</span>Oversized encodes</h3><p>Anything above your resolution or bitrate ceiling.</p><span class="fix"><strong>Fix:</strong> re-encodes to your chosen codec + container (GPU-accelerated).</span></div>
+                    <div class="feature" style="border-left-color:var(--accent);"><h3><span class="material-icons" style="color:#c084fc;">subtitles</span>Unwanted subtitles</h3><p>Embedded tracks and external files in languages you don't keep.</p><span class="fix"><strong>Fix:</strong> lossless remux — no quality loss.</span></div>
+                    <div class="feature" style="border-left-color:var(--accent);"><h3><span class="material-icons" style="color:#c084fc;">volume_up</span>Unwanted audio</h3><p>Extra audio tracks outside your language list.</p><span class="fix"><strong>Fix:</strong> lossless remux — never touches a file's only audio track.</span></div>
+                    <div class="feature" style="border-left-color:var(--green);"><h3><span class="material-icons" style="color:#4ade80;">closed_caption</span>Missing subtitles</h3><p>Videos with no subtitle in any language you keep.</p><span class="fix"><strong>Fix:</strong> downloads via Jellyfin's configured providers (OpenSubtitles, etc.).</span></div>
+                    <div class="feature"><h3><span class="material-icons">drive_file_move</span>Misplaced files</h3><p>A movie under TV, or a TV episode under Movies.</p><span class="fix"><strong>Fix:</strong> moves it into the right library folder.</span></div>
+                    <div class="feature" style="border-left-color:var(--mute);"><h3><span class="material-icons" style="color:#94a3b8;">schedule</span>Stale content</h3><p>Media nobody has played in your configured window (default 365 days).</p><span class="fix"><strong>Detect-only</strong> — surfaces the list so you decide.</span></div>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <div class="wrap">
+                <h2 class="sec-head">A tour, tab by tab</h2>
+                <p class="sec-sub">Four tabs, one dashboard. Here's what each one is for.</p>
+
+                <div class="walk">
+                    <div class="walk-step">
+                        <div class="walk-text">
+                            <div class="walk-num">01</div>
+                            <h3>Overview — the at-a-glance page</h3>
+                            <p>Live CPU / RAM / GPU stats, per-drive free space (with library drives flagged), and a savings breakdown by issue type. Click any bar to jump straight to those issues.</p>
+                        </div>
+                        <div class="walk-shot"><img src="overview.png" alt="Overview tab: system stats, drive usage and savings-by-type bars"></div>
+                    </div>
+
+                    <div class="walk-step reverse">
+                        <div class="walk-shot"><img src="issues.png" alt="Issues tab: detected problems with one-click actions"></div>
+                        <div class="walk-text">
+                            <div class="walk-num">02</div>
+                            <h3>Issues — approve or dismiss</h3>
+                            <p>Everything the scanner found, grouped by type, with a clear one-line action for each. Approve to queue a fix, dismiss to hide, or bulk-select for larger batches. Dry-run mode is on by default so you can preview every fix before it touches a file.</p>
+                        </div>
+                    </div>
+
+                    <div class="walk-step">
+                        <div class="walk-text">
+                            <div class="walk-num">03</div>
+                            <h3>History — what was done, and undo</h3>
+                            <p>Every fix MediaDash has run, filterable by outcome (succeeded, failed, dry run). Bytes saved per library so you can see where the wins came from. Removed files land in a 30-day recycle bin with one-click Restore.</p>
+                        </div>
+                        <div class="walk-shot"><img src="history.png" alt="History tab: per-library savings and per-fix Restore buttons"></div>
+                    </div>
+
+                    <div class="walk-step reverse">
+                        <div class="walk-shot"><img src="settings.png" alt="Settings tab: per-issue-type fix modes"></div>
+                        <div class="walk-text">
+                            <div class="walk-num">04</div>
+                            <h3>Settings — one knob per fix type</h3>
+                            <p>Each fix type gets its own row with the same four choices: <b>Off</b>, <b>Detect only</b>, <b>Ask me first</b>, or <b>Automatic</b>. Removed files can go to the recycle bin (default) or be deleted permanently. Language lists, resolution ceiling, target codec and hardware encoder settings all live here.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <div class="wrap">
+                <h2 class="sec-head green">Built to be trusted with your media</h2>
+                <div class="trust-list">
+                    <div class="trust"><span class="material-icons" style="color:#4ade80;">shield</span><strong>Dry-run by default</strong><p>Fix runs only log what they <em>would</em> do until you say otherwise.</p></div>
+                    <div class="trust"><span class="material-icons" style="color:#4ade80;">restore_from_trash</span><strong>Recycle bin, not deletion</strong><p>Removed files are recoverable for 30 days with one-click Restore.</p></div>
+                    <div class="trust"><span class="material-icons" style="color:#4ade80;">verified</span><strong>Verify before swap</strong><p>Re-encodes replace the original only after probe verification passes.</p></div>
+                    <div class="trust"><span class="material-icons" style="color:#4ade80;">lock</span><strong>Hard limits</strong><p>Never touches files outside your libraries, never removes a file's last audio track, always checks free disk before encoding.</p></div>
+                    <div class="trust"><span class="material-icons" style="color:#4ade80;">bedtime</span><strong>Polite scheduling</strong><p>Scheduled runs wait until nobody is watching and the server has been idle for 15 minutes.</p></div>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <div class="wrap">
+                <h2 class="sec-head amber">FAQ</h2>
+                <div class="faq">
+                    <details class="faq-item">
+                        <summary>Will it delete something I can't get back?</summary>
+                        <div class="faq-body">Not unless you choose both permanent delete <em>and</em> turn off dry-run. Out of the box, everything removed sits in the recycle bin for 30 days.</div>
+                    </details>
+                    <details class="faq-item">
+                        <summary>Why isn't a broken file fixed automatically?</summary>
+                        <div class="faq-body">Broken files can't be repaired — MediaDash flags them so <em>you</em> decide. Even in full-automatic mode, removing broken files always waits for your approval.</div>
+                    </details>
+                    <details class="faq-item">
+                        <summary>A track has no language tag — will it be removed?</summary>
+                        <div class="faq-body">Never. Untagged tracks are always kept, because deleting a track whose language is unknown isn't safe.</div>
+                    </details>
+                    <details class="faq-item">
+                        <summary>How does MediaDash download subtitles?</summary>
+                        <div class="faq-body">It uses Jellyfin's own subtitle providers — the ones you'd configure at <b>Dashboard → Metadata → Subtitles</b>. If you haven't set any up, missing-subs fixes fail with a specific message telling you why. No new keys, no new provider — the same OpenSubtitles (etc.) account you already have.</div>
+                    </details>
+                    <details class="faq-item">
+                        <summary>Does re-encoding lose my subtitles?</summary>
+                        <div class="faq-body">Not with the default MKV output. MP4 output skips subtitle tracks (the format's support is too patchy) — the setting says so.</div>
+                    </details>
+                    <details class="faq-item">
+                        <summary>Does the plugin download or acquire media?</summary>
+                        <div class="faq-body">No. MediaDash is explicitly <em>not</em> an arr-style acquisition tool. It cleans, verifies and completes the library you already have.</div>
+                    </details>
+                    <details class="faq-item">
+                        <summary>Where do I report a bug?</summary>
+                        <div class="faq-body">In the plugin: <b>Errors tab → Copy diagnostics</b>, then paste into a new <a href="https://github.com/crackruckles/MediaDash/issues/new">GitHub issue</a>. The dump includes plugin/Jellyfin/OS/runtime versions and every recorded error.</div>
+                    </details>
+                    <details class="faq-item">
+                        <summary>What data does it collect?</summary>
+                        <div class="faq-body">Opt-in anonymous stats: per-month fix counts, total bytes freed, plugin/Jellyfin version and a random install UUID. No paths, no filenames, no usernames. Untick in Settings → Safety to opt out. Full list in <a href="https://github.com/crackruckles/MediaDash/blob/main/docs/PRIVACY.md">docs/PRIVACY.md</a>.</div>
+                    </details>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="wrap">
+            <div class="links">
+                <a href="https://github.com/crackruckles/MediaDash">GitHub</a>
+                <a href="https://github.com/crackruckles/MediaDash/issues/new">Report a bug</a>
+                <a href="https://github.com/crackruckles/MediaDash/blob/main/docs/PRIVACY.md">Privacy</a>
+                <a href="https://github.com/crackruckles/MediaDash/blob/main/LICENSE">License</a>
+                <a href="https://jellyfin.org">Jellyfin</a>
+            </div>
+            <div>Third-party plugin — not officially affiliated with the Jellyfin project. GPLv3.</div>
+        </div>
+    </footer>
+
+    <script>
+        function copyRepoUrl(btn) {
+            var url = document.getElementById('repoUrl').textContent.trim();
+            navigator.clipboard.writeText(url).then(function () {
+                btn.textContent = 'Copied!';
+                btn.classList.add('copied');
+                setTimeout(function () { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1800);
+            }, function () {
+                btn.textContent = 'Ctrl+C';
+            });
+        }
+    </script>
+</body>
+</html>
