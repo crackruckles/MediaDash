@@ -30,4 +30,33 @@ public class MediaSorterFilenameTests
         Assert.Null(MediaSorterScanner.ClassifyFilename(string.Empty));
         Assert.Null(MediaSorterScanner.ClassifyFilename("   "));
     }
+
+    [Fact]
+    public void Classify_AudioItem_ReturnsMusicKind()
+    {
+        var kind = MediaSorterScanner.ClassifyByBaseItemKind(Jellyfin.Data.Enums.BaseItemKind.Audio);
+        Assert.Equal(MediaSorterScanner.MediaKind.Music, kind);
+    }
+
+    [Fact]
+    public void Classify_AudioBook_ReturnsAudioBookKind()
+    {
+        var kind = MediaSorterScanner.ClassifyByBaseItemKind(Jellyfin.Data.Enums.BaseItemKind.AudioBook);
+        Assert.Equal(MediaSorterScanner.MediaKind.AudioBook, kind);
+    }
+
+    [Fact]
+    public void Classify_Book_ReturnsBookKind()
+    {
+        var kind = MediaSorterScanner.ClassifyByBaseItemKind(Jellyfin.Data.Enums.BaseItemKind.Book);
+        Assert.Equal(MediaSorterScanner.MediaKind.Book, kind);
+    }
+
+    [Fact]
+    public void Classify_UnrecognisedKind_ReturnsNull()
+    {
+        // Sanity check: an unknown kind (e.g. Photo) returns null, doesn't crash the classifier.
+        var kind = MediaSorterScanner.ClassifyByBaseItemKind(Jellyfin.Data.Enums.BaseItemKind.Photo);
+        Assert.Null(kind);
+    }
 }

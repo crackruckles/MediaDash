@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Data.Enums;
 using Jellyfin.Plugin.MediaDash.Configuration;
 using Jellyfin.Plugin.MediaDash.Data;
 using Jellyfin.Plugin.MediaDash.Fixers;
@@ -49,7 +50,19 @@ public sealed partial class MediaSorterScanner : IScanner
         Tv,
 
         /// <summary>Anime (movie-length OVA or episodic series). Detected via Jellyfin's "Anime" genre tag.</summary>
-        Anime
+        Anime,
+
+        /// <summary>An audio track (music).</summary>
+        Music,
+
+        /// <summary>An audiobook.</summary>
+        AudioBook,
+
+        /// <summary>An e-book or digital book.</summary>
+        Book,
+
+        /// <summary>A comic or manga.</summary>
+        Comic
     }
 
     /// <inheritdoc />
@@ -110,6 +123,16 @@ public sealed partial class MediaSorterScanner : IScanner
                 if (kind is null)
                 {
                     // Unidentified: skip (surfaced as-is; user should fix metadata in Jellyfin).
+                    continue;
+                }
+
+                // v0.9: classifier recognises music/audiobooks/books/comics, but the plugin has no target-folder
+                // settings for these kinds yet — MoviesTargetPath / TvTargetPath / AnimeTargetPath are all we have.
+                // Skip flagging for now; a future release with per-kind target paths flips this on.
+                if (kind == MediaKind.Music || kind == MediaKind.AudioBook
+                    || kind == MediaKind.Book || kind == MediaKind.Comic)
+                {
+                    // ponytail: no target paths for these kinds; classifier is future-proof, detection deferred.
                     continue;
                 }
 
@@ -178,6 +201,25 @@ public sealed partial class MediaSorterScanner : IScanner
     }
 
     /// <summary>
+    /// Maps a Jellyfin BaseItemKind to a MediaSorter MediaKind. Returns null for kinds
+    /// the sorter does not handle (photos, TV series/season shells, etc.).
+    /// </summary>
+    /// <param name="kind">The Jellyfin base item kind.</param>
+    /// <returns>The MediaKind, or null when unclassifiable.</returns>
+    internal static MediaKind? ClassifyByBaseItemKind(BaseItemKind kind)
+    {
+        return kind switch
+        {
+            BaseItemKind.Movie => MediaKind.Movie,
+            BaseItemKind.Episode => MediaKind.Tv,
+            BaseItemKind.Audio => MediaKind.Music,
+            BaseItemKind.AudioBook => MediaKind.AudioBook,
+            BaseItemKind.Book => MediaKind.Book,
+            _ => null
+        };
+    }
+
+    /// <summary>
     /// Returns the classification of an item under the configured source. Public/internal for tests.
     /// </summary>
     /// <param name="item">The library item.</param>
@@ -193,7 +235,7 @@ public sealed partial class MediaSorterScanner : IScanner
             {
                 Movie => (MediaKind?)MediaKind.Movie,
                 Episode => (MediaKind?)MediaKind.Tv,
-                _ => null
+                _ => ClassifyByBaseItemKind(item.GetBaseItemKind())
             };
 
             if (baseKind is null)
@@ -201,7 +243,8 @@ public sealed partial class MediaSorterScanner : IScanner
                 return null;
             }
 
-            if (animeEnabled && HasAnimeGenre(item))
+            // Anime override only applies to video content (Movie/Tv). Books/Music are never "anime".
+            if (animeEnabled && HasAnimeGenre(item) && (baseKind == MediaKind.Movie || baseKind == MediaKind.Tv))
             {
                 return MediaKind.Anime;
             }
