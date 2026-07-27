@@ -69,6 +69,15 @@ public sealed class MediaDashDb
                 error TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS format_probe_cache (
+                path TEXT PRIMARY KEY,
+                size INTEGER NOT NULL,
+                mtime_utc INTEGER NOT NULL,
+                probed_at_utc INTEGER NOT NULL,
+                ok INTEGER NOT NULL,
+                reason TEXT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 issue_id INTEGER NOT NULL,
@@ -335,6 +344,54 @@ public sealed class MediaDashDb
         cmd.ExecuteNonQuery();
     }
 
+    /// <summary>Looks up a cached format-probe result that is still valid for the file's current size and mtime.</summary>
+    /// <param name="path">Full file path.</param>
+    /// <param name="size">Current file size in bytes.</param>
+    /// <param name="mtimeUtcTicks">Current last-write time in UTC ticks.</param>
+    /// <returns>The cached result, or null when absent or stale.</returns>
+    public FormatProbeResult? GetCachedFormatProbe(string path, long size, long mtimeUtcTicks)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT ok, reason FROM format_probe_cache WHERE path = @path AND size = @size AND mtime_utc = @mtime";
+        cmd.Parameters.AddWithValue("@path", path);
+        cmd.Parameters.AddWithValue("@size", size);
+        cmd.Parameters.AddWithValue("@mtime", mtimeUtcTicks);
+        using var reader = cmd.ExecuteReader();
+        if (!reader.Read())
+        {
+            return null;
+        }
+
+        var ok = reader.GetInt32(0) != 0;
+        var reason = reader.IsDBNull(1) ? null : reader.GetString(1);
+        return new FormatProbeResult(ok, reason);
+    }
+
+    /// <summary>Stores a format-probe result, replacing any previous entry for the path.</summary>
+    /// <param name="path">Full file path.</param>
+    /// <param name="size">File size in bytes at probe time.</param>
+    /// <param name="mtimeUtcTicks">Last-write time in UTC ticks at probe time.</param>
+    /// <param name="ok">True when the file's container parsed cleanly.</param>
+    /// <param name="reason">Human-readable failure reason when <paramref name="ok"/> is false, else null.</param>
+    public void StoreFormatProbe(string path, long size, long mtimeUtcTicks, bool ok, string? reason)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO format_probe_cache (path, size, mtime_utc, probed_at_utc, ok, reason)
+            VALUES (@path, @size, @mtime, @probedAt, @ok, @reason)
+            ON CONFLICT(path) DO UPDATE SET size = @size, mtime_utc = @mtime, probed_at_utc = @probedAt, ok = @ok, reason = @reason
+            """;
+        cmd.Parameters.AddWithValue("@path", path);
+        cmd.Parameters.AddWithValue("@size", size);
+        cmd.Parameters.AddWithValue("@mtime", mtimeUtcTicks);
+        cmd.Parameters.AddWithValue("@probedAt", DateTime.UtcNow.Ticks);
+        cmd.Parameters.AddWithValue("@ok", ok ? 1 : 0);
+        cmd.Parameters.AddWithValue("@reason", (object?)reason ?? DBNull.Value);
+        cmd.ExecuteNonQuery();
+    }
+
     /// <summary>
     /// Looks up a cached decode-check result that is still valid for the file's current size and modification time.
     /// </summary>
@@ -572,7 +629,7 @@ public sealed class MediaDashDb
     {
         using var connection = Open();
         using var transaction = connection.BeginTransaction();
-        foreach (var table in new[] { "issues", "probe_cache", "decode_cache" })
+        foreach (var table in new[] { "issues", "probe_cache", "decode_cache", "format_probe_cache" })
         {
             using var cmd = connection.CreateCommand();
             cmd.Transaction = transaction;

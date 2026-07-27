@@ -112,4 +112,40 @@ public sealed class MediaDashDbTests : IDisposable
         var reopened = new MediaDashDb(_dbPath);
         Assert.Null(reopened.GetCachedDecode("A", 1, 2));
     }
+
+    [Fact]
+    public void FormatProbeCache_RoundTrips()
+    {
+        var dbPath = Path.Combine(Path.GetTempPath(), $"mediadash-fmt-{Guid.NewGuid():N}.db");
+        try
+        {
+            var db = new MediaDashDb(dbPath);
+
+            Assert.Null(db.GetCachedFormatProbe("/a.epub", 100, 1234));
+
+            db.StoreFormatProbe("/a.epub", 100, 1234, ok: true, reason: null);
+            var hit = db.GetCachedFormatProbe("/a.epub", 100, 1234);
+            Assert.NotNull(hit);
+            Assert.True(hit!.Value.Ok);
+            Assert.Null(hit.Value.Reason);
+
+            db.StoreFormatProbe("/a.epub", 100, 1234, ok: false, reason: "truncated");
+            var updated = db.GetCachedFormatProbe("/a.epub", 100, 1234);
+            Assert.NotNull(updated);
+            Assert.False(updated!.Value.Ok);
+            Assert.Equal("truncated", updated.Value.Reason);
+
+            // Size or mtime mismatch invalidates the cache.
+            Assert.Null(db.GetCachedFormatProbe("/a.epub", 101, 1234));
+            Assert.Null(db.GetCachedFormatProbe("/a.epub", 100, 9999));
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
 }
