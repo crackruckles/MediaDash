@@ -614,10 +614,21 @@
                 font-size: 11.5px; line-height: 1.5; color: rgba(230,237,243,.5);
             }
             #MediaDashConfigPage .mdInsetRow {
-                display: flex; align-items: center; gap: 10px;
+                display: flex; align-items: center; gap: 12px;
                 padding: 12px 14px; border-radius: 11px;
                 background: rgba(255,255,255,.025);
                 border: 1px solid rgba(255,255,255,.06);
+                user-select: none;
+            }
+            /* Native checkbox inside an inset row — the emby-checkbox custom element rewrites the label
+               DOM aggressively (moves the input, flattens its parent), so we opt out of it here to keep
+               a predictable flex layout. accent-color gives the native tick its scanner-appropriate hue. */
+            #MediaDashConfigPage .mdInsetCheck {
+                width: 18px; height: 18px;
+                flex: 0 0 18px;
+                accent-color: var(--md-accent, #22d3ee);
+                cursor: pointer;
+                margin: 0;
             }
             #MediaDashConfigPage .mdInfoStrip {
                 display: flex; align-items: center; gap: 9px;
@@ -2415,22 +2426,22 @@
                             '<input id="mdDuplicateMinAge" type="number" min="0" max="365" is="emby-input" />' +
                             '<span class="mdFieldHint">Freshly-imported items can transiently look like duplicates of themselves while Jellyfin\'s metadata scrape catches up. 0 disables the wait. Default 7.</span>' +
                         '</div>' +
-                        '<div class="mdInsetRow" style="grid-column:1/-1;">' +
-                            '<input id="mdEditions" type="checkbox" is="emby-checkbox" style="margin:0;" />' +
-                            '<span style="font-size:13px;font-weight:600;">Treat different editions as duplicates</span>' +
-                            '<span class="mdFieldHint" style="margin:0;">Off: a Director\'s Cut and the theatrical cut stay as separate movies.</span>' +
-                        '</div>' +
+                        '<label class="mdInsetRow" style="grid-column:1/-1;cursor:pointer;">' +
+                            '<input id="mdEditions" type="checkbox" class="mdInsetCheck" />' +
+                            '<span style="font-size:13px;font-weight:600;flex:0 0 auto;">Treat different editions as duplicates</span>' +
+                            '<span class="mdFieldHint" style="margin:0;flex:1;">Off: a Director\'s Cut and the theatrical cut stay as separate movies.</span>' +
+                        '</label>' +
                         '</div>' +
                         '<span class="mdFieldHint">Retention and bin location live in <a href="#mdSet-bin" style="color:rgba(230,237,243,.85);text-decoration:underline;">Recycle bin</a>.</span>';
                 }
                 if (key === 'Playability') {
                     return '<div class="mdFieldGrid mdFieldGrid-2">' +
                         disposalField('Playability', 'Broken files go to') +
-                        '<div class="mdInsetRow">' +
-                            '<input id="mdThorough" type="checkbox" is="emby-checkbox" style="margin:0;" />' +
-                            '<span style="font-size:13px;font-weight:600;">Thorough playability check</span>' +
-                            '<span class="mdFieldHint" style="margin:0;">Test-plays start, middle and end (30s each). Slower first scan; cached after.</span>' +
-                        '</div>' +
+                        '<label class="mdInsetRow" style="cursor:pointer;">' +
+                            '<input id="mdThorough" type="checkbox" class="mdInsetCheck" />' +
+                            '<span style="font-size:13px;font-weight:600;flex:0 0 auto;">Thorough playability check</span>' +
+                            '<span class="mdFieldHint" style="margin:0;flex:1;">Test-plays start, middle and end (30s each). Slower first scan; cached after.</span>' +
+                        '</label>' +
                         '</div>' +
                         '<span class="mdFieldHint">Broken-file removal always waits for approval, even in Automatic.</span>';
                 }
@@ -2520,16 +2531,16 @@
                                         '<span class="mdFieldHint">Comma-separated: "avi, wmv, mkv". Empty = all.</span>' +
                                     '</div>' +
                                 '</div>' +
-                                '<div class="mdInsetRow">' +
-                                    '<input id="mdSkipHdr" type="checkbox" is="emby-checkbox" style="margin:0;" />' +
-                                    '<span style="font-size:13px;font-weight:600;">Skip HDR content</span>' +
-                                    '<span class="mdFieldHint" style="margin:0;">Re-encoding HDR without color-space plumbing destroys metadata.</span>' +
-                                '</div>' +
-                                '<div class="mdInsetRow">' +
-                                    '<input id="mdRenameAfterTranscode" type="checkbox" is="emby-checkbox" style="margin:0;" />' +
-                                    '<span style="font-size:13px;font-weight:600;">Rename re-encoded files to a canonical name</span>' +
-                                    '<span class="mdFieldHint" style="margin:0;">Movie (Year) - 1080p.mkv style.</span>' +
-                                '</div>' +
+                                '<label class="mdInsetRow" style="cursor:pointer;">' +
+                                    '<input id="mdSkipHdr" type="checkbox" class="mdInsetCheck" />' +
+                                    '<span style="font-size:13px;font-weight:600;flex:0 0 auto;">Skip HDR content</span>' +
+                                    '<span class="mdFieldHint" style="margin:0;flex:1;">Re-encoding HDR without color-space plumbing destroys metadata.</span>' +
+                                '</label>' +
+                                '<label class="mdInsetRow" style="cursor:pointer;">' +
+                                    '<input id="mdRenameAfterTranscode" type="checkbox" class="mdInsetCheck" />' +
+                                    '<span style="font-size:13px;font-weight:600;flex:0 0 auto;">Rename re-encoded files to a canonical name</span>' +
+                                    '<span class="mdFieldHint" style="margin:0;flex:1;">Movie (Year) - 1080p.mkv style.</span>' +
+                                '</label>' +
                             '</div>' +
                         '</details>';
                 }
