@@ -2537,6 +2537,11 @@
                                     '<span class="mdFieldHint" style="margin:0;flex:1;">Re-encoding HDR without color-space plumbing destroys metadata.</span>' +
                                 '</label>' +
                                 '<label class="mdInsetRow" style="cursor:pointer;">' +
+                                    '<input id="mdQualityScanAudiobooks" type="checkbox" class="mdInsetCheck" />' +
+                                    '<span style="font-size:13px;font-weight:600;flex:0 0 auto;">Also scan audiobooks for oversized audio</span>' +
+                                    '<span class="mdFieldHint" style="margin:0;flex:1;">Audiobooks are usually already lean — enable only if you have unusually large audiobook files.</span>' +
+                                '</label>' +
+                                '<label class="mdInsetRow" style="cursor:pointer;">' +
                                     '<input id="mdRenameAfterTranscode" type="checkbox" class="mdInsetCheck" />' +
                                     '<span style="font-size:13px;font-weight:600;flex:0 0 auto;">Rename re-encoded files to a canonical name</span>' +
                                     '<span class="mdFieldHint" style="margin:0;flex:1;">Movie (Year) - 1080p.mkv style.</span>' +
@@ -3063,6 +3068,7 @@
                     view.querySelector('#mdEncodePreset').value = c.SoftwareEncodePreset || 'Balanced';
                     view.querySelector('#mdMinSize').value = c.MinScanFileSizeMb;
                     view.querySelector('#mdSkipHdr').checked = c.SkipHdrContent;
+                    view.querySelector('#mdQualityScanAudiobooks').checked = !!c.QualityScanAudiobooks;
                     populateGpuOptions(c.PreferredGpuIndex);
                     view.querySelector('#mdFileTypes').value = (c.ReencodeFileTypes || []).join(', ');
                     view.querySelector('#mdTolerance').value = c.QualityTolerancePercent;
@@ -3161,6 +3167,7 @@
                     c.SoftwareEncodePreset = view.querySelector('#mdEncodePreset').value;
                     c.MinScanFileSizeMb = parseInt(view.querySelector('#mdMinSize').value, 10) || 0;
                     c.SkipHdrContent = view.querySelector('#mdSkipHdr').checked;
+                    c.QualityScanAudiobooks = view.querySelector('#mdQualityScanAudiobooks').checked;
                     c.ReencodeFileTypes = csv(view.querySelector('#mdFileTypes').value);
                     c.QualityTolerancePercent = parseInt(view.querySelector('#mdTolerance').value, 10) || 15;
                     c.AllowedAudioLanguages = csv(view.querySelector('#mdAudioLangs').value);

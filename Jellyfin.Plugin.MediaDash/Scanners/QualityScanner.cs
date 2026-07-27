@@ -5,9 +5,11 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Data.Enums;
 using Jellyfin.Plugin.MediaDash.Data;
 using Jellyfin.Plugin.MediaDash.Probing;
 using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Entities.Audio;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.MediaDash.Scanners;
@@ -35,6 +37,48 @@ public sealed class QualityScanner : ProbingScannerBase
     /// <inheritdoc />
     protected override Task<Issue?> EvaluateAsync(BaseItem item, string path, FfprobeData? probe, CancellationToken cancellationToken)
     {
+        // Audio items (music + audiobooks) — detect-only ceiling, no re-encode.
+        if (item is Audio audio)
+        {
+            var isAudioBook = audio.GetBaseItemKind() == BaseItemKind.AudioBook;
+            if (isAudioBook && !Config.QualityScanAudiobooks)
+            {
+                return Task.FromResult<Issue?>(null);
+            }
+
+            var audioStream = probe?.Streams?.FirstOrDefault(s => string.Equals(s.CodecType, "audio", StringComparison.OrdinalIgnoreCase));
+            if (audioStream is not null
+                && long.TryParse(audioStream.BitRate, NumberStyles.Integer, CultureInfo.InvariantCulture, out var abps)
+                && IsAudioOversized(audioStream.CodecName ?? string.Empty, abps))
+            {
+                long audioFileSize;
+                try
+                {
+                    audioFileSize = new FileInfo(path).Length;
+                }
+                catch (IOException)
+                {
+                    return Task.FromResult<Issue?>(null);
+                }
+
+                var estimatedSavings = (long)(audioFileSize * 0.30);
+                return Task.FromResult<Issue?>(new Issue
+                {
+                    DetailsJson = JsonSerializer.Serialize(new
+                    {
+                        reason = "audio-oversized",
+                        codec = audioStream.CodecName,
+                        bitsPerSecond = abps,
+                        fixerAvailable = false
+                    }),
+                    SuggestedFix = "Audio bitrate is higher than the ceiling. MediaDash reports oversized audio but does not re-encode it — reduce manually if desired.",
+                    SizeSavings = estimatedSavings
+                });
+            }
+
+            return Task.FromResult<Issue?>(null);
+        }
+
         var video = probe?.Streams?.FirstOrDefault(s => string.Equals(s.CodecType, "video", StringComparison.OrdinalIgnoreCase));
         if (probe is null || video is null || video.Height is not > 0 || video.Width is not > 0)
         {
@@ -118,6 +162,34 @@ public sealed class QualityScanner : ProbingScannerBase
             SizeSavings = savings
         };
         return Task.FromResult<Issue?>(issue);
+    }
+
+    /// <summary>
+    /// Detect-only ceiling for audio streams. Lossless codecs are skipped (users of FLAC/ALAC/WAV
+    /// keep them deliberately). MP3 above 320 kbps or AAC above 256 kbps is flagged.
+    /// </summary>
+    /// <param name="codec">The audio codec name (e.g. "mp3", "aac", "flac").</param>
+    /// <param name="bitsPerSecond">The audio stream bit rate.</param>
+    /// <returns>True when the file should be reported as oversized.</returns>
+    public static bool IsAudioOversized(string codec, long bitsPerSecond)
+    {
+        var c = codec?.ToLowerInvariant() ?? string.Empty;
+        if (c is "flac" or "alac" or "wav" or "pcm_s16le" or "pcm_s24le" or "ape" or "wavpack")
+        {
+            return false;
+        }
+
+        if (c == "mp3")
+        {
+            return bitsPerSecond > 320_000L;
+        }
+
+        if (c is "aac" or "m4a" or "libfdk_aac")
+        {
+            return bitsPerSecond > 256_000L;
+        }
+
+        return false;
     }
 
     private static bool IsHdr(FfprobeStreamInfo video)

@@ -249,6 +249,12 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool SkipHdrContent { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the Quality scanner should also inspect audiobook items.
+    /// Off by default because audiobooks are typically already low-bitrate spoken word and the audio ceiling produces false positives.
+    /// </summary>
+    public bool QualityScanAudiobooks { get; set; }
+
+    /// <summary>
     /// Gets or sets the order of criteria used to pick the copy to keep among duplicates.
     /// </summary>
     public string[] KeeperPolicyOrder { get; set; }
