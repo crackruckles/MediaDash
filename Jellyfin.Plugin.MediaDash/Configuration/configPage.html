@@ -480,6 +480,278 @@
             #MediaDashConfigPage .mdSetCard--bin        { --md-accent: #ec4899; --md-accent-tint: rgba(236,72,153,.14); }
             #MediaDashConfigPage .mdSetCard--maintenance{ --md-accent: #94a3b8; --md-accent-tint: rgba(148,163,184,.16); }
 
+            /* ─── Task cards (per-scanner) ─────────────────────────────────
+               Every scanner renders as a self-contained task card with its
+               own segmented mode toggle, collapsible body, and per-scanner
+               settings. Off-mode cards dim + collapse; active cards inherit
+               their scanner accent from --md-accent (set inline on the section). */
+            #MediaDashConfigPage .mdTaskHeadRow {
+                display: flex; align-items: baseline; justify-content: space-between;
+                gap: 16px; margin: 4px 0 12px;
+            }
+            #MediaDashConfigPage .mdTaskEyebrow {
+                font-size: 11px; font-weight: 700; letter-spacing: .1em;
+                text-transform: uppercase; color: rgba(230,237,243,.45);
+            }
+            #MediaDashConfigPage .mdTaskEyebrowSub {
+                font-size: 12.5px; color: rgba(230,237,243,.5); margin-top: 3px;
+            }
+            #MediaDashConfigPage .mdTaskHeadPills { display: flex; gap: 8px; }
+            #MediaDashConfigPage .mdTaskPill {
+                padding: 6px 12px; border-radius: 8px;
+                background: rgba(255,255,255,.05);
+                border: 1px solid rgba(255,255,255,.08);
+                color: rgba(230,237,243,.7);
+                font: 600 11.5px 'Plus Jakarta Sans', system-ui, sans-serif;
+                cursor: pointer;
+            }
+            #MediaDashConfigPage .mdTaskPill:hover { background: rgba(255,255,255,.09); }
+
+            #MediaDashConfigPage .mdTaskList {
+                display: flex; flex-direction: column; gap: 12px;
+                margin-bottom: 1.4em;
+            }
+
+            #MediaDashConfigPage .mdTask {
+                border: 1px solid rgba(255,255,255,.08);
+                border-radius: 16px;
+                background: rgba(255,255,255,.03);
+                overflow: hidden;
+                transition: opacity .18s ease, border-color .18s ease;
+                scroll-margin-top: 8.5em;
+            }
+            /* When the mode is anything but Off, tint the border to the accent. */
+            #MediaDashConfigPage .mdTask.mdTaskOn { border-color: rgba(from var(--md-accent) r g b / .3); }
+            /* Fallback for browsers without relative-color support: use the pre-computed tint. */
+            #MediaDashConfigPage .mdTask.mdTaskOn { border-color: var(--md-accent-border, rgba(255,255,255,.14)); }
+            #MediaDashConfigPage .mdTask.mdTaskOff { opacity: .62; }
+
+            #MediaDashConfigPage .mdTaskAccent {
+                height: 2px; background: var(--md-accent, #22d3ee);
+            }
+            #MediaDashConfigPage .mdTask.mdTaskOff .mdTaskAccent { opacity: .35; }
+
+            #MediaDashConfigPage .mdTaskHead {
+                display: flex; align-items: center; gap: 14px;
+                padding: 18px 22px;
+                cursor: pointer; user-select: none;
+            }
+            #MediaDashConfigPage .mdTaskIcon {
+                width: 36px; height: 36px; flex: 0 0 36px;
+                display: inline-flex; align-items: center; justify-content: center;
+                border-radius: 10px;
+                background: var(--md-accent-tint, rgba(255,255,255,.05));
+                color: var(--md-accent, #22d3ee);
+            }
+            #MediaDashConfigPage .mdTask.mdTaskOff .mdTaskIcon {
+                background: rgba(255,255,255,.05); color: rgba(230,237,243,.4);
+            }
+            #MediaDashConfigPage .mdTaskIcon .material-icons { font-size: 20px; color: inherit; }
+            #MediaDashConfigPage .mdTaskLabel {
+                display: flex; flex-direction: column; gap: 2px;
+                flex: 1; min-width: 0;
+            }
+            #MediaDashConfigPage .mdTaskTitle {
+                font-size: 15px; font-weight: 800; letter-spacing: -.005em;
+                color: var(--md-set-text);
+            }
+            #MediaDashConfigPage .mdTask.mdTaskOff .mdTaskTitle { color: rgba(230,237,243,.7); }
+            #MediaDashConfigPage .mdTaskSub {
+                font-size: 12px; color: rgba(230,237,243,.5);
+                text-overflow: ellipsis; overflow: hidden; white-space: nowrap;
+            }
+            #MediaDashConfigPage .mdTask.mdTaskOff .mdTaskSub { color: rgba(230,237,243,.42); }
+
+            #MediaDashConfigPage .mdTaskModes {
+                display: inline-flex; padding: 3px; gap: 2px;
+                border-radius: 999px;
+                background: rgba(255,255,255,.05);
+                border: 1px solid rgba(255,255,255,.08);
+            }
+            #MediaDashConfigPage .mdTaskModes button {
+                appearance: none; border: 0; margin: 0;
+                padding: 6px 13px; border-radius: 999px;
+                background: transparent;
+                color: rgba(230,237,243,.5);
+                font: 600 11.5px 'Plus Jakarta Sans', system-ui, sans-serif;
+                cursor: pointer;
+                transition: background .12s ease, color .12s ease;
+            }
+            #MediaDashConfigPage .mdTaskModes button:hover { color: var(--md-set-text); }
+            #MediaDashConfigPage .mdTaskModes button.mdTaskModeActive {
+                font-weight: 700;
+                background: var(--md-accent, #22d3ee);
+                color: var(--md-accent-ink, #04121a);
+            }
+            #MediaDashConfigPage .mdTaskModes button.mdTaskModeActive[data-mode="Off"] {
+                background: rgba(255,255,255,.16); color: #e6edf3;
+            }
+            #MediaDashConfigPage .mdTaskChevron {
+                font-size: 22px; color: rgba(230,237,243,.45);
+                transition: transform .2s ease;
+            }
+            #MediaDashConfigPage .mdTask.mdTaskCollapsed .mdTaskChevron { transform: rotate(180deg); }
+
+            #MediaDashConfigPage .mdTaskBody {
+                border-top: 1px solid rgba(255,255,255,.06);
+                padding: 18px 22px 22px;
+                display: flex; flex-direction: column; gap: 14px;
+            }
+            #MediaDashConfigPage .mdTask.mdTaskCollapsed .mdTaskBody { display: none; }
+            #MediaDashConfigPage .mdTask.mdTaskOff .mdTaskBody { display: none; }
+
+            #MediaDashConfigPage .mdTaskBody .mdFieldGrid {
+                display: grid; gap: 16px 22px;
+            }
+            #MediaDashConfigPage .mdTaskBody .mdFieldGrid-2 { grid-template-columns: 1fr 1fr; }
+            #MediaDashConfigPage .mdTaskBody .mdFieldGrid-3 { grid-template-columns: 1fr 1fr 1fr; }
+            #MediaDashConfigPage .mdTaskBody .mdField { display: flex; flex-direction: column; gap: 6px; }
+            #MediaDashConfigPage .mdTaskBody .mdField label,
+            #MediaDashConfigPage .mdTaskBody .mdFieldLabel {
+                font-size: 12.5px; font-weight: 600; color: rgba(230,237,243,.65);
+            }
+            #MediaDashConfigPage .mdTaskBody .mdFieldHint {
+                font-size: 11.5px; line-height: 1.5; color: rgba(230,237,243,.5);
+            }
+            #MediaDashConfigPage .mdInsetRow {
+                display: flex; align-items: center; gap: 10px;
+                padding: 12px 14px; border-radius: 11px;
+                background: rgba(255,255,255,.025);
+                border: 1px solid rgba(255,255,255,.06);
+            }
+            #MediaDashConfigPage .mdInfoStrip {
+                display: flex; align-items: center; gap: 9px;
+                padding: 10px 13px; border-radius: 10px;
+                background: rgba(from var(--md-accent) r g b / .09);
+                border: 1px solid rgba(from var(--md-accent) r g b / .22);
+                color: rgba(230,237,243,.75);
+                font-size: 12px;
+            }
+            #MediaDashConfigPage .mdInfoStrip .material-icons {
+                font-size: 17px; color: var(--md-accent);
+            }
+            #MediaDashConfigPage .mdWarnStrip {
+                display: flex; align-items: center; gap: 9px;
+                padding: 10px 13px; border-radius: 10px;
+                background: rgba(245,158,11,.09);
+                border: 1px solid rgba(245,158,11,.28);
+                color: #fcd34d;
+                font-size: 12px;
+            }
+            #MediaDashConfigPage .mdWarnStrip .material-icons { font-size: 17px; }
+
+            /* Language chip input — comma-separated ISO codes rendered as removable chips. */
+            #MediaDashConfigPage .mdChipInput {
+                display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+                background: rgba(255,255,255,.04);
+                border: 1px solid rgba(255,255,255,.12);
+                border-radius: 11px;
+                padding: 8px 12px; min-height: 42px;
+                cursor: text;
+            }
+            #MediaDashConfigPage .mdChipInput:focus-within { border-color: var(--md-accent, var(--md-set-primary)); }
+            #MediaDashConfigPage .mdChip {
+                display: inline-flex; align-items: center; gap: 6px;
+                padding: 5px 10px; border-radius: 8px;
+                background: rgba(from var(--md-accent, 34 211 238) r g b / .16);
+                color: var(--md-accent-chip-text, #67e8f9);
+                font-size: 12.5px; font-weight: 600;
+            }
+            #MediaDashConfigPage .mdChip button {
+                appearance: none; border: 0; background: transparent;
+                cursor: pointer; padding: 0; margin: 0;
+                display: inline-flex; align-items: center;
+                color: inherit; opacity: .7;
+            }
+            #MediaDashConfigPage .mdChip button:hover { opacity: 1; }
+            #MediaDashConfigPage .mdChip button .material-icons { font-size: 14px; }
+            #MediaDashConfigPage .mdChipInputText {
+                flex: 1; min-width: 6em;
+                appearance: none; border: 0; background: transparent;
+                color: var(--md-set-text);
+                font: 500 12.5px 'Plus Jakarta Sans', system-ui, sans-serif;
+                padding: 4px 0; outline: none;
+            }
+            #MediaDashConfigPage .mdChipInputText::placeholder { color: rgba(230,237,243,.35); }
+
+            /* Native-select styling replacement — visually match the mock's pill dropdown. */
+            #MediaDashConfigPage .mdTaskBody select {
+                appearance: none;
+                background-image: none;
+                cursor: pointer;
+            }
+
+            /* HW-encoder toggle switch */
+            #MediaDashConfigPage .mdSwitch {
+                position: relative; display: inline-block;
+                width: 34px; height: 19px; flex: 0 0 34px;
+                cursor: pointer;
+            }
+            #MediaDashConfigPage .mdSwitch input {
+                position: absolute; opacity: 0; width: 0; height: 0;
+            }
+            #MediaDashConfigPage .mdSwitchTrack {
+                position: absolute; inset: 0;
+                background: rgba(255,255,255,.15); border-radius: 999px;
+                transition: background .15s ease;
+            }
+            #MediaDashConfigPage .mdSwitchThumb {
+                position: absolute; top: 2px; left: 2px;
+                width: 15px; height: 15px; border-radius: 50%;
+                background: #fff;
+                transition: left .15s ease;
+            }
+            #MediaDashConfigPage .mdSwitch input:checked ~ .mdSwitchTrack { background: var(--md-accent); }
+            #MediaDashConfigPage .mdSwitch input:checked ~ .mdSwitchThumb { left: 17px; }
+
+            /* Advanced disclosure — collapsed row that expands into extra fields. */
+            #MediaDashConfigPage .mdAdvanced {
+                border: 1px dashed rgba(255,255,255,.13);
+                border-radius: 11px;
+                overflow: hidden;
+            }
+            #MediaDashConfigPage .mdAdvancedToggle {
+                display: flex; align-items: center; gap: 10px;
+                padding: 11px 14px;
+                cursor: pointer; user-select: none;
+            }
+            #MediaDashConfigPage .mdAdvancedToggle .material-icons {
+                font-size: 19px; color: rgba(230,237,243,.45);
+                transition: transform .2s ease;
+            }
+            #MediaDashConfigPage .mdAdvanced[open] .mdAdvancedToggle .material-icons { transform: rotate(180deg); }
+            #MediaDashConfigPage .mdAdvancedTitle {
+                font-size: 12.5px; font-weight: 700; color: rgba(230,237,243,.7);
+            }
+            #MediaDashConfigPage .mdAdvancedTeaser {
+                font-size: 11.5px; color: rgba(230,237,243,.45);
+                flex: 1; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;
+            }
+            #MediaDashConfigPage .mdAdvancedBody {
+                padding: 14px 16px 16px;
+                border-top: 1px dashed rgba(255,255,255,.13);
+                display: flex; flex-direction: column; gap: 14px;
+            }
+
+            /* Nav chip Off state (task chips that map to a task whose mode is Off) */
+            #MediaDashConfigPage .mdSetChip.mdSetChipOff {
+                background: rgba(255,255,255,.035);
+                border-color: rgba(255,255,255,.06);
+                color: rgba(230,237,243,.38);
+            }
+            #MediaDashConfigPage .mdSetChip.mdSetChipOff .material-icons { color: rgba(230,237,243,.3); }
+            #MediaDashConfigPage .mdSetNavDivider {
+                width: 1px; align-self: stretch;
+                margin: 2px 4px; background: rgba(255,255,255,.09);
+            }
+
+            @media (max-width: 1000px) {
+                #MediaDashConfigPage .mdTaskHead { flex-wrap: wrap; }
+                #MediaDashConfigPage .mdTaskModes { order: 3; flex-basis: 100%; }
+                #MediaDashConfigPage .mdTaskBody .mdFieldGrid-2,
+                #MediaDashConfigPage .mdTaskBody .mdFieldGrid-3 { grid-template-columns: 1fr; }
+            }
+
             /* First-run wizard */
             #MediaDashConfigPage #mdFirstRun { padding: 1.4em 1.6em 1.2em; }
             #MediaDashConfigPage .mdWizHead {
@@ -1016,182 +1288,76 @@
                             <div class="mdSetPageHeadInner">
                                 <div>
                                     <h2 class="mdSetPageTitle">Settings</h2>
-                                    <p class="mdSetPageSub">Manage what MediaDash scans, how it fixes, and where files go.</p>
+                                    <p class="mdSetPageSub">Guardrails apply to every run. Each cleanup task below carries its own settings.</p>
                                 </div>
                                 <button is="emby-button" type="submit" class="mdSetSaveTop" title="Save all settings"><span class="material-icons">save</span><span>Save changes</span></button>
                             </div>
                         </div>
 
-                        <nav class="mdSetNav" aria-label="Settings sections">
-                            <a class="mdSetChip mdSetChipActive" href="#mdSet-safety" title="Guardrails: dry-run and only-when-idle" style="--md-accent:#22d3ee;"><span class="material-icons">shield</span><span data-i18n="settings.nav.safety">Safety</span></a>
-                            <a class="mdSetChip" href="#mdSet-fix" title="Which issue types run automatically vs on approval, and what happens to removed files" style="--md-accent:#3b82f6;"><span class="material-icons">build</span><span data-i18n="settings.nav.fix">What to fix</span></a>
-                            <a class="mdSetChip" href="#mdSet-quality" title="Resolution ceiling, target codec/container, bitrate and hardware encoder settings" style="--md-accent:#3b82f6;"><span class="material-icons">compress</span><span data-i18n="settings.nav.quality">Quality</span></a>
-                            <a class="mdSetChip" href="#mdSet-libraries" title="Which Jellyfin libraries MediaDash is allowed to scan" style="--md-accent:#06b6d4;"><span class="material-icons">video_library</span><span data-i18n="settings.nav.libraries">Libraries</span></a>
-                            <a class="mdSetChip" href="#mdSet-advanced" title="Encode preset, size floor, HDR handling" style="--md-accent:#cbd5e1;"><span class="material-icons">tune</span><span data-i18n="settings.nav.advanced">Advanced</span></a>
-                            <a class="mdSetChip" href="#mdSet-bin" title="Where removed files are held before permanent deletion, and how long they're kept" style="--md-accent:#ec4899;"><span class="material-icons">delete</span><span data-i18n="settings.nav.bin">Recycle bin</span></a>
-                            <a class="mdSetChip" href="#mdSet-maintenance" title="Reset and re-run maintenance actions" style="--md-accent:#94a3b8;"><span class="material-icons">handyman</span><span data-i18n="settings.nav.maintenance">Maintenance</span></a>
-                        </nav>
+                        <nav class="mdSetNav" id="mdSetNav" aria-label="Settings sections"></nav>
 
-                        <div class="mdSetGrid">
-                            <section id="mdSet-safety" class="mdSetCard mdSetCard--safety">
-                                <h2 class="mdSetHead">
-                                    <span class="mdSetIcon"><span class="material-icons">shield</span></span>
-                                    <span class="mdSetHeadText">
-                                        <span class="mdSetTitle" data-i18n="settings.safety.title">Safety</span>
-                                        <span class="mdSetSubtitle" data-i18n="settings.safety.subtitle">Guardrails that keep every scan and fix reversible.</span>
-                                    </span>
-                                </h2>
-                                <div class="checkboxContainer checkboxContainer-withDescription">
+                        <section id="mdSet-safety" class="mdSetCard mdSetCard--safety mdSetCard--full">
+                            <h2 class="mdSetHead">
+                                <span class="mdSetIcon"><span class="material-icons">shield</span></span>
+                                <span class="mdSetHeadText">
+                                    <span class="mdSetTitle" data-i18n="settings.safety.title">Safety</span>
+                                    <span class="mdSetSubtitle">Guardrails that apply to every task below.</span>
+                                </span>
+                            </h2>
+                            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 32px;">
+                                <div class="checkboxContainer checkboxContainer-withDescription" style="margin:0;">
                                     <label class="emby-checkbox-label">
                                         <input id="mdDryRun" type="checkbox" is="emby-checkbox" />
                                         <span data-i18n="settings.safety.dryRun">Dry-run mode</span>
                                     </label>
-                                    <div class="fieldDescription" data-i18n="settings.safety.dryRunHint">On (default): fix runs only log what they would do — nothing is changed. Turn off once you're happy with the plan shown in History.</div>
+                                    <div class="fieldDescription" data-i18n="settings.safety.dryRunHint">Fix runs only log what they would do — nothing on disk changes. Turn off once the plan in History looks right.</div>
                                 </div>
-                                <div class="checkboxContainer checkboxContainer-withDescription">
+                                <div class="checkboxContainer checkboxContainer-withDescription" style="margin:0;">
                                     <label class="emby-checkbox-label">
                                         <input id="mdPausePlayback" type="checkbox" is="emby-checkbox" />
                                         <span data-i18n="settings.safety.idle">Only run when the server is idle</span>
                                     </label>
-                                    <div class="fieldDescription" data-i18n="settings.safety.idleHint">On (default): scheduled scans and fixes wait until nobody is watching anything and nobody has used Jellyfin for 15 minutes. The "Scan now" and "Run fixes now" buttons always run immediately. This overrides the scheduled time below — if the server is busy when the schedule fires, the run is skipped.</div>
+                                    <div class="fieldDescription" data-i18n="settings.safety.idleHint">Scheduled runs wait until nobody is watching and Jellyfin has been unused for 15 minutes.</div>
                                 </div>
-                                <div class="inputContainer" style="max-width:14em;">
-                                    <label class="inputLabel inputLabelUnfocused" for="mdFixScheduleTime" data-i18n="settings.safety.scheduleLabel">Scheduled fix time (server local, 24h)</label>
+                                <div class="inputContainer" style="margin:0;max-width:16em;">
+                                    <label class="inputLabel inputLabelUnfocused" for="mdFixScheduleTime" data-i18n="settings.safety.scheduleLabel">Scheduled fix time</label>
                                     <input id="mdFixScheduleTime" type="time" is="emby-input" />
-                                    <div class="fieldDescription" data-i18n="settings.safety.scheduleHint">Time of day the fix task fires daily — including re-encodes. Default 03:00.</div>
+                                    <div class="fieldDescription">Server local time, daily.</div>
                                 </div>
-                                <div class="checkboxContainer checkboxContainer-withDescription" style="margin-top:.6em;">
+                                <div class="checkboxContainer checkboxContainer-withDescription" style="margin:0;">
                                     <label class="emby-checkbox-label">
                                         <input id="mdAnalytics" type="checkbox" is="emby-checkbox" />
                                         <span data-i18n="settings.safety.analytics">Share anonymous stats with the community board</span>
                                     </label>
-                                    <div class="fieldDescription" data-i18n="settings.safety.analyticsHint">Sends per-month, per-issue-type fix counts + total bytes freed + plugin/Jellyfin version + a random install UUID. On by default; untick and save to opt out. No paths, no filenames, no usernames. See <a href="https://github.com/crackruckles/MediaDash/blob/main/docs/PRIVACY.md" target="_blank" rel="noopener">docs/PRIVACY.md</a>.</div>
+                                    <div class="fieldDescription" data-i18n="settings.safety.analyticsHint">Fix counts and bytes freed. No paths, no filenames, no usernames. See <a href="https://github.com/crackruckles/MediaDash/blob/main/docs/PRIVACY.md" target="_blank" rel="noopener">docs/PRIVACY.md</a>.</div>
                                 </div>
-                            </section>
+                            </div>
+                            <div class="fieldDescription" style="margin-top:14px;">Scan and fix schedules can also be changed in Dashboard → Scheduled Tasks ("Scan libraries for issues" and "Apply approved fixes").</div>
+                        </section>
 
-                            <section id="mdSet-fix" class="mdSetCard mdSetCard--fix mdSetCard--full">
-                                <h2 class="mdSetHead">
-                                    <span class="mdSetIcon"><span class="material-icons">build</span></span>
-                                    <span class="mdSetHeadText">
-                                        <span class="mdSetTitle">What to fix</span>
-                                        <span class="mdSetSubtitle">Per-type: how it runs, and where removed files go. "Ask me first" queues fixes for approval on Issues.</span>
-                                    </span>
-                                </h2>
-                                <div id="mdFixTypeRows"></div>
-                            </section>
+                        <div class="mdTaskHeadRow">
+                            <div>
+                                <div class="mdTaskEyebrow">Cleanup tasks</div>
+                                <div class="mdTaskEyebrowSub">Turn a task on and its settings appear with it. Nothing runs while a task is Off.</div>
+                            </div>
+                            <div class="mdTaskHeadPills">
+                                <button type="button" class="mdTaskPill" id="mdTaskCollapseAll">Collapse all</button>
+                                <span class="mdTaskPill" id="mdTaskActiveCount" style="cursor:default;">— of 8 active</span>
+                            </div>
+                        </div>
 
-                            <section id="mdSet-quality" class="mdSetCard mdSetCard--quality mdSetCard--full">
-                                <h2 class="mdSetHead">
-                                    <span class="mdSetIcon"><span class="material-icons">compress</span></span>
-                                    <span class="mdSetHeadText">
-                                        <span class="mdSetTitle">Quality ceiling</span>
-                                        <span class="mdSetSubtitle">Where files get flagged as oversized, and how MediaDash re-encodes them.</span>
-                                    </span>
-                                </h2>
-                                <div class="selectContainer" style="max-width:26em;">
-                                    <label class="selectLabel" for="mdMaxRes">Maximum resolution</label>
-                                    <select is="emby-select" id="mdMaxRes" class="emby-select-withcolor emby-select">
-                                        <option value="2160">4K (2160p)</option>
-                                        <option value="1440">1440p</option>
-                                        <option value="1080">1080p</option>
-                                        <option value="720">720p</option>
-                                    </select>
-                                    <div class="fieldDescription">Files taller than this are flagged as wasting space. Default: 1080p.</div>
-                                </div>
-                                <div class="inputContainer" style="max-width:30em;">
-                                    <label class="inputLabel" for="mdMaxBitrate"><span id="mdMaxBitrateLabel">Maximum video bitrate at 1080p</span><span class="mdSliderVal" id="mdMaxBitrateVal"></span></label>
-                                    <input id="mdMaxBitrate" type="range" min="1" max="40" step="0.5" />
-                                    <div class="fieldDescription">Follows the resolution you picked above and is scaled automatically for every other resolution. Default: 8 Mbps at 1080p.</div>
-                                </div>
-                                <div class="selectContainer" style="max-width:26em;">
-                                    <label class="selectLabel" for="mdCodec">Re-encode to</label>
-                                    <select is="emby-select" id="mdCodec" class="emby-select-withcolor emby-select">
-                                        <option value="hevc">H.265 / HEVC (recommended)</option>
-                                        <option value="h264">H.264 (best compatibility)</option>
-                                        <option value="av1">AV1 (smallest files, slow)</option>
-                                    </select>
-                                    <div class="fieldDescription">The video format oversized files are converted to. Default: H.265.</div>
-                                </div>
-                                <div class="selectContainer" style="max-width:26em;">
-                                    <label class="selectLabel" for="mdContainer">Save re-encoded files as</label>
-                                    <select is="emby-select" id="mdContainer" class="emby-select-withcolor emby-select">
-                                        <option value="mkv">MKV (recommended — keeps subtitles)</option>
-                                        <option value="mp4">MP4 (subtitle tracks are not carried over)</option>
-                                    </select>
-                                    <div class="fieldDescription">The file type re-encoded videos are written to. Default: MKV.</div>
-                                </div>
-                                <div class="inputContainer" style="max-width:26em;">
-                                    <label class="inputLabel inputLabelUnfocused" for="mdFileTypes">Only re-encode these file types</label>
-                                    <input id="mdFileTypes" type="text" is="emby-input" placeholder="all file types" />
-                                    <div class="fieldDescription">Comma-separated list like "avi, wmv, mkv". Leave empty (default) to consider every video file.</div>
-                                </div>
-                                <div class="checkboxContainer checkboxContainer-withDescription">
-                                    <label class="emby-checkbox-label">
-                                        <input id="mdHwEncode" type="checkbox" is="emby-checkbox" />
-                                        <span>Use hardware encoder for re-encodes</span>
-                                    </label>
-                                    <div class="fieldDescription">Uses the graphics card encoder configured in Jellyfin's Playback settings. Much faster, files come out slightly larger. If the hardware encoder fails on a file, MediaDash automatically retries with software. Default: off.</div>
-                                </div>
-                                <div class="selectContainer" style="max-width:26em;">
-                                    <label class="selectLabel" for="mdGpuIndex">Preferred GPU for re-encodes</label>
-                                    <select is="emby-select" id="mdGpuIndex" class="emby-select-withcolor emby-select"></select>
-                                    <div class="fieldDescription">If your server has multiple GPUs (typical: iGPU + dGPU), pick the one you want re-encodes to use. Auto lets ffmpeg follow Jellyfin's Playback → Hardware acceleration setting. Only NVENC / AMF encoders honour the plugin override; QSV and VideoToolbox fall back to Jellyfin's device.</div>
-                                </div>
-                                <div class="inputContainer" style="max-width:30em;">
-                                    <label class="inputLabel" for="mdTolerance">Tolerance<span class="mdSliderVal" id="mdToleranceVal"></span></label>
-                                    <input id="mdTolerance" type="range" min="0" max="50" step="5" />
-                                    <div class="fieldDescription">Files only slightly over the limits are left alone. Default: 15%.</div>
-                                </div>
-                            </section>
+                        <div class="mdTaskList" id="mdFixTypeRows"></div>
 
-                            <section id="mdSet-libraries" class="mdSetCard mdSetCard--libraries mdSetCard--full">
+                        <div class="mdSetGrid">
+                            <section id="mdSet-libraries" class="mdSetCard mdSetCard--libraries">
                                 <h2 class="mdSetHead">
                                     <span class="mdSetIcon"><span class="material-icons">video_library</span></span>
                                     <span class="mdSetHeadText">
                                         <span class="mdSetTitle">Libraries</span>
-                                        <span class="mdSetSubtitle">Which Jellyfin libraries MediaDash scans. Nothing selected means all movie and TV libraries.</span>
+                                        <span class="mdSetSubtitle">Which Jellyfin libraries every task is allowed to touch.</span>
                                     </span>
                                 </h2>
                                 <div id="mdLibraries"></div>
-                            </section>
-
-                            <section id="mdSet-advanced" class="mdSetCard mdSetCard--advanced mdSetCard--full">
-                                <h2 class="mdSetHead">
-                                    <span class="mdSetIcon"><span class="material-icons">tune</span></span>
-                                    <span class="mdSetHeadText">
-                                        <span class="mdSetTitle">Advanced</span>
-                                        <span class="mdSetSubtitle">Fine-tuning knobs. Defaults are safe for most libraries.</span>
-                                    </span>
-                                </h2>
-                                <div class="selectContainer" style="max-width:26em;">
-                                    <label class="selectLabel" for="mdEncodePreset">Encode preset</label>
-                                    <select is="emby-select" id="mdEncodePreset" class="emby-select-withcolor emby-select">
-                                        <option value="Faster">Faster — roughly half the encode time, slightly larger files</option>
-                                        <option value="Balanced">Balanced — recommended</option>
-                                        <option value="Best">Best — best quality/size, roughly double the encode time</option>
-                                    </select>
-                                    <div class="fieldDescription">Speed vs. quality trade-off for software re-encodes (libx264 / libx265 / libsvtav1). Hardware encoders (NVENC / AMF / QSV) use the plugin's bitrate ceiling instead — they don't support CRF.</div>
-                                </div>
-                                <div class="inputContainer" style="max-width:26em;">
-                                    <label class="inputLabel inputLabelUnfocused" for="mdMinSize">Ignore files smaller than</label>
-                                    <input id="mdMinSize" type="number" is="emby-input" min="0" max="10000" step="10" />
-                                    <div class="fieldDescription">Megabytes. Filters out sample files, trailers, and extras that shouldn't be flagged for re-encoding. Default: 100 MB.</div>
-                                </div>
-                                <div class="checkboxContainer checkboxContainer-withDescription">
-                                    <label class="emby-checkbox-label">
-                                        <input id="mdSkipHdr" type="checkbox" is="emby-checkbox" />
-                                        <span>Skip HDR content</span>
-                                    </label>
-                                    <div class="fieldDescription">HDR files (HDR10 / HDR10+ / HLG) are left alone by the quality scanner. Re-encoding HDR without proper color-space handling destroys HDR metadata and produces washed-out SDR, so opting in should be deliberate. Default: on.</div>
-                                </div>
-                                <div class="checkboxContainer checkboxContainer-withDescription">
-                                    <label class="emby-checkbox-label">
-                                        <input id="mdRenameAfterTranscode" type="checkbox" is="emby-checkbox" />
-                                        <span>Rename re-encoded files to a canonical name</span>
-                                    </label>
-                                    <div class="fieldDescription">Movies become <code>Name (Year) - {height}p.{ext}</code>; TV episodes become <code>SeriesName - S{ss:00}E{ee:00} - {height}p.{ext}</code>. If Jellyfin doesn't have enough metadata for the file, the re-encode keeps its original basename. Default: off.</div>
-                                </div>
-                                <div class="fieldDescription" style="margin:1em 0 0;">Scan and fix schedules can be changed in Dashboard → Scheduled Tasks ("Scan libraries for issues" and "Apply approved fixes").</div>
                             </section>
 
                             <section id="mdSet-bin" class="mdSetCard mdSetCard--bin">
@@ -1206,7 +1372,6 @@
                                 <div style="margin-bottom:.8em;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
                                     <button is="emby-button" type="button" id="mdBinView" class="raised" title="Show the list of files currently held in the recycle bin" style="font-size:80%;"><span>View contents</span></button>
                                     <button is="emby-button" type="button" id="mdBinEmpty" class="raised" title="Permanently deletes every file in the recycle bin. Restore stops working for those files." style="font-size:80%;"><span>Empty recycle bin now</span></button>
-                                    <span class="fieldDescription">Emptying permanently deletes everything held in the bin.</span>
                                 </div>
                                 <div id="mdBinList" style="display:none;margin-bottom:1em;"></div>
                                 <div class="inputContainer" style="max-width:26em;">
@@ -1220,29 +1385,29 @@
                                     <div class="fieldDescription">After this many days, recycled files are deleted for good. Default: 30.</div>
                                 </div>
                             </section>
-
-                            <section id="mdSet-maintenance" class="mdSetCard mdSetCard--maintenance">
-                                <h2 class="mdSetHead">
-                                    <span class="mdSetIcon"><span class="material-icons">handyman</span></span>
-                                    <span class="mdSetHeadText">
-                                        <span class="mdSetTitle">Maintenance</span>
-                                        <span class="mdSetSubtitle">Reset and re-run actions. Only use these if something looks stuck.</span>
-                                    </span>
-                                </h2>
-                                <div style="margin:.4em 0;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
-                                    <button is="emby-button" type="button" id="mdRerunSetup" class="raised" title="Reopen the first-run walkthrough at the top of Overview" style="font-size:80%;"><span>Run first-time setup again</span></button>
-                                    <span class="fieldDescription">Brings back the multi-step first-run walkthrough.</span>
-                                </div>
-                                <div style="margin:.6em 0;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
-                                    <button is="emby-button" type="button" id="mdResetScan" class="raised" title="Clears every detected issue and the probe/decode caches so the next scan starts from scratch. Fix history and the recycle bin are kept." style="font-size:80%;background:#7f1d1d;color:#fff;"><span>Reset scan data</span></button>
-                                    <span class="fieldDescription">Clears all detected issues and the probe/decode caches so the next scan starts from scratch. Your fix history and recycle bin are kept. Use this if the scanner gets stuck or shows results that don't make sense.</span>
-                                </div>
-                                <div style="margin:.6em 0;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
-                                    <a is="emby-linkbutton" href="https://github.com/crackruckles/MediaDash/issues/new" target="_blank" rel="noopener" class="raised emby-button" style="font-size:80%;text-decoration:none;padding:.5em 1em;"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;margin-right:.3em;">bug_report</span><span>Report an issue</span></a>
-                                    <span class="fieldDescription">Opens the MediaDash issue tracker in a new tab. For bug reports, the <b>Errors</b> tab's <b>Report an issue</b> button copies plugin diagnostics to the clipboard and opens the tracker in one click — start there.</span>
-                                </div>
-                            </section>
                         </div>
+
+                        <section id="mdSet-maintenance" class="mdSetCard mdSetCard--maintenance mdSetCard--full">
+                            <h2 class="mdSetHead">
+                                <span class="mdSetIcon"><span class="material-icons">handyman</span></span>
+                                <span class="mdSetHeadText">
+                                    <span class="mdSetTitle">Maintenance</span>
+                                    <span class="mdSetSubtitle">Reset and re-run actions. Only use these if something looks stuck.</span>
+                                </span>
+                            </h2>
+                            <div style="margin:.4em 0;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
+                                <button is="emby-button" type="button" id="mdRerunSetup" class="raised" title="Reopen the first-run walkthrough at the top of Overview" style="font-size:80%;"><span>Run first-time setup again</span></button>
+                                <span class="fieldDescription">Brings back the multi-step first-run walkthrough.</span>
+                            </div>
+                            <div style="margin:.6em 0;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
+                                <button is="emby-button" type="button" id="mdResetScan" class="raised" title="Clears every detected issue and the probe/decode caches so the next scan starts from scratch. Fix history and the recycle bin are kept." style="font-size:80%;background:#7f1d1d;color:#fff;"><span>Reset scan data</span></button>
+                                <span class="fieldDescription">Clears all detected issues and the probe/decode caches so the next scan starts from scratch. Your fix history and recycle bin are kept. Use this if the scanner gets stuck or shows results that don't make sense.</span>
+                            </div>
+                            <div style="margin:.6em 0;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
+                                <a is="emby-linkbutton" href="https://github.com/crackruckles/MediaDash/issues/new" target="_blank" rel="noopener" class="raised emby-button" style="font-size:80%;text-decoration:none;padding:.5em 1em;"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;margin-right:.3em;">bug_report</span><span>Report an issue</span></a>
+                                <span class="fieldDescription">Opens the MediaDash issue tracker in a new tab. For bug reports, the <b>Errors</b> tab's <b>Report an issue</b> button copies plugin diagnostics to the clipboard and opens the tracker in one click — start there.</span>
+                            </div>
+                        </section>
 
                         <div class="mdSetSave">
                             <button is="emby-button" type="submit" class="raised button-submit"><span>Save changes</span></button>
@@ -2142,127 +2307,638 @@
                     '<option value="Permanent">' + esc(t.doPermanent || STR.disposalPermanent) + '</option>';
             }
 
-            // Per-scanner extras rendered below the mode/disposal row. Each returns a block of HTML with
-            // controls specific to that scanner — settings that used to live in scattered sections
-            // (Languages, Advanced, Libraries) are now colocated with the scanner they configure.
-            function buildScannerExtras(key) {
+            // ─── Task-card system (spec 1a) ────────────────────────────────
+            // Every scanner renders as a self-contained task card. Card body holds the settings that
+            // only affect that scanner. The mode picker is a segmented control writing to a hidden
+            // input #mdMode<Key>; the disposal select stays as #mdDisposal<Key>. All other field ids
+            // are preserved so the existing loadSettings/saveSettings paths keep working unchanged.
+
+            var TASK_ORDER = ['Duplicate', 'Playability', 'Quality', 'SubtitleLanguage', 'AudioLanguage', 'Stale', 'Misplaced', 'MissingSubtitles'];
+
+            // Ink used for the selected-accent segment. Derived by hand from the mock — near-black
+            // shifted toward the accent's hue so the label reads without vibrating.
+            var TASK_INKS = {
+                Duplicate: '#1a1204',
+                Playability: '#1f0505',
+                Quality: '#04101f',
+                SubtitleLanguage: '#100521',
+                AudioLanguage: '#04150f',
+                Misplaced: '#1a0d02',
+                MissingSubtitles: '#0e0521',
+                Stale: '#0b0f16'
+            };
+
+            // Border tint applied when the task is On. The CSS also tries a relative-color-syntax
+            // fallback for browsers that support it; this is the belt-and-braces value used everywhere.
+            var TASK_ON_BORDER = {
+                Duplicate: 'rgba(245,158,11,.28)',
+                Playability: 'rgba(239,68,68,.28)',
+                Quality: 'rgba(59,130,246,.3)',
+                SubtitleLanguage: 'rgba(139,92,246,.28)',
+                AudioLanguage: 'rgba(16,185,129,.28)',
+                Misplaced: 'rgba(249,115,22,.28)',
+                MissingSubtitles: 'rgba(167,139,250,.28)',
+                Stale: 'rgba(100,116,139,.28)'
+            };
+
+            // Accent-tint background for the icon tile.
+            var TASK_TINT = {
+                Duplicate: 'rgba(245,158,11,.14)',
+                Playability: 'rgba(239,68,68,.14)',
+                Quality: 'rgba(59,130,246,.14)',
+                SubtitleLanguage: 'rgba(139,92,246,.14)',
+                AudioLanguage: 'rgba(16,185,129,.14)',
+                Misplaced: 'rgba(249,115,22,.14)',
+                MissingSubtitles: 'rgba(167,139,250,.14)',
+                Stale: 'rgba(100,116,139,.18)'
+            };
+
+            function findFixType(key) {
+                for (var i = 0; i < FIX_TYPES.length; i++) if (FIX_TYPES[i].key === key) return FIX_TYPES[i];
+                return { key: key, mode: key + 'FixMode' };
+            }
+
+            function shortTaskLabel(key) {
+                if (key === 'SubtitleLanguage') return 'Unwanted subtitles';
+                if (key === 'AudioLanguage') return 'Unwanted audio';
+                if (key === 'Playability') return "Won't play";
+                if (key === 'Quality') return 'Wasting space';
+                return STR.types[key].title;
+            }
+
+            function modeSegments(key) {
+                var canAuto = key !== 'Stale';
+                var opts = [
+                    { v: 'Off', l: STR.modeOff || 'Off' },
+                    { v: 'DetectOnly', l: STR.modeDetect || 'Detect only' }
+                ];
+                if (canAuto) {
+                    opts.push({ v: 'ManualApprove', l: STR.modeManual || 'Ask me first' });
+                    opts.push({ v: 'Automatic', l: STR.modeAuto || 'Automatic' });
+                }
+                return '<div class="mdTaskModes" role="radiogroup">' + opts.map(function (o) {
+                    return '<button type="button" data-mode="' + o.v + '">' + esc(o.l) + '</button>';
+                }).join('') + '</div>' +
+                    '<input type="hidden" id="mdMode' + key + '" value="DetectOnly" />';
+            }
+
+            function disposalField(key, label) {
+                return '<div class="mdField">' +
+                    '<label for="mdDisposal' + key + '">' + esc(label) + '</label>' +
+                    '<select is="emby-select" id="mdDisposal' + key + '" class="emby-select-withcolor emby-select">' + disposalOptions(key) + '</select>' +
+                    '</div>';
+            }
+
+            function langChipInputHtml(id) {
+                return '<div class="mdChipInput" data-chip-input="' + id + '">' +
+                    '<span class="mdChipInputRender"></span>' +
+                    '<input type="text" class="mdChipInputText" placeholder="Add a language…" />' +
+                    '<input type="hidden" id="' + id + '" value="" />' +
+                    '</div>';
+            }
+
+            function taskBody(key) {
                 if (key === 'Duplicate') {
-                    return '<div style="display:grid;grid-template-columns:repeat(2,minmax(15em,1fr));gap:1em;margin-top:.8em;">' +
-                        '<div class="selectContainer" style="min-width:0;">' +
-                            '<label class="selectLabel" for="mdKeeperPolicy">When duplicates are found, keep</label>' +
+                    return '<div class="mdFieldGrid mdFieldGrid-2">' +
+                        '<div class="mdField">' +
+                            '<label for="mdKeeperPolicy">When duplicates are found, keep</label>' +
                             '<select is="emby-select" id="mdKeeperPolicy" class="emby-select-withcolor emby-select">' +
                                 '<option value="quality">The best-quality copy (recommended)</option>' +
                                 '<option value="codec">The most modern format (codec first)</option>' +
                                 '<option value="size">The smallest file</option>' +
                             '</select>' +
+                            '<span class="mdFieldHint">Compares resolution, then codec, then bitrate; ties go to the smaller file.</span>' +
                         '</div>' +
-                        '<div class="inputContainer" style="min-width:0;">' +
-                            '<label class="inputLabel inputLabelUnfocused" for="mdDuplicateMinAge">Wait N days after import</label>' +
+                        disposalField('Duplicate', 'The worse copy goes to') +
+                        '<div class="mdField" style="grid-column:1/-1;">' +
+                            '<label for="mdDuplicateMinAge">Wait N days after import</label>' +
                             '<input id="mdDuplicateMinAge" type="number" min="0" max="365" is="emby-input" />' +
-                            '<div class="fieldDescription">Freshly-imported items can transiently look like duplicates of themselves while Jellyfin\'s metadata scrape catches up. 0 disables the wait. Default: 7 days.</div>' +
+                            '<span class="mdFieldHint">Freshly-imported items can transiently look like duplicates of themselves while Jellyfin\'s metadata scrape catches up. 0 disables the wait. Default 7.</span>' +
+                        '</div>' +
+                        '<div class="mdInsetRow" style="grid-column:1/-1;">' +
+                            '<input id="mdEditions" type="checkbox" is="emby-checkbox" style="margin:0;" />' +
+                            '<span style="font-size:13px;font-weight:600;">Treat different editions as duplicates</span>' +
+                            '<span class="mdFieldHint" style="margin:0;">Off: a Director\'s Cut and the theatrical cut stay as separate movies.</span>' +
                         '</div>' +
                         '</div>' +
-                        '<div class="checkboxContainer checkboxContainer-withDescription" style="margin-top:.4em;">' +
-                            '<label class="emby-checkbox-label">' +
-                                '<input id="mdEditions" type="checkbox" is="emby-checkbox" />' +
-                                '<span>Treat different editions as duplicates</span>' +
-                            '</label>' +
-                            '<div class="fieldDescription">Off (default): a Director\'s Cut and the theatrical cut are kept as separate movies.</div>' +
-                        '</div>';
+                        '<span class="mdFieldHint">Retention and bin location live in <a href="#mdSet-bin" style="color:rgba(230,237,243,.85);text-decoration:underline;">Recycle bin</a>.</span>';
                 }
                 if (key === 'Playability') {
-                    return '<div class="checkboxContainer checkboxContainer-withDescription" style="margin-top:.7em;">' +
-                        '<label class="emby-checkbox-label">' +
-                            '<input id="mdThorough" type="checkbox" is="emby-checkbox" />' +
-                            '<span>Thorough playability check</span>' +
-                        '</label>' +
-                        '<div class="fieldDescription">Test-plays the start, middle and end of every file (30 seconds each). Catches broken files that look fine on the surface. The first scan is much slower; results are remembered for unchanged files. Default: on.</div>' +
-                        '</div>';
+                    return '<div class="mdFieldGrid mdFieldGrid-2">' +
+                        disposalField('Playability', 'Broken files go to') +
+                        '<div class="mdInsetRow">' +
+                            '<input id="mdThorough" type="checkbox" is="emby-checkbox" style="margin:0;" />' +
+                            '<span style="font-size:13px;font-weight:600;">Thorough playability check</span>' +
+                            '<span class="mdFieldHint" style="margin:0;">Test-plays start, middle and end (30s each). Slower first scan; cached after.</span>' +
+                        '</div>' +
+                        '</div>' +
+                        '<span class="mdFieldHint">Broken-file removal always waits for approval, even in Automatic.</span>';
+                }
+                if (key === 'Quality') {
+                    return '<div id="mdQualityAutoStrip" class="mdInfoStrip" style="display:none;">' +
+                            '<span class="material-icons">bolt</span>' +
+                            '<span id="mdQualityAutoStripText"></span>' +
+                        '</div>' +
+                        '<div class="mdFieldGrid mdFieldGrid-3">' +
+                            '<div class="mdField">' +
+                                '<label for="mdMaxRes">Maximum resolution</label>' +
+                                '<select is="emby-select" id="mdMaxRes" class="emby-select-withcolor emby-select">' +
+                                    '<option value="2160">4K (2160p)</option>' +
+                                    '<option value="1440">1440p</option>' +
+                                    '<option value="1080">1080p</option>' +
+                                    '<option value="720">720p</option>' +
+                                '</select>' +
+                            '</div>' +
+                            '<div class="mdField">' +
+                                '<label for="mdCodec">Re-encode to</label>' +
+                                '<select is="emby-select" id="mdCodec" class="emby-select-withcolor emby-select">' +
+                                    '<option value="hevc">H.265 / HEVC (recommended)</option>' +
+                                    '<option value="h264">H.264 (best compatibility)</option>' +
+                                    '<option value="av1">AV1 (smallest files, slow)</option>' +
+                                '</select>' +
+                            '</div>' +
+                            '<div class="mdField">' +
+                                '<label for="mdContainer">Save re-encoded files as</label>' +
+                                '<select is="emby-select" id="mdContainer" class="emby-select-withcolor emby-select">' +
+                                    '<option value="mkv">MKV — keeps subtitles</option>' +
+                                    '<option value="mp4">MP4 — no subtitle tracks</option>' +
+                                '</select>' +
+                            '</div>' +
+                            '<div class="mdField" style="grid-column:1/3;">' +
+                                '<div style="display:flex;justify-content:space-between;align-items:baseline;">' +
+                                    '<label for="mdMaxBitrate" id="mdMaxBitrateLabel">Maximum video bitrate at 1080p</label>' +
+                                    '<span class="mdSliderVal" id="mdMaxBitrateVal"></span>' +
+                                '</div>' +
+                                '<input id="mdMaxBitrate" type="range" min="1" max="40" step="0.5" />' +
+                                '<span class="mdFieldHint">Scaled automatically for every other resolution.</span>' +
+                            '</div>' +
+                            disposalField('Quality', 'The original file goes to') +
+                        '</div>' +
+                        '<div class="mdInsetRow" style="gap:14px;">' +
+                            '<label class="mdSwitch">' +
+                                '<input id="mdHwEncode" type="checkbox" />' +
+                                '<span class="mdSwitchTrack"></span>' +
+                                '<span class="mdSwitchThumb"></span>' +
+                            '</label>' +
+                            '<span style="font-size:13px;font-weight:600;">Use hardware encoder</span>' +
+                            '<span class="mdFieldHint" style="margin:0;flex:1;">Falls back to software automatically if a file fails.</span>' +
+                            '<label for="mdGpuIndex" style="font-size:12.5px;font-weight:600;color:rgba(230,237,243,.65);">GPU</label>' +
+                            '<select is="emby-select" id="mdGpuIndex" class="emby-select-withcolor emby-select" style="max-width:18em;"></select>' +
+                        '</div>' +
+                        '<details class="mdAdvanced">' +
+                            '<summary class="mdAdvancedToggle" style="list-style:none;">' +
+                                '<span class="material-icons">expand_more</span>' +
+                                '<span class="mdAdvancedTitle">Advanced</span>' +
+                                '<span class="mdAdvancedTeaser">Encode preset · tolerance · ignore under 100 MB · skip HDR · file types · rename</span>' +
+                            '</summary>' +
+                            '<div class="mdAdvancedBody">' +
+                                '<div class="mdFieldGrid mdFieldGrid-2">' +
+                                    '<div class="mdField">' +
+                                        '<label for="mdEncodePreset">Encode preset (software encoders)</label>' +
+                                        '<select is="emby-select" id="mdEncodePreset" class="emby-select-withcolor emby-select">' +
+                                            '<option value="Faster">Faster — half the time, slightly bigger files</option>' +
+                                            '<option value="Balanced">Balanced — recommended</option>' +
+                                            '<option value="Best">Best — best quality/size, twice the time</option>' +
+                                        '</select>' +
+                                    '</div>' +
+                                    '<div class="mdField">' +
+                                        '<div style="display:flex;justify-content:space-between;align-items:baseline;">' +
+                                            '<label for="mdTolerance">Tolerance</label>' +
+                                            '<span class="mdSliderVal" id="mdToleranceVal"></span>' +
+                                        '</div>' +
+                                        '<input id="mdTolerance" type="range" min="0" max="50" step="5" />' +
+                                        '<span class="mdFieldHint">Files only slightly over are left alone.</span>' +
+                                    '</div>' +
+                                    '<div class="mdField">' +
+                                        '<label for="mdMinSize">Ignore files smaller than (MB)</label>' +
+                                        '<input id="mdMinSize" type="number" is="emby-input" min="0" max="10000" step="10" />' +
+                                        '<span class="mdFieldHint">Filters samples and trailers. Default 100 MB.</span>' +
+                                    '</div>' +
+                                    '<div class="mdField">' +
+                                        '<label for="mdFileTypes">Only re-encode these file types</label>' +
+                                        '<input id="mdFileTypes" type="text" is="emby-input" placeholder="all file types" />' +
+                                        '<span class="mdFieldHint">Comma-separated: "avi, wmv, mkv". Empty = all.</span>' +
+                                    '</div>' +
+                                '</div>' +
+                                '<div class="mdInsetRow">' +
+                                    '<input id="mdSkipHdr" type="checkbox" is="emby-checkbox" style="margin:0;" />' +
+                                    '<span style="font-size:13px;font-weight:600;">Skip HDR content</span>' +
+                                    '<span class="mdFieldHint" style="margin:0;">Re-encoding HDR without color-space plumbing destroys metadata.</span>' +
+                                '</div>' +
+                                '<div class="mdInsetRow">' +
+                                    '<input id="mdRenameAfterTranscode" type="checkbox" is="emby-checkbox" style="margin:0;" />' +
+                                    '<span style="font-size:13px;font-weight:600;">Rename re-encoded files to a canonical name</span>' +
+                                    '<span class="mdFieldHint" style="margin:0;">Movie (Year) - 1080p.mkv style.</span>' +
+                                '</div>' +
+                            '</div>' +
+                        '</details>';
                 }
                 if (key === 'SubtitleLanguage') {
-                    return '<div class="inputContainer" style="margin-top:.7em;">' +
-                        '<label class="inputLabel inputLabelUnfocused" for="mdSubLangs">Subtitle languages to keep</label>' +
-                        '<input id="mdSubLangs" type="text" is="emby-input" placeholder="eng, spa, fra" />' +
-                        '<div class="fieldDescription">Comma-separated ISO 639-2 codes (e.g. eng, spa, fra). Also used by Missing subtitles. Empty leaves the scanner off.</div>' +
+                    return '<div class="mdFieldGrid" style="grid-template-columns:1.3fr 1fr;">' +
+                        '<div class="mdField">' +
+                            '<label>Subtitle languages to keep</label>' +
+                            langChipInputHtml('mdSubLangs') +
+                            '<span class="mdFieldHint">Removal is a lossless remux — no quality loss.</span>' +
+                        '</div>' +
+                        disposalField('SubtitleLanguage', 'Cleaned-up originals go to') +
                         '</div>';
                 }
                 if (key === 'AudioLanguage') {
-                    return '<div class="inputContainer" style="margin-top:.7em;">' +
-                        '<label class="inputLabel inputLabelUnfocused" for="mdAudioLangs">Audio languages to keep</label>' +
-                        '<input id="mdAudioLangs" type="text" is="emby-input" placeholder="eng, spa, fra" />' +
-                        '<div class="fieldDescription">Comma-separated ISO 639-2 codes. A file\'s only audio track is always kept, even if its language isn\'t on this list. Empty leaves the scanner off.</div>' +
+                    return '<div class="mdFieldGrid" style="grid-template-columns:1.3fr 1fr;">' +
+                        '<div class="mdField">' +
+                            '<label>Audio languages to keep</label>' +
+                            langChipInputHtml('mdAudioLangs') +
+                            '<span class="mdFieldHint">A file\'s only audio track is never removed, whatever its language.</span>' +
+                        '</div>' +
+                        disposalField('AudioLanguage', 'Cleaned-up originals go to') +
                         '</div>';
                 }
                 if (key === 'Misplaced') {
-                    return '<div class="inputContainer" style="margin-top:.7em;">' +
-                        '<label class="inputLabel inputLabelUnfocused" for="mdMoviesTarget">Movies destination folder</label>' +
-                        '<input id="mdMoviesTarget" type="text" is="emby-input" placeholder="/media/movies" />' +
-                        '<div class="fieldDescription">Where a misplaced movie is moved. Must sit inside one of your Jellyfin libraries.</div>' +
+                    return '<div class="mdWarnStrip" id="mdMisplacedWarn" style="display:none;">' +
+                            '<span class="material-icons">warning</span>' +
+                            '<span>Set both the Movies and TV folders below to turn this task on.</span>' +
                         '</div>' +
-                        '<div class="inputContainer" style="margin-top:.5em;">' +
-                        '<label class="inputLabel inputLabelUnfocused" for="mdTvTarget">TV destination folder</label>' +
-                        '<input id="mdTvTarget" type="text" is="emby-input" placeholder="/media/tv" />' +
-                        '<div class="fieldDescription">Where a misplaced TV episode is moved.</div>' +
-                        '</div>' +
-                        '<div class="inputContainer" style="margin-top:.5em;">' +
-                        '<label class="inputLabel inputLabelUnfocused" for="mdAnimeTarget">Anime destination folder (optional)</label>' +
-                        '<input id="mdAnimeTarget" type="text" is="emby-input" placeholder="/media/anime" />' +
-                        '<div class="fieldDescription">If set, items tagged with the "Anime" genre route here instead of Movies or TV. Empty disables anime routing.</div>' +
-                        '</div>' +
-                        '<div class="selectContainer" style="margin-top:.5em;">' +
-                        '<label class="selectLabel" for="mdMediaSortSource">Detect movie / TV from</label>' +
-                        '<select is="emby-select" id="mdMediaSortSource" class="emby-select-withcolor emby-select">' +
-                            '<option value="JellyfinMetadata">Jellyfin metadata (recommended)</option>' +
-                            '<option value="FilenameHeuristic">Filename pattern (fallback)</option>' +
-                        '</select>' +
+                        '<div class="mdFieldGrid mdFieldGrid-2">' +
+                            '<div class="mdField">' +
+                                '<label for="mdMoviesTarget">Movies destination folder</label>' +
+                                '<input id="mdMoviesTarget" type="text" is="emby-input" placeholder="/media/movies" />' +
+                            '</div>' +
+                            '<div class="mdField">' +
+                                '<label for="mdTvTarget">TV destination folder</label>' +
+                                '<input id="mdTvTarget" type="text" is="emby-input" placeholder="/media/tv" />' +
+                            '</div>' +
+                            '<div class="mdField">' +
+                                '<label for="mdAnimeTarget">Anime destination (optional)</label>' +
+                                '<input id="mdAnimeTarget" type="text" is="emby-input" placeholder="empty leaves anime in Movies/TV" />' +
+                            '</div>' +
+                            '<div class="mdField">' +
+                                '<label for="mdMediaSortSource">Detect movie / TV from</label>' +
+                                '<select is="emby-select" id="mdMediaSortSource" class="emby-select-withcolor emby-select">' +
+                                    '<option value="JellyfinMetadata">Jellyfin metadata (recommended)</option>' +
+                                    '<option value="FilenameHeuristic">Filename pattern (fallback)</option>' +
+                                '</select>' +
+                            '</div>' +
                         '</div>';
                 }
                 if (key === 'MissingSubtitles') {
-                    return '<div class="fieldDescription" style="margin-top:.5em;">Uses the subtitle keep-list from <b>Unwanted subtitles</b> above — downloads are filtered to those languages.</div>' +
-                        '<div class="fieldDescription" id="mdProviderHint" style="display:none;margin-top:.5em;"></div>';
+                    return '<div class="mdFieldHint">Uses the subtitle languages set in <a href="#mdSet-task-SubtitleLanguage" style="color:rgba(230,237,243,.85);text-decoration:underline;">Unwanted subtitles</a>. Downloads go through Jellyfin\'s configured subtitle providers.</div>' +
+                        '<div class="mdFieldHint" id="mdProviderHint" style="display:none;"></div>';
                 }
                 if (key === 'Stale') {
-                    return '<div class="inputContainer" style="max-width:14em;margin-top:.7em;">' +
-                        '<label class="inputLabel inputLabelUnfocused" for="mdStaleThresholdDays">Consider stale after (days)</label>' +
-                        '<input id="mdStaleThresholdDays" type="number" min="1" max="3650" is="emby-input" />' +
-                        '<div class="fieldDescription">Nothing is flagged until the item has both been on the server this long AND not been played by anyone in that window. Default 365.</div>' +
+                    return '<div class="mdFieldGrid mdFieldGrid-2">' +
+                        '<div class="mdField">' +
+                            '<label for="mdStaleThresholdDays">Flag media nobody has played in (days)</label>' +
+                            '<input id="mdStaleThresholdDays" type="number" min="1" max="3650" is="emby-input" />' +
+                            '<span class="mdFieldHint">Item must also have been on the server this long, so fresh imports don\'t immediately flag.</span>' +
                         '</div>' +
-                        '<div style="margin-top:.7em;">' +
-                        '<label class="inputLabel inputLabelUnfocused">Skip these libraries entirely</label>' +
-                        '<div id="mdStaleExcludedLibs" class="fieldDescription" style="margin-top:.3em;">Loading libraries…</div>' +
+                        '<div class="mdField">' +
+                            '<label for="mdStaleExcludedGenres">Skip these genres</label>' +
+                            '<input id="mdStaleExcludedGenres" type="text" is="emby-input" placeholder="Documentary, Christmas" />' +
+                            '<span class="mdFieldHint">Case-insensitive match against Jellyfin genres.</span>' +
                         '</div>' +
-                        '<div class="inputContainer" style="margin-top:.7em;">' +
-                        '<label class="inputLabel inputLabelUnfocused" for="mdStaleExcludedGenres">Also skip items with these genres</label>' +
-                        '<input id="mdStaleExcludedGenres" type="text" is="emby-input" placeholder="Documentary, Christmas" />' +
-                        '<div class="fieldDescription">Comma-separated genre names, case-insensitive. Any item tagged with a matching Jellyfin genre is left alone.</div>' +
-                        '</div>';
+                        '<div class="mdField" style="grid-column:1/-1;">' +
+                            '<label>Skip these libraries entirely</label>' +
+                            '<div id="mdStaleExcludedLibs" class="mdFieldHint">Loading libraries…</div>' +
+                        '</div>' +
+                        '</div>' +
+                        '<span class="mdFieldHint">Detect-only — Stale content never gets deleted automatically.</span>';
                 }
                 return '';
             }
 
+            function buildTaskCard(t) {
+                var meta = STR.types[t.key];
+                return '<section class="mdTask" id="mdSet-task-' + t.key + '" data-key="' + t.key + '" ' +
+                    'style="--md-accent:' + meta.color + ';--md-accent-tint:' + TASK_TINT[t.key] + ';--md-accent-ink:' + TASK_INKS[t.key] + ';--md-accent-border:' + TASK_ON_BORDER[t.key] + ';">' +
+                    '<div class="mdTaskAccent"></div>' +
+                    '<header class="mdTaskHead" data-role="head">' +
+                        '<span class="mdTaskIcon"><span class="material-icons">' + meta.icon + '</span></span>' +
+                        '<span class="mdTaskLabel">' +
+                            '<span class="mdTaskTitle">' + esc(meta.title) + '</span>' +
+                            '<span class="mdTaskSub" data-role="summary">' + esc(meta.hint || '') + '</span>' +
+                        '</span>' +
+                        modeSegments(t.key) +
+                        '<span class="material-icons mdTaskChevron">expand_less</span>' +
+                    '</header>' +
+                    '<div class="mdTaskBody">' + taskBody(t.key) + '</div>' +
+                    '</section>';
+            }
+
+            // Named `buildFixTypeRows` to preserve the existing init-time call site. Renders the
+            // task list into the container, then wires up per-card interactions and the chip rail.
             function buildFixTypeRows() {
-                var html = '';
-                FIX_TYPES.forEach(function (t) {
-                    var meta = STR.types[t.key];
-                    var disposalBlock = t.disposal
-                        ? ('<div class="selectContainer" style="min-width:0;">' +
-                            '<label class="selectLabel" for="mdDisposal' + t.key + '">What to do</label>' +
-                            '<select is="emby-select" id="mdDisposal' + t.key + '" class="emby-select-withcolor emby-select">' + disposalOptions(t.key) + '</select>' +
-                            '</div>')
-                        : '';
-                    html += '<div class="mdCard" style="margin-bottom:.7em;border-left:4px solid ' + meta.color + ';">' +
-                        '<div style="font-weight:600;margin-bottom:.4em;color:' + meta.color + ';"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;color:' + meta.color + ';">' + meta.icon + '</span> ' + esc(meta.title) + '</div>' +
-                        // Two-column grid keeps "How it runs" the same width across every card, whether the
-                        // scanner has a disposal option or not. Single-dropdown cards leave the right slot empty.
-                        '<div style="display:grid;grid-template-columns:repeat(2,minmax(15em,1fr));gap:1em;">' +
-                        '<div class="selectContainer" style="min-width:0;">' +
-                        '<label class="selectLabel" for="mdMode' + t.key + '">How it runs</label>' +
-                        '<select is="emby-select" id="mdMode' + t.key + '" class="emby-select-withcolor emby-select">' + modeOptions() + '</select>' +
-                        '</div>' +
-                        disposalBlock +
-                        '</div>' + buildScannerExtras(t.key) + '</div>';
-                });
+                var html = TASK_ORDER.map(function (key) { return buildTaskCard(findFixType(key)); }).join('');
                 view.querySelector('#mdFixTypeRows').innerHTML = html;
+                wireTaskCards();
+                buildNavChips();
+            }
+
+            function wireTaskCards() {
+                view.querySelectorAll('.mdTask').forEach(function (card) {
+                    var key = card.getAttribute('data-key');
+                    var head = card.querySelector('[data-role=head]');
+                    head.addEventListener('click', function (e) {
+                        if (e.target.closest('.mdTaskModes')) return;
+                        if (e.target.closest('button')) return;
+                        toggleTaskCollapsed(key);
+                    });
+                    card.querySelectorAll('.mdTaskModes button').forEach(function (btn) {
+                        btn.addEventListener('click', function (e) {
+                            e.stopPropagation();
+                            setTaskMode(key, btn.getAttribute('data-mode'));
+                        });
+                    });
+                });
+                view.querySelectorAll('.mdChipInput').forEach(wireChipInput);
+                var collapseAll = view.querySelector('#mdTaskCollapseAll');
+                if (collapseAll) collapseAll.addEventListener('click', function () {
+                    var anyExpanded = false;
+                    TASK_ORDER.forEach(function (k) {
+                        var card = view.querySelector('.mdTask[data-key="' + k + '"]');
+                        if (card && !card.classList.contains('mdTaskCollapsed') && !card.classList.contains('mdTaskOff')) anyExpanded = true;
+                    });
+                    TASK_ORDER.forEach(function (k) { setCollapseState(k, anyExpanded); });
+                    TASK_ORDER.forEach(applyCollapse);
+                });
+            }
+
+            function setTaskMode(key, newMode) {
+                var hidden = view.querySelector('#mdMode' + key);
+                if (!hidden) return;
+                var oldMode = hidden.value;
+                if (newMode === oldMode) return;
+                if (newMode === 'Automatic' && !window.confirm(STR.confirmAuto)) return;
+                hidden.value = newMode;
+                syncModeSegments(key);
+                applyTaskState(key);
+                updateActiveCount();
+                updateNavChipStates();
+                updateSummary(key);
+                if (newMode === 'Off') setCollapseState(key, true);
+                else if (oldMode === 'Off') setCollapseState(key, false);
+                applyCollapse(key);
+            }
+
+            function syncModeSegments(key) {
+                var el = view.querySelector('#mdMode' + key);
+                if (!el) return;
+                var mode = el.value;
+                view.querySelectorAll('.mdTask[data-key="' + key + '"] .mdTaskModes button').forEach(function (btn) {
+                    btn.classList.toggle('mdTaskModeActive', btn.getAttribute('data-mode') === mode);
+                });
+            }
+
+            function applyTaskState(key) {
+                var card = view.querySelector('.mdTask[data-key="' + key + '"]');
+                if (!card) return;
+                var el = view.querySelector('#mdMode' + key);
+                var mode = el ? el.value : 'Off';
+                card.classList.toggle('mdTaskOff', mode === 'Off');
+                card.classList.toggle('mdTaskOn', mode !== 'Off');
+            }
+
+            function toggleTaskCollapsed(key) {
+                var card = view.querySelector('.mdTask[data-key="' + key + '"]');
+                if (!card || card.classList.contains('mdTaskOff')) return;
+                setCollapseState(key, !card.classList.contains('mdTaskCollapsed'));
+                applyCollapse(key);
+            }
+
+            function applyCollapse(key) {
+                var card = view.querySelector('.mdTask[data-key="' + key + '"]');
+                if (!card) return;
+                var el = view.querySelector('#mdMode' + key);
+                var isOff = el && el.value === 'Off';
+                card.classList.toggle('mdTaskCollapsed', isOff || getCollapseState(key));
+            }
+
+            function applyAllCollapse() { TASK_ORDER.forEach(applyCollapse); }
+
+            function getCollapseState(key) {
+                try { return localStorage.getItem('mdCollapse:' + key) === '1'; } catch (e) { return false; }
+            }
+            function setCollapseState(key, collapsed) {
+                try { localStorage.setItem('mdCollapse:' + key, collapsed ? '1' : '0'); } catch (e) {}
+            }
+
+            function updateActiveCount() {
+                var active = 0;
+                TASK_ORDER.forEach(function (k) {
+                    var el = view.querySelector('#mdMode' + k);
+                    if (el && el.value !== 'Off') active++;
+                });
+                var el = view.querySelector('#mdTaskActiveCount');
+                if (el) el.textContent = active + ' of 8 active';
+            }
+
+            var _langNames = null;
+            function langNameMap() {
+                if (_langNames) return _langNames;
+                _langNames = {};
+                (STR.languages || []).forEach(function (p) { _langNames[p[0]] = p[1]; });
+                return _langNames;
+            }
+
+            function updateSummary(key) {
+                var card = view.querySelector('.mdTask[data-key="' + key + '"]');
+                if (!card) return;
+                var sub = card.querySelector('[data-role=summary]');
+                if (!sub) return;
+                var el = view.querySelector('#mdMode' + key);
+                var mode = el ? el.value : 'Off';
+                if (mode === 'Off') {
+                    sub.textContent = offSummaryFor(key);
+                    return;
+                }
+                sub.textContent = activeSummaryFor(key, mode) || (STR.types[key].hint || '');
+            }
+
+            function updateAllSummaries() { TASK_ORDER.forEach(updateSummary); }
+
+            function offSummaryFor(key) {
+                if (key === 'Misplaced') return 'Off — turn on to set the Movies, TV and Anime target folders.';
+                if (key === 'MissingSubtitles') return 'Off — downloads use Jellyfin\'s own subtitle providers.';
+                if (key === 'Stale') return 'Off — turn on to flag anything unplayed for a while.';
+                return 'Off — this task is disabled.';
+            }
+
+            function modeLabelFor(mode) {
+                if (mode === 'DetectOnly') return 'Detect only';
+                if (mode === 'ManualApprove') return 'Ask me first';
+                if (mode === 'Automatic') return 'Automatic';
+                return 'On';
+            }
+
+            function langSummary(codes) {
+                if (!codes.length) return 'no languages set';
+                var names = codes.map(function (c) { return langNameMap()[c] || c; });
+                if (names.length === 1) return names[0];
+                if (names.length === 2) return names.join(' and ');
+                return names.slice(0, 2).join(', ') + ' + ' + (names.length - 2) + ' more';
+            }
+
+            function activeSummaryFor(key, mode) {
+                var m = modeLabelFor(mode);
+                if (key === 'Duplicate') {
+                    var kp = view.querySelector('#mdKeeperPolicy');
+                    var kpLabel = kp && kp.value === 'codec' ? 'newest codec' : kp && kp.value === 'size' ? 'smallest file' : 'best-quality copy';
+                    return m + ' — keep the ' + kpLabel + '.';
+                }
+                if (key === 'Playability') {
+                    var thorough = view.querySelector('#mdThorough');
+                    return (thorough && thorough.checked ? 'Thorough check on · ' : 'Basic check · ') + 'broken files go to the recycle bin';
+                }
+                if (key === 'Quality') {
+                    var res = view.querySelector('#mdMaxRes');
+                    var codec = view.querySelector('#mdCodec');
+                    return m + ' — re-encode to ' + (codec ? codec.value.toUpperCase() : 'HEVC') + ' at ' + (res ? res.value + 'p' : 'ceiling');
+                }
+                if (key === 'SubtitleLanguage' || key === 'AudioLanguage' || key === 'MissingSubtitles') {
+                    var id = key === 'AudioLanguage' ? '#mdAudioLangs' : '#mdSubLangs';
+                    var el = view.querySelector(id);
+                    var codes = ((el && el.value) || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+                    return 'Keeping ' + langSummary(codes) + ' · ' + m.toLowerCase();
+                }
+                if (key === 'Stale') {
+                    var d = view.querySelector('#mdStaleThresholdDays');
+                    return 'Flagging anything unplayed for ' + (d ? d.value : '365') + ' days · never deleted automatically';
+                }
+                if (key === 'Misplaced') {
+                    var mv = view.querySelector('#mdMoviesTarget');
+                    var tv = view.querySelector('#mdTvTarget');
+                    var hasBoth = mv && mv.value && tv && tv.value;
+                    return m + (hasBoth ? ' — sorting into your Movies / TV folders' : ' — folders not set yet');
+                }
+                return m;
+            }
+
+            function buildNavChips() {
+                var nav = view.querySelector('#mdSetNav');
+                if (!nav) return;
+                var out = '';
+                out += navChipHtml('Safety', 'shield', '#22d3ee', '#mdSet-safety');
+                out += '<span class="mdSetNavDivider"></span>';
+                TASK_ORDER.forEach(function (key) {
+                    var meta = STR.types[key];
+                    out += navChipHtml(shortTaskLabel(key), meta.icon, meta.color, '#mdSet-task-' + key, key);
+                });
+                out += '<span class="mdSetNavDivider"></span>';
+                out += navChipHtml('Libraries', 'video_library', '#06b6d4', '#mdSet-libraries');
+                out += navChipHtml('Recycle bin', 'delete', '#ec4899', '#mdSet-bin');
+                out += navChipHtml('Maintenance', 'handyman', '#94a3b8', '#mdSet-maintenance');
+                nav.innerHTML = out;
+                nav.querySelectorAll('.mdSetChip').forEach(function (chip) {
+                    chip.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        var target = view.querySelector(chip.getAttribute('href'));
+                        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    });
+                });
+                updateNavChipStates();
+            }
+
+            function navChipHtml(label, icon, color, href, taskKey) {
+                var attr = taskKey ? ' data-task-chip="' + taskKey + '"' : '';
+                return '<a class="mdSetChip" href="' + href + '"' + attr + ' style="--md-accent:' + color + ';">' +
+                    '<span class="material-icons">' + icon + '</span><span>' + esc(label) + '</span></a>';
+            }
+
+            function updateNavChipStates() {
+                view.querySelectorAll('.mdSetChip[data-task-chip]').forEach(function (chip) {
+                    var key = chip.getAttribute('data-task-chip');
+                    var el = view.querySelector('#mdMode' + key);
+                    chip.classList.toggle('mdSetChipOff', !!(el && el.value === 'Off'));
+                });
+            }
+
+            function wireChipInput(chipEl) {
+                var hidden = chipEl.querySelector('input[type=hidden]');
+                var render = chipEl.querySelector('.mdChipInputRender');
+                var input = chipEl.querySelector('.mdChipInputText');
+                function currentCodes() { return (hidden.value || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean); }
+                function redraw() {
+                    var codes = currentCodes();
+                    render.innerHTML = codes.map(function (c) {
+                        return '<span class="mdChip" data-code="' + esc(c) + '">' + esc(langNameMap()[c] || c) +
+                            '<button type="button" tabindex="-1" aria-label="Remove"><span class="material-icons">close</span></button></span>';
+                    }).join('');
+                    render.querySelectorAll('.mdChip button').forEach(function (b) {
+                        b.addEventListener('click', function (e) {
+                            e.stopPropagation();
+                            var code = b.parentElement.getAttribute('data-code');
+                            hidden.value = currentCodes().filter(function (c) { return c !== code; }).join(', ');
+                            redraw();
+                            notifyLangChange();
+                        });
+                    });
+                }
+                chipEl.addEventListener('click', function (e) {
+                    if (!e.target.closest('.mdChip')) input.focus();
+                });
+                input.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter' || e.key === ',') {
+                        e.preventDefault();
+                        var v = input.value.trim().toLowerCase();
+                        if (!v) return;
+                        var byCode = langNameMap();
+                        var byName = {}; Object.keys(byCode).forEach(function (c) { byName[byCode[c].toLowerCase()] = c; });
+                        if (byName[v]) v = byName[v];
+                        if (!byCode[v]) return;
+                        var codes = currentCodes();
+                        if (codes.indexOf(v) === -1) codes.push(v);
+                        hidden.value = codes.join(', ');
+                        input.value = '';
+                        redraw();
+                        notifyLangChange();
+                    } else if (e.key === 'Backspace' && !input.value) {
+                        var codes2 = currentCodes(); codes2.pop();
+                        hidden.value = codes2.join(', ');
+                        redraw();
+                        notifyLangChange();
+                    }
+                });
+                chipEl._redraw = redraw;
+                redraw();
+            }
+
+            function notifyLangChange() {
+                updateSummary('SubtitleLanguage');
+                updateSummary('AudioLanguage');
+                updateSummary('MissingSubtitles');
+            }
+
+            function initTaskCardsAfterLoad() {
+                TASK_ORDER.forEach(function (k) {
+                    syncModeSegments(k);
+                    applyTaskState(k);
+                    updateSummary(k);
+                    applyCollapse(k);
+                });
+                view.querySelectorAll('.mdChipInput').forEach(function (c) { if (c._redraw) c._redraw(); });
+                updateActiveCount();
+                updateNavChipStates();
+                updateQualityAutoStrip();
+                var qualityFieldWatch = ['#mdKeeperPolicy', '#mdMaxRes', '#mdCodec', '#mdStaleThresholdDays', '#mdMoviesTarget', '#mdTvTarget', '#mdThorough', '#mdFixScheduleTime'];
+                qualityFieldWatch.forEach(function (sel) {
+                    var el = view.querySelector(sel);
+                    if (el) el.addEventListener('change', function () { updateAllSummaries(); updateQualityAutoStrip(); });
+                });
+            }
+
+            function updateQualityAutoStrip() {
+                var strip = view.querySelector('#mdQualityAutoStrip');
+                var text = view.querySelector('#mdQualityAutoStripText');
+                if (!strip || !text) return;
+                var mode = view.querySelector('#mdModeQuality');
+                var dry = view.querySelector('#mdDryRun');
+                var time = view.querySelector('#mdFixScheduleTime');
+                if (mode && mode.value === 'Automatic') {
+                    var t = (time && time.value) || '03:00';
+                    text.textContent = 'Automatic re-encodes run nightly at ' + t + ' while the server is idle.' + (dry && dry.checked ? ' Dry-run is still on, so nothing is written yet.' : '');
+                    strip.style.display = '';
+                } else {
+                    strip.style.display = 'none';
+                }
             }
 
             function initSetNav() {
@@ -2386,6 +3062,7 @@
                     syncSliderLabels();
                     loadLibraries(c);
                     loadStaleExcludedLibraries(c);
+                    initTaskCardsAfterLoad();
                 });
             }
 
