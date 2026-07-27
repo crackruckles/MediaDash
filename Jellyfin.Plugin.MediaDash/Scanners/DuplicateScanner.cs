@@ -68,6 +68,18 @@ public sealed partial class DuplicateScanner : IScanner
         }
 
         var duplicateGroups = groups.Where(g => g.Value.Select(v => v.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1).ToList();
+
+        // Skip groups where any copy is younger than DuplicateMinAgeDays — Jellyfin's metadata scrape hasn't
+        // stabilised yet, so a fresh import can transiently look like a duplicate of itself before provider IDs
+        // land. Both copies must be past the cutoff for the pair to be worth flagging.
+        if (Config.DuplicateMinAgeDays > 0)
+        {
+            var cutoff = DateTime.UtcNow.AddDays(-Config.DuplicateMinAgeDays);
+            duplicateGroups = duplicateGroups
+                .Where(g => g.Value.All(v => v.Item.DateCreated <= cutoff))
+                .ToList();
+        }
+
         var issues = new List<Issue>();
         var processed = 0;
 

@@ -32,6 +32,7 @@ public sealed class StaleContentScanner : IScanner
 {
     private readonly IUserManager _userManager;
     private readonly IUserDataManager _userDataManager;
+    private readonly ILibraryManager _libraryManager;
     private readonly ILogger<StaleContentScanner> _logger;
     private readonly Lazy<UserApiBridge> _bridge;
 
@@ -40,11 +41,13 @@ public sealed class StaleContentScanner : IScanner
     /// </summary>
     /// <param name="userManager">Instance of the <see cref="IUserManager"/> interface.</param>
     /// <param name="userDataManager">Instance of the <see cref="IUserDataManager"/> interface.</param>
+    /// <param name="libraryManager">Instance of the <see cref="ILibraryManager"/> interface, used to resolve excluded library ids to paths.</param>
     /// <param name="logger">Instance of the <see cref="ILogger{StaleContentScanner}"/> interface.</param>
-    public StaleContentScanner(IUserManager userManager, IUserDataManager userDataManager, ILogger<StaleContentScanner> logger)
+    public StaleContentScanner(IUserManager userManager, IUserDataManager userDataManager, ILibraryManager libraryManager, ILogger<StaleContentScanner> logger)
     {
         _userManager = userManager;
         _userDataManager = userDataManager;
+        _libraryManager = libraryManager;
         _logger = logger;
         _bridge = new Lazy<UserApiBridge>(() => new UserApiBridge(userManager, userDataManager));
     }
@@ -66,6 +69,21 @@ public sealed class StaleContentScanner : IScanner
         }
 
         var cutoff = DateTime.UtcNow.AddDays(-thresholdDays);
+
+        // Excluded-library path prefixes: resolved once so the per-item check is a linear scan over a
+        // small list rather than a per-item ILibraryManager round trip.
+        var excludedPrefixes = (Config.StaleExcludedLibraryIds ?? [])
+            .Length == 0
+            ? []
+            : _libraryManager.GetVirtualFolders()
+                .Where(f => Config.StaleExcludedLibraryIds!.Contains(f.ItemId, StringComparer.OrdinalIgnoreCase))
+                .SelectMany(f => f.Locations ?? [])
+                .Select(l => System.IO.Path.TrimEndingDirectorySeparator(l) + System.IO.Path.DirectorySeparatorChar)
+                .ToList();
+        var excludedGenres = (Config.StaleExcludedGenres ?? [])
+            .Where(g => !string.IsNullOrWhiteSpace(g))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         List<object> users;
         try
         {
@@ -86,6 +104,16 @@ public sealed class StaleContentScanner : IScanner
             cancellationToken.ThrowIfCancellationRequested();
             var item = items[i];
             if (string.IsNullOrEmpty(item.Path))
+            {
+                continue;
+            }
+
+            if (excludedPrefixes.Count > 0 && excludedPrefixes.Any(p => item.Path.StartsWith(p, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            if (excludedGenres.Count > 0 && item.Genres is { Length: > 0 } genres && genres.Any(g => excludedGenres.Contains(g)))
             {
                 continue;
             }

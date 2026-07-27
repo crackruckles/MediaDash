@@ -61,6 +61,9 @@ public class PluginConfiguration : BasePluginConfiguration
         AnimeTargetPath = string.Empty;
         StaleFixMode = FixMode.Off;
         StaleThresholdDays = 365;
+        StaleExcludedLibraryIds = [];
+        StaleExcludedGenres = [];
+        DuplicateMinAgeDays = 7;
         PostV12CleanupCompleted = false;
     }
 
@@ -320,6 +323,27 @@ public class PluginConfiguration : BasePluginConfiguration
     /// so freshly-imported items are never flagged as stale on their first scan.
     /// </summary>
     public int StaleThresholdDays { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Jellyfin library item ids the stale scanner ignores entirely. Useful for libraries
+    /// where "unwatched for a year" is the desired long-term state (Christmas movies, reference archives).
+    /// </summary>
+    public string[] StaleExcludedLibraryIds { get; set; }
+
+    /// <summary>
+    /// Gets or sets the genre names whose items the stale scanner skips (case-insensitive match against any
+    /// tag on <c>BaseItem.Genres</c>). Complements <see cref="StaleExcludedLibraryIds"/> for finer control —
+    /// e.g. keep everything tagged "Documentary" regardless of last-played date.
+    /// </summary>
+    public string[] StaleExcludedGenres { get; set; }
+
+    /// <summary>
+    /// Gets or sets the minimum age in days a duplicate copy must have before the scanner will flag it.
+    /// Filters out fresh imports whose Jellyfin metadata hasn't stabilised yet — a movie imported 5 minutes
+    /// ago will often match itself under the "no metadata" bucket for a short window before the provider
+    /// scrape lands. Default 7. Set to 0 to disable the gate.
+    /// </summary>
+    public int DuplicateMinAgeDays { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the one-shot post-Jellyfin-12 upgrade cleanup has been run

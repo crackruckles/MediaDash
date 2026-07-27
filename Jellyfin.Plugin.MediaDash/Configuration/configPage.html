@@ -1024,7 +1024,6 @@
 
                         <nav class="mdSetNav" aria-label="Settings sections">
                             <a class="mdSetChip mdSetChipActive" href="#mdSet-safety" title="Guardrails: dry-run and only-when-idle" style="--md-accent:#22d3ee;"><span class="material-icons">shield</span><span data-i18n="settings.nav.safety">Safety</span></a>
-                            <a class="mdSetChip" href="#mdSet-languages" title="Audio and subtitle languages to keep" style="--md-accent:#14b8a6;"><span class="material-icons">translate</span><span data-i18n="settings.nav.languages">Languages</span></a>
                             <a class="mdSetChip" href="#mdSet-fix" title="Which issue types run automatically vs on approval, and what happens to removed files" style="--md-accent:#3b82f6;"><span class="material-icons">build</span><span data-i18n="settings.nav.fix">What to fix</span></a>
                             <a class="mdSetChip" href="#mdSet-quality" title="Resolution ceiling, target codec/container, bitrate and hardware encoder settings" style="--md-accent:#3b82f6;"><span class="material-icons">compress</span><span data-i18n="settings.nav.quality">Quality</span></a>
                             <a class="mdSetChip" href="#mdSet-libraries" title="Which Jellyfin libraries MediaDash is allowed to scan" style="--md-accent:#06b6d4;"><span class="material-icons">video_library</span><span data-i18n="settings.nav.libraries">Libraries</span></a>
@@ -1070,32 +1069,6 @@
                                 </div>
                             </section>
 
-                            <section id="mdSet-languages" class="mdSetCard mdSetCard--languages">
-                                <h2 class="mdSetHead">
-                                    <span class="mdSetIcon"><span class="material-icons">translate</span></span>
-                                    <span class="mdSetHeadText">
-                                        <span class="mdSetTitle">Languages</span>
-                                        <span class="mdSetSubtitle">Audio and subtitle tracks worth keeping. Leave a field empty to skip that cleanup.</span>
-                                    </span>
-                                </h2>
-                                <div class="mdSetSub" style="--md-sub-accent:#6ee7b7;">
-                                    <div class="mdSetSubHead"><span class="material-icons">audiotrack</span>Audio — matches "Unwanted audio"</div>
-                                    <div class="inputContainer" style="max-width:26em;">
-                                        <label class="inputLabel inputLabelUnfocused" for="mdAudioLangs">Audio languages to keep</label>
-                                        <input id="mdAudioLangs" type="text" is="emby-input" placeholder="not set — audio cleanup off" />
-                                        <div class="fieldDescription">Comma-separated ISO codes like "eng, jpn". Empty turns audio-language cleanup off. A file's only audio track is never removed.</div>
-                                    </div>
-                                </div>
-                                <div class="mdSetSub" style="--md-sub-accent:#c4b5fd;">
-                                    <div class="mdSetSubHead"><span class="material-icons">subtitles</span>Subtitles — matches "Unwanted subtitles"</div>
-                                    <div class="inputContainer" style="max-width:26em;">
-                                        <label class="inputLabel inputLabelUnfocused" for="mdSubLangs">Subtitle languages to keep</label>
-                                        <input id="mdSubLangs" type="text" is="emby-input" placeholder="not set — subtitle cleanup off" />
-                                        <div class="fieldDescription">Comma-separated ISO codes like "eng". Empty turns subtitle-language cleanup off.</div>
-                                    </div>
-                                </div>
-                            </section>
-
                             <section id="mdSet-fix" class="mdSetCard mdSetCard--fix mdSetCard--full">
                                 <h2 class="mdSetHead">
                                     <span class="mdSetIcon"><span class="material-icons">build</span></span>
@@ -1115,15 +1088,6 @@
                                         <span class="mdSetSubtitle">Where files get flagged as oversized, and how MediaDash re-encodes them.</span>
                                     </span>
                                 </h2>
-                                <div class="selectContainer" style="max-width:26em;">
-                                    <label class="selectLabel" for="mdKeeperPolicy">When duplicates are found, keep</label>
-                                    <select is="emby-select" id="mdKeeperPolicy" class="emby-select-withcolor emby-select">
-                                        <option value="quality">The best-quality copy (recommended)</option>
-                                        <option value="codec">The most modern format (codec first)</option>
-                                        <option value="size">The smallest file</option>
-                                    </select>
-                                    <div class="fieldDescription">Decides which duplicate survives. Best quality compares resolution, then codec, then bitrate; ties go to the smaller file. Uses the resolution / bitrate / codec settings below to score.</div>
-                                </div>
                                 <div class="selectContainer" style="max-width:26em;">
                                     <label class="selectLabel" for="mdMaxRes">Maximum resolution</label>
                                     <select is="emby-select" id="mdMaxRes" class="emby-select-withcolor emby-select">
@@ -1189,34 +1153,6 @@
                                     </span>
                                 </h2>
                                 <div id="mdLibraries"></div>
-
-                                <div class="mdSetSub" style="--md-sub-accent:#f97316;">
-                                    <div class="mdSetSubHead"><span class="material-icons">drive_file_move</span>Media sorter — matches "Misplaced files"</div>
-                                    <div class="fieldDescription" style="margin:.3em 0 .5em;">Set both target folders below to turn the sorter on. Empty either one to turn it off.</div>
-                                    <div class="inputContainer" style="max-width:32em;">
-                                        <label class="inputLabel inputLabelUnfocused" for="mdMoviesTarget">Movies folder</label>
-                                        <input id="mdMoviesTarget" type="text" is="emby-input" placeholder="pre-filled from your Movies library, if any" title="Absolute path to the folder movies should live under. Must sit inside a Jellyfin library or moves are refused." />
-                                        <div class="fieldDescription">Absolute path. Must be inside a Jellyfin library folder — MediaDash never moves files outside your libraries.</div>
-                                    </div>
-                                    <div class="inputContainer" style="max-width:32em;">
-                                        <label class="inputLabel inputLabelUnfocused" for="mdTvTarget">TV folder</label>
-                                        <input id="mdTvTarget" type="text" is="emby-input" placeholder="pre-filled from your TV library, if any" title="Absolute path to the folder TV episodes should live under. Must sit inside a Jellyfin library or moves are refused." />
-                                        <div class="fieldDescription">Absolute path. Must be inside a Jellyfin library folder.</div>
-                                    </div>
-                                    <div class="inputContainer" style="max-width:32em;">
-                                        <label class="inputLabel inputLabelUnfocused" for="mdAnimeTarget">Anime folder (optional)</label>
-                                        <input id="mdAnimeTarget" type="text" is="emby-input" placeholder="leave empty to keep anime in Movies / TV" title="Absolute path to the folder anime should live under. Must sit inside a Jellyfin library or moves are refused." />
-                                        <div class="fieldDescription">Absolute path inside a Jellyfin library. Items tagged with the "Anime" genre in Jellyfin (case-insensitive) route here instead of Movies or TV. If you don't have anime tagged, install the AniDB scraper from <b>Dashboard → Plugins → Catalog</b> to make Jellyfin add the tag automatically.</div>
-                                    </div>
-                                    <div class="selectContainer" style="max-width:32em;">
-                                        <label class="selectLabel" for="mdMediaSortSource">Identify files using</label>
-                                        <select is="emby-select" id="mdMediaSortSource" class="emby-select-withcolor emby-select" title="Where the sorter reads the movie/TV classification of a file from">
-                                            <option value="JellyfinMetadata">Jellyfin metadata (recommended)</option>
-                                            <option value="FilenameHeuristic">Filename pattern (fallback)</option>
-                                        </select>
-                                        <div class="fieldDescription">Jellyfin metadata is what Jellyfin itself scraped when it built the library. If your files aren't correctly tagged in Jellyfin, the classification will be incomplete — switch to the filename fallback (looks for SxxExx / NxN patterns to spot TV episodes).</div>
-                                    </div>
-                                </div>
                             </section>
 
                             <section id="mdSet-advanced" class="mdSetCard mdSetCard--advanced mdSetCard--full">
@@ -1247,20 +1183,6 @@
                                         <span>Skip HDR content</span>
                                     </label>
                                     <div class="fieldDescription">HDR files (HDR10 / HDR10+ / HLG) are left alone by the quality scanner. Re-encoding HDR without proper color-space handling destroys HDR metadata and produces washed-out SDR, so opting in should be deliberate. Default: on.</div>
-                                </div>
-                                <div class="checkboxContainer checkboxContainer-withDescription">
-                                    <label class="emby-checkbox-label">
-                                        <input id="mdThorough" type="checkbox" is="emby-checkbox" />
-                                        <span>Thorough playability check</span>
-                                    </label>
-                                    <div class="fieldDescription">Test-plays the start, middle and end of every file (30 seconds each). Catches broken files that look fine on the surface. The first scan is much slower; results are remembered for unchanged files. Default: on.</div>
-                                </div>
-                                <div class="checkboxContainer checkboxContainer-withDescription">
-                                    <label class="emby-checkbox-label">
-                                        <input id="mdEditions" type="checkbox" is="emby-checkbox" />
-                                        <span>Treat different editions as duplicates</span>
-                                    </label>
-                                    <div class="fieldDescription">Off (default): a Director's Cut and the theatrical cut are kept as separate movies.</div>
                                 </div>
                                 <div class="checkboxContainer checkboxContainer-withDescription">
                                     <label class="emby-checkbox-label">
@@ -2220,6 +2142,104 @@
                     '<option value="Permanent">' + esc(t.doPermanent || STR.disposalPermanent) + '</option>';
             }
 
+            // Per-scanner extras rendered below the mode/disposal row. Each returns a block of HTML with
+            // controls specific to that scanner — settings that used to live in scattered sections
+            // (Languages, Advanced, Libraries) are now colocated with the scanner they configure.
+            function buildScannerExtras(key) {
+                if (key === 'Duplicate') {
+                    return '<div style="display:grid;grid-template-columns:repeat(2,minmax(15em,1fr));gap:1em;margin-top:.8em;">' +
+                        '<div class="selectContainer" style="min-width:0;">' +
+                            '<label class="selectLabel" for="mdKeeperPolicy">When duplicates are found, keep</label>' +
+                            '<select is="emby-select" id="mdKeeperPolicy" class="emby-select-withcolor emby-select">' +
+                                '<option value="quality">The best-quality copy (recommended)</option>' +
+                                '<option value="codec">The most modern format (codec first)</option>' +
+                                '<option value="size">The smallest file</option>' +
+                            '</select>' +
+                        '</div>' +
+                        '<div class="inputContainer" style="min-width:0;">' +
+                            '<label class="inputLabel inputLabelUnfocused" for="mdDuplicateMinAge">Wait N days after import</label>' +
+                            '<input id="mdDuplicateMinAge" type="number" min="0" max="365" is="emby-input" />' +
+                            '<div class="fieldDescription">Freshly-imported items can transiently look like duplicates of themselves while Jellyfin\'s metadata scrape catches up. 0 disables the wait. Default: 7 days.</div>' +
+                        '</div>' +
+                        '</div>' +
+                        '<div class="checkboxContainer checkboxContainer-withDescription" style="margin-top:.4em;">' +
+                            '<label class="emby-checkbox-label">' +
+                                '<input id="mdEditions" type="checkbox" is="emby-checkbox" />' +
+                                '<span>Treat different editions as duplicates</span>' +
+                            '</label>' +
+                            '<div class="fieldDescription">Off (default): a Director\'s Cut and the theatrical cut are kept as separate movies.</div>' +
+                        '</div>';
+                }
+                if (key === 'Playability') {
+                    return '<div class="checkboxContainer checkboxContainer-withDescription" style="margin-top:.7em;">' +
+                        '<label class="emby-checkbox-label">' +
+                            '<input id="mdThorough" type="checkbox" is="emby-checkbox" />' +
+                            '<span>Thorough playability check</span>' +
+                        '</label>' +
+                        '<div class="fieldDescription">Test-plays the start, middle and end of every file (30 seconds each). Catches broken files that look fine on the surface. The first scan is much slower; results are remembered for unchanged files. Default: on.</div>' +
+                        '</div>';
+                }
+                if (key === 'SubtitleLanguage') {
+                    return '<div class="inputContainer" style="margin-top:.7em;">' +
+                        '<label class="inputLabel inputLabelUnfocused" for="mdSubLangs">Subtitle languages to keep</label>' +
+                        '<input id="mdSubLangs" type="text" is="emby-input" placeholder="eng, spa, fra" />' +
+                        '<div class="fieldDescription">Comma-separated ISO 639-2 codes (e.g. eng, spa, fra). Also used by Missing subtitles. Empty leaves the scanner off.</div>' +
+                        '</div>';
+                }
+                if (key === 'AudioLanguage') {
+                    return '<div class="inputContainer" style="margin-top:.7em;">' +
+                        '<label class="inputLabel inputLabelUnfocused" for="mdAudioLangs">Audio languages to keep</label>' +
+                        '<input id="mdAudioLangs" type="text" is="emby-input" placeholder="eng, spa, fra" />' +
+                        '<div class="fieldDescription">Comma-separated ISO 639-2 codes. A file\'s only audio track is always kept, even if its language isn\'t on this list. Empty leaves the scanner off.</div>' +
+                        '</div>';
+                }
+                if (key === 'Misplaced') {
+                    return '<div class="inputContainer" style="margin-top:.7em;">' +
+                        '<label class="inputLabel inputLabelUnfocused" for="mdMoviesTarget">Movies destination folder</label>' +
+                        '<input id="mdMoviesTarget" type="text" is="emby-input" placeholder="/media/movies" />' +
+                        '<div class="fieldDescription">Where a misplaced movie is moved. Must sit inside one of your Jellyfin libraries.</div>' +
+                        '</div>' +
+                        '<div class="inputContainer" style="margin-top:.5em;">' +
+                        '<label class="inputLabel inputLabelUnfocused" for="mdTvTarget">TV destination folder</label>' +
+                        '<input id="mdTvTarget" type="text" is="emby-input" placeholder="/media/tv" />' +
+                        '<div class="fieldDescription">Where a misplaced TV episode is moved.</div>' +
+                        '</div>' +
+                        '<div class="inputContainer" style="margin-top:.5em;">' +
+                        '<label class="inputLabel inputLabelUnfocused" for="mdAnimeTarget">Anime destination folder (optional)</label>' +
+                        '<input id="mdAnimeTarget" type="text" is="emby-input" placeholder="/media/anime" />' +
+                        '<div class="fieldDescription">If set, items tagged with the "Anime" genre route here instead of Movies or TV. Empty disables anime routing.</div>' +
+                        '</div>' +
+                        '<div class="selectContainer" style="margin-top:.5em;">' +
+                        '<label class="selectLabel" for="mdMediaSortSource">Detect movie / TV from</label>' +
+                        '<select is="emby-select" id="mdMediaSortSource" class="emby-select-withcolor emby-select">' +
+                            '<option value="JellyfinMetadata">Jellyfin metadata (recommended)</option>' +
+                            '<option value="FilenameHeuristic">Filename pattern (fallback)</option>' +
+                        '</select>' +
+                        '</div>';
+                }
+                if (key === 'MissingSubtitles') {
+                    return '<div class="fieldDescription" style="margin-top:.5em;">Uses the subtitle keep-list from <b>Unwanted subtitles</b> above — downloads are filtered to those languages.</div>' +
+                        '<div class="fieldDescription" id="mdProviderHint" style="display:none;margin-top:.5em;"></div>';
+                }
+                if (key === 'Stale') {
+                    return '<div class="inputContainer" style="max-width:14em;margin-top:.7em;">' +
+                        '<label class="inputLabel inputLabelUnfocused" for="mdStaleThresholdDays">Consider stale after (days)</label>' +
+                        '<input id="mdStaleThresholdDays" type="number" min="1" max="3650" is="emby-input" />' +
+                        '<div class="fieldDescription">Nothing is flagged until the item has both been on the server this long AND not been played by anyone in that window. Default 365.</div>' +
+                        '</div>' +
+                        '<div style="margin-top:.7em;">' +
+                        '<label class="inputLabel inputLabelUnfocused">Skip these libraries entirely</label>' +
+                        '<div id="mdStaleExcludedLibs" class="fieldDescription" style="margin-top:.3em;">Loading libraries…</div>' +
+                        '</div>' +
+                        '<div class="inputContainer" style="margin-top:.7em;">' +
+                        '<label class="inputLabel inputLabelUnfocused" for="mdStaleExcludedGenres">Also skip items with these genres</label>' +
+                        '<input id="mdStaleExcludedGenres" type="text" is="emby-input" placeholder="Documentary, Christmas" />' +
+                        '<div class="fieldDescription">Comma-separated genre names, case-insensitive. Any item tagged with a matching Jellyfin genre is left alone.</div>' +
+                        '</div>';
+                }
+                return '';
+            }
+
             function buildFixTypeRows() {
                 var html = '';
                 FIX_TYPES.forEach(function (t) {
@@ -2230,19 +2250,6 @@
                             '<select is="emby-select" id="mdDisposal' + t.key + '" class="emby-select-withcolor emby-select">' + disposalOptions(t.key) + '</select>' +
                             '</div>')
                         : '';
-                    // MissingSubtitles needs a live "is a provider installed?" indicator because the fixer can't
-                    // do anything without one; make the dependency visible on the same card as the mode.
-                    // Stale needs a threshold input — the mode toggle alone doesn't say HOW old counts as stale.
-                    var hintBlock = '';
-                    if (t.key === 'MissingSubtitles') {
-                        hintBlock = '<div class="fieldDescription" id="mdProviderHint" style="display:none;margin-top:.5em;"></div>';
-                    } else if (t.key === 'Stale') {
-                        hintBlock = '<div class="inputContainer" style="max-width:14em;margin-top:.7em;">' +
-                            '<label class="inputLabel inputLabelUnfocused" for="mdStaleThresholdDays">Consider stale after (days)</label>' +
-                            '<input id="mdStaleThresholdDays" type="number" min="1" max="3650" is="emby-input" />' +
-                            '<div class="fieldDescription">Nothing is flagged until the item has both been on the server this long AND not been played by anyone in that window. Default 365.</div>' +
-                            '</div>';
-                    }
                     html += '<div class="mdCard" style="margin-bottom:.7em;border-left:4px solid ' + meta.color + ';">' +
                         '<div style="font-weight:600;margin-bottom:.4em;color:' + meta.color + ';"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;color:' + meta.color + ';">' + meta.icon + '</span> ' + esc(meta.title) + '</div>' +
                         // Two-column grid keeps "How it runs" the same width across every card, whether the
@@ -2253,7 +2260,7 @@
                         '<select is="emby-select" id="mdMode' + t.key + '" class="emby-select-withcolor emby-select">' + modeOptions() + '</select>' +
                         '</div>' +
                         disposalBlock +
-                        '</div>' + hintBlock + '</div>';
+                        '</div>' + buildScannerExtras(t.key) + '</div>';
                 });
                 view.querySelector('#mdFixTypeRows').innerHTML = html;
             }
@@ -2374,8 +2381,35 @@
                     view.querySelector('#mdRetention').value = c.RecycleBinRetentionDays;
                     view.querySelector('#mdThorough').checked = c.ThoroughPlayabilityCheck;
                     view.querySelector('#mdEditions').checked = c.TreatEditionsAsDuplicates;
+                    view.querySelector('#mdDuplicateMinAge').value = c.DuplicateMinAgeDays == null ? 7 : c.DuplicateMinAgeDays;
+                    view.querySelector('#mdStaleExcludedGenres').value = (c.StaleExcludedGenres || []).join(', ');
                     syncSliderLabels();
                     loadLibraries(c);
+                    loadStaleExcludedLibraries(c);
+                });
+            }
+
+            // Renders one checkbox per Jellyfin library into the Stale card so the user can carve out
+            // libraries that stay unwatched by design (Christmas, reference material) without turning
+            // the whole stale scanner off.
+            function loadStaleExcludedLibraries(config) {
+                var excluded = new Set(config.StaleExcludedLibraryIds || []);
+                ApiClient.getJSON(ApiClient.getUrl('Library/VirtualFolders')).then(function (folders) {
+                    var el = view.querySelector('#mdStaleExcludedLibs');
+                    if (!el) return;
+                    var rows = folders.filter(function (f) {
+                        return !f.CollectionType || f.CollectionType === 'movies' || f.CollectionType === 'tvshows';
+                    });
+                    if (!rows.length) {
+                        el.textContent = 'No movie or TV libraries configured yet.';
+                        return;
+                    }
+                    el.innerHTML = rows.map(function (f) {
+                        var checked = excluded.has(f.ItemId) ? ' checked' : '';
+                        return '<div class="checkboxContainer" style="margin:.15em 0;"><label class="emby-checkbox-label">' +
+                            '<input type="checkbox" is="emby-checkbox" class="mdStaleExcludeLib" data-id="' + esc(f.ItemId) + '"' + checked + ' />' +
+                            '<span>' + esc(f.Name) + '</span></label></div>';
+                    }).join('');
                 });
             }
 
@@ -2447,6 +2481,16 @@
                         return cb.getAttribute('data-id');
                     });
                     c.KeeperPolicyOrder = KEEPER_PRESETS[view.querySelector('#mdKeeperPolicy').value] || KEEPER_PRESETS.quality;
+                    var minAge = parseInt(view.querySelector('#mdDuplicateMinAge').value, 10);
+                    c.DuplicateMinAgeDays = isNaN(minAge) || minAge < 0 ? 7 : minAge;
+                    c.StaleExcludedLibraryIds = Array.prototype.map.call(view.querySelectorAll('.mdStaleExcludeLib:checked'), function (cb) {
+                        return cb.getAttribute('data-id');
+                    });
+                    // Stale-genre input keeps user casing so "Documentary" isn't lowercased to "documentary"
+                    // — the scanner does its own case-insensitive compare against BaseItem.Genres.
+                    c.StaleExcludedGenres = view.querySelector('#mdStaleExcludedGenres').value.split(',')
+                        .map(function (s) { return s.trim(); })
+                        .filter(function (s) { return s.length > 0; });
 
                     ApiClient.updatePluginConfiguration(PLUGIN_ID, c).then(function (result) {
                         view.querySelector('#mdSaveMsg').textContent = STR.saved;
