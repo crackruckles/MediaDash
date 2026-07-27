@@ -2706,6 +2706,15 @@
                 var mode = el ? el.value : 'Off';
                 card.classList.toggle('mdTaskOff', mode === 'Off');
                 card.classList.toggle('mdTaskOn', mode !== 'Off');
+                // Disposal only takes effect when fixes actually run. Detect only + Off leave the file
+                // alone entirely, so grey the disposal select to reflect that it's not doing anything.
+                var disp = view.querySelector('#mdDisposal' + key);
+                if (disp) {
+                    var inert = mode === 'Off' || mode === 'DetectOnly';
+                    disp.disabled = inert;
+                    disp.style.opacity = inert ? '.45' : '';
+                    disp.title = inert ? 'This only applies once fixes run — switch to Ask me first or Automatic.' : '';
+                }
             }
 
             function toggleTaskCollapsed(key) {
