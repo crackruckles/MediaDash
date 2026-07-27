@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.MediaDash.Data;
+using MediaBrowser.Controller;
 using MediaBrowser.Controller.Entities;
 using Microsoft.Extensions.Logging;
 using SkiaSharp;
@@ -19,12 +20,15 @@ namespace Jellyfin.Plugin.MediaDash.Scanners;
 /// </summary>
 public sealed class ArtworkScanner : IScanner
 {
+    private readonly IServerApplicationPaths _applicationPaths;
     private readonly ILogger<ArtworkScanner> _logger;
 
     /// <summary>Initializes a new instance of the <see cref="ArtworkScanner"/> class.</summary>
+    /// <param name="applicationPaths">Jellyfin server application paths (anchors the metadata-folder guard).</param>
     /// <param name="logger">The logger.</param>
-    public ArtworkScanner(ILogger<ArtworkScanner> logger)
+    public ArtworkScanner(IServerApplicationPaths applicationPaths, ILogger<ArtworkScanner> logger)
     {
+        _applicationPaths = applicationPaths;
         _logger = logger;
     }
 
@@ -55,9 +59,9 @@ public sealed class ArtworkScanner : IScanner
                     continue;
                 }
 
-                // Only touch Jellyfin-managed artwork (its own metadata folder).
-                // User-placed artwork alongside the media file is off limits — safety invariant.
-                if (!IsInsideJellyfinMetadata(image.Path))
+                // Only touch Jellyfin-managed artwork — anchored to the actual InternalMetadataPath prefix.
+                // A user library folder named "metadata" is NOT a match; safety invariant preserved.
+                if (!image.Path.StartsWith(_applicationPaths.InternalMetadataPath, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -145,33 +149,13 @@ public sealed class ArtworkScanner : IScanner
                 return "decode produced zero-dimension bitmap";
             }
         }
-        catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException)
+
+        // ponytail: SKException doesn't exist in SkiaSharp 2.88.x; native failures surface as InvalidOperationException.
+        catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException or InvalidOperationException)
         {
             return "decode error: " + ex.Message;
         }
 
         return null;
-    }
-
-    /// <summary>
-    /// Returns true when the path is inside Jellyfin's metadata folder. Coarse guard —
-    /// we treat any path that contains a "metadata" directory segment as Jellyfin-managed.
-    /// User artwork alongside the video sits in the library folder, not under "metadata",
-    /// so this filter keeps us out of it.
-    /// </summary>
-    /// <param name="path">The file path to test.</param>
-    /// <returns>True when the path is inside Jellyfin's metadata folder.</returns>
-    internal static bool IsInsideJellyfinMetadata(string path)
-    {
-        var segments = path.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
-        foreach (var segment in segments)
-        {
-            if (string.Equals(segment, "metadata", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 }
