@@ -38,9 +38,16 @@ public sealed class QualityScanner : ProbingScannerBase
     protected override Task<Issue?> EvaluateAsync(BaseItem item, string path, FfprobeData? probe, CancellationToken cancellationToken)
     {
         // Audio items (music + audiobooks) — detect-only ceiling, no re-encode.
-        if (item is Audio audio)
+        var itemKind = item.GetBaseItemKind();
+        if (itemKind == BaseItemKind.Audio || itemKind == BaseItemKind.AudioBook)
         {
-            var isAudioBook = audio.GetBaseItemKind() == BaseItemKind.AudioBook;
+            // ponytail: kind gates entry; cast still needed for property access. If v12 moved the type, skip cleanly.
+            if (item is not Audio audio)
+            {
+                return Task.FromResult<Issue?>(null);
+            }
+
+            var isAudioBook = itemKind == BaseItemKind.AudioBook;
             if (isAudioBook && !Config.QualityScanAudiobooks)
             {
                 return Task.FromResult<Issue?>(null);

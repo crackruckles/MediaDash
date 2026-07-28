@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Data.Enums;
 using Jellyfin.Plugin.MediaDash.Data;
 using Jellyfin.Plugin.MediaDash.Probing;
 using MediaBrowser.Controller.Entities;
@@ -64,7 +65,7 @@ public sealed class PlayabilityScanner : ProbingScannerBase
             };
         }
 
-        if (item is MediaBrowser.Controller.Entities.Book)
+        if (item.GetBaseItemKind() == BaseItemKind.Book)
         {
             var ext = System.IO.Path.GetExtension(path).ToLowerInvariant();
             bool ok;
@@ -115,13 +116,13 @@ public sealed class PlayabilityScanner : ProbingScannerBase
             reason = "unreadable";
             detail = probe.Error?.Message ?? "The file could not be read as a media file.";
         }
-        else if (item is not MediaBrowser.Controller.Entities.Audio.Audio
+        else if (!IsAudioKind(item.GetBaseItemKind())
             && !probe.Streams.Any(s => string.Equals(s.CodecType, "video", StringComparison.OrdinalIgnoreCase)))
         {
             reason = "no-video";
             detail = "The file contains no video stream.";
         }
-        else if (item is MediaBrowser.Controller.Entities.Audio.Audio
+        else if (IsAudioKind(item.GetBaseItemKind())
             && !probe.Streams.Any(s => string.Equals(s.CodecType, "audio", StringComparison.OrdinalIgnoreCase)))
         {
             reason = "no-audio";
@@ -198,6 +199,9 @@ public sealed class PlayabilityScanner : ProbingScannerBase
             SizeSavings = size
         };
     }
+
+    private static bool IsAudioKind(BaseItemKind kind)
+        => kind == BaseItemKind.Audio || kind == BaseItemKind.AudioBook;
 
     private static bool TryGetDuration(FfprobeData probe, out double duration)
     {

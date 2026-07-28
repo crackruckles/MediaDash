@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Data.Enums;
 using Jellyfin.Plugin.MediaDash.Data;
 using Jellyfin.Plugin.MediaDash.Probing;
 using MediaBrowser.Controller.Entities;
@@ -137,8 +138,16 @@ public sealed partial class DuplicateScanner : IScanner
                 : string.Create(CultureInfo.InvariantCulture, $"movie:name:{name}:{movie.ProductionYear}");
         }
 
-        if (item is MediaBrowser.Controller.Entities.Book book)
+        var kind = item.GetBaseItemKind();
+
+        if (kind == BaseItemKind.Book)
         {
+            // ponytail: kind gates entry; cast still needed for property access. If v12 moved the type, return null cleanly.
+            if (item is not MediaBrowser.Controller.Entities.Book book)
+            {
+                return null;
+            }
+
             if (book.ProviderIds.TryGetValue("Isbn", out var isbn) && !string.IsNullOrEmpty(isbn))
             {
                 return $"book:isbn:{isbn}".ToLowerInvariant();
@@ -150,8 +159,14 @@ public sealed partial class DuplicateScanner : IScanner
                 : $"book:name:{titleNorm}";
         }
 
-        if (item is Audio audio)
+        if (kind == BaseItemKind.Audio || kind == BaseItemKind.AudioBook)
         {
+            // ponytail: kind gates entry; cast still needed for property access. If v12 moved the type, return null cleanly.
+            if (item is not Audio audio)
+            {
+                return null;
+            }
+
             if (audio.ProviderIds.TryGetValue("MusicBrainzTrack", out var mbid) && !string.IsNullOrEmpty(mbid))
             {
                 return $"audio:musicbrainztrack:{mbid}".ToLowerInvariant();
@@ -207,7 +222,7 @@ public sealed partial class DuplicateScanner : IScanner
         var candidates = new List<Candidate>();
         foreach (var (item, path) in group)
         {
-            if (item is MediaBrowser.Controller.Entities.Book)
+            if (item.GetBaseItemKind() == BaseItemKind.Book)
             {
                 var fileInfo = new FileInfo(path);
                 if (!fileInfo.Exists)
@@ -235,7 +250,8 @@ public sealed partial class DuplicateScanner : IScanner
             }
 
             var probe = await _ffprobe.ProbeAsync(path, cancellationToken).ConfigureAwait(false);
-            var isAudioItem = item is Audio;
+            var itemKind = item.GetBaseItemKind();
+            var isAudioItem = itemKind == BaseItemKind.Audio || itemKind == BaseItemKind.AudioBook;
             var stream = isAudioItem
                 ? probe?.Streams?.FirstOrDefault(s => string.Equals(s.CodecType, "audio", StringComparison.OrdinalIgnoreCase))
                 : probe?.Streams?.FirstOrDefault(s => string.Equals(s.CodecType, "video", StringComparison.OrdinalIgnoreCase));
