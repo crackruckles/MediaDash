@@ -5,11 +5,11 @@ using System.IO;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Plugin.MediaDash.Compat;
 using Jellyfin.Plugin.MediaDash.Data;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Entities;
 using Microsoft.Extensions.Logging;
-using SkiaSharp;
 
 namespace Jellyfin.Plugin.MediaDash.Scanners;
 
@@ -138,19 +138,27 @@ public sealed class ArtworkScanner : IScanner
         try
         {
             using var stream = File.OpenRead(path);
-            using var bitmap = SKBitmap.Decode(stream);
-            if (bitmap is null)
+            var bridge = SkiaSharpBridge.Instance;
+            if (!bridge.IsAvailable)
             {
-                return "decode failed";
+                // Host has no SkiaSharp loaded — treat as unverifiable, don't flag. Zero-byte
+                // and size-mismatch checks above still catch the common corruption cases.
+                return null;
             }
 
-            if (bitmap.Width <= 0 || bitmap.Height <= 0)
+            var result = bridge.Decode(stream);
+            if (!result.Ok)
+            {
+                return result.Reason is null
+                    ? "decode failed"
+                    : "decode error: " + result.Reason;
+            }
+
+            if (result.Width <= 0 || result.Height <= 0)
             {
                 return "decode produced zero-dimension bitmap";
             }
         }
-
-        // ponytail: SKException doesn't exist in SkiaSharp 2.88.x; native failures surface as InvalidOperationException.
         catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException or InvalidOperationException)
         {
             return "decode error: " + ex.Message;

@@ -15,6 +15,9 @@
     <PackageReference Include="Jellyfin.Controller" Version="10.11.8" />
     <PackageReference Include="Jellyfin.Model" Version="10.11.8" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.11" />
+    <!-- SkiaSharp lives here (not in the plugin) so the bridge's reflection path is exercised in tests. -->
+    <PackageReference Include="SkiaSharp" Version="2.88.9" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="2.88.9" />
   </ItemGroup>
 
   <ItemGroup>
