@@ -57,7 +57,19 @@ Every fix type runs independently: **Off · Detect only · Ask me first · Autom
 ## Community impact
 
 <!-- STATS:START -->
-_Opt-in stats will appear here on the 1st of each month once the first month's data comes in. See [docs/PRIVACY.md](docs/PRIVACY.md) for exactly what's collected._
+_Refreshes on the 1st of each month from opt-in installs. See [docs/PRIVACY.md](docs/PRIVACY.md) for exactly what's collected._
+
+| | Lifetime | This month |
+|---|---:|---:|
+| **Storage reclaimed** | 1.1 TB | 0.0 B |
+| Duplicate copies removed | 217 | 0 |
+| Broken files removed | 356 | 0 |
+| Oversized files re-encoded | 2,140 | 0 |
+| Unwanted subtitles stripped | 39 | 0 |
+| Unwanted audio stripped | 144 | 0 |
+| Misplaced files moved | 0 | 0 |
+| Missing subtitles downloaded | 0 | 0 |
+| **Reporting installs** | 21 lifetime | 6 this month |
 <!-- STATS:END -->
 
 ## Built to be trusted with your media
