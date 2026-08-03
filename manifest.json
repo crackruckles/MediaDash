@@ -9,6 +9,22 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.9.0.0",
+        "changelog": "New Virus scan (SuspiciousFile) surfaces executables/scripts inside media folders. Jellyfin 12 scoped-scanner fix: library-scoping now resolves correctly on v12 hosts where VirtualFolderInfo.ItemId was dropped. Media sorter typed for Audio/AudioBook/Book/Comic/Picture with per-kind target folders. Data-safety hardening: transcode/track fixers stage the encoded copy to a sidecar before disposing the original, so a failed final rename preserves the encoded file rather than losing both. Scanner resilience: a single throw no longer aborts a scan; the Errors tab shows the file and continues. RecycleBin/SkiaSharp/upload-cleanup silent catches now surface to the Errors tab.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.9.0/mediadash_0.9.0.zip",
+        "checksum": "f01977cc18cefb0d561497767bf61718",
+        "timestamp": "2026-08-03T07:53:51Z"
+      },
+      {
+        "version": "0.9.0.0",
+        "changelog": "New Virus scan (SuspiciousFile) surfaces executables/scripts inside media folders. Jellyfin 12 scoped-scanner fix: library-scoping now resolves correctly on v12 hosts where VirtualFolderInfo.ItemId was dropped. Media sorter typed for Audio/AudioBook/Book/Comic/Picture with per-kind target folders. Data-safety hardening: transcode/track fixers stage the encoded copy to a sidecar before disposing the original, so a failed final rename preserves the encoded file rather than losing both. Scanner resilience: a single throw no longer aborts a scan; the Errors tab shows the file and continues. RecycleBin/SkiaSharp/upload-cleanup silent catches now surface to the Errors tab.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.9.0/mediadash_0.9.0.zip",
+        "checksum": "f01977cc18cefb0d561497767bf61718",
+        "timestamp": "2026-08-03T07:53:51Z"
+      },
+      {
         "version": "0.8.5.0",
         "changelog": "Settings tab restructured into per-scanner task cards. Every scanner (Duplicate, Playability, Quality, Sub/Audio, Stale, Misplaced, Missing subs) is now one self-contained card that owns its own mode, disposal, and settings. Segmented mode picker replaces the How-it-runs dropdown; Off collapses and dims the card. Language pickers become chip inputs. Quality card carries every re-encode knob including a new Advanced disclosure for the fine-tuning ones. Stale card gains library and genre excludes; Duplicate gains a wait-N-days-after-import gate. Chip rail is per-task and dims when a task is Off; a Cleanup-tasks header adds Collapse-all and a live N-of-8-active counter. History tab replaces the cumulative savings chart with a per-library saved-bytes breakdown. Disposal dropdown greys out in Detect-only / Off since it doesn\u0027t apply. New GitHub Pages landing at crackruckles.github.io/MediaDash and a repo social-preview card in docs/.",
         "targetAbi": "12.0.0.0",
@@ -323,6 +339,7 @@
     ]
   }
 ]
+
 
 
 
