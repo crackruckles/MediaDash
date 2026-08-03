@@ -30,5 +30,8 @@ public enum IssueType
     Stale = 7,
 
     /// <summary>Local artwork (poster / backdrop / thumb) is zero-byte, truncated, or fails to decode.</summary>
-    CorruptArtwork = 8
+    CorruptArtwork = 8,
+
+    /// <summary>Executable or script file sitting inside a media library folder — nothing legitimate should ship there, so treat as potential malware.</summary>
+    MalwareRisk = 9
 }

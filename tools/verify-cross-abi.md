@@ -49,7 +49,9 @@ Each row is a Jellyfin API touch point in MediaDash and whether it needs a bridg
 | `IServerApplicationPaths.InternalMetadataPath` | stable property | stable property | none needed |
 | `ILibraryManager.GetItemById(Guid)` | stable | stable | none needed |
 | `ILibraryManager.GetItemList(InternalItemsQuery)` | stable | stable | none needed |
-| `ILibraryManager.GetVirtualFolders()` | stable | stable | none needed |
+| `ILibraryManager.GetVirtualFolders()` | returns items with populated `ItemId` (hex Guid string) | returns items with `ItemId == null`; `Id` (Guid) property carries the identity | `Scanners/VirtualFolderIdentity.GetId(f)` — reflection-cached fallback to `Id.ToString("N")` |
+| `VirtualFolderInfo.ItemId` | populated | null | route through `VirtualFolderIdentity.GetId` (never touch `f.ItemId` directly in scoping filters) |
+| `VirtualFolderInfo.CollectionType` | `CollectionTypeOptions?` enum (unchanged) | same | `.ToString()?.ToLowerInvariant()` when serializing to the frontend so `movies` / `tvshows` string matches Jellyfin's JSON convention |
 | `ILibraryMonitor.ReportFileSystemChanged(string)` | stable | stable | none needed |
 | `BaseItem.ImageInfos` | stable | stable | none needed |
 | `BaseItem.ProviderIds` | stable | stable | none needed |
@@ -65,10 +67,23 @@ Each row is a Jellyfin API touch point in MediaDash and whether it needs a bridg
 
 Add rows for any newly-audited hop the maintainer verifies as either stable or requires a bridge.
 
+## 4a. Scoped-scanner assertion (v12 regression guard)
+
+On v12, `EnabledLibraries` and `StaleExcludedLibraryIds` filter by folder identity. If `VirtualFolderIdentity.GetId` regresses, both silently drop every library and scoped scanners report 0 issues across the board — a failure mode with no exception in the log.
+
+1. Confirm the plugin config XML has at least one entry under `<EnabledLibraries>`; if not, pick a library and add its `ItemId` from `GET /MediaDash/Libraries`.
+2. Ensure the scoped library has known issues (e.g., a fake `.exe` under one of its `Locations` so SuspiciousFileScanner has something to find).
+3. Restart Jellyfin 12, trigger the MediaDash scan.
+4. Expected in log:
+   - `MediaDash scan starting: N items, 10 scanners` where N > 0 (the item filter must pass)
+   - At least one `MediaDash scanner <Type> found > 0 issues` line
+5. If every scanner reports `0 issues` and no unhandled exception exists, `VirtualFolderIdentity.GetId` is returning null again — check that both `f.ItemId` and the reflected `Id` property haven't both changed shape.
+
 ## 5. Release gate
 
 Do not cut a release until:
 - ✅ Static audit clean (no new API touch points without a row in section 4)
 - ✅ Localhost v12 smoke test: 0 unhandled exception matches
+- ✅ v12 scoped-scanner assertion (section 4a) passes
 - ✅ v10.11 smoke test: 0 unhandled exception matches
 - ✅ `dotnet test` green

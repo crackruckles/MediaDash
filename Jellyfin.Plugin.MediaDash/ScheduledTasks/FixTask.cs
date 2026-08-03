@@ -26,7 +26,8 @@ public sealed class FixTask : IScheduledTask
         IssueType.SubtitleLanguage,
         IssueType.AudioLanguage,
         IssueType.Playability,
-        IssueType.Misplaced
+        IssueType.Misplaced,
+        IssueType.MalwareRisk
     ];
 
     private readonly MediaDashDb _db;

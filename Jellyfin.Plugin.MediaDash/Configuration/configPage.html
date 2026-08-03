@@ -455,6 +455,61 @@
 
             #MediaDashConfigPage #mdTab-settings input[type=range] { height: 6px; }
 
+            /* Uniform control sizing on the Settings tab (§9b Landing 1). 40px height across every
+               dropdown, text/number input, time input, and button. Sliders keep their thin track. */
+            #MediaDashConfigPage #mdTab-settings .mdControl,
+            #MediaDashConfigPage #mdTab-settings input[type="text"],
+            #MediaDashConfigPage #mdTab-settings input[type="number"],
+            #MediaDashConfigPage #mdTab-settings input[type="time"],
+            #MediaDashConfigPage #mdTab-settings input[type="search"],
+            #MediaDashConfigPage #mdTab-settings select {
+                height: 40px !important;
+                box-sizing: border-box;
+                width: 100%;
+                max-width: 34em;
+            }
+            #MediaDashConfigPage #mdTab-settings button:not(.mdTab):not(.mdSetChip):not(.mdTaskPill),
+            #MediaDashConfigPage #mdTab-settings a.emby-button {
+                min-height: 40px;
+            }
+            #MediaDashConfigPage #mdTab-settings .mdControl--slider {
+                height: 6px !important;
+            }
+            /* Playability "Thorough" row: main + hint stack vertically so the label never
+               overflows its column. mdInsetRow--stack replaces the flex-inline default. */
+            #MediaDashConfigPage .mdInsetRow--stack {
+                display: flex;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 4px;
+                padding: 8px 0;
+            }
+            #MediaDashConfigPage .mdInsetRow--stack .mdInsetRowMain {
+                display: inline-flex; align-items: center; gap: 8px;
+            }
+            #MediaDashConfigPage .mdInsetRow--stack .mdInsetRowHint {
+                margin: 0;
+                font-size: 12px;
+                color: rgba(230,237,243,.6);
+            }
+            /* Bitrate slider: label + value inline on the LEFT of the column (not space-between),
+               slider below at full width. mdBitrateValue is left-aligned next to the label text. */
+            #MediaDashConfigPage .mdBitrateField label {
+                display: inline-flex;
+                align-items: baseline;
+                gap: 10px;
+                justify-content: flex-start;
+            }
+            #MediaDashConfigPage .mdBitrateValue {
+                color: var(--md-set-primary, #22d3ee);
+                font-weight: 600;
+                font-variant-numeric: tabular-nums;
+            }
+            #MediaDashConfigPage .mdBitrateField input[type="range"] {
+                width: 100%;
+                margin-top: 6px;
+            }
+
             #MediaDashConfigPage .mdSetSave {
                 display: flex; align-items: center; gap: 1em; flex-wrap: wrap;
                 margin: 1em 0 .4em;
@@ -764,41 +819,77 @@
             }
 
             /* First-run wizard */
-            #MediaDashConfigPage #mdFirstRun { padding: 1.4em 1.6em 1.2em; }
-            #MediaDashConfigPage .mdWizHead {
-                display: flex; align-items: center; justify-content: space-between;
-                gap: 1em; flex-wrap: wrap; margin-bottom: 1.1em;
-                padding-bottom: .9em; border-bottom: 1px solid rgba(255,255,255,.08);
+            #MediaDashConfigPage #mdFirstRun {
+                max-width: 960px;
+                margin: 4em auto 2em;
+                padding: 2em 2.4em 1.6em;
+                min-height: 460px;
+                display: flex; flex-direction: column;
+                background:
+                    linear-gradient(135deg, rgba(0,164,220,.06), rgba(255,255,255,.02)),
+                    rgba(255,255,255,.045);
+                box-shadow: 0 24px 72px rgba(0,164,220,.10), 0 6px 20px rgba(0,0,0,.45);
             }
-            #MediaDashConfigPage .mdWizHead h2 { font-size: 1.4em; }
-            #MediaDashConfigPage .mdWizDots { display: flex; gap: .4em; }
+            /* When the wizard is active, hide everything else on the page so it reads as a
+               single focused flow. Kept + hidden are toggled by the .mdWizardActive class on
+               #MediaDashConfigPage — see wizard show/hide in the JS below. */
+            #MediaDashConfigPage.mdWizardActive [data-role="content"] > .content-primary > *:not(#mdFirstRun) {
+                display: none !important;
+            }
+            #MediaDashConfigPage .mdWizHead {
+                display: flex; align-items: flex-start; justify-content: space-between;
+                gap: 1em; flex-wrap: wrap;
+                margin: 0 0 1.4em; padding: 0 0 1.2em;
+                border-bottom: 1px solid rgba(255,255,255,.08);
+            }
+            #MediaDashConfigPage .mdWizHead h2 { font-size: 1.7em; margin: 0; line-height: 1.15; }
+            #MediaDashConfigPage #mdWizStepLabel {
+                margin-top: .35em !important;
+                text-transform: uppercase; letter-spacing: .12em;
+                font-size: .78em; color: rgba(255,255,255,.55);
+            }
+            #MediaDashConfigPage .mdWizDots { display: flex; gap: .55em; align-items: center; padding-top: .35em; }
             #MediaDashConfigPage .mdWizDot {
                 width: 10px; height: 10px; border-radius: 50%;
-                background: rgba(255,255,255,.15); transition: background .18s ease, transform .18s ease;
+                background: rgba(255,255,255,.15);
+                transition: background .18s ease, transform .18s ease, box-shadow .18s ease;
             }
-            #MediaDashConfigPage .mdWizDot.mdWizDotActive { background: #00a4dc; transform: scale(1.25); }
+            #MediaDashConfigPage .mdWizDot.mdWizDotActive {
+                background: #00a4dc; transform: scale(1.4);
+                box-shadow: 0 0 0 4px rgba(0,164,220,.18);
+            }
             #MediaDashConfigPage .mdWizDot.mdWizDotDone { background: #22c55e; }
-            #MediaDashConfigPage .mdWizStep { display: none; animation: mdWizFade .18s ease; }
+
+            #MediaDashConfigPage #mdWizSteps { flex: 1; }
+            #MediaDashConfigPage .mdWizStep { display: none; animation: mdWizFade .22s ease; }
             #MediaDashConfigPage .mdWizStep.mdWizStepActive { display: block; }
-            @keyframes mdWizFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+            @keyframes mdWizFade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
             #MediaDashConfigPage .mdWizStep h3 {
-                display: flex; align-items: center; gap: .4em;
-                margin: 0 0 .3em; font-size: 1.2em;
+                display: flex; align-items: center; gap: .6em;
+                margin: 0 0 .5em; font-size: 1.55em; font-weight: 600;
+            }
+            /* Icon accent chip picks up the step's per-step color via currentColor (each h3 icon
+               carries its own inline `color:` — cyan for Welcome, red for MalwareRisk, etc.). */
+            #MediaDashConfigPage .mdWizStep h3 .material-icons {
+                font-size: 1.7em; padding: .2em;
+                background: color-mix(in srgb, currentColor 14%, transparent);
+                border-radius: 14px;
             }
             #MediaDashConfigPage .mdWizStep .mdWizIntro {
-                margin: 0 0 1em; opacity: .82;
+                margin: 0 0 1.2em; opacity: .82;
+                font-size: 1.02em; line-height: 1.55; max-width: 62em;
             }
             #MediaDashConfigPage .mdWizFoot {
-                display: flex; align-items: center; gap: .6em; flex-wrap: wrap;
-                margin-top: 1.2em; padding-top: 1em;
+                display: flex; align-items: center; gap: .7em; flex-wrap: wrap;
+                margin: 1.4em 0 0; padding: 1.2em 0 0;
                 border-top: 1px solid rgba(255,255,255,.08);
             }
             #MediaDashConfigPage .mdWizFoot .mdWizSpacer { flex: 1; }
-            #MediaDashConfigPage .mdWizNext { min-width: 8.5em; }
+            #MediaDashConfigPage .mdWizNext { min-width: 10em; }
             #MediaDashConfigPage .mdWizMsg { font-size: .85em; }
             #MediaDashConfigPage .mdWizMsg.mdWizErr { color: #ef4444; }
             #MediaDashConfigPage .mdWizGrid {
-                display: grid; gap: 1em;
+                display: grid; gap: 1.2em;
                 grid-template-columns: repeat(auto-fit, minmax(18em, 1fr));
             }
 
@@ -853,6 +944,13 @@
 
                 #MediaDashConfigPage .mdWizFoot { gap: .4em; }
                 #MediaDashConfigPage .mdWizNext { min-width: 0; flex: 1; }
+                #MediaDashConfigPage #mdFirstRun {
+                    margin: 1.5em 0 1em; padding: 1.2em 1.2em 1em;
+                    min-height: 0;
+                }
+                #MediaDashConfigPage .mdWizHead h2 { font-size: 1.35em; }
+                #MediaDashConfigPage .mdWizStep h3 { font-size: 1.25em; }
+                #MediaDashConfigPage .mdWizStep h3 .material-icons { font-size: 1.4em; }
             }
         </style>
         <div data-role="content">
@@ -930,6 +1028,22 @@
                             <p class="mdWizIntro">MediaDash looks after your library the way a librarian would: it spots duplicates, broken files, oversized encodes and unwanted language tracks, then fixes them safely on a schedule.</p>
                             <p class="mdWizIntro">The next few screens step through each feature. Any of them can be turned off entirely — nothing is set in stone, everything here is also in Settings.</p>
                             <p class="mdWizIntro"><b>Dry-run is on by default</b>, so nothing on disk changes until you decide it should.</p>
+                            <!-- Post-Jellyfin-12 cleanup offer: only rendered when the server reports Available=true.
+                                 Same visual language as the Overview banner but scoped inside the wizard. Toggled by
+                                 wizCheckV12Offer() when the Welcome step is shown. -->
+                            <div id="mdWizV12Note" style="display:none;margin:1.2em 0 .2em;padding:.9em 1.2em;border-radius:12px;background:rgba(139,92,246,.16);border:2px solid #8b5cf6;">
+                                <div style="display:flex;gap:.8em;align-items:flex-start;flex-wrap:wrap;">
+                                    <span class="material-icons" style="color:#8b5cf6;font-size:1.8em;">upgrade</span>
+                                    <div style="flex:1;min-width:16em;">
+                                        <div style="font-weight:700;color:#8b5cf6;">Post-Jellyfin-12 cleanup available</div>
+                                        <div class="fieldDescription" style="margin-top:.2em;">Jellyfin 12's library rewrite doesn't clean up orphaned trickplay images left over from your pre-12 install. Run this one-shot sweep to reclaim that disk space.</div>
+                                        <div class="fieldDescription" id="mdWizV12Result" style="margin-top:.4em;display:none;color:#a78bfa;"></div>
+                                    </div>
+                                    <button is="emby-button" type="button" id="mdWizV12Run" class="raised" style="font-size:80%;border:1px solid #8b5cf6;" title="Sweep the trickplay folder for orphaned image directories and delete them.">
+                                        <span class="material-icons" style="font-size:1.1em;vertical-align:-3px;margin-right:.3em;">cleaning_services</span><span>Run cleanup</span>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="mdWizStep" data-step="1">
@@ -999,9 +1113,13 @@
                                 <div class="selectContainer">
                                     <label class="selectLabel" for="mdWizMaxRes">Highest quality you want to keep</label>
                                     <select is="emby-select" id="mdWizMaxRes" class="emby-select-withcolor emby-select">
-                                        <option value="2160">4K — keep everything as-is</option>
+                                        <option value="4320">8K — keep even 8K masters as-is</option>
+                                        <option value="2160">4K — keep 4K and lower as-is</option>
+                                        <option value="1440">1440p — re-encode anything bigger</option>
                                         <option value="1080">1080p — re-encode anything bigger</option>
-                                        <option value="720">720p — save the most space</option>
+                                        <option value="720">720p — save space, still watchable on TVs</option>
+                                        <option value="480">480p — smallest files, best for phones</option>
+                                        <option value="360">360p — most aggressive, mobile-only quality</option>
                                     </select>
                                 </div>
                                 <div class="selectContainer">
@@ -1009,6 +1127,7 @@
                                     <select is="emby-select" id="mdWizCodec" class="emby-select-withcolor emby-select">
                                         <option value="hevc">HEVC / H.265 (recommended)</option>
                                         <option value="av1">AV1 (best compression, slowest)</option>
+                                        <option value="vp9">VP9 (WebM native, needs MKV container)</option>
                                         <option value="h264">H.264 (widest compatibility)</option>
                                     </select>
                                 </div>
@@ -1044,7 +1163,7 @@
                             <div class="mdWizGrid">
                                 <div class="inputContainer">
                                     <label class="inputLabel inputLabelUnfocused" for="mdWizAudioLangs">Audio languages to keep</label>
-                                    <input id="mdWizAudioLangs" type="text" is="emby-input" placeholder="e.g. eng, jpn" />
+                                    <input id="mdWizAudioLangs" type="text" is="emby-input" list="mdLangList" placeholder="e.g. eng, jpn" />
                                     <div class="fieldDescription">Comma-separated ISO codes. Empty leaves audio cleanup off.</div>
                                 </div>
                                 <div class="selectContainer">
@@ -1053,7 +1172,7 @@
                                 </div>
                                 <div class="inputContainer">
                                     <label class="inputLabel inputLabelUnfocused" for="mdWizSubLangs">Subtitle languages to keep</label>
-                                    <input id="mdWizSubLangs" type="text" is="emby-input" placeholder="e.g. eng" />
+                                    <input id="mdWizSubLangs" type="text" is="emby-input" list="mdLangList" placeholder="e.g. eng" />
                                     <div class="fieldDescription">Comma-separated ISO codes. Empty leaves subtitle cleanup off.</div>
                                 </div>
                                 <div class="selectContainer">
@@ -1088,6 +1207,16 @@
                                     <input id="mdWizAnimeTarget" type="text" is="emby-input" placeholder="leave empty to skip anime routing" />
                                     <div class="fieldDescription">Items with Jellyfin's "Anime" genre tag go here instead of Movies / TV.</div>
                                 </div>
+                                <div class="inputContainer">
+                                    <label class="inputLabel inputLabelUnfocused" for="mdWizMusicTarget">Audio / Music folder (optional)</label>
+                                    <input id="mdWizMusicTarget" type="text" is="emby-input" placeholder="e.g. /mnt/media/Music" />
+                                    <div class="fieldDescription">Music and audiobook files land here when misplaced.</div>
+                                </div>
+                                <div class="inputContainer">
+                                    <label class="inputLabel inputLabelUnfocused" for="mdWizBooksTarget">Books folder (optional)</label>
+                                    <input id="mdWizBooksTarget" type="text" is="emby-input" placeholder="e.g. /mnt/media/Books" />
+                                    <div class="fieldDescription">EPUB / PDF / MOBI files land here when misplaced.</div>
+                                </div>
                                 <div class="selectContainer">
                                     <label class="selectLabel" for="mdWizSortSource">Identify files using</label>
                                     <select is="emby-select" id="mdWizSortSource" class="emby-select-withcolor emby-select">
@@ -1104,6 +1233,21 @@
                         </div>
 
                         <div class="mdWizStep" data-step="7">
+                            <h3><span class="material-icons" style="color:#dc2626;">gpp_bad</span>Suspicious executables</h3>
+                            <p class="mdWizIntro">Walks every ticked library for .exe / .msi / .bat / .ps1 / .jar and other executable extensions that never belong in a media folder. Almost always malware bundled with a pirated release.</p>
+                            <div class="mdWizGrid">
+                                <div class="selectContainer">
+                                    <label class="selectLabel" for="mdWizVirusMode">When a suspicious file is found</label>
+                                    <select is="emby-select" id="mdWizVirusMode" class="emby-select-withcolor emby-select" data-mode-for="SuspiciousFileFixMode"></select>
+                                </div>
+                                <div class="selectContainer">
+                                    <label class="selectLabel" for="mdWizVirusDisp">Removed files go to</label>
+                                    <select is="emby-select" id="mdWizVirusDisp" class="emby-select-withcolor emby-select" data-disp-for="SuspiciousFileDisposal"></select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mdWizStep" data-step="8">
                             <h3><span class="material-icons" style="color:#22d3ee;">shield</span>Safety net</h3>
                             <p class="mdWizIntro">Two guardrails that keep every scan and fix reversible, plus how long the recycle bin keeps removed files before it purges them.</p>
                             <div class="checkboxContainer checkboxContainer-withDescription">
@@ -1127,7 +1271,7 @@
                             </div>
                         </div>
 
-                        <div class="mdWizStep" data-step="8">
+                        <div class="mdWizStep" data-step="9">
                             <h3><span class="material-icons" style="color:#64748b;">hourglass_bottom</span>Stale content</h3>
                             <p class="mdWizIntro">Optional: MediaDash can also list media that has sat on the server for a long time without anyone playing it. Off by default because "stale" is a personal call — surface the list only if you'd like a nudge to prune it.</p>
                             <div class="checkboxContainer checkboxContainer-withDescription">
@@ -1144,7 +1288,7 @@
                             </div>
                         </div>
 
-                        <div class="mdWizStep" data-step="9">
+                        <div class="mdWizStep" data-step="10">
                             <h3><span class="material-icons" style="color:#a78bfa;">analytics</span>Community stats (optional)</h3>
                             <p class="mdWizIntro">MediaDash can send anonymous aggregate stats to a community board so everyone can see how much storage the plugin is reclaiming across all users. <b>Pre-ticked</b> so the community counts include your reclaim total — untick if you'd rather not share, either is fine for the plugin.</p>
                             <div class="fieldDescription" style="margin:.4em 0 .8em;padding:.6em .8em;border-left:3px solid #a78bfa;background:rgba(167,139,250,.06);border-radius:4px;">
@@ -1161,7 +1305,7 @@
                             </div>
                         </div>
 
-                        <div class="mdWizStep" data-step="10">
+                        <div class="mdWizStep" data-step="11">
                             <h3><span class="material-icons" style="color:#22c55e;">check_circle</span>You're set up</h3>
                             <p class="mdWizIntro">MediaDash is ready to go. Every setting from this walkthrough is also on the Settings tab, and you can re-open this wizard any time from <b>Settings → Maintenance</b>.</p>
                             <div id="mdWizSummary" class="fieldDescription" style="margin:.4em 0 .8em;padding:.6em .8em;border-left:3px solid #22c55e;background:rgba(34,197,94,.06);border-radius:4px;"></div>
@@ -1184,11 +1328,19 @@
                     </div>
                 </div>
 
+                <!-- Shared datalists (Landing 3): languages sourced from /Localization/Cultures,
+                     genres sourced from /MediaDash/Genres. Referenced via list="mdLangList" /
+                     list="mdGenreList" on inputs anywhere in the page, so both Settings AND the
+                     Overview wizard get native combobox pickers with no per-input plumbing. -->
+                <datalist id="mdLangList"></datalist>
+                <datalist id="mdGenreList"></datalist>
+
                 <div class="mdTabBar">
                     <button is="emby-button" type="button" class="raised mdTab mdTabActive" data-tab="overview" title="System stats, drive usage and library summary at a glance"><span data-i18n="tab.overview">Overview</span></button>
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="issues" title="Detected problems waiting for you to approve or that are queued to fix"><span data-i18n="tab.issues">Issues</span></button>
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="history" title="Every fix MediaDash has run, with Restore for anything sent to the recycle bin"><span data-i18n="tab.history">History</span></button>
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="files" title="Browse and manage the files inside your libraries"><span data-i18n="tab.files">Files</span></button>
+                    <button is="emby-button" type="button" class="raised mdTab" data-tab="recycle" title="Files removed by MediaDash. Restore anything you still want, or empty the bin to reclaim space now."><span>Recycle bin</span></button>
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="errors" title="Plugin errors captured during scans and fixes"><span data-i18n="tab.errors">Errors</span><span id="mdErrorBadge" class="mdBadge" style="display:none;background:#ef4444;margin-left:.4em;">0</span></button>
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="settings" title="Configure MediaDash"><span data-i18n="tab.settings">Settings</span></button>
                 </div>
@@ -1239,6 +1391,8 @@
                         <button is="emby-button" type="button" class="raised mdHistFilter" data-filter="succeeded" style="font-size:80%;" title="Fixes that completed without error"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;color:#22c55e;">check_circle</span> <span>Succeeded</span> <span class="mdHistCount" style="opacity:.7;"></span></button>
                         <button is="emby-button" type="button" class="raised mdHistFilter" data-filter="failed" style="font-size:80%;" title="Fixes that failed for any reason"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;color:#ef4444;">error</span> <span>Failed</span> <span class="mdHistCount" style="opacity:.7;"></span></button>
                         <button is="emby-button" type="button" class="raised mdHistFilter" data-filter="dryrun" style="font-size:80%;" title="Dry-run entries that only logged what they would have done"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;color:#94a3b8;">preview</span> <span>Dry run</span> <span class="mdHistCount" style="opacity:.7;"></span></button>
+                        <span style="flex:1;"></span>
+                        <button is="emby-button" type="button" id="mdHistoryClear" class="raised" style="font-size:80%;background:#7f1d1d;color:#fff;" title="Hide every current history row from this list. The rows stay in the database, so the per-library chart and 'Reclaimed since install' totals are untouched."><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;margin-right:.3em;">delete_sweep</span><span>Clear history log</span></button>
                     </div>
                     <div id="mdHistoryList"></div>
                 </div>
@@ -1280,6 +1434,16 @@
                     </div>
                 </div>
 
+                <div id="mdTab-recycle" style="display:none;">
+                    <div class="fieldDescription" style="margin-bottom:.6em;">Files MediaDash has removed live here until the retention window passes. Restore anything you still want, or empty the bin to reclaim the space now. Folder + retention live in Settings → Recycle bin.</div>
+                    <div style="display:flex;gap:.5em;align-items:center;margin-bottom:.6em;flex-wrap:wrap;">
+                        <button is="emby-button" type="button" id="mdBinRefresh" class="raised" style="font-size:80%;" title="Reload the recycle bin list."><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">refresh</span><span>Refresh</span></button>
+                        <button is="emby-button" type="button" id="mdBinEmpty" class="raised" style="font-size:80%;background:#7f1d1d;color:#fff;" title="Permanently deletes every file in the recycle bin. Restore stops working for those files."><span class="material-icons" style="font-size:1.2em;margin-right:.3em;">delete_sweep</span><span>Empty recycle bin now</span></button>
+                        <span id="mdBinInfo" class="fieldDescription"></span>
+                    </div>
+                    <div id="mdBinList" style="max-height:min(60vh,32em);overflow-y:auto;padding-right:.4em;border:1px solid rgba(255,255,255,.06);border-radius:8px;"></div>
+                </div>
+
                 <!-- Folder picker modal -->
                 <div id="mdPicker">
                     <div class="mdCard mdFade">
@@ -1307,6 +1471,17 @@
 
                         <nav class="mdSetNav" id="mdSetNav" aria-label="Settings sections"></nav>
 
+                        <section id="mdSet-libraries" class="mdSetCard mdSetCard--libraries mdSetCard--full">
+                            <h2 class="mdSetHead">
+                                <span class="mdSetIcon"><span class="material-icons">video_library</span></span>
+                                <span class="mdSetHeadText">
+                                    <span class="mdSetTitle">Libraries</span>
+                                    <span class="mdSetSubtitle">Which Jellyfin libraries every task is allowed to touch. Empty = all movie / TV / music / book libraries.</span>
+                                </span>
+                            </h2>
+                            <div id="mdLibraries"></div>
+                        </section>
+
                         <section id="mdSet-safety" class="mdSetCard mdSetCard--safety mdSetCard--full">
                             <h2 class="mdSetHead">
                                 <span class="mdSetIcon"><span class="material-icons">shield</span></span>
@@ -1323,19 +1498,19 @@
                                     </label>
                                     <div class="fieldDescription" data-i18n="settings.safety.dryRunHint">Fix runs only log what they would do — nothing on disk changes. Turn off once the plan in History looks right.</div>
                                 </div>
-                                <div class="checkboxContainer checkboxContainer-withDescription" style="margin:0;">
+                                <div class="checkboxContainer checkboxContainer-withDescription" style="margin:0;" title="When on, scheduled runs wait until no active playback and 15 minutes of idle. Manual runs ignore this — the Scan/Fix buttons on Overview still fire immediately.">
                                     <label class="emby-checkbox-label">
                                         <input id="mdPausePlayback" type="checkbox" is="emby-checkbox" />
                                         <span data-i18n="settings.safety.idle">Only run when the server is idle</span>
                                     </label>
                                     <div class="fieldDescription" data-i18n="settings.safety.idleHint">Scheduled runs wait until nobody is watching and Jellyfin has been unused for 15 minutes.</div>
                                 </div>
-                                <div class="inputContainer" style="margin:0;max-width:16em;">
+                                <div class="inputContainer" style="margin:0;max-width:16em;" title="24-hour server-local time. Fix task fires daily at this hour; scan task uses its own dashboard schedule.">
                                     <label class="inputLabel inputLabelUnfocused" for="mdFixScheduleTime" data-i18n="settings.safety.scheduleLabel">Scheduled fix time</label>
                                     <input id="mdFixScheduleTime" type="time" is="emby-input" />
                                     <div class="fieldDescription">Server local time, daily.</div>
                                 </div>
-                                <div class="checkboxContainer checkboxContainer-withDescription" style="margin:0;">
+                                <div class="checkboxContainer checkboxContainer-withDescription" style="margin:0;" title="Sends per-run counts (per-type success + bytes freed) and version strings to the community stats board. No paths, no filenames, no usernames. See docs/PRIVACY.md for the exact fields.">
                                     <label class="emby-checkbox-label">
                                         <input id="mdAnalytics" type="checkbox" is="emby-checkbox" />
                                         <span data-i18n="settings.safety.analytics">Share anonymous stats with the community board</span>
@@ -1359,44 +1534,27 @@
 
                         <div class="mdTaskList" id="mdFixTypeRows"></div>
 
-                        <div class="mdSetGrid">
-                            <section id="mdSet-libraries" class="mdSetCard mdSetCard--libraries">
-                                <h2 class="mdSetHead">
-                                    <span class="mdSetIcon"><span class="material-icons">video_library</span></span>
-                                    <span class="mdSetHeadText">
-                                        <span class="mdSetTitle">Libraries</span>
-                                        <span class="mdSetSubtitle">Which Jellyfin libraries every task is allowed to touch.</span>
-                                    </span>
-                                </h2>
-                                <div id="mdLibraries"></div>
-                            </section>
-
-                            <section id="mdSet-bin" class="mdSetCard mdSetCard--bin">
-                                <h2 class="mdSetHead">
-                                    <span class="mdSetIcon"><span class="material-icons">delete</span></span>
-                                    <span class="mdSetHeadText">
-                                        <span class="mdSetTitle">Recycle bin</span>
-                                        <span class="mdSetSubtitle">Removed files land here so History → Restore can bring them back.</span>
-                                    </span>
-                                </h2>
-                                <div id="mdBinInfo" class="fieldDescription" style="margin-bottom:.5em;"></div>
-                                <div style="margin-bottom:.8em;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
-                                    <button is="emby-button" type="button" id="mdBinView" class="raised" title="Show the list of files currently held in the recycle bin" style="font-size:80%;"><span>View contents</span></button>
-                                    <button is="emby-button" type="button" id="mdBinEmpty" class="raised" title="Permanently deletes every file in the recycle bin. Restore stops working for those files." style="font-size:80%;"><span>Empty recycle bin now</span></button>
-                                </div>
-                                <div id="mdBinList" style="display:none;margin-bottom:1em;"></div>
-                                <div class="inputContainer" style="max-width:26em;">
+                        <section id="mdSet-recycle" class="mdSetCard mdSetCard--bin mdSetCard--full">
+                            <h2 class="mdSetHead">
+                                <span class="mdSetIcon"><span class="material-icons">delete</span></span>
+                                <span class="mdSetHeadText">
+                                    <span class="mdSetTitle">Recycle bin</span>
+                                    <span class="mdSetSubtitle">Where removed files are kept and how long they stay there. Recycled files are managed on the Recycle bin tab.</span>
+                                </span>
+                            </h2>
+                            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(20em,1fr));gap:18px 32px;">
+                                <div class="inputContainer" style="margin:0;">
                                     <label class="inputLabel inputLabelUnfocused" for="mdBinPath">Recycle bin folder</label>
                                     <input id="mdBinPath" type="text" is="emby-input" placeholder="default (inside Jellyfin's data folder)" />
-                                    <div class="fieldDescription">Where removed files are kept. Pick a folder on the same drive as your media to make recycling instant.</div>
+                                    <div class="fieldDescription">Pick a folder on the same drive as your media to make recycling instant.</div>
                                 </div>
-                                <div class="inputContainer" style="max-width:30em;">
+                                <div class="inputContainer" style="margin:0;">
                                     <label class="inputLabel" for="mdRetention">Keep recycled files for<span class="mdSliderVal" id="mdRetentionVal"></span></label>
                                     <input id="mdRetention" type="range" min="1" max="90" step="1" />
                                     <div class="fieldDescription">After this many days, recycled files are deleted for good. Default: 30.</div>
                                 </div>
-                            </section>
-                        </div>
+                            </div>
+                        </section>
 
                         <section id="mdSet-maintenance" class="mdSetCard mdSetCard--maintenance mdSetCard--full">
                             <h2 class="mdSetHead">
@@ -1409,6 +1567,14 @@
                             <div style="margin:.4em 0;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
                                 <button is="emby-button" type="button" id="mdRerunSetup" class="raised" title="Reopen the first-run walkthrough at the top of Overview" style="font-size:80%;"><span>Run first-time setup again</span></button>
                                 <span class="fieldDescription">Brings back the multi-step first-run walkthrough.</span>
+                            </div>
+                            <div style="margin:.6em 0;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
+                                <button is="emby-button" type="button" id="mdMaintVirusScan" class="raised" title="Runs only the suspicious-file scanner: walks each library folder for executables (.exe / .msi / .bat / .ps1 / .sh / …). Bundled malware in pirated releases shows up as MalwareRisk issues in seconds — much faster than a full library scan." style="font-size:80%;"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;margin-right:.3em;">shield</span><span>Start virus scan</span></button>
+                                <span id="mdMaintVirusScanMsg" class="fieldDescription">Walks every library folder for executables and scripts. Anything found lands on the Issues tab as MalwareRisk.</span>
+                            </div>
+                            <div style="margin:.6em 0;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
+                                <button is="emby-button" type="button" id="mdMaintV12Migration" class="raised" title="Runs the one-shot post-Jellyfin-12 filesystem cleanup: sweeps orphaned trickplay image folders whose GUID no longer resolves to any BaseItem. Only enabled on Jellyfin 12+ servers." style="font-size:80%;" disabled><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;margin-right:.3em;">upgrade</span><span>Start v12 migration</span></button>
+                                <span id="mdMaintV12MigrationMsg" class="fieldDescription">Sweeps orphaned trickplay folders left behind by the 10.x → 12.x upgrade. Only available on Jellyfin 12+.</span>
                             </div>
                             <div style="margin:.6em 0;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
                                 <button is="emby-button" type="button" id="mdResetScan" class="raised" title="Clears every detected issue and the probe/decode caches so the next scan starts from scratch. Fix history and the recycle bin are kept." style="font-size:80%;background:#7f1d1d;color:#fff;"><span>Reset scan data</span></button>
@@ -1518,12 +1684,12 @@
                 unitDays: '{0} days',
                 types: {
                     Duplicate: {
-                        title: 'Duplicate copies', hint: 'The same movie or episode exists more than once.', color: '#f59e0b', icon: 'content_copy',
+                        title: 'Duplicate copies', hint: 'The same movie or episode exists more than once.', color: '#d946ef', icon: 'content_copy',
                         action: 'Delete this copy', actionHint: 'Queues deletion of this copy for the next fix run; the better copy stays.', approveAll: 'Delete all {0} duplicate copies shown',
                         doRecycle: 'Delete the worse copy — recoverable from the recycle bin', doPermanent: 'Delete the worse copy — permanently'
                     },
                     Playability: {
-                        title: "Files that won't play", hint: 'These files are broken or unreadable.', color: '#ef4444', icon: 'play_disabled',
+                        title: "Files that won't play", hint: 'These files are broken or unreadable.', color: '#eab308', icon: 'play_disabled',
                         action: 'Remove file', actionHint: 'Queues removal for the next fix run (re-checked as broken before anything is removed).', approveAll: 'Remove all {0} broken files shown',
                         doRecycle: 'Remove the broken file — recoverable from the recycle bin', doPermanent: 'Remove the broken file — permanently'
                     },
@@ -1553,6 +1719,11 @@
                     Stale: {
                         title: 'Stale content', hint: 'Nobody has played it in a long time.', color: '#64748b', icon: 'hourglass_bottom',
                         action: 'Review', actionHint: 'Detect-only for now — MediaDash surfaces the list, you decide whether to delete or keep.', approveAll: 'Review all {0} stale items shown'
+                    },
+                    MalwareRisk: {
+                        title: 'Suspicious executables', hint: 'Programs or scripts sitting in a media folder — almost always malware from a pirated release.', color: '#dc2626', icon: 'gpp_bad',
+                        action: 'Delete this file', actionHint: 'Queues deletion for the next fix run; the file goes to the recycle bin unless you switch it to permanent.', approveAll: 'Delete all {0} suspicious files shown',
+                        doRecycle: 'Delete the executable — recoverable from the recycle bin', doPermanent: 'Delete the executable — permanently'
                     }
                 },
                 languages: [
@@ -1577,7 +1748,8 @@
                 { key: 'MissingSubtitles', mode: 'MissingSubtitlesFixMode' },
                 // Stale content is detect-only for now — no fixer, no disposal choice; the "How it runs" select
                 // hides its Automatic option (see buildFixTypeRows) since there's nothing to automate.
-                { key: 'Stale', mode: 'StaleFixMode' }
+                { key: 'Stale', mode: 'StaleFixMode' },
+                { key: 'MalwareRisk', mode: 'SuspiciousFileFixMode', disposal: 'SuspiciousFileDisposal' }
             ];
 
             var KEEPER_PRESETS = {
@@ -1587,7 +1759,7 @@
             };
 
             // Bitrate is stored as its 1080p equivalent; the slider displays it scaled to the selected max resolution.
-            var RES_PIXEL_FACTOR = { 720: 0.4444, 1080: 1, 1440: 1.7778, 2160: 4 };
+            var RES_PIXEL_FACTOR = { 360: 0.1111, 480: 0.1975, 720: 0.4444, 1080: 1, 1440: 1.7778, 2160: 4, 4320: 16 };
 
             var currentBitrateFactor = 1;
 
@@ -1601,8 +1773,11 @@
                 slider.max = Math.ceil(40 * currentBitrateFactor);
                 slider.value = Math.round(base1080 * currentBitrateFactor * 2) / 2;
                 var res = view.querySelector('#mdMaxRes').value;
-                var resLabel = res === '2160' ? '4K' : res === '1440' ? '1440p' : res + 'p';
-                view.querySelector('#mdMaxBitrateLabel').textContent = 'Maximum video bitrate at ' + resLabel;
+                var resLabel = res === '4320' ? '8K' : res === '2160' ? '4K' : res + 'p';
+                // Target the inner .mdBitrateLabelText span, not the whole <label>, so we don't
+                // wipe out the sibling #mdMaxBitrateVal span when updating the resolution label.
+                var labelText = view.querySelector('#mdMaxBitrateLabel .mdBitrateLabelText');
+                if (labelText) labelText.textContent = 'Maximum video bitrate at ' + resLabel;
                 view.querySelector('#mdMaxBitrateVal').textContent = fmt(STR.unitMbps, slider.value);
             }
 
@@ -1704,6 +1879,12 @@
 
             function post(path) {
                 return ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('MediaDash/' + path) });
+            }
+            // Same as post() but tells ApiClient to parse the JSON body. Use whenever the caller
+            // reads properties off the resolved value. Plain post() returns the raw Response, so
+            // `r.SomeField` silently comes back undefined without this.
+            function postJson(path) {
+                return ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('MediaDash/' + path), dataType: 'json' });
             }
 
             // ---------- Charts (inline SVG, no dependencies) ----------
@@ -2203,6 +2384,9 @@
 
             var historyCache = [];
             var historyFilter = 'all';
+            // Watermark below which history rows are hidden from the visible list. Loaded from
+            // plugin config each time the History tab renders. Chart aggregation ignores this.
+            var historyHiddenBeforeMs = 0;
 
             function historyMatches(h, filter) {
                 if (filter === 'succeeded') return h.Success && !h.WasDryRun;
@@ -2214,17 +2398,22 @@
             function renderHistory(list) {
                 if (list) historyCache = list;
                 var full = historyCache;
+                // Rows above the Clear-history watermark are what the list + filter counts see.
+                // Chart aggregation below uses `full` so per-library totals survive a Clear.
+                var visible = full.filter(function (h) {
+                    return !historyHiddenBeforeMs || new Date(h.FixedAtUtc).getTime() > historyHiddenBeforeMs;
+                });
 
                 // Refresh the per-filter counts on every render so the chip labels stay honest as new
                 // fix runs land, and the disabled-state on empty buckets doesn't drift out of date.
                 view.querySelectorAll('.mdHistFilter').forEach(function (btn) {
                     var f = btn.getAttribute('data-filter');
-                    var n = full.filter(function (h) { return historyMatches(h, f); }).length;
+                    var n = visible.filter(function (h) { return historyMatches(h, f); }).length;
                     btn.querySelector('.mdHistCount').textContent = n;
                     btn.classList.toggle('mdHistFilterActive', f === historyFilter);
                 });
 
-                var filtered = full.filter(function (h) { return historyMatches(h, historyFilter); });
+                var filtered = visible.filter(function (h) { return historyMatches(h, historyFilter); });
                 var el = view.querySelector('#mdHistoryList');
                 var saved = 0;
                 full.forEach(function (h) { if (!h.WasDryRun && h.Success) saved += h.BytesFreed; });
@@ -2324,7 +2513,7 @@
             // input #mdMode<Key>; the disposal select stays as #mdDisposal<Key>. All other field ids
             // are preserved so the existing loadSettings/saveSettings paths keep working unchanged.
 
-            var TASK_ORDER = ['Duplicate', 'Playability', 'Quality', 'SubtitleLanguage', 'AudioLanguage', 'Stale', 'Misplaced', 'MissingSubtitles'];
+            var TASK_ORDER = ['Duplicate', 'Playability', 'Quality', 'SubtitleLanguage', 'AudioLanguage', 'Stale', 'Misplaced', 'MissingSubtitles', 'MalwareRisk'];
 
             // Ink used for the selected-accent segment. Derived by hand from the mock — near-black
             // shifted toward the accent's hue so the label reads without vibrating.
@@ -2336,7 +2525,8 @@
                 AudioLanguage: '#04150f',
                 Misplaced: '#1a0d02',
                 MissingSubtitles: '#0e0521',
-                Stale: '#0b0f16'
+                Stale: '#0b0f16',
+                MalwareRisk: '#1f0303'
             };
 
             // Border tint applied when the task is On. The CSS also tries a relative-color-syntax
@@ -2349,7 +2539,8 @@
                 AudioLanguage: 'rgba(16,185,129,.28)',
                 Misplaced: 'rgba(249,115,22,.28)',
                 MissingSubtitles: 'rgba(167,139,250,.28)',
-                Stale: 'rgba(100,116,139,.28)'
+                Stale: 'rgba(100,116,139,.28)',
+                MalwareRisk: 'rgba(220,38,38,.32)'
             };
 
             // Accent-tint background for the icon tile.
@@ -2361,7 +2552,8 @@
                 AudioLanguage: 'rgba(16,185,129,.14)',
                 Misplaced: 'rgba(249,115,22,.14)',
                 MissingSubtitles: 'rgba(167,139,250,.14)',
-                Stale: 'rgba(100,116,139,.18)'
+                Stale: 'rgba(100,116,139,.18)',
+                MalwareRisk: 'rgba(220,38,38,.18)'
             };
 
             function findFixType(key) {
@@ -2401,9 +2593,12 @@
             }
 
             function langChipInputHtml(id) {
+                // list="mdLangList" wires the input to the shared <datalist> populated from
+                // /Localization/Cultures at settings-load — turns the freeform typebox into a native
+                // combobox showing every language Jellyfin supports as the user types.
                 return '<div class="mdChipInput" data-chip-input="' + id + '">' +
                     '<span class="mdChipInputRender"></span>' +
-                    '<input type="text" class="mdChipInputText" placeholder="Add a language…" />' +
+                    '<input type="text" class="mdChipInputText" list="mdLangList" placeholder="Type or pick a language…" />' +
                     '<input type="hidden" id="' + id + '" value="" />' +
                     '</div>';
             }
@@ -2412,7 +2607,7 @@
                 if (key === 'Duplicate') {
                     return '<div class="mdFieldGrid mdFieldGrid-2">' +
                         '<div class="mdField">' +
-                            '<label for="mdKeeperPolicy">When duplicates are found, keep</label>' +
+                            '<label for="mdKeeperPolicy" title="How the duplicate scanner picks which copy stays. Best-quality is the safe default; codec-first favours modern re-encodes; size-first ruthlessly picks the smallest file even if it\'s lower quality.">When duplicates are found, keep</label>' +
                             '<select is="emby-select" id="mdKeeperPolicy" class="emby-select-withcolor emby-select">' +
                                 '<option value="quality">The best-quality copy (recommended)</option>' +
                                 '<option value="codec">The most modern format (codec first)</option>' +
@@ -2422,7 +2617,7 @@
                         '</div>' +
                         disposalField('Duplicate', 'The worse copy goes to') +
                         '<div class="mdField" style="grid-column:1/-1;">' +
-                            '<label for="mdDuplicateMinAge">Wait N days after import</label>' +
+                            '<label for="mdDuplicateMinAge" title="Freshly-imported items can transiently self-duplicate while Jellyfin\'s metadata scrape catches up. This grace period skips items younger than N days.">Wait N days after import</label>' +
                             '<input id="mdDuplicateMinAge" type="number" min="0" max="365" is="emby-input" />' +
                             '<span class="mdFieldHint">Freshly-imported items can transiently look like duplicates of themselves while Jellyfin\'s metadata scrape catches up. 0 disables the wait. Default 7.</span>' +
                         '</div>' +
@@ -2432,15 +2627,17 @@
                             '<span class="mdFieldHint" style="margin:0;flex:1;">Off: a Director\'s Cut and the theatrical cut stay as separate movies.</span>' +
                         '</label>' +
                         '</div>' +
-                        '<span class="mdFieldHint">Retention and bin location live in <a href="#mdSet-bin" style="color:rgba(230,237,243,.85);text-decoration:underline;">Recycle bin</a>.</span>';
+                        '<span class="mdFieldHint">Retention and bin location live in the <a href="#" class="mdGoRecycleTab" style="color:rgba(230,237,243,.85);text-decoration:underline;">Recycle bin tab</a>.</span>';
                 }
                 if (key === 'Playability') {
                     return '<div class="mdFieldGrid mdFieldGrid-2">' +
                         disposalField('Playability', 'Broken files go to') +
-                        '<label class="mdInsetRow" style="cursor:pointer;">' +
-                            '<input id="mdThorough" type="checkbox" class="mdInsetCheck" />' +
-                            '<span style="font-size:13px;font-weight:600;flex:0 0 auto;">Thorough playability check</span>' +
-                            '<span class="mdFieldHint" style="margin:0;flex:1;">Test-plays start, middle and end (30s each). Slower first scan; cached after.</span>' +
+                        '<label class="mdInsetRow mdInsetRow--stack" style="cursor:pointer;" title="Test-plays start, middle and end (30s each). Slower first scan; cached after.">' +
+                            '<span class="mdInsetRowMain">' +
+                                '<input id="mdThorough" type="checkbox" class="mdInsetCheck" />' +
+                                '<span style="font-size:13px;font-weight:600;">Thorough playability check</span>' +
+                            '</span>' +
+                            '<span class="mdFieldHint mdInsetRowHint">Test-plays start, middle and end (30s each). Slower first scan; cached after.</span>' +
                         '</label>' +
                         '</div>' +
                         '<span class="mdFieldHint">Broken-file removal always waits for approval, even in Automatic.</span>';
@@ -2454,10 +2651,13 @@
                             '<div class="mdField">' +
                                 '<label for="mdMaxRes">Maximum resolution</label>' +
                                 '<select is="emby-select" id="mdMaxRes" class="emby-select-withcolor emby-select">' +
+                                    '<option value="4320">8K (4320p)</option>' +
                                     '<option value="2160">4K (2160p)</option>' +
                                     '<option value="1440">1440p</option>' +
                                     '<option value="1080">1080p</option>' +
                                     '<option value="720">720p</option>' +
+                                    '<option value="480">480p</option>' +
+                                    '<option value="360">360p</option>' +
                                 '</select>' +
                             '</div>' +
                             '<div class="mdField">' +
@@ -2466,6 +2666,7 @@
                                     '<option value="hevc">H.265 / HEVC (recommended)</option>' +
                                     '<option value="h264">H.264 (best compatibility)</option>' +
                                     '<option value="av1">AV1 (smallest files, slow)</option>' +
+                                    '<option value="vp9">VP9 (WebM native, needs MKV)</option>' +
                                 '</select>' +
                             '</div>' +
                             '<div class="mdField">' +
@@ -2475,12 +2676,12 @@
                                     '<option value="mp4">MP4 — no subtitle tracks</option>' +
                                 '</select>' +
                             '</div>' +
-                            '<div class="mdField" style="grid-column:1/3;">' +
-                                '<div style="display:flex;justify-content:space-between;align-items:baseline;">' +
-                                    '<label for="mdMaxBitrate" id="mdMaxBitrateLabel">Maximum video bitrate at 1080p</label>' +
-                                    '<span class="mdSliderVal" id="mdMaxBitrateVal"></span>' +
-                                '</div>' +
-                                '<input id="mdMaxBitrate" type="range" min="1" max="40" step="0.5" />' +
+                            '<div class="mdField mdBitrateField" style="grid-column:1/3;">' +
+                                '<label for="mdMaxBitrate" id="mdMaxBitrateLabel" title="The ceiling above which the Quality scanner flags files. Any file whose bitrate exceeds this at 1080p (scaled for other resolutions) is queued for re-encode.">' +
+                                    '<span class="mdBitrateLabelText">Maximum video bitrate at 1080p</span>' +
+                                    '<span class="mdSliderVal mdBitrateValue" id="mdMaxBitrateVal"></span>' +
+                                '</label>' +
+                                '<input id="mdMaxBitrate" type="range" min="1" max="40" step="0.5" class="mdControl mdControl--slider" />' +
                                 '<span class="mdFieldHint">Scaled automatically for every other resolution.</span>' +
                             '</div>' +
                             disposalField('Quality', 'The original file goes to') +
@@ -2493,7 +2694,7 @@
                             '</label>' +
                             '<span style="font-size:13px;font-weight:600;">Use hardware encoder</span>' +
                             '<span class="mdFieldHint" style="margin:0;flex:1;">Falls back to software automatically if a file fails.</span>' +
-                            '<label for="mdGpuIndex" style="font-size:12.5px;font-weight:600;color:rgba(230,237,243,.65);">GPU</label>' +
+                            '<label for="mdGpuIndex" title="Pick which physical GPU MediaDash uses when hardware encoding is on. Auto lets ffmpeg pick — usually the first GPU. Only relevant when the host has more than one card." style="font-size:12.5px;font-weight:600;color:rgba(230,237,243,.65);">GPU</label>' +
                             '<select is="emby-select" id="mdGpuIndex" class="emby-select-withcolor emby-select" style="max-width:18em;"></select>' +
                         '</div>' +
                         '<details class="mdAdvanced">' +
@@ -2505,7 +2706,7 @@
                             '<div class="mdAdvancedBody">' +
                                 '<div class="mdFieldGrid mdFieldGrid-2">' +
                                     '<div class="mdField">' +
-                                        '<label for="mdEncodePreset">Encode preset (software encoders)</label>' +
+                                        '<label for="mdEncodePreset" title="Trade-off between encode speed and final file size for software encoders (x264/x265). Hardware encoders ignore this and use the plugin\'s bitrate ceiling instead.">Encode preset (software encoders)</label>' +
                                         '<select is="emby-select" id="mdEncodePreset" class="emby-select-withcolor emby-select">' +
                                             '<option value="Faster">Faster — half the time, slightly bigger files</option>' +
                                             '<option value="Balanced">Balanced — recommended</option>' +
@@ -2514,7 +2715,7 @@
                                     '</div>' +
                                     '<div class="mdField">' +
                                         '<div style="display:flex;justify-content:space-between;align-items:baseline;">' +
-                                            '<label for="mdTolerance">Tolerance</label>' +
+                                            '<label for="mdTolerance" title="Skip files whose bitrate is only slightly over the ceiling. Avoids churning on borderline files. 15% is a good default.">Tolerance</label>' +
                                             '<span class="mdSliderVal" id="mdToleranceVal"></span>' +
                                         '</div>' +
                                         '<input id="mdTolerance" type="range" min="0" max="50" step="5" />' +
@@ -2531,7 +2732,7 @@
                                         '<span class="mdFieldHint">Comma-separated: "avi, wmv, mkv". Empty = all.</span>' +
                                     '</div>' +
                                 '</div>' +
-                                '<label class="mdInsetRow" style="cursor:pointer;">' +
+                                '<label class="mdInsetRow" style="cursor:pointer;" title="HDR (BT.2020 + PQ/HLG) files need color-space plumbing MediaDash doesn\'t handle. Skipping them prevents accidentally destroying HDR metadata.">' +
                                     '<input id="mdSkipHdr" type="checkbox" class="mdInsetCheck" />' +
                                     '<span style="font-size:13px;font-weight:600;flex:0 0 auto;">Skip HDR content</span>' +
                                     '<span class="mdFieldHint" style="margin:0;flex:1;">Re-encoding HDR without color-space plumbing destroys metadata.</span>' +
@@ -2541,7 +2742,7 @@
                                     '<span style="font-size:13px;font-weight:600;flex:0 0 auto;">Also scan audiobooks for oversized audio</span>' +
                                     '<span class="mdFieldHint" style="margin:0;flex:1;">Audiobooks are usually already lean — enable only if you have unusually large audiobook files.</span>' +
                                 '</label>' +
-                                '<label class="mdInsetRow" style="cursor:pointer;">' +
+                                '<label class="mdInsetRow" style="cursor:pointer;" title="After a re-encode succeeds, rename the output to a canonical form: Movies get \'Name (Year) - {height}p.{ext}\', TV gets \'SeriesName - S{ss:00}E{ee:00} - {height}p.{ext}\'.">' +
                                     '<input id="mdRenameAfterTranscode" type="checkbox" class="mdInsetCheck" />' +
                                     '<span style="font-size:13px;font-weight:600;flex:0 0 auto;">Rename re-encoded files to a canonical name</span>' +
                                     '<span class="mdFieldHint" style="margin:0;flex:1;">Movie (Year) - 1080p.mkv style.</span>' +
@@ -2584,11 +2785,27 @@
                                 '<input id="mdTvTarget" type="text" is="emby-input" placeholder="/media/tv" />' +
                             '</div>' +
                             '<div class="mdField">' +
-                                '<label for="mdAnimeTarget">Anime destination (optional)</label>' +
+                                '<label for="mdAnimeTarget" title="Optional. Files whose Jellyfin genre tag includes \'Anime\' are routed here instead of the Movies or TV pile. Empty = keep anime in Movies/TV.">Anime destination (optional)</label>' +
                                 '<input id="mdAnimeTarget" type="text" is="emby-input" placeholder="empty leaves anime in Movies/TV" />' +
                             '</div>' +
                             '<div class="mdField">' +
-                                '<label for="mdMediaSortSource">Detect movie / TV from</label>' +
+                                '<label for="mdMusicTarget" title="Optional. Audio / MusicAlbum items found under a non-music library get moved here. Empty = ignore music misplacement.">Music destination (optional)</label>' +
+                                '<input id="mdMusicTarget" type="text" is="emby-input" placeholder="empty leaves music where it sits" />' +
+                            '</div>' +
+                            '<div class="mdField">' +
+                                '<label for="mdBooksTarget" title="Optional. Book items (EPUB / PDF / MOBI / AZW3 / and AudioBook items) found outside a books library get moved here. Empty = ignore book misplacement.">Books destination (optional)</label>' +
+                                '<input id="mdBooksTarget" type="text" is="emby-input" placeholder="empty leaves books where they sit" />' +
+                            '</div>' +
+                            '<div class="mdField">' +
+                                '<label for="mdComicsTarget" title="Optional. Comic archive files (CBZ / CBR / CB7 — currently classified as Book by Jellyfin) found outside a comics library get moved here. Empty = ignore comic misplacement.">Comics destination (optional)</label>' +
+                                '<input id="mdComicsTarget" type="text" is="emby-input" placeholder="empty leaves comics where they sit" />' +
+                            '</div>' +
+                            '<div class="mdField">' +
+                                '<label for="mdPicturesTarget" title="Optional. Photo / Picture items found outside a photo library get moved here. Empty = ignore picture misplacement.">Pictures destination (optional)</label>' +
+                                '<input id="mdPicturesTarget" type="text" is="emby-input" placeholder="empty leaves pictures where they sit" />' +
+                            '</div>' +
+                            '<div class="mdField">' +
+                                '<label for="mdMediaSortSource" title="Jellyfin metadata is authoritative when items are recognised; the filename fallback catches unidentified files by looking for SxxExx / NxN patterns.">Detect movie / TV from</label>' +
                                 '<select is="emby-select" id="mdMediaSortSource" class="emby-select-withcolor emby-select">' +
                                     '<option value="JellyfinMetadata">Jellyfin metadata (recommended)</option>' +
                                     '<option value="FilenameHeuristic">Filename pattern (fallback)</option>' +
@@ -2600,16 +2817,22 @@
                     return '<div class="mdFieldHint">Uses the subtitle languages set in <a href="#mdSet-task-SubtitleLanguage" style="color:rgba(230,237,243,.85);text-decoration:underline;">Unwanted subtitles</a>. Downloads go through Jellyfin\'s configured subtitle providers.</div>' +
                         '<div class="mdFieldHint" id="mdProviderHint" style="display:none;"></div>';
                 }
+                if (key === 'MalwareRisk') {
+                    return '<div class="mdFieldGrid mdFieldGrid-2">' +
+                        disposalField('MalwareRisk', 'Suspicious files go to') +
+                        '</div>' +
+                        '<span class="mdFieldHint">Flagged files always require approval, even in Automatic — bundled malware in pirated releases can flag on filenames alone, so the fixer never runs on its own.</span>';
+                }
                 if (key === 'Stale') {
                     return '<div class="mdFieldGrid mdFieldGrid-2">' +
                         '<div class="mdField">' +
-                            '<label for="mdStaleThresholdDays">Flag media nobody has played in (days)</label>' +
+                            '<label for="mdStaleThresholdDays" title="Both conditions must hold before something is flagged as stale: the item has been on the server this long AND nobody has played it in the same window. Fresh imports never look stale on their first scan.">Flag media nobody has played in (days)</label>' +
                             '<input id="mdStaleThresholdDays" type="number" min="1" max="3650" is="emby-input" />' +
                             '<span class="mdFieldHint">Item must also have been on the server this long, so fresh imports don\'t immediately flag.</span>' +
                         '</div>' +
                         '<div class="mdField">' +
-                            '<label for="mdStaleExcludedGenres">Skip these genres</label>' +
-                            '<input id="mdStaleExcludedGenres" type="text" is="emby-input" placeholder="Documentary, Christmas" />' +
+                            '<label for="mdStaleExcludedGenres" title="Media tagged with any of these genres is skipped by the Stale scanner. Draws from the genres actually present in your libraries — start typing to see suggestions.">Skip these genres</label>' +
+                            '<input id="mdStaleExcludedGenres" type="text" is="emby-input" list="mdGenreList" placeholder="Documentary, Christmas" />' +
                             '<span class="mdFieldHint">Case-insensitive match against Jellyfin genres.</span>' +
                         '</div>' +
                         '<div class="mdField" style="grid-column:1/-1;">' +
@@ -2849,7 +3072,7 @@
                 });
                 out += '<span class="mdSetNavDivider"></span>';
                 out += navChipHtml('Libraries', 'video_library', '#06b6d4', '#mdSet-libraries');
-                out += navChipHtml('Recycle bin', 'delete', '#ec4899', '#mdSet-bin');
+                out += navChipHtml('Recycle bin', 'delete', '#ec4899', '#mdSet-recycle');
                 out += navChipHtml('Maintenance', 'handyman', '#94a3b8', '#mdSet-maintenance');
                 nav.innerHTML = out;
                 nav.querySelectorAll('.mdSetChip').forEach(function (chip) {
@@ -3008,7 +3231,7 @@
             }
 
             function loadLibraries(config) {
-                ApiClient.getJSON(ApiClient.getUrl('Library/VirtualFolders')).then(function (folders) {
+                api('Libraries').then(function (folders) {
                     var el = view.querySelector('#mdLibraries');
                     var html = '';
                     var firstMovies = null, firstTv = null;
@@ -3038,10 +3261,91 @@
                 });
             }
 
+            function loadBinList() {
+                var listEl = view.querySelector('#mdBinList');
+                if (!listEl) return;
+                api('RecycleBin/Items').then(function (items) {
+                    var html = '';
+                    if (items.length === 0) {
+                        html = '<div class="fieldDescription" style="margin:.6em 0;">' + esc(STR.binEmpty) + '</div>';
+                    } else {
+                        html = '<div class="fieldDescription" style="margin:.3em 0;">' + esc(STR.binPerItemRestoreHint) + '</div>';
+                        items.forEach(function (f) {
+                            var origTitle = f.OriginalPath
+                                ? 'Restore to ' + f.OriginalPath
+                                : "This bin file has no matching history row — it was recycled before MediaDash tracked restore destinations, or the row was purged. Use file browser to move it back manually if needed.";
+                            var restoreBtn = f.HistoryId
+                                ? '<button is="emby-button" type="button" class="raised mdBinRestore" data-history-id="' + f.HistoryId + '" style="font-size:75%;padding:.25em .8em;" title="' + esc(origTitle) + '"><span class="material-icons" style="font-size:1em;vertical-align:-3px;">restore</span> <span>' + esc(STR.restore) + '</span></button>'
+                                : '<span class="fieldDescription" title="' + esc(origTitle) + '" style="opacity:.5;">no history</span>';
+                            html += '<div class="mdBinRow" style="display:flex;justify-content:space-between;align-items:center;gap:1em;padding:.4em .6em;border-bottom:1px solid rgba(255,255,255,.07);">' +
+                                '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;" title="' + esc(f.OriginalPath || f.FileName) + '">' + esc(f.FileName) + '</span>' +
+                                '<span style="white-space:nowrap;opacity:.8;font-size:.9em;">' + bytes(f.SizeBytes) + ' · ' + new Date(f.RecycledAtUtc).toLocaleDateString() + '</span>' +
+                                '<span class="mdBinRowMsg" style="white-space:nowrap;opacity:.8;font-size:.85em;color:#22c55e;"></span>' +
+                                restoreBtn +
+                                '</div>';
+                        });
+                    }
+                    listEl.innerHTML = html;
+                    listEl.style.display = '';
+                    listEl.querySelectorAll('.mdBinRestore').forEach(function (rb) {
+                        rb.addEventListener('click', function () {
+                            var id = rb.getAttribute('data-history-id');
+                            var row = rb.closest('.mdBinRow');
+                            var msg = row.querySelector('.mdBinRowMsg');
+                            rb.disabled = true;
+                            msg.style.color = '#22c55e';
+                            msg.textContent = 'Restoring…';
+                            post('History/' + id + '/Restore').then(function () {
+                                msg.textContent = STR.restored;
+                                rb.style.display = 'none';
+                                loadBinInfo();
+                            }, function (err) {
+                                msg.style.color = '#ef4444';
+                                msg.textContent = fmt(STR.restoreFailed, (err && err.statusText) || '');
+                                rb.disabled = false;
+                            });
+                        });
+                    });
+                });
+            }
+
             function keeperPresetFromConfig(order) {
                 var joined = (order || []).join(',');
                 var match = Object.keys(KEEPER_PRESETS).find(function (k) { return KEEPER_PRESETS[k].join(',') === joined; });
                 return match || 'quality';
+            }
+
+            // Populates <datalist id="mdLangList"> with every culture Jellyfin natively supports.
+            // Fired at settings-load; cached because Jellyfin's culture list is constant per version.
+            var mdLangCache = null;
+            function populateLanguageDatalist() {
+                var list = view.querySelector('#mdLangList');
+                if (!list) return;
+                if (mdLangCache) { list.innerHTML = mdLangCache; return; }
+                ApiClient.getJSON(ApiClient.getUrl('Localization/Cultures')).then(function (cultures) {
+                    // Save the 3-letter ISO code (matches AllowedAudioLanguages / AllowedSubtitleLanguages),
+                    // display "English (eng)" so the picker is scannable.
+                    var html = (cultures || []).map(function (c) {
+                        var code = c.ThreeLetterISOLanguageName || c.TwoLetterISOLanguageName || '';
+                        var label = (c.DisplayName || c.Name || code) + ' (' + code + ')';
+                        return '<option value="' + code + '" label="' + label + '">' + label + '</option>';
+                    }).join('');
+                    mdLangCache = html;
+                    list.innerHTML = html;
+                }, function () { /* Culture endpoint unavailable — datalist stays empty; input still accepts freeform. */ });
+            }
+
+            // Populates <datalist id="mdGenreList"> with the genres actually present in the user's
+            // libraries via GET /MediaDash/Genres. Refreshed on every settings-load because library
+            // state changes as the user adds/removes media.
+            function populateGenreDatalist() {
+                var list = view.querySelector('#mdGenreList');
+                if (!list) return;
+                api('Genres').then(function (genres) {
+                    list.innerHTML = (genres || []).map(function (g) {
+                        return '<option value="' + esc(g) + '"></option>';
+                    }).join('');
+                }, function () { /* Endpoint failure — datalist stays empty; freeform still works. */ });
             }
 
             function loadSettings() {
@@ -3049,6 +3353,8 @@
                 loadEnv().then(function (env) {
                     applySubtitleProviderHint(view.querySelector('#mdProviderHint'), env);
                 });
+                populateLanguageDatalist();
+                populateGenreDatalist();
                 ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
                     view.querySelector('#mdKeeperPolicy').value = keeperPresetFromConfig(c.KeeperPolicyOrder);
                     view.querySelector('#mdDryRun').checked = c.DryRun;
@@ -3077,6 +3383,10 @@
                     view.querySelector('#mdMoviesTarget').value = c.MoviesTargetPath || '';
                     view.querySelector('#mdTvTarget').value = c.TvTargetPath || '';
                     view.querySelector('#mdAnimeTarget').value = c.AnimeTargetPath || '';
+                    view.querySelector('#mdMusicTarget').value = c.MusicTargetPath || '';
+                    view.querySelector('#mdBooksTarget').value = c.BooksTargetPath || '';
+                    view.querySelector('#mdComicsTarget').value = c.ComicsTargetPath || '';
+                    view.querySelector('#mdPicturesTarget').value = c.PicturesTargetPath || '';
                     view.querySelector('#mdMediaSortSource').value = c.MediaSortSource || 'JellyfinMetadata';
                     view.querySelector('#mdRenameAfterTranscode').checked = !!c.RenameAfterTranscode;
                     view.querySelector('#mdBinPath').value = c.RecycleBinPath || '';
@@ -3097,7 +3407,7 @@
             // the whole stale scanner off.
             function loadStaleExcludedLibraries(config) {
                 var excluded = new Set(config.StaleExcludedLibraryIds || []);
-                ApiClient.getJSON(ApiClient.getUrl('Library/VirtualFolders')).then(function (folders) {
+                api('Libraries').then(function (folders) {
                     var el = view.querySelector('#mdStaleExcludedLibs');
                     if (!el) return;
                     var rows = folders.filter(function (f) {
@@ -3175,6 +3485,10 @@
                     c.MoviesTargetPath = view.querySelector('#mdMoviesTarget').value.trim();
                     c.TvTargetPath = view.querySelector('#mdTvTarget').value.trim();
                     c.AnimeTargetPath = view.querySelector('#mdAnimeTarget').value.trim();
+                    c.MusicTargetPath = view.querySelector('#mdMusicTarget').value.trim();
+                    c.BooksTargetPath = view.querySelector('#mdBooksTarget').value.trim();
+                    c.ComicsTargetPath = view.querySelector('#mdComicsTarget').value.trim();
+                    c.PicturesTargetPath = view.querySelector('#mdPicturesTarget').value.trim();
                     c.MediaSortSource = view.querySelector('#mdMediaSortSource').value;
                     c.RenameAfterTranscode = view.querySelector('#mdRenameAfterTranscode').checked;
                     c.RecycleBinPath = view.querySelector('#mdBinPath').value.trim();
@@ -3209,17 +3523,18 @@
             // ---------- First run wizard ----------
 
             var WIZ_STEP_LABELS = [
-                'Step 1 of 11 — Welcome',
-                'Step 2 of 11 — Libraries',
-                'Step 3 of 11 — Duplicates',
-                'Step 4 of 11 — Broken files',
-                'Step 5 of 11 — Oversized files',
-                'Step 6 of 11 — Languages',
-                'Step 7 of 11 — Media sorter',
-                'Step 8 of 11 — Safety',
-                'Step 9 of 11 — Stale content',
-                'Step 10 of 11 — Community stats',
-                'Step 11 of 11 — All done'
+                'Step 1 of 12 — Welcome',
+                'Step 2 of 12 — Libraries',
+                'Step 3 of 12 — Duplicates',
+                'Step 4 of 12 — Broken files',
+                'Step 5 of 12 — Oversized files',
+                'Step 6 of 12 — Languages',
+                'Step 7 of 12 — Media sorter',
+                'Step 8 of 12 — Suspicious executables',
+                'Step 9 of 12 — Safety',
+                'Step 10 of 12 — Stale content',
+                'Step 11 of 12 — Community stats',
+                'Step 12 of 12 — All done'
             ];
             var WIZ_MODE_OPTIONS = [
                 ['Off', 'modeOff'],
@@ -3261,6 +3576,20 @@
                 if (lastStep) {
                     wizRenderSummary();
                 }
+                if (step === 0) {
+                    wizCheckV12Offer();
+                }
+            }
+
+            // Ask the server whether the post-Jellyfin-12 cleanup should be offered right now,
+            // and toggle the Welcome-step banner accordingly. Runs on every arrival at step 0
+            // so completing the sweep during the wizard collapses the notice on next re-entry.
+            function wizCheckV12Offer() {
+                var note = view.querySelector('#mdWizV12Note');
+                if (!note) return;
+                api('PostUpgradeCleanup/Status').then(function (r) {
+                    note.style.display = (r && r.Available) ? '' : 'none';
+                }, function () { note.style.display = 'none'; });
             }
 
             function wizRenderSummary() {
@@ -3275,6 +3604,7 @@
                     ['Subtitles', view.querySelector('#mdWizSubMode').value],
                     ['Missing subtitles', view.querySelector('#mdWizMissingSubMode').value],
                     ['Media sorter', view.querySelector('#mdWizSortMode').value],
+                    ['Suspicious executables', view.querySelector('#mdWizVirusMode').value],
                     ['Stale content', view.querySelector('#mdWizStaleEnabled').checked ? 'DetectOnly' : 'Off']
                 ];
                 var enabled = modes.filter(function (m) { return m[1] !== 'Off'; }).map(function (m) { return m[0]; });
@@ -3290,7 +3620,7 @@
             }
 
             function wizLoadLibraries(config) {
-                ApiClient.getJSON(ApiClient.getUrl('Library/VirtualFolders')).then(function (folders) {
+                api('Libraries').then(function (folders) {
                     var el = view.querySelector('#mdWizLibraries');
                     var enabled = config.EnabledLibraries || [];
                     var eligible = folders.filter(function (f) {
@@ -3336,9 +3666,13 @@
                 view.querySelector('#mdWizMoviesTarget').value = c.MoviesTargetPath || '';
                 view.querySelector('#mdWizTvTarget').value = c.TvTargetPath || '';
                 view.querySelector('#mdWizAnimeTarget').value = c.AnimeTargetPath || '';
+                view.querySelector('#mdWizMusicTarget').value = c.MusicTargetPath || '';
+                view.querySelector('#mdWizBooksTarget').value = c.BooksTargetPath || '';
                 view.querySelector('#mdWizSortSource').value = c.MediaSortSource || 'JellyfinMetadata';
                 view.querySelector('#mdWizDryRun').checked = c.DryRun !== false;
-                view.querySelector('#mdWizPausePlayback').checked = c.PauseDuringPlayback !== false;
+                // Idle-guard checkbox defaults to ON when entering the wizard, regardless of what the
+                // user may have saved previously — the walkthrough is the recommended-defaults moment.
+                view.querySelector('#mdWizPausePlayback').checked = true;
                 view.querySelector('#mdWizRetention').value = c.RecycleBinRetentionDays || 30;
                 var staleOn = c.StaleFixMode && c.StaleFixMode !== 'Off';
                 view.querySelector('#mdWizStaleEnabled').checked = staleOn;
@@ -3411,21 +3745,27 @@
                         c.MoviesTargetPath = view.querySelector('#mdWizMoviesTarget').value.trim();
                         c.TvTargetPath = view.querySelector('#mdWizTvTarget').value.trim();
                         c.AnimeTargetPath = view.querySelector('#mdWizAnimeTarget').value.trim();
+                        c.MusicTargetPath = view.querySelector('#mdWizMusicTarget').value.trim();
+                        c.BooksTargetPath = view.querySelector('#mdWizBooksTarget').value.trim();
                         c.MediaSortSource = view.querySelector('#mdWizSortSource').value;
                         c.MisplacedFixMode = view.querySelector('#mdWizSortMode').value;
                         break;
                     case 7:
+                        c.SuspiciousFileFixMode = view.querySelector('#mdWizVirusMode').value;
+                        c.SuspiciousFileDisposal = view.querySelector('#mdWizVirusDisp').value;
+                        break;
+                    case 8:
                         c.DryRun = view.querySelector('#mdWizDryRun').checked;
                         c.PauseDuringPlayback = view.querySelector('#mdWizPausePlayback').checked;
                         var days = parseInt(view.querySelector('#mdWizRetention').value, 10);
                         if (!isNaN(days) && days > 0) c.RecycleBinRetentionDays = days;
                         break;
-                    case 8:
+                    case 9:
                         c.StaleFixMode = view.querySelector('#mdWizStaleEnabled').checked ? 'DetectOnly' : 'Off';
                         var staleDays = parseInt(view.querySelector('#mdWizStaleThreshold').value, 10);
                         if (!isNaN(staleDays) && staleDays > 0) c.StaleThresholdDays = staleDays;
                         break;
-                    case 9:
+                    case 10:
                         applyAnalyticsToggle(c, view.querySelector('#mdWizAnalytics').checked);
                         break;
                     default:
@@ -3504,6 +3844,7 @@
                         if (current >= total - 1) {
                             // Finished. Hide wizard, refresh dashboards, optionally kick off scan.
                             view.querySelector('#mdFirstRun').style.display = 'none';
+                            view.classList.remove('mdWizardActive');
                             loadSettings();
                             refresh();
                             if (view.querySelector('#mdWizScanNow').checked) {
@@ -3522,6 +3863,26 @@
                     wizShow(current);
                 });
 
+                view.querySelector('#mdWizV12Run').addEventListener('click', function () {
+                    var btn = this;
+                    var resultEl = view.querySelector('#mdWizV12Result');
+                    btn.disabled = true;
+                    resultEl.style.display = '';
+                    resultEl.textContent = 'Running sweep…';
+                    postJson('PostUpgradeCleanup/Run').then(function (r) {
+                        var freed = (r && r.BytesFreed) || 0;
+                        var count = (r && r.OrphanedFoldersDeleted) || 0;
+                        resultEl.textContent = 'Cleanup done. Reclaimed ' + bytes(freed) + ' from ' + count + ' orphaned trickplay folder' + (count === 1 ? '' : 's') + '.';
+                        setTimeout(function () {
+                            view.querySelector('#mdWizV12Note').style.display = 'none';
+                        }, 3500);
+                    }, function (err) {
+                        resultEl.style.color = '#ef4444';
+                        resultEl.textContent = 'Cleanup failed: ' + ((err && err.statusText) || 'unknown error');
+                        btn.disabled = false;
+                    });
+                });
+
                 view.querySelector('#mdWizSkip').addEventListener('click', function () {
                     // "Skip" leaves everything else alone but marks the wizard done so it stops nagging.
                     // Everything is reachable from Settings — this is the "I know what I'm doing" exit.
@@ -3530,6 +3891,7 @@
                         ApiClient.updatePluginConfiguration(PLUGIN_ID, c).then(function (result) {
                             Dashboard.processPluginConfigurationUpdateResult(result);
                             view.querySelector('#mdFirstRun').style.display = 'none';
+                            view.classList.remove('mdWizardActive');
                             loadSettings();
                             refresh();
                         });
@@ -3582,7 +3944,16 @@
             }
 
             function loadHistory() {
-                api('History').then(renderHistory);
+                // Pull the Clear-history watermark alongside the row list so the tab renders in one paint.
+                Promise.all([
+                    api('History'),
+                    ApiClient.getPluginConfiguration(PLUGIN_ID)
+                ]).then(function (results) {
+                    var ticks = results[1].HistoryHiddenBeforeUtcTicks || 0;
+                    // .NET UTC ticks (100 ns since year 0001) → JS millis (since 1970 epoch).
+                    historyHiddenBeforeMs = ticks > 0 ? (ticks - 621355968000000000) / 10000 : 0;
+                    renderHistory(results[0]);
+                });
             }
 
             function refresh(silent) {
@@ -3626,6 +3997,7 @@
                         view.querySelector('#mdDryRunNote').style.display = c.DryRun ? '' : 'none';
                         view.querySelector('#mdDryRunText').textContent = STR.dryRunOn;
                         view.querySelector('#mdFirstRun').style.display = c.FirstRunDone ? 'none' : '';
+                        view.classList.toggle('mdWizardActive', !c.FirstRunDone);
                     });
                 }
             }
@@ -3637,7 +4009,7 @@
             }
 
             function showTab(name) {
-                ['overview', 'issues', 'history', 'files', 'errors', 'settings'].forEach(function (n) {
+                ['overview', 'issues', 'history', 'files', 'recycle', 'errors', 'settings'].forEach(function (n) {
                     view.querySelector('#mdTab-' + n).style.display = n === name ? '' : 'none';
                 });
                 view.querySelectorAll('.mdTab').forEach(function (b) {
@@ -3648,10 +4020,18 @@
                 if (name === 'settings') loadSettings();
                 if (name === 'files') loadFiles(currentFilePath);
                 if (name === 'errors') loadErrors();
+                if (name === 'recycle') loadRecycleBinTab();
                 if (name === 'overview') {
                     // Kick a fresh silent poll so live values (CPU / GPU / RAM) update as soon as the tab opens.
                     refresh(true);
                 }
+            }
+
+            // Populates the Recycle bin tab (info summary + retention slider + folder path).
+            // Called every time the tab is opened so the summary reflects the latest bin state.
+            function loadRecycleBinTab() {
+                loadBinInfo();
+                loadBinList();
             }
 
             // ---------- Dismissible banners ----------
@@ -4199,6 +4579,11 @@
                 view = this;
 
                 view.querySelector('#mdLogo').src = ApiClient.getUrl('MediaDash/Logo');
+                // Populate the shared datalists once up-front so any language / genre input in the
+                // wizard OR settings has options available on first focus, regardless of which tab
+                // the user opens first.
+                populateLanguageDatalist();
+                populateGenreDatalist();
                 // i18n is loaded up front so every downstream call sees translated strings. Failure falls back to
                 // the English defaults baked into STR — the page still works if the I18n endpoint 404s.
                 loadI18n().then(function () {
@@ -4253,14 +4638,27 @@
                     view.querySelector('#mdRecycleWarnFix').addEventListener('click', function () {
                         showTab('settings');
                         setTimeout(function () {
+                            var section = view.querySelector('#mdSet-recycle');
+                            if (section) section.scrollIntoView({ block: 'start', behavior: 'smooth' });
                             var bin = view.querySelector('#mdBinPath');
-                            if (bin) { bin.scrollIntoView({ block: 'center', behavior: 'smooth' }); bin.focus(); }
+                            if (bin) bin.focus();
                         }, 200);
                     });
 
                     // Delegated so future banners with class="mdDismissBanner" don't need separate wiring.
                     view.querySelectorAll('.mdDismissBanner').forEach(function (btn) {
                         btn.addEventListener('click', function () { dismissBanner(btn.getAttribute('data-banner')); });
+                    });
+
+                    // Delegated so links rendered inside task-card templates (created later) reach us.
+                    view.addEventListener('click', function (e) {
+                        var link = e.target.closest('.mdGoRecycleTab');
+                        if (link) { e.preventDefault(); showTab('recycle'); }
+                    });
+
+                    view.querySelector('#mdBinRefresh').addEventListener('click', function () {
+                        loadBinInfo();
+                        loadBinList();
                     });
 
                     view.querySelector('#mdPostUpgradeRun').addEventListener('click', function () {
@@ -4271,7 +4669,7 @@
                         dismissBtn.disabled = true;
                         resultEl.style.display = '';
                         resultEl.textContent = 'Running sweep — this can take a moment on large libraries…';
-                        post('PostUpgradeCleanup/Run').then(function (r) {
+                        postJson('PostUpgradeCleanup/Run').then(function (r) {
                             var data = r; // Ajax helpers already return parsed JSON.
                             var freed = (data && data.BytesFreed) || 0;
                             var count = (data && data.OrphanedFoldersDeleted) || 0;
@@ -4303,13 +4701,7 @@
                     });
 
                     view.querySelector('#mdGoBinReview').addEventListener('click', function () {
-                        showTab('settings');
-                        setTimeout(function () {
-                            var chip = view.querySelector('.mdSetChip[href="#mdSet-bin"]');
-                            if (chip) chip.click();
-                            var bin = view.querySelector('#mdSet-bin');
-                            if (bin) { bin.scrollIntoView({ block: 'center', behavior: 'smooth' }); bin.focus(); }
-                        }, 200);
+                        showTab('recycle');
                     });
 
                     view.querySelector('#mdApproveAll').addEventListener('click', function () {
@@ -4368,12 +4760,14 @@
                                     Dashboard.alert({ title: 'Empty recycle bin', message: b.EmptyingError });
                                 }
                                 loadBinInfo();
+                                loadBinList();
                             }, function () {
                                 // Poll fetch failed (server restart, network blip). Give up cleanly.
                                 fill.style.width = '0';
                                 bar.style.display = 'none';
                                 btn.disabled = false;
                                 loadBinInfo();
+                                loadBinList();
                             });
                         }
 
@@ -4384,57 +4778,6 @@
                         });
                     });
 
-                    view.querySelector('#mdBinView').addEventListener('click', function () {
-                        var listEl = view.querySelector('#mdBinList');
-                        var btn = this;
-                        if (listEl.style.display !== 'none') {
-                            listEl.style.display = 'none';
-                            btn.querySelector('span').textContent = STR.binViewShow;
-                            return;
-                        }
-                        api('RecycleBin/Items').then(function (items) {
-                            var html = '<div class="fieldDescription" style="margin:.3em 0;">' + esc(STR.binPerItemRestoreHint) + '</div>';
-                            items.forEach(function (f) {
-                                var origTitle = f.OriginalPath
-                                    ? 'Restore to ' + f.OriginalPath
-                                    : "This bin file has no matching history row — it was recycled before MediaDash tracked restore destinations, or the row was purged. Use file browser to move it back manually if needed.";
-                                var restoreBtn = f.HistoryId
-                                    ? '<button is="emby-button" type="button" class="raised mdBinRestore" data-history-id="' + f.HistoryId + '" style="font-size:75%;padding:.25em .8em;" title="' + esc(origTitle) + '"><span class="material-icons" style="font-size:1em;vertical-align:-3px;">restore</span> <span>' + esc(STR.restore) + '</span></button>'
-                                    : '<span class="fieldDescription" title="' + esc(origTitle) + '" style="opacity:.5;">no history</span>';
-                                html += '<div class="mdBinRow" style="display:flex;justify-content:space-between;align-items:center;gap:1em;padding:.4em .6em;border-bottom:1px solid rgba(255,255,255,.07);">' +
-                                    '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;" title="' + esc(f.OriginalPath || f.FileName) + '">' + esc(f.FileName) + '</span>' +
-                                    '<span style="white-space:nowrap;opacity:.8;font-size:.9em;">' + bytes(f.SizeBytes) + ' · ' + new Date(f.RecycledAtUtc).toLocaleDateString() + '</span>' +
-                                    '<span class="mdBinRowMsg" style="white-space:nowrap;opacity:.8;font-size:.85em;color:#22c55e;"></span>' +
-                                    restoreBtn +
-                                    '</div>';
-                            });
-                            if (items.length === 0) {
-                                html += '<div class="fieldDescription" style="margin:.6em;">' + esc(STR.binEmpty) + '</div>';
-                            }
-                            listEl.innerHTML = html;
-                            listEl.style.display = '';
-                            btn.querySelector('span').textContent = STR.binViewHide;
-                            listEl.querySelectorAll('.mdBinRestore').forEach(function (rb) {
-                                rb.addEventListener('click', function () {
-                                    var id = rb.getAttribute('data-history-id');
-                                    var row = rb.closest('.mdBinRow');
-                                    var msg = row.querySelector('.mdBinRowMsg');
-                                    rb.disabled = true;
-                                    msg.style.color = '#22c55e';
-                                    msg.textContent = 'Restoring…';
-                                    post('History/' + id + '/Restore').then(function () {
-                                        msg.textContent = STR.restored;
-                                        rb.style.display = 'none';
-                                        loadBinInfo();
-                                    }, function (err) {
-                                        msg.style.color = '#ef4444';
-                                        msg.textContent = fmt(STR.restoreFailed, (err && err.statusText) || '');
-                                        rb.disabled = false;
-                                    });
-                                });
-                            });
-                        });
-                    });
 
                     view.querySelector('#mdRerunSetup').addEventListener('click', function () {
                         ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
@@ -4446,6 +4789,63 @@
                             });
                         });
                     });
+
+                    // Maintenance → Start virus scan. Runs just SuspiciousFileScanner in seconds.
+                    view.querySelector('#mdMaintVirusScan').addEventListener('click', function () {
+                        var btn = this;
+                        var msg = view.querySelector('#mdMaintVirusScanMsg');
+                        btn.disabled = true;
+                        msg.textContent = 'Scanning every library folder for executables…';
+                        postJson('Scan/Suspicious').then(function (r) {
+                            var n = (r && r.Detected) || 0;
+                            var ms = (r && r.ElapsedMs) || 0;
+                            msg.textContent = n === 0
+                                ? 'Scan complete in ' + ms + ' ms — nothing suspicious found.'
+                                : 'Scan complete in ' + ms + ' ms — ' + n + ' suspicious file' + (n === 1 ? '' : 's') + ' flagged. Open the Issues tab.';
+                            btn.disabled = false;
+                            refresh(true);
+                        }, function (err) {
+                            msg.textContent = 'Virus scan failed: ' + ((err && err.statusText) || 'unknown error');
+                            btn.disabled = false;
+                        });
+                    });
+
+                    // Maintenance → Start v12 migration. Locked off unless server reports Jellyfin 12+.
+                    view.querySelector('#mdMaintV12Migration').addEventListener('click', function () {
+                        var btn = this;
+                        var msg = view.querySelector('#mdMaintV12MigrationMsg');
+                        if (btn.disabled) return;
+                        btn.disabled = true;
+                        msg.textContent = 'Sweeping orphaned trickplay folders — this can take a moment on large libraries…';
+                        postJson('PostUpgradeCleanup/Run').then(function (r) {
+                            var freed = (r && r.BytesFreed) || 0;
+                            var count = (r && r.OrphanedFoldersDeleted) || 0;
+                            msg.textContent = 'Cleanup done. Reclaimed ' + bytes(freed) + ' from ' + count + ' orphaned folder' + (count === 1 ? '' : 's') + '. Logged to History.';
+                            refresh(true);
+                        }, function (err) {
+                            msg.textContent = 'Migration failed: ' + ((err && err.statusText) || 'unknown error');
+                            btn.disabled = false;
+                        });
+                    });
+
+                    // Gate v12 migration button on host version — enabled only when Jellyfin ≥ 12.
+                    api('PostUpgradeCleanup/Status').then(function (s) {
+                        var btn = view.querySelector('#mdMaintV12Migration');
+                        var msg = view.querySelector('#mdMaintV12MigrationMsg');
+                        if (!btn) return;
+                        if (s && s.JellyfinMajor >= 12) {
+                            if (s.Completed) {
+                                msg.textContent = 'Already run once on this server. History has the details.';
+                            } else {
+                                btn.disabled = false;
+                                msg.textContent = 'Sweeps orphaned trickplay folders left behind by the 10.x → 12.x upgrade.';
+                            }
+                        } else {
+                            btn.disabled = true;
+                            btn.setAttribute('title', 'Not applicable — this server is running Jellyfin ' + (s && s.JellyfinMajor ? s.JellyfinMajor : '<12') + '. Nothing to migrate.');
+                            msg.textContent = 'Locked — this cleanup only applies once you upgrade to Jellyfin 12+.';
+                        }
+                    }, function () { /* Status probe failed; leave button disabled with tooltip. */ });
 
                     view.querySelector('#mdFileUp').addEventListener('click', function () {
                         var parent = this.getAttribute('data-parent');
@@ -4512,6 +4912,19 @@
                         btn.addEventListener('click', function () {
                             historyFilter = btn.getAttribute('data-filter');
                             renderHistory();
+                        });
+                    });
+
+                    view.querySelector('#mdHistoryClear').addEventListener('click', function () {
+                        if (!window.confirm('Hide every current history row from the list? Per-library totals and lifetime reclaim stay intact.')) return;
+                        var btn = this;
+                        btn.disabled = true;
+                        post('History/Clear').then(function () {
+                            loadHistory();
+                            btn.disabled = false;
+                        }, function () {
+                            btn.disabled = false;
+                            Dashboard.alert({ title: 'Clear history log', message: 'The server refused the request. Check the Errors tab for details.' });
                         });
                     });
 

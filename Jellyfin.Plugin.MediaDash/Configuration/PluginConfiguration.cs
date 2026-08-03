@@ -55,6 +55,10 @@ public class PluginConfiguration : BasePluginConfiguration
         MisplacedFixMode = FixMode.DetectOnly;
         MoviesTargetPath = string.Empty;
         TvTargetPath = string.Empty;
+        MusicTargetPath = string.Empty;
+        BooksTargetPath = string.Empty;
+        ComicsTargetPath = string.Empty;
+        PicturesTargetPath = string.Empty;
         MediaSortSource = MediaSortSource.JellyfinMetadata;
         RenameAfterTranscode = false;
         MissingSubtitlesFixMode = FixMode.DetectOnly;
@@ -65,6 +69,9 @@ public class PluginConfiguration : BasePluginConfiguration
         StaleExcludedGenres = [];
         DuplicateMinAgeDays = 7;
         PostV12CleanupCompleted = false;
+        SuspiciousFileFixMode = FixMode.DetectOnly;
+        SuspiciousFileDisposal = DisposalMethod.RecycleBin;
+        HistoryHiddenBeforeUtcTicks = 0;
     }
 
     /// <summary>
@@ -293,6 +300,35 @@ public class PluginConfiguration : BasePluginConfiguration
     public string TvTargetPath { get; set; }
 
     /// <summary>
+    /// Gets or sets the destination folder music (Audio / MusicAlbum items) is moved into when the sorter
+    /// finds it in a Movies / TV / Books library. Empty disables music sorting. Must sit inside a Jellyfin
+    /// library folder or moves are refused by <see cref="Fixers.LibraryGuard"/>.
+    /// </summary>
+    public string MusicTargetPath { get; set; }
+
+    /// <summary>
+    /// Gets or sets the destination folder books (Book items — EPUB/PDF/MOBI/AZW3) are moved into when the
+    /// sorter finds them in a non-book library. Empty disables book sorting. Must sit inside a Jellyfin
+    /// library folder or moves are refused by <see cref="Fixers.LibraryGuard"/>.
+    /// </summary>
+    public string BooksTargetPath { get; set; }
+
+    /// <summary>
+    /// Gets or sets the destination folder comics (CBZ / CBR / CB7 files, currently classified as Book by
+    /// Jellyfin until a native Comic entity ships) are moved into when the sorter finds them in a non-comic
+    /// library. Empty disables comic sorting. Must sit inside a Jellyfin library folder or moves are refused
+    /// by <see cref="Fixers.LibraryGuard"/>.
+    /// </summary>
+    public string ComicsTargetPath { get; set; }
+
+    /// <summary>
+    /// Gets or sets the destination folder pictures / photos are moved into when the sorter finds them
+    /// in a non-photo library. Empty disables picture sorting. Must sit inside a Jellyfin library folder
+    /// or moves are refused by <see cref="Fixers.LibraryGuard"/>.
+    /// </summary>
+    public string PicturesTargetPath { get; set; }
+
+    /// <summary>
     /// Gets or sets where the sorter reads a file's movie/TV classification from.
     /// </summary>
     public MediaSortSource MediaSortSource { get; set; }
@@ -359,6 +395,28 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool PostV12CleanupCompleted { get; set; }
 
     /// <summary>
+    /// Gets or sets the UTC-ticks watermark below which history rows are hidden from the History tab.
+    /// The rows still exist and still count toward aggregate savings (per-library chart, "Reclaimed
+    /// since install", monthly analytics) - only the visible list is truncated. Advanced past by the
+    /// Clear-history button. 0 means show everything.
+    /// </summary>
+    public long HistoryHiddenBeforeUtcTicks { get; set; }
+
+    /// <summary>
+    /// Gets or sets how the suspicious-file scanner acts. Defaults to <see cref="FixMode.DetectOnly"/>
+    /// so nothing gets deleted without the user clicking Approve — malware detection is only as good
+    /// as the extension list, and we'd rather over-flag than silently nuke a file the user meant to keep.
+    /// </summary>
+    public FixMode SuspiciousFileFixMode { get; set; }
+
+    /// <summary>
+    /// Gets or sets where files removed by the suspicious-file fixer go. Defaults to
+    /// <see cref="DisposalMethod.RecycleBin"/> because "MediaDash quarantined a random binary I meant
+    /// to keep" is the recoverable-failure mode we care about.
+    /// </summary>
+    public DisposalMethod SuspiciousFileDisposal { get; set; }
+
+    /// <summary>
     /// Gets the fix mode for an issue type.
     /// </summary>
     /// <param name="type">The issue type.</param>
@@ -375,6 +433,7 @@ public class PluginConfiguration : BasePluginConfiguration
             Data.IssueType.Misplaced => MisplacedFixMode,
             Data.IssueType.MissingSubtitles => MissingSubtitlesFixMode,
             Data.IssueType.Stale => StaleFixMode,
+            Data.IssueType.MalwareRisk => SuspiciousFileFixMode,
             _ => FixMode.DetectOnly
         };
     }
@@ -393,6 +452,7 @@ public class PluginConfiguration : BasePluginConfiguration
             Data.IssueType.SubtitleLanguage => SubtitleDisposal,
             Data.IssueType.AudioLanguage => AudioDisposal,
             Data.IssueType.Playability => PlayabilityDisposal,
+            Data.IssueType.MalwareRisk => SuspiciousFileDisposal,
             _ => DisposalMethod.RecycleBin
         };
     }

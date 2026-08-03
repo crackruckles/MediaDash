@@ -55,8 +55,17 @@ public class MediaSorterFilenameTests
     [Fact]
     public void Classify_UnrecognisedKind_ReturnsNull()
     {
-        // Sanity check: an unknown kind (e.g. Photo) returns null, doesn't crash the classifier.
-        var kind = MediaSorterScanner.ClassifyByBaseItemKind(Jellyfin.Data.Enums.BaseItemKind.Photo);
+        // Sanity check: an unhandled kind returns null instead of crashing.
+        // Trailer isn't in the routing table (belongs to Movie's parent, not misplaceable on its own).
+        var kind = MediaSorterScanner.ClassifyByBaseItemKind(Jellyfin.Data.Enums.BaseItemKind.Trailer);
         Assert.Null(kind);
+    }
+
+    [Fact]
+    public void Classify_Photo_ReturnsPicture()
+    {
+        // Added in §9b Landing 3 — Photo library items route into the Pictures target pile.
+        var kind = MediaSorterScanner.ClassifyByBaseItemKind(Jellyfin.Data.Enums.BaseItemKind.Photo);
+        Assert.Equal(MediaSorterScanner.MediaKind.Picture, kind);
     }
 }

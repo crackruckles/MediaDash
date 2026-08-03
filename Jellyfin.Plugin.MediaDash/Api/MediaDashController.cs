@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.MediaDash.Data;
 using Jellyfin.Plugin.MediaDash.Fixers;
+using Jellyfin.Plugin.MediaDash.Scanners;
 using Jellyfin.Plugin.MediaDash.ScheduledTasks;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Library;
@@ -33,6 +34,7 @@ public class MediaDashController : ControllerBase
     private readonly ILibraryManager _libraryManager;
     private readonly IServerApplicationHost _appHost;
     private readonly IEnumerable<ISubtitleProvider> _subtitleProviders;
+    private readonly IEnumerable<IScanner> _scanners;
     private readonly PostUpgradeCleanup _postUpgradeCleanup;
 
     /// <summary>
@@ -45,6 +47,7 @@ public class MediaDashController : ControllerBase
     /// <param name="libraryManager">Instance of the <see cref="ILibraryManager"/> interface.</param>
     /// <param name="appHost">Server application host, used for Jellyfin version in diagnostics.</param>
     /// <param name="subtitleProviders">Registered subtitle providers, used to warn when none are configured.</param>
+    /// <param name="scanners">Registered scanners, used by targeted-scan endpoints like the Maintenance virus scan.</param>
     /// <param name="postUpgradeCleanup">The one-shot post-Jellyfin-12 upgrade cleaner.</param>
     public MediaDashController(
         MediaDashDb db,
@@ -54,6 +57,7 @@ public class MediaDashController : ControllerBase
         ILibraryManager libraryManager,
         IServerApplicationHost appHost,
         IEnumerable<ISubtitleProvider> subtitleProviders,
+        IEnumerable<IScanner> scanners,
         PostUpgradeCleanup postUpgradeCleanup)
     {
         _db = db;
@@ -63,6 +67,7 @@ public class MediaDashController : ControllerBase
         _libraryManager = libraryManager;
         _appHost = appHost;
         _subtitleProviders = subtitleProviders;
+        _scanners = scanners;
         _postUpgradeCleanup = postUpgradeCleanup;
     }
 
@@ -122,11 +127,13 @@ public class MediaDashController : ControllerBase
                     IsRecycleBinDrive = isRecycleDrive
                 });
             }
-            catch (IOException)
+            catch (IOException ex)
             {
+                Diagnostics.Record("SystemStats.DriveStat", "Could not read drive '" + drive.Name + "' for the Overview: " + ex.Message + ". Its free-space total will be missing until the next scan.");
             }
-            catch (UnauthorizedAccessException)
+            catch (UnauthorizedAccessException ex)
             {
+                Diagnostics.Record("SystemStats.DriveStat", "Access denied reading drive '" + drive.Name + "' for the Overview: " + ex.Message + ". Grant Jellyfin's user read permission on the drive root to include it.");
             }
         }
 
@@ -259,6 +266,35 @@ public class MediaDashController : ControllerBase
         }
 
         return NoContent();
+    }
+
+    /// <summary>
+    /// Runs just the <see cref="SuspiciousFileScanner"/> — the "virus scan" surfaced in Maintenance.
+    /// Skips the other nine scanners so a user who suspects a pirated release dropped an .exe next to
+    /// a movie can get a fast, targeted answer without waiting through a full library scan. Runs
+    /// inline (not via ITaskManager) because the scanner is filesystem-walking-only and finishes in
+    /// seconds even on large libraries.
+    /// </summary>
+    /// <returns>Count of MalwareRisk issues detected, and the elapsed milliseconds.</returns>
+    [HttpPost("Scan/Suspicious")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<object>> ScanSuspicious()
+    {
+        var scanner = _scanners.OfType<SuspiciousFileScanner>().FirstOrDefault();
+        if (scanner is null)
+        {
+            return NotFound(new { Error = "SuspiciousFileScanner is not registered." });
+        }
+
+        var start = DateTime.UtcNow;
+        var progress = new Progress<double>();
+        var issues = await scanner.RunScanAsync(progress, HttpContext.RequestAborted).ConfigureAwait(false);
+        _db.ReplaceDetectedIssues(scanner.Type, issues, null);
+        return Ok(new
+        {
+            Detected = issues.Count,
+            ElapsedMs = (long)(DateTime.UtcNow - start).TotalMilliseconds,
+        });
     }
 
     /// <summary>
@@ -436,6 +472,22 @@ public class MediaDashController : ControllerBase
     }
 
     /// <summary>
+    /// Advances the history-hidden watermark so every existing row disappears from the History tab list.
+    /// The rows themselves stay in the DB, so per-library chart, "Reclaimed since install", and monthly
+    /// analytics all keep their totals - only the visible list gets a fresh slate.
+    /// </summary>
+    /// <returns>No content on success.</returns>
+    [HttpPost("History/Clear")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public ActionResult ClearHistoryList()
+    {
+        var config = Plugin.Instance!.Configuration;
+        config.HistoryHiddenBeforeUtcTicks = DateTime.UtcNow.Ticks;
+        Plugin.Instance!.SaveConfiguration();
+        return NoContent();
+    }
+
+    /// <summary>
     /// Restores a recycled file to its original location.
     /// </summary>
     /// <param name="id">The history entry id.</param>
@@ -532,6 +584,76 @@ public class MediaDashController : ControllerBase
         }
 
         return Ok(results);
+    }
+
+    /// <summary>
+    /// Returns the distinct genres present on any BaseItem in the user's libraries. Sorted
+    /// case-insensitively. Powers the Stale scanner's "Skip these genres" datalist — replaces the
+    /// old freeform CSV text input with a picker that only offers genres the user's library
+    /// actually has, so no more "Christmis" typos silently skipping nothing.
+    /// </summary>
+    /// <returns>Distinct genre names.</returns>
+    [HttpGet("Genres")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<IReadOnlyList<string>> GetGenres()
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var items = _libraryManager.GetItemList(new MediaBrowser.Controller.Entities.InternalItemsQuery
+        {
+            IncludeItemTypes =
+            [
+                Jellyfin.Data.Enums.BaseItemKind.Movie,
+                Jellyfin.Data.Enums.BaseItemKind.Series,
+                Jellyfin.Data.Enums.BaseItemKind.Episode,
+                Jellyfin.Data.Enums.BaseItemKind.Book,
+                Jellyfin.Data.Enums.BaseItemKind.MusicAlbum,
+                Jellyfin.Data.Enums.BaseItemKind.Audio,
+                Jellyfin.Data.Enums.BaseItemKind.AudioBook,
+            ],
+            IsVirtualItem = false,
+            Recursive = true,
+        });
+        foreach (var item in items)
+        {
+            if (item.Genres is { Length: > 0 } genres)
+            {
+                foreach (var g in genres)
+                {
+                    if (!string.IsNullOrWhiteSpace(g))
+                    {
+                        seen.Add(g.Trim());
+                    }
+                }
+            }
+        }
+
+        return Ok(seen.OrderBy(g => g, StringComparer.OrdinalIgnoreCase).ToList());
+    }
+
+    /// <summary>
+    /// Lists the server's virtual libraries with a stable identity, replacing Jellyfin's native
+    /// <c>/Library/VirtualFolders</c> for MediaDash's frontend. Jellyfin 12 dropped the JSON
+    /// <c>ItemId</c> field from that response, so the config page's library checkboxes rendered
+    /// with no id and saved an empty list. This endpoint routes the id through
+    /// <see cref="Scanners.VirtualFolderIdentity"/> so it stays populated on both v10 and v12.
+    /// </summary>
+    /// <returns>One entry per virtual folder.</returns>
+    [HttpGet("Libraries")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<IReadOnlyList<LibraryInfo>> GetLibraries()
+    {
+        var idLookup = Scanners.VirtualFolderIdentity.BuildIdLookup(_libraryManager);
+        var libraries = _libraryManager.GetVirtualFolders()
+            .Select(f => new LibraryInfo
+            {
+                ItemId = Scanners.VirtualFolderIdentity.GetId(f, idLookup) ?? string.Empty,
+                Name = f.Name ?? string.Empty,
+                CollectionType = f.CollectionType?.ToString()?.ToLowerInvariant(),
+                Locations = f.Locations ?? [],
+            })
+            .Where(l => !string.IsNullOrEmpty(l.ItemId))
+            .ToList();
+        return Ok(libraries);
     }
 
     /// <summary>Gets the recycle bin contents summary including any in-flight empty progress.</summary>

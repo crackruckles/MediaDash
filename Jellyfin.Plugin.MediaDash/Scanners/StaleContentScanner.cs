@@ -72,11 +72,12 @@ public sealed class StaleContentScanner : IScanner
 
         // Excluded-library path prefixes: resolved once so the per-item check is a linear scan over a
         // small list rather than a per-item ILibraryManager round trip.
-        var excludedPrefixes = (Config.StaleExcludedLibraryIds ?? [])
-            .Length == 0
+        var excludedIds = Config.StaleExcludedLibraryIds ?? [];
+        var idLookup = excludedIds.Length == 0 ? null : VirtualFolderIdentity.BuildIdLookup(_libraryManager);
+        var excludedPrefixes = excludedIds.Length == 0
             ? []
             : _libraryManager.GetVirtualFolders()
-                .Where(f => Config.StaleExcludedLibraryIds!.Contains(f.ItemId, StringComparer.OrdinalIgnoreCase))
+                .Where(f => excludedIds.Contains(VirtualFolderIdentity.GetId(f, idLookup), StringComparer.OrdinalIgnoreCase))
                 .SelectMany(f => f.Locations ?? [])
                 .Select(l => System.IO.Path.TrimEndingDirectorySeparator(l) + System.IO.Path.DirectorySeparatorChar)
                 .ToList();

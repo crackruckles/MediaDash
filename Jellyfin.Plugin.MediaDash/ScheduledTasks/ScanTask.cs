@@ -93,8 +93,9 @@ public sealed class ScanTask : IScheduledTask
         if (enabledLibraries.Length > 0)
         {
             scanIsScoped = true;
+            var idLookup = Scanners.VirtualFolderIdentity.BuildIdLookup(_libraryManager);
             var enabledLocations = _libraryManager.GetVirtualFolders()
-                .Where(f => enabledLibraries.Contains(f.ItemId, StringComparer.OrdinalIgnoreCase))
+                .Where(f => enabledLibraries.Contains(Scanners.VirtualFolderIdentity.GetId(f, idLookup), StringComparer.OrdinalIgnoreCase))
                 .SelectMany(f => f.Locations)
                 .Select(l => System.IO.Path.TrimEndingDirectorySeparator(l) + System.IO.Path.DirectorySeparatorChar)
                 .ToList();
