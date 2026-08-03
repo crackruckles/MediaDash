@@ -32,16 +32,20 @@ public sealed class SkiaSharpBridge
             .FirstOrDefault(a => string.Equals(a.GetName().Name, "SkiaSharp", StringComparison.Ordinal));
 
         // ponytail: if not yet loaded, attempt a by-name load. This covers test runners and any host that
-        // ships SkiaSharp but hasn't touched it before our plugin initialises. Failure is benign.
+        // ships SkiaSharp but hasn't touched it before our plugin initialises. Failure is benign for the
+        // plugin overall (artwork scanner falls back to shallow checks), but the admin should see it once
+        // so they know why deeper image validation isn't running.
         if (skiaAssembly is null)
         {
             try
             {
                 skiaAssembly = Assembly.Load("SkiaSharp");
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Not available in this host. Bridge stays inert; EvaluateFile falls back gracefully.
+                Api.Diagnostics.Record(
+                    "SkiaSharpBridge.LoadFailed",
+                    "SkiaSharp is not available on this host: " + ex.Message + ". The Artwork scanner falls back to header-only checks; deep image validation is disabled. No action needed unless artwork issues are missed.");
                 return;
             }
         }
@@ -49,6 +53,9 @@ public sealed class SkiaSharpBridge
         var bitmapType = skiaAssembly.GetType("SkiaSharp.SKBitmap");
         if (bitmapType is null)
         {
+            Api.Diagnostics.Record(
+                "SkiaSharpBridge.LoadFailed",
+                "SkiaSharp is loaded but the SKBitmap type could not be resolved via reflection. The Artwork scanner falls back to header-only checks. Likely a SkiaSharp version drift beyond what this plugin knows about.");
             return;
         }
 

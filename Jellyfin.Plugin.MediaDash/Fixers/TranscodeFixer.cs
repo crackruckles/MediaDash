@@ -126,6 +126,12 @@ public sealed class TranscodeFixer : IFixer
         var durationSeconds = double.TryParse(probe.Format?.Duration, NumberStyles.Float, CultureInfo.InvariantCulture, out var d) ? d : 0;
 
         var tempPath = issue.Path + ".mediadash.tmp." + targetContainer;
+        // The swap sidecar sits next to the eventual output so it lands on the same volume, which
+        // makes the final rename atomic. Distinct from tempPath so the finally cleanup below never
+        // fights the swap-preservation branch.
+        var swapPath = targetPath + ".mediadash.new";
+        var originalDisposed = false;
+        var swapCompleted = false;
         try
         {
             var hwEncoder = config.UseHardwareEncoder ? GetHardwareEncoder(config.PreferredCodec) : null;
@@ -169,17 +175,30 @@ public sealed class TranscodeFixer : IFixer
                 return FixResult.Fail("The re-encoded file would be larger than the original, so the original was kept.");
             }
 
+            // Move the verified encode to a sidecar next to the target BEFORE touching the original.
+            // Old order (delete original -> move temp -> ...) lost the file if the move ever threw,
+            // because the finally cleanup then deleted the temp too. Under this order any pre-dispose
+            // failure leaves the original intact; any post-dispose failure preserves the encoded copy.
+            if (File.Exists(swapPath))
+            {
+                File.Delete(swapPath);
+            }
+
+            File.Move(tempPath, swapPath);
+
             string? recyclePath = null;
             if (disposal == DisposalMethod.RecycleBin)
             {
                 recyclePath = _recycleBin.MoveToBin(issue.Path);
             }
-            else
+            else if (File.Exists(issue.Path))
             {
                 File.Delete(issue.Path);
             }
 
-            File.Move(tempPath, targetPath);
+            originalDisposed = true;
+            File.Move(swapPath, targetPath);
+            swapCompleted = true;
             var finalPath = targetPath;
             if (config.RenameAfterTranscode)
             {
@@ -208,7 +227,37 @@ public sealed class TranscodeFixer : IFixer
         {
             if (File.Exists(tempPath))
             {
-                File.Delete(tempPath);
+                try
+                {
+                    File.Delete(tempPath);
+                }
+                catch (IOException ex)
+                {
+                    _logger.LogWarning(ex, "Could not delete temp transcode file {Path}", tempPath);
+                }
+            }
+
+            if (!swapCompleted && File.Exists(swapPath))
+            {
+                if (originalDisposed)
+                {
+                    // Only reachable if the final rename failed AFTER the original was disposed.
+                    // The sidecar is now the only copy of the content — do not delete it.
+                    Api.Diagnostics.Record(
+                        "Transcode.SwapAborted",
+                        "Re-encode of '" + issue.Path + "' completed but the final rename to '" + targetPath + "' failed. The re-encoded copy is preserved at '" + swapPath + "' — rename it manually. Do NOT delete this file; it is currently your only copy of the content.");
+                }
+                else
+                {
+                    try
+                    {
+                        File.Delete(swapPath);
+                    }
+                    catch (IOException ex)
+                    {
+                        _logger.LogWarning(ex, "Could not delete swap sidecar {Path}", swapPath);
+                    }
+                }
             }
         }
     }
@@ -235,8 +284,16 @@ public sealed class TranscodeFixer : IFixer
             "hevc" or "h265" => "hevc",
             "h264" => "h264",
             "av1" => "av1",
+            "vp9" => "vp9",
             _ => "hevc"
         };
+        // VP9 hardware encoding is Intel-QSV-only in the wild: NVENC/AMF/VideoToolbox all lack a VP9
+        // encoder path. Fall through to software rather than emitting a non-existent ffmpeg encoder.
+        if (codec == "vp9" && suffix != "_qsv")
+        {
+            return null;
+        }
+
         return codec + suffix;
     }
 
@@ -255,6 +312,7 @@ public sealed class TranscodeFixer : IFixer
             "hevc" or "h265" => "libx265",
             "h264" => "libx264",
             "av1" => "libsvtav1",
+            "vp9" => "libvpx-vp9",
             _ => "libx265"
         };
 
@@ -340,15 +398,21 @@ public sealed class TranscodeFixer : IFixer
         }
         else
         {
-            var (crf, preset, av1Crf, av1Preset) = config.SoftwareEncodePreset switch
+            var (crf, preset, av1Crf, av1Preset, vp9Crf, vp9Cpu) = config.SoftwareEncodePreset switch
             {
-                EncodePreset.Faster => ("25", "fast", "32", "6"),
-                EncodePreset.Best => ("20", "slow", "28", "10"),
-                _ => ("23", "medium", "30", "8")
+                EncodePreset.Faster => ("25", "fast", "32", "6", "35", "4"),
+                EncodePreset.Best => ("20", "slow", "28", "10", "28", "0"),
+                _ => ("23", "medium", "30", "8", "31", "2")
             };
             if (encoder == "libsvtav1")
             {
                 args.AddRange(["-crf", av1Crf, "-preset", av1Preset]);
+            }
+            else if (encoder == "libvpx-vp9")
+            {
+                // VP9 uses a two-arg constant-quality mode: -b:v 0 tells the encoder to honour -crf.
+                // -cpu-used trades speed for compression like x264/x265 presets.
+                args.AddRange(["-crf", vp9Crf, "-b:v", "0", "-cpu-used", vp9Cpu, "-row-mt", "1"]);
             }
             else
             {

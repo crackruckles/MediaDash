@@ -106,6 +106,7 @@ public sealed class TrackFixer : IFixer
         if (removeIndexes.Count > 0)
         {
             var tempPath = issue.Path + ".mediadash.tmp" + Path.GetExtension(issue.Path);
+            var swapPath = issue.Path + ".mediadash.new" + Path.GetExtension(issue.Path);
             var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(issue.Path))!);
             const long safetyMarginBytes = 500L * 1024 * 1024;
             if (drive.AvailableFreeSpace < originalSize + safetyMarginBytes)
@@ -122,6 +123,8 @@ public sealed class TrackFixer : IFixer
 
             args.AddRange(["-c", "copy", tempPath]);
 
+            var originalDisposed = false;
+            var swapCompleted = false;
             try
             {
                 var error = await _ffmpeg.RunAsync(args, RemuxTimeout, cancellationToken).ConfigureAwait(false);
@@ -136,23 +139,63 @@ public sealed class TrackFixer : IFixer
                     return FixResult.Fail("The rebuilt file failed verification; the original is untouched. Details: " + verifyError);
                 }
 
+                // Move verified rebuild to a sidecar first, then dispose the original, then rename.
+                // Old order deleted the original before the move — a throw in File.Move plus the finally's
+                // temp cleanup left the user with nothing.
+                if (File.Exists(swapPath))
+                {
+                    File.Delete(swapPath);
+                }
+
+                File.Move(tempPath, swapPath);
+
                 if (disposal == DisposalMethod.RecycleBin)
                 {
                     recyclePath = _recycleBin.MoveToBin(issue.Path);
                 }
-                else
+                else if (File.Exists(issue.Path))
                 {
                     File.Delete(issue.Path);
                 }
 
-                File.Move(tempPath, issue.Path);
+                originalDisposed = true;
+                File.Move(swapPath, issue.Path);
+                swapCompleted = true;
                 freed += originalSize - new FileInfo(issue.Path).Length;
             }
             finally
             {
                 if (File.Exists(tempPath))
                 {
-                    File.Delete(tempPath);
+                    try
+                    {
+                        File.Delete(tempPath);
+                    }
+                    catch (IOException ex)
+                    {
+                        _logger.LogWarning(ex, "Could not delete temp remux file {Path}", tempPath);
+                    }
+                }
+
+                if (!swapCompleted && File.Exists(swapPath))
+                {
+                    if (originalDisposed)
+                    {
+                        Api.Diagnostics.Record(
+                            "Track.SwapAborted",
+                            "Track remux of '" + issue.Path + "' completed but the final rename failed. The rebuilt copy is preserved at '" + swapPath + "' — rename it manually to '" + issue.Path + "'. Do NOT delete this file; it is currently your only copy of the content.");
+                    }
+                    else
+                    {
+                        try
+                        {
+                            File.Delete(swapPath);
+                        }
+                        catch (IOException ex)
+                        {
+                            _logger.LogWarning(ex, "Could not delete swap sidecar {Path}", swapPath);
+                        }
+                    }
                 }
             }
         }

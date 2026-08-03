@@ -63,16 +63,32 @@ public abstract class ProbingScannerBase : IScanner
                 foreach (var path in MediaFileHelper.GetFilePaths(item))
                 {
                     Plugin.CurrentActivity = path;
-                    var probe = await Ffprobe.ProbeAsync(path, cancellationToken).ConfigureAwait(false);
-                    var issue = await EvaluateAsync(item, path, probe, cancellationToken).ConfigureAwait(false);
-                    if (issue is not null)
+                    try
                     {
-                        issue.Type = Type;
-                        issue.ItemId = item.Id;
-                        issue.Path = path;
-                        issue.Status = IssueStatus.Detected;
-                        issue.DetectedAtUtc = DateTime.UtcNow;
-                        issues.Add(issue);
+                        var probe = await Ffprobe.ProbeAsync(path, cancellationToken).ConfigureAwait(false);
+                        var issue = await EvaluateAsync(item, path, probe, cancellationToken).ConfigureAwait(false);
+                        if (issue is not null)
+                        {
+                            issue.Type = Type;
+                            issue.ItemId = item.Id;
+                            issue.Path = path;
+                            issue.Status = IssueStatus.Detected;
+                            issue.DetectedAtUtc = DateTime.UtcNow;
+                            issues.Add(issue);
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        // Never let a single bad file abort the whole scan. Surface to the Errors tab so
+                        // the admin can act, and move on to the next file.
+                        Logger.LogWarning(ex, "Scanner {Type} failed on {Path}; skipping", Type, path);
+                        Api.Diagnostics.Record(
+                            "Scanner." + Type,
+                            "Scanner '" + Type + "' failed while examining '" + path + "': " + ex.Message + ". The file was skipped; the rest of the scan continued.");
                     }
                 }
 

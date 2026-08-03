@@ -477,8 +477,9 @@ public class FileBrowserController : ControllerBase
                 {
                     System.IO.File.Delete(tempPath);
                 }
-                catch (IOException)
+                catch (IOException ex)
                 {
+                    Diagnostics.Record("FileBrowser.UploadCleanup", "Upload failed and the temp file at '" + tempPath + "' could not be removed: " + ex.Message + ". Delete it manually to reclaim the space.");
                 }
             }
 

@@ -155,7 +155,18 @@ public sealed class RecycleBin
         foreach (var file in Directory.EnumerateFiles(Root, "*", SearchOption.AllDirectories))
         {
             count++;
-            size += new FileInfo(file).Length;
+            try
+            {
+                size += new FileInfo(file).Length;
+            }
+            catch (IOException ex)
+            {
+                Api.Diagnostics.Record("RecycleBin.SizeScan", "Could not stat recycled file '" + file + "': " + ex.Message + ". Total-size total will be short by one entry.");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                Api.Diagnostics.Record("RecycleBin.SizeScan", "Access denied stat'ing recycled file '" + file + "': " + ex.Message + ". Total-size total will be short by one entry.");
+            }
         }
 
         return (count, size);
@@ -178,8 +189,22 @@ public sealed class RecycleBin
         {
             foreach (var file in Directory.EnumerateFiles(dir))
             {
-                var info = new FileInfo(file);
-                result.Add((info.Name, file, info.Length, Directory.GetCreationTimeUtc(dir)));
+                try
+                {
+                    var info = new FileInfo(file);
+                    result.Add((info.Name, file, info.Length, Directory.GetCreationTimeUtc(dir)));
+                }
+                catch (IOException ex)
+                {
+                    Api.Diagnostics.Record("RecycleBin.ListScan", "Could not read recycled file '" + file + "': " + ex.Message + ". It will not appear in the recycle bin listing.");
+                    continue;
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    Api.Diagnostics.Record("RecycleBin.ListScan", "Access denied on recycled file '" + file + "': " + ex.Message + ". It will not appear in the recycle bin listing.");
+                    continue;
+                }
+
                 if (result.Count >= limit)
                 {
                     return result;
@@ -264,6 +289,12 @@ public sealed class RecycleBin
             catch (IOException ex)
             {
                 _logger.LogWarning(ex, "Could not purge recycle bin folder {Dir}", dir);
+                Api.Diagnostics.Record("RecycleBin.PurgeFailed", "Could not purge expired recycle bin folder '" + dir + "': " + ex.Message + ". Retention will retry it next cycle. A file may be open in another program.");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Access denied purging recycle bin folder {Dir}", dir);
+                Api.Diagnostics.Record("RecycleBin.PurgeFailed", "Access denied purging expired recycle bin folder '" + dir + "': " + ex.Message + ". Grant Jellyfin's user delete permission on the recycle bin folder.");
             }
         }
     }
