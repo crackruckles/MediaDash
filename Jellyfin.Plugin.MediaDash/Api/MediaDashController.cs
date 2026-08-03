@@ -342,10 +342,10 @@ public class MediaDashController : ControllerBase
     }
 
     /// <summary>
-    /// Re-applies the fix task's daily trigger from <see cref="Configuration.PluginConfiguration.ScheduledFixTime"/>.
-    /// Called by the settings page after saving so the new time takes effect without a server restart.
-    /// Jellyfin persists user-modified triggers separately from <see cref="ScheduledTasks.FixTask.GetDefaultTriggers"/>,
-    /// so the trigger has to be pushed in explicitly here.
+    /// Resets the fix task's trigger to MediaDash's current default (an interval trigger — see
+    /// <see cref="ScheduledTasks.FixTask.FixInterval"/>). Kept for backward-compat with settings pages that
+    /// still call it after Save. Also useful for one-shot migration from the old daily-at-time trigger:
+    /// hitting this endpoint clears any lingering user-customized trigger and restores the opportunistic default.
     /// </summary>
     /// <returns>No content.</returns>
     [HttpPost("Schedule/Apply")]
@@ -359,8 +359,8 @@ public class MediaDashController : ControllerBase
             [
                 new TaskTriggerInfo
                 {
-                    Type = TaskTriggerInfoType.DailyTrigger,
-                    TimeOfDayTicks = FixTask.ParseScheduleTicks(Plugin.Instance!.Configuration.ScheduledFixTime)
+                    Type = TaskTriggerInfoType.IntervalTrigger,
+                    IntervalTicks = FixTask.FixInterval.Ticks
                 }
             ];
         }

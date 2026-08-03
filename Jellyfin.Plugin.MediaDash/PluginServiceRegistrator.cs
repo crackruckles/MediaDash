@@ -3,9 +3,11 @@ using Jellyfin.Plugin.MediaDash.Data;
 using Jellyfin.Plugin.MediaDash.Fixers;
 using Jellyfin.Plugin.MediaDash.Probing;
 using Jellyfin.Plugin.MediaDash.Scanners;
+using Jellyfin.Plugin.MediaDash.ScheduledTasks;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace Jellyfin.Plugin.MediaDash;
 
@@ -45,5 +47,6 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IFixer, SuspiciousFileFixer>();
         serviceCollection.AddSingleton<AnalyticsReporter>();
         serviceCollection.AddSingleton<PostUpgradeCleanup>();
+        serviceCollection.AddHostedService<ScheduleMigrator>();
     }
 }

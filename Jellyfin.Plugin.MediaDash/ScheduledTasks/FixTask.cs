@@ -30,6 +30,13 @@ public sealed class FixTask : IScheduledTask
         IssueType.MalwareRisk
     ];
 
+    /// <summary>
+    /// How often the fix task wakes up to check whether the server is idle. The task fires on this cadence
+    /// and returns immediately when someone is watching or was active in the last 15 minutes (see <see cref="IdleCheck"/>);
+    /// no queued issues stay queued and nothing else changes. When the server is genuinely idle, all queued fixes run.
+    /// </summary>
+    internal static readonly TimeSpan FixInterval = TimeSpan.FromMinutes(15);
+
     private readonly MediaDashDb _db;
     private readonly IEnumerable<IFixer> _fixers;
     private readonly RecycleBin _recycleBin;
@@ -330,27 +337,10 @@ public sealed class FixTask : IScheduledTask
         [
             new TaskTriggerInfo
             {
-                Type = TaskTriggerInfoType.DailyTrigger,
-                TimeOfDayTicks = ParseScheduleTicks(Plugin.Instance?.Configuration.ScheduledFixTime)
+                Type = TaskTriggerInfoType.IntervalTrigger,
+                IntervalTicks = FixInterval.Ticks
             }
         ];
-    }
-
-    /// <summary>
-    /// Parses a "HH:mm" string into a <see cref="TimeSpan.Ticks"/> offset from midnight.
-    /// Falls back to 03:00 when the value is missing or malformed so a mistyped setting never leaves the task untriggered.
-    /// </summary>
-    /// <param name="value">The configured time string.</param>
-    /// <returns>Ticks from midnight.</returns>
-    internal static long ParseScheduleTicks(string? value)
-    {
-        if (TimeSpan.TryParseExact(value, @"h\:mm", System.Globalization.CultureInfo.InvariantCulture, out var ts)
-            || TimeSpan.TryParseExact(value, @"hh\:mm", System.Globalization.CultureInfo.InvariantCulture, out ts))
-        {
-            return ts.Ticks;
-        }
-
-        return TimeSpan.FromHours(3).Ticks;
     }
 
     private static long GetFileSizeOrZero(Data.Issue issue)

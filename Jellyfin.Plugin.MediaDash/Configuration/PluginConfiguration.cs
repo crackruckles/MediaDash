@@ -152,14 +152,16 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>
     /// Gets or sets a value indicating whether scheduled scans and fixes only run while the server is idle:
     /// nobody playing media and no session active in the last 15 minutes. Manual runs from the dashboard ignore this.
-    /// When on, this acts as a hard veto over <see cref="ScheduledFixTime"/> — the run is skipped if the server
-    /// is busy at the scheduled time and stays queued for the next idle window.
+    /// The fix task fires on an interval and returns immediately when this check fails, so it stays out of the
+    /// way whenever someone is using the server.
     /// </summary>
     public bool PauseDuringPlayback { get; set; }
 
     /// <summary>
-    /// Gets or sets the daily time-of-day the fix task fires, formatted as "HH:mm" (24h, server local time).
-    /// Defaults to "03:00". Invalid values fall back to 03:00.
+    /// Gets or sets the (obsolete since v0.9.1) daily fix time. The fix task no longer fires at a daily
+    /// time — it runs opportunistically on an interval and defers via the idle check while anyone is using
+    /// the server (see <see cref="ScheduledTasks.FixTask.FixInterval"/>). Retained on the config so existing
+    /// XML deserializes cleanly; not read by any code path.
     /// </summary>
     public string ScheduledFixTime { get; set; } = "03:00";
 

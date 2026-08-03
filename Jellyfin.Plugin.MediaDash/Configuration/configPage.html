@@ -1498,17 +1498,12 @@
                                     </label>
                                     <div class="fieldDescription" data-i18n="settings.safety.dryRunHint">Fix runs only log what they would do — nothing on disk changes. Turn off once the plan in History looks right.</div>
                                 </div>
-                                <div class="checkboxContainer checkboxContainer-withDescription" style="margin:0;" title="When on, scheduled runs wait until no active playback and 15 minutes of idle. Manual runs ignore this — the Scan/Fix buttons on Overview still fire immediately.">
+                                <div class="checkboxContainer checkboxContainer-withDescription" style="margin:0;" title="When on, the fix task skips whenever anyone is watching or was active in the last 15 minutes. Manual runs ignore this — the Scan/Fix buttons on Overview still fire immediately.">
                                     <label class="emby-checkbox-label">
                                         <input id="mdPausePlayback" type="checkbox" is="emby-checkbox" />
                                         <span data-i18n="settings.safety.idle">Only run when the server is idle</span>
                                     </label>
-                                    <div class="fieldDescription" data-i18n="settings.safety.idleHint">Scheduled runs wait until nobody is watching and Jellyfin has been unused for 15 minutes.</div>
-                                </div>
-                                <div class="inputContainer" style="margin:0;max-width:16em;" title="24-hour server-local time. Fix task fires daily at this hour; scan task uses its own dashboard schedule.">
-                                    <label class="inputLabel inputLabelUnfocused" for="mdFixScheduleTime" data-i18n="settings.safety.scheduleLabel">Scheduled fix time</label>
-                                    <input id="mdFixScheduleTime" type="time" is="emby-input" />
-                                    <div class="fieldDescription">Server local time, daily.</div>
+                                    <div class="fieldDescription" data-i18n="settings.safety.idleHint">Fixes fire opportunistically every 15 minutes and skip whenever anyone is watching or has been active in the last 15 minutes.</div>
                                 </div>
                                 <div class="checkboxContainer checkboxContainer-withDescription" style="margin:0;" title="Sends per-run counts (per-type success + bytes freed) and version strings to the community stats board. No paths, no filenames, no usernames. See docs/PRIVACY.md for the exact fields.">
                                     <label class="emby-checkbox-label">
@@ -3166,7 +3161,7 @@
                 updateActiveCount();
                 updateNavChipStates();
                 updateQualityAutoStrip();
-                var qualityFieldWatch = ['#mdKeeperPolicy', '#mdMaxRes', '#mdCodec', '#mdStaleThresholdDays', '#mdMoviesTarget', '#mdTvTarget', '#mdThorough', '#mdFixScheduleTime'];
+                var qualityFieldWatch = ['#mdKeeperPolicy', '#mdMaxRes', '#mdCodec', '#mdStaleThresholdDays', '#mdMoviesTarget', '#mdTvTarget', '#mdThorough'];
                 qualityFieldWatch.forEach(function (sel) {
                     var el = view.querySelector(sel);
                     if (el) el.addEventListener('change', function () { updateAllSummaries(); updateQualityAutoStrip(); });
@@ -3179,10 +3174,8 @@
                 if (!strip || !text) return;
                 var mode = view.querySelector('#mdModeQuality');
                 var dry = view.querySelector('#mdDryRun');
-                var time = view.querySelector('#mdFixScheduleTime');
                 if (mode && mode.value === 'Automatic') {
-                    var t = (time && time.value) || '03:00';
-                    text.textContent = 'Automatic re-encodes run nightly at ' + t + ' while the server is idle.' + (dry && dry.checked ? ' Dry-run is still on, so nothing is written yet.' : '');
+                    text.textContent = 'Automatic re-encodes run whenever the server has been idle for 15 minutes.' + (dry && dry.checked ? ' Dry-run is still on, so nothing is written yet.' : '');
                     strip.style.display = '';
                 } else {
                     strip.style.display = 'none';
@@ -3359,7 +3352,6 @@
                     view.querySelector('#mdKeeperPolicy').value = keeperPresetFromConfig(c.KeeperPolicyOrder);
                     view.querySelector('#mdDryRun').checked = c.DryRun;
                     view.querySelector('#mdPausePlayback').checked = c.PauseDuringPlayback;
-                    view.querySelector('#mdFixScheduleTime').value = /^\d{1,2}:\d{2}$/.test(c.ScheduledFixTime || '') ? c.ScheduledFixTime : '03:00';
                     view.querySelector('#mdAnalytics').checked = !!c.AnalyticsEnabled;
                     FIX_TYPES.forEach(function (t) {
                         view.querySelector('#mdMode' + t.key).value = c[t.mode];
@@ -3459,7 +3451,6 @@
 
                     c.DryRun = view.querySelector('#mdDryRun').checked;
                     c.PauseDuringPlayback = view.querySelector('#mdPausePlayback').checked;
-                    c.ScheduledFixTime = /^\d{1,2}:\d{2}$/.test(view.querySelector('#mdFixScheduleTime').value || '') ? view.querySelector('#mdFixScheduleTime').value : '03:00';
                     applyAnalyticsToggle(c, view.querySelector('#mdAnalytics').checked);
                     FIX_TYPES.forEach(function (t) {
                         c[t.mode] = view.querySelector('#mdMode' + t.key).value;
