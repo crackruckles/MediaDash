@@ -4,10 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MediaDash — Jellyfin library maintenance, on autopilot</title>
-    <meta name="description" content="Duplicates, broken files, oversized encodes, wrong-language tracks, misplaced files, missing subtitles, stale content — one dashboard, fixed safely on your schedule.">
+    <meta name="description" content="Duplicates, broken files, oversized encodes, wrong-language tracks, misplaced files, missing subtitles, corrupt artwork, malware — one dashboard, fixed the moment your server goes idle. Jellyfin 10.11 and 12.0.">
     <link rel="icon" type="image/png" href="logo.png">
     <meta property="og:title" content="MediaDash — the one plugin a Jellyfin library owner needs">
-    <meta property="og:description" content="Finds duplicates, broken files, oversized encodes and unwanted tracks. Fixes them safely, on your schedule.">
+    <meta property="og:description" content="Finds duplicates, broken files, oversized encodes, unwanted tracks, malware and stale content. Fixes them safely, the moment your server goes idle.">
     <meta property="og:image" content="overview.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -322,7 +322,7 @@
         <div class="wrap">
             <img src="logo.png" alt="MediaDash logo" class="logo">
             <h1>MediaDash</h1>
-            <p class="tagline">The one plugin a Jellyfin library owner needs. Duplicates, broken files, oversized encodes, wrong-language tracks, misplaced files, missing subtitles, stale content — surfaced on one dashboard and fixed safely on your schedule.</p>
+            <p class="tagline">The one plugin a Jellyfin library owner needs. Duplicates, broken files, oversized encodes, wrong-language tracks, misplaced files, missing subtitles, corrupt artwork, executables where media should be, stale content — surfaced on one dashboard and fixed the moment your server goes idle.</p>
             <div class="badges">
                 <a href="https://github.com/crackruckles/MediaDash/actions/workflows/ci.yaml"><img src="https://github.com/crackruckles/MediaDash/actions/workflows/ci.yaml/badge.svg" alt="CI status"></a>
                 <a href="https://github.com/crackruckles/MediaDash/releases/latest"><img src="https://img.shields.io/github/v/release/crackruckles/MediaDash?label=release&amp;color=00a4dc" alt="Latest release"></a>
@@ -381,14 +381,16 @@
                 <p class="sec-sub">Every fix type runs independently: Off · Detect only · Ask me first · Automatic.</p>
 
                 <div class="features">
-                    <div class="feature"><h3><span class="material-icons">content_copy</span>Duplicate copies</h3><p>Same movie or episode twice — matched by TMDb/IMDb/TVDb id, or name + year.</p><span class="fix"><strong>Fix:</strong> deletes the worse copy — you choose what "worse" means.</span></div>
-                    <div class="feature" style="border-left-color:var(--red);"><h3><span class="material-icons" style="color:#f87171;">block</span>Files that won't play</h3><p>Broken / unreadable files. Every file is test-played at start, middle and end.</p><span class="fix"><strong>Fix:</strong> removes them, after re-checking they're really broken.</span></div>
-                    <div class="feature" style="border-left-color:var(--amber);"><h3><span class="material-icons" style="color:#fbbf24;">compress</span>Oversized encodes</h3><p>Anything above your resolution or bitrate ceiling.</p><span class="fix"><strong>Fix:</strong> re-encodes to your chosen codec + container (GPU-accelerated).</span></div>
+                    <div class="feature"><h3><span class="material-icons">content_copy</span>Duplicate copies</h3><p>Same movie, episode, song, audiobook or book twice — matched by TMDb/IMDb/TVDb, MusicBrainz, ISBN, or name + year.</p><span class="fix"><strong>Fix:</strong> deletes the worse copy — you choose what "worse" means.</span></div>
+                    <div class="feature" style="border-left-color:var(--red);"><h3><span class="material-icons" style="color:#f87171;">block</span>Files that won't play</h3><p>Broken video (test-played at start, middle and end) plus book / comic integrity probes for EPUB / PDF / MOBI / AZW3 / CBZ / CBR / CB7.</p><span class="fix"><strong>Fix:</strong> removes them, after re-checking they're really broken.</span></div>
+                    <div class="feature" style="border-left-color:var(--amber);"><h3><span class="material-icons" style="color:#fbbf24;">compress</span>Oversized encodes</h3><p>Anything above your resolution or bitrate ceiling. Detect-only audio ceiling flags high-bitrate MP3 / AAC.</p><span class="fix"><strong>Fix:</strong> re-encodes to your chosen codec + container (GPU-accelerated).</span></div>
                     <div class="feature" style="border-left-color:var(--accent);"><h3><span class="material-icons" style="color:#c084fc;">subtitles</span>Unwanted subtitles</h3><p>Embedded tracks and external files in languages you don't keep.</p><span class="fix"><strong>Fix:</strong> lossless remux — no quality loss.</span></div>
                     <div class="feature" style="border-left-color:var(--accent);"><h3><span class="material-icons" style="color:#c084fc;">volume_up</span>Unwanted audio</h3><p>Extra audio tracks outside your language list.</p><span class="fix"><strong>Fix:</strong> lossless remux — never touches a file's only audio track.</span></div>
                     <div class="feature" style="border-left-color:var(--green);"><h3><span class="material-icons" style="color:#4ade80;">closed_caption</span>Missing subtitles</h3><p>Videos with no subtitle in any language you keep.</p><span class="fix"><strong>Fix:</strong> downloads via Jellyfin's configured providers (OpenSubtitles, etc.).</span></div>
-                    <div class="feature"><h3><span class="material-icons">drive_file_move</span>Misplaced files</h3><p>A movie under TV, or a TV episode under Movies.</p><span class="fix"><strong>Fix:</strong> moves it into the right library folder.</span></div>
-                    <div class="feature" style="border-left-color:var(--mute);"><h3><span class="material-icons" style="color:#94a3b8;">schedule</span>Stale content</h3><p>Media nobody has played in your configured window (default 365 days).</p><span class="fix"><strong>Detect-only</strong> — surfaces the list so you decide.</span></div>
+                    <div class="feature"><h3><span class="material-icons">drive_file_move</span>Misplaced files</h3><p>A movie under TV, an audiobook under Books, a comic under Music — per-type routing across Movies / TV / Anime / Music / Audiobooks / Books / Comics / Pictures.</p><span class="fix"><strong>Fix:</strong> moves it into the right library folder.</span></div>
+                    <div class="feature" style="border-left-color:var(--primary);"><h3><span class="material-icons">image_not_supported</span>Corrupt artwork</h3><p>Zero-byte, truncated or unreadable poster / backdrop files inside Jellyfin's metadata cache.</p><span class="fix"><strong>Fix:</strong> deletes the broken image so Jellyfin re-fetches it. Never touches artwork you placed alongside your media.</span></div>
+                    <div class="feature" style="border-left-color:var(--red);"><h3><span class="material-icons" style="color:#f87171;">gpp_bad</span>Malware & executables</h3><p><code>.exe</code>, <code>.msi</code>, <code>.bat</code>, <code>.ps1</code>, <code>.sh</code>, <code>.lnk</code> and other non-media files that don't belong in a media library — almost always malware bundled with pirated releases.</p><span class="fix"><strong>Fix:</strong> moves them to the recycle bin.</span></div>
+                    <div class="feature" style="border-left-color:var(--mute);"><h3><span class="material-icons" style="color:#94a3b8;">schedule</span>Stale content</h3><p>Media nobody has played in your configured window (default 365 days) — across video, audio, audiobook and book libraries.</p><span class="fix"><strong>Detect-only</strong> — surfaces the list so you decide.</span></div>
                 </div>
             </div>
         </section>
@@ -444,9 +446,10 @@
                 <div class="trust-list">
                     <div class="trust"><span class="material-icons" style="color:#4ade80;">shield</span><strong>Dry-run by default</strong><p>Fix runs only log what they <em>would</em> do until you say otherwise.</p></div>
                     <div class="trust"><span class="material-icons" style="color:#4ade80;">restore_from_trash</span><strong>Recycle bin, not deletion</strong><p>Removed files are recoverable for 30 days with one-click Restore.</p></div>
-                    <div class="trust"><span class="material-icons" style="color:#4ade80;">verified</span><strong>Verify before swap</strong><p>Re-encodes replace the original only after probe verification passes.</p></div>
-                    <div class="trust"><span class="material-icons" style="color:#4ade80;">lock</span><strong>Hard limits</strong><p>Never touches files outside your libraries, never removes a file's last audio track, always checks free disk before encoding.</p></div>
-                    <div class="trust"><span class="material-icons" style="color:#4ade80;">bedtime</span><strong>Polite scheduling</strong><p>Scheduled runs wait until nobody is watching and the server has been idle for 15 minutes.</p></div>
+                    <div class="trust"><span class="material-icons" style="color:#4ade80;">verified</span><strong>Verify + safe swap</strong><p>Re-encodes stage the new copy to a sidecar before disposing the original, so a failed rename never leaves you with both files gone.</p></div>
+                    <div class="trust"><span class="material-icons" style="color:#4ade80;">lock</span><strong>Hard limits</strong><p>Never touches files outside your libraries, never removes a file's only audio track, always checks free disk before encoding.</p></div>
+                    <div class="trust"><span class="material-icons" style="color:#4ade80;">bedtime</span><strong>Fires only when idle</strong><p>The fix task wakes every 15 minutes and skips whenever anyone is watching or was active in the last 15 minutes.</p></div>
+                    <div class="trust"><span class="material-icons" style="color:#4ade80;">error_outline</span><strong>Every failure surfaces</strong><p>Errors tab captures anything a scanner or fixer would otherwise swallow — permission denied, transient I/O, missing ffmpeg.</p></div>
                 </div>
             </div>
         </section>
