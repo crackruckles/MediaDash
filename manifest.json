@@ -9,6 +9,22 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.9.1.0",
+        "changelog": "Fix task now runs opportunistically. Instead of a daily-at-configured-time trigger, it fires every 15 minutes and defers immediately when anyone is watching or has been active in the last 15 minutes (existing \u0027Only run when idle\u0027 setting). Queued fixes now drain the moment the server goes idle instead of waiting for the nightly window. Existing installs auto-migrate their old daily trigger on first startup (30 s after boot). The \u0027Scheduled fix time\u0027 input is retired — no configuration needed.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.9.1/mediadash_0.9.1.zip",
+        "checksum": "d7d3fda81dd15c589244cf0bf880f102",
+        "timestamp": "2026-08-03T08:56:21Z"
+      },
+      {
+        "version": "0.9.1.0",
+        "changelog": "Fix task now runs opportunistically. Instead of a daily-at-configured-time trigger, it fires every 15 minutes and defers immediately when anyone is watching or has been active in the last 15 minutes (existing \u0027Only run when idle\u0027 setting). Queued fixes now drain the moment the server goes idle instead of waiting for the nightly window. Existing installs auto-migrate their old daily trigger on first startup (30 s after boot). The \u0027Scheduled fix time\u0027 input is retired — no configuration needed.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.9.1/mediadash_0.9.1.zip",
+        "checksum": "d7d3fda81dd15c589244cf0bf880f102",
+        "timestamp": "2026-08-03T08:56:21Z"
+      },
+      {
         "version": "0.9.0.0",
         "changelog": "New Virus scan (SuspiciousFile) surfaces executables/scripts inside media folders. Jellyfin 12 scoped-scanner fix: library-scoping now resolves correctly on v12 hosts where VirtualFolderInfo.ItemId was dropped. Media sorter typed for Audio/AudioBook/Book/Comic/Picture with per-kind target folders. Data-safety hardening: transcode/track fixers stage the encoded copy to a sidecar before disposing the original, so a failed final rename preserves the encoded file rather than losing both. Scanner resilience: a single throw no longer aborts a scan; the Errors tab shows the file and continues. RecycleBin/SkiaSharp/upload-cleanup silent catches now surface to the Errors tab.",
         "targetAbi": "12.0.0.0",
@@ -339,6 +355,7 @@
     ]
   }
 ]
+
 
 
 
