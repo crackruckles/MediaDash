@@ -68,6 +68,9 @@ jobs:
           | Unwanted audio stripped | {n(lifetime['audio_fixed'])} | {n(current['audio_fixed'])} |
           | Misplaced files moved | {n(lifetime['misplaced_fixed'])} | {n(current['misplaced_fixed'])} |
           | Missing subtitles downloaded | {n(lifetime['missing_subs_fixed'])} | {n(current['missing_subs_fixed'])} |
+          | Stale files retired | {n(lifetime['stale_fixed'])} | {n(current['stale_fixed'])} |
+          | Corrupt artwork repaired | {n(lifetime['corrupt_artwork_fixed'])} | {n(current['corrupt_artwork_fixed'])} |
+          | Suspicious files quarantined | {n(lifetime['suspicious_fixed'])} | {n(current['suspicious_fixed'])} |
           | **Reporting installs** | {n(lifetime['lifetime_installs'])} lifetime | {n(current['monthly_active_installs'])} this month |"""
 
           # Strip leading whitespace introduced by the heredoc indent — the pipe table would render broken otherwise.

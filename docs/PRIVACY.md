@@ -33,6 +33,9 @@ Every field. Nothing else:
 | `audio_fixed` | `5` | Count of unwanted-audio strips this month. |
 | `misplaced_fixed` | `1` | Count of misplaced-file moves this month. |
 | `missing_subs_fixed` | `4` | Count of subtitle downloads this month. |
+| `stale_fixed` | `2` | Count of stale files retired this month (untouched past the stale threshold). |
+| `corrupt_artwork_fixed` | `6` | Count of corrupt / truncated poster / backdrop / thumb files repaired this month. |
+| `suspicious_fixed` | `0` | Count of suspicious files (executables / scripts inside media folders — potential malware) quarantined this month. |
 | `bytes_freed` | `12345678900` | Sum of bytes freed by all successful fixes this month. |
 
 ### What's NEVER sent

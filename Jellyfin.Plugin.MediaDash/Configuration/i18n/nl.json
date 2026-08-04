@@ -50,7 +50,6 @@
   "restored": "Hersteld.",
   "restoreFailed": "Herstellen niet gelukt: {0}",
   "spaceSavedToDate": "Tot nu toe bespaarde ruimte: {0}",
-  "savedOverTime": "Bespaarde ruimte in de tijd",
   "dryRunBadge": "testmodus",
   "saved": "Opgeslagen.",
   "confirmAuto": "De automatische modus wijzigt elke nacht bestanden zonder te vragen. Verwijderde bestanden gaan naar de prullenbak (tenzij ingesteld op permanent verwijderen). Doorgaan?",
@@ -132,15 +131,133 @@
       "action": "Ondertitels downloaden",
       "actionHint": "Downloadt er een via de in Jellyfin geconfigureerde ondertitelproviders (OpenSubtitles enz.).",
       "approveAll": "Ondertitels downloaden voor alle {0} getoonden"
+    },
+    "Stale": {
+      "title": "Verouderde inhoud",
+      "hint": "Al lange tijd door niemand afgespeeld.",
+      "action": "Bekijken",
+      "actionHint": "Voorlopig alleen detectie — MediaDash toont de lijst, jij beslist verwijderen of behouden.",
+      "approveAll": "Bekijk alle {0} verouderde items"
+    },
+    "MalwareRisk": {
+      "title": "Verdachte uitvoerbare bestanden",
+      "hint": "Programma's of scripts in een mediamap — bijna altijd malware uit een illegale release.",
+      "action": "Dit bestand verwijderen",
+      "actionHint": "Zet verwijdering in de wachtrij voor de volgende fix; het bestand gaat naar de prullenbak tenzij je permanent instelt.",
+      "approveAll": "Verwijder alle {0} getoonde verdachte bestanden",
+      "doRecycle": "Uitvoerbaar bestand verwijderen — herstelbaar uit de prullenbak",
+      "doPermanent": "Uitvoerbaar bestand permanent verwijderen"
     }
   },
   "languages": [
-    ["eng", "Engels"], ["spa", "Spaans"], ["fra", "Frans"], ["deu", "Duits"], ["ita", "Italiaans"],
-    ["por", "Portugees"], ["nld", "Nederlands"], ["rus", "Russisch"], ["jpn", "Japans"], ["zho", "Chinees"],
-    ["kor", "Koreaans"], ["ara", "Arabisch"], ["hin", "Hindi"], ["pol", "Pools"], ["swe", "Zweeds"],
-    ["nor", "Noors"], ["dan", "Deens"], ["fin", "Fins"], ["tur", "Turks"], ["ces", "Tsjechisch"],
-    ["ell", "Grieks"], ["heb", "Hebreeuws"], ["tha", "Thais"], ["vie", "Vietnamees"], ["ukr", "Oekraïens"],
-    ["hun", "Hongaars"], ["ron", "Roemeens"]
+    [
+      "eng",
+      "Engels"
+    ],
+    [
+      "spa",
+      "Spaans"
+    ],
+    [
+      "fra",
+      "Frans"
+    ],
+    [
+      "deu",
+      "Duits"
+    ],
+    [
+      "ita",
+      "Italiaans"
+    ],
+    [
+      "por",
+      "Portugees"
+    ],
+    [
+      "nld",
+      "Nederlands"
+    ],
+    [
+      "rus",
+      "Russisch"
+    ],
+    [
+      "jpn",
+      "Japans"
+    ],
+    [
+      "zho",
+      "Chinees"
+    ],
+    [
+      "kor",
+      "Koreaans"
+    ],
+    [
+      "ara",
+      "Arabisch"
+    ],
+    [
+      "hin",
+      "Hindi"
+    ],
+    [
+      "pol",
+      "Pools"
+    ],
+    [
+      "swe",
+      "Zweeds"
+    ],
+    [
+      "nor",
+      "Noors"
+    ],
+    [
+      "dan",
+      "Deens"
+    ],
+    [
+      "fin",
+      "Fins"
+    ],
+    [
+      "tur",
+      "Turks"
+    ],
+    [
+      "ces",
+      "Tsjechisch"
+    ],
+    [
+      "ell",
+      "Grieks"
+    ],
+    [
+      "heb",
+      "Hebreeuws"
+    ],
+    [
+      "tha",
+      "Thais"
+    ],
+    [
+      "vie",
+      "Vietnamees"
+    ],
+    [
+      "ukr",
+      "Oekraïens"
+    ],
+    [
+      "hun",
+      "Hongaars"
+    ],
+    [
+      "ron",
+      "Roemeens"
+    ]
   ],
   "wizSteps": [
     "Stap 1 van 9 — Welkom",
@@ -182,5 +299,7 @@
     "task.scan.description": "Zoekt naar duplicaten, onafspeelbare bestanden, te grote encodes, ongewenste taalsporen, verkeerd geplaatste bestanden en video's zonder ondertitels.",
     "task.fix.name": "Goedgekeurde correcties toepassen",
     "task.fix.description": "Past goedgekeurde en automatische correcties toe: verwijdert duplicaten, hercodeert te grote bestanden, verwijdert ongewenste sporen."
-  }
+  },
+  "savedPerLibrary": "Bespaard per bibliotheek",
+  "unassignedLibrary": "Niet toegewezen"
 }

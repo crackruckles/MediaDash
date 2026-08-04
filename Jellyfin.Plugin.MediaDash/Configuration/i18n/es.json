@@ -50,7 +50,6 @@
   "restored": "Restaurado.",
   "restoreFailed": "No se pudo restaurar: {0}",
   "spaceSavedToDate": "Espacio ahorrado hasta la fecha: {0}",
-  "savedOverTime": "Espacio ahorrado a lo largo del tiempo",
   "dryRunBadge": "prueba",
   "saved": "Guardado.",
   "confirmAuto": "El modo automático cambiará archivos cada noche sin preguntar. Los archivos eliminados van a la papelera (salvo si está configurado para borrado permanente). ¿Continuar?",
@@ -132,15 +131,133 @@
       "action": "Descargar subtítulos",
       "actionHint": "Descarga uno mediante los proveedores de subtítulos configurados en Jellyfin (OpenSubtitles, etc.).",
       "approveAll": "Descargar subtítulos para los {0} mostrados"
+    },
+    "Stale": {
+      "title": "Contenido obsoleto",
+      "hint": "Nadie lo ha reproducido en mucho tiempo.",
+      "action": "Revisar",
+      "actionHint": "Solo detección por ahora — MediaDash muestra la lista, tú decides si eliminar o conservar.",
+      "approveAll": "Revisar los {0} elementos obsoletos mostrados"
+    },
+    "MalwareRisk": {
+      "title": "Ejecutables sospechosos",
+      "hint": "Programas o scripts dentro de una carpeta de medios — casi siempre malware de un release pirata.",
+      "action": "Eliminar este archivo",
+      "actionHint": "Añade la eliminación a la próxima ejecución de arreglos; el archivo va a la papelera salvo que lo marques como permanente.",
+      "approveAll": "Eliminar los {0} archivos sospechosos mostrados",
+      "doRecycle": "Eliminar el ejecutable — recuperable desde la papelera",
+      "doPermanent": "Eliminar el ejecutable — permanentemente"
     }
   },
   "languages": [
-    ["eng", "Inglés"], ["spa", "Español"], ["fra", "Francés"], ["deu", "Alemán"], ["ita", "Italiano"],
-    ["por", "Portugués"], ["nld", "Neerlandés"], ["rus", "Ruso"], ["jpn", "Japonés"], ["zho", "Chino"],
-    ["kor", "Coreano"], ["ara", "Árabe"], ["hin", "Hindi"], ["pol", "Polaco"], ["swe", "Sueco"],
-    ["nor", "Noruego"], ["dan", "Danés"], ["fin", "Finés"], ["tur", "Turco"], ["ces", "Checo"],
-    ["ell", "Griego"], ["heb", "Hebreo"], ["tha", "Tailandés"], ["vie", "Vietnamita"], ["ukr", "Ucraniano"],
-    ["hun", "Húngaro"], ["ron", "Rumano"]
+    [
+      "eng",
+      "Inglés"
+    ],
+    [
+      "spa",
+      "Español"
+    ],
+    [
+      "fra",
+      "Francés"
+    ],
+    [
+      "deu",
+      "Alemán"
+    ],
+    [
+      "ita",
+      "Italiano"
+    ],
+    [
+      "por",
+      "Portugués"
+    ],
+    [
+      "nld",
+      "Neerlandés"
+    ],
+    [
+      "rus",
+      "Ruso"
+    ],
+    [
+      "jpn",
+      "Japonés"
+    ],
+    [
+      "zho",
+      "Chino"
+    ],
+    [
+      "kor",
+      "Coreano"
+    ],
+    [
+      "ara",
+      "Árabe"
+    ],
+    [
+      "hin",
+      "Hindi"
+    ],
+    [
+      "pol",
+      "Polaco"
+    ],
+    [
+      "swe",
+      "Sueco"
+    ],
+    [
+      "nor",
+      "Noruego"
+    ],
+    [
+      "dan",
+      "Danés"
+    ],
+    [
+      "fin",
+      "Finés"
+    ],
+    [
+      "tur",
+      "Turco"
+    ],
+    [
+      "ces",
+      "Checo"
+    ],
+    [
+      "ell",
+      "Griego"
+    ],
+    [
+      "heb",
+      "Hebreo"
+    ],
+    [
+      "tha",
+      "Tailandés"
+    ],
+    [
+      "vie",
+      "Vietnamita"
+    ],
+    [
+      "ukr",
+      "Ucraniano"
+    ],
+    [
+      "hun",
+      "Húngaro"
+    ],
+    [
+      "ron",
+      "Rumano"
+    ]
   ],
   "wizSteps": [
     "Paso 1 de 9 — Bienvenida",
@@ -182,5 +299,7 @@
     "task.scan.description": "Busca duplicados, archivos irreproducibles, codificaciones sobredimensionadas, pistas de idioma no deseadas, archivos mal ubicados y vídeos sin subtítulos.",
     "task.fix.name": "Aplicar correcciones aprobadas",
     "task.fix.description": "Aplica correcciones aprobadas y automáticas: elimina duplicados, recodifica archivos sobredimensionados, quita pistas no deseadas."
-  }
+  },
+  "savedPerLibrary": "Ahorrado por biblioteca",
+  "unassignedLibrary": "Sin asignar"
 }

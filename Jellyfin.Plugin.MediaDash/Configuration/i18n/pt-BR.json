@@ -50,7 +50,6 @@
   "restored": "Restaurado.",
   "restoreFailed": "Não foi possível restaurar: {0}",
   "spaceSavedToDate": "Espaço economizado até hoje: {0}",
-  "savedOverTime": "Espaço economizado ao longo do tempo",
   "dryRunBadge": "simulação",
   "saved": "Salvo.",
   "confirmAuto": "O modo automático alterará arquivos toda noite sem perguntar. Arquivos removidos vão para a lixeira (a menos que definidos para exclusão permanente). Continuar?",
@@ -132,15 +131,133 @@
       "action": "Baixar legendas",
       "actionHint": "Baixa uma pelos provedores de legendas configurados no Jellyfin (OpenSubtitles etc.).",
       "approveAll": "Baixar legendas para todos os {0} mostrados"
+    },
+    "Stale": {
+      "title": "Conteúdo obsoleto",
+      "hint": "Ninguém reproduziu há muito tempo.",
+      "action": "Revisar",
+      "actionHint": "Somente detecção por enquanto — MediaDash mostra a lista, você decide se apaga ou mantém.",
+      "approveAll": "Revisar todos os {0} itens obsoletos mostrados"
+    },
+    "MalwareRisk": {
+      "title": "Executáveis suspeitos",
+      "hint": "Programas ou scripts numa pasta de mídia — quase sempre malware de um release pirata.",
+      "action": "Excluir este arquivo",
+      "actionHint": "Enfileira a exclusão para a próxima execução de correções; vai para a lixeira, a menos que seja marcado como permanente.",
+      "approveAll": "Excluir todos os {0} arquivos suspeitos mostrados",
+      "doRecycle": "Excluir o executável — recuperável da lixeira",
+      "doPermanent": "Excluir o executável — permanentemente"
     }
   },
   "languages": [
-    ["eng", "Inglês"], ["spa", "Espanhol"], ["fra", "Francês"], ["deu", "Alemão"], ["ita", "Italiano"],
-    ["por", "Português"], ["nld", "Holandês"], ["rus", "Russo"], ["jpn", "Japonês"], ["zho", "Chinês"],
-    ["kor", "Coreano"], ["ara", "Árabe"], ["hin", "Híndi"], ["pol", "Polonês"], ["swe", "Sueco"],
-    ["nor", "Norueguês"], ["dan", "Dinamarquês"], ["fin", "Finlandês"], ["tur", "Turco"], ["ces", "Tcheco"],
-    ["ell", "Grego"], ["heb", "Hebraico"], ["tha", "Tailandês"], ["vie", "Vietnamita"], ["ukr", "Ucraniano"],
-    ["hun", "Húngaro"], ["ron", "Romeno"]
+    [
+      "eng",
+      "Inglês"
+    ],
+    [
+      "spa",
+      "Espanhol"
+    ],
+    [
+      "fra",
+      "Francês"
+    ],
+    [
+      "deu",
+      "Alemão"
+    ],
+    [
+      "ita",
+      "Italiano"
+    ],
+    [
+      "por",
+      "Português"
+    ],
+    [
+      "nld",
+      "Holandês"
+    ],
+    [
+      "rus",
+      "Russo"
+    ],
+    [
+      "jpn",
+      "Japonês"
+    ],
+    [
+      "zho",
+      "Chinês"
+    ],
+    [
+      "kor",
+      "Coreano"
+    ],
+    [
+      "ara",
+      "Árabe"
+    ],
+    [
+      "hin",
+      "Híndi"
+    ],
+    [
+      "pol",
+      "Polonês"
+    ],
+    [
+      "swe",
+      "Sueco"
+    ],
+    [
+      "nor",
+      "Norueguês"
+    ],
+    [
+      "dan",
+      "Dinamarquês"
+    ],
+    [
+      "fin",
+      "Finlandês"
+    ],
+    [
+      "tur",
+      "Turco"
+    ],
+    [
+      "ces",
+      "Tcheco"
+    ],
+    [
+      "ell",
+      "Grego"
+    ],
+    [
+      "heb",
+      "Hebraico"
+    ],
+    [
+      "tha",
+      "Tailandês"
+    ],
+    [
+      "vie",
+      "Vietnamita"
+    ],
+    [
+      "ukr",
+      "Ucraniano"
+    ],
+    [
+      "hun",
+      "Húngaro"
+    ],
+    [
+      "ron",
+      "Romeno"
+    ]
   ],
   "wizSteps": [
     "Passo 1 de 9 — Bem-vindo",
@@ -182,5 +299,7 @@
     "task.scan.description": "Procura duplicados, arquivos irreproduzíveis, codificações grandes demais, faixas de idioma indesejadas, arquivos fora do lugar e vídeos sem legendas.",
     "task.fix.name": "Aplicar correções aprovadas",
     "task.fix.description": "Aplica correções aprovadas e automáticas: remove duplicados, recodifica arquivos grandes demais, retira faixas indesejadas."
-  }
+  },
+  "savedPerLibrary": "Economizado por biblioteca",
+  "unassignedLibrary": "Não atribuído"
 }

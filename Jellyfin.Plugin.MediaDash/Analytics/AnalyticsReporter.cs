@@ -17,8 +17,10 @@ namespace Jellyfin.Plugin.MediaDash.Analytics;
 /// Opt-in only. Fully swallows failures so a network hiccup never blocks a fix run.
 ///
 /// What's sent: an anonymous install UUID, plugin + Jellyfin version strings, the current month,
-/// per-type success counts and total bytes freed. No paths, no filenames, no usernames, no IP-derived data.
-/// The backend clamps each field monotonically so stale numbers can never reduce the totals.
+/// per-type success counts (duplicate, playability, quality, subtitle, audio, misplaced,
+/// missing-subs, stale, corrupt-artwork, suspicious/malware) and total bytes freed. No paths, no
+/// filenames, no usernames, no IP-derived data. The backend clamps each field monotonically so
+/// stale numbers can never reduce the totals.
 /// </summary>
 public sealed class AnalyticsReporter
 {
@@ -90,6 +92,9 @@ public sealed class AnalyticsReporter
                 ["p_audio"] = Count(aggregate, IssueType.AudioLanguage),
                 ["p_misplaced"] = Count(aggregate, IssueType.Misplaced),
                 ["p_missing_subs"] = Count(aggregate, IssueType.MissingSubtitles),
+                ["p_stale"] = Count(aggregate, IssueType.Stale),
+                ["p_corrupt_artwork"] = Count(aggregate, IssueType.CorruptArtwork),
+                ["p_suspicious"] = Count(aggregate, IssueType.MalwareRisk),
                 ["p_bytes_freed"] = aggregate.BytesFreed
             };
 

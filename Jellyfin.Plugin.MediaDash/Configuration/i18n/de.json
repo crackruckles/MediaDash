@@ -50,7 +50,6 @@
   "restored": "Wiederhergestellt.",
   "restoreFailed": "Wiederherstellung fehlgeschlagen: {0}",
   "spaceSavedToDate": "Bislang eingesparter Speicher: {0}",
-  "savedOverTime": "Eingesparter Speicher über die Zeit",
   "dryRunBadge": "Testmodus",
   "saved": "Gespeichert.",
   "confirmAuto": "Der automatische Modus ändert Dateien jede Nacht ohne Rückfrage. Entfernte Dateien landen im Papierkorb (außer bei permanenter Löschung). Fortfahren?",
@@ -132,15 +131,133 @@
       "action": "Untertitel herunterladen",
       "actionHint": "Lädt einen über Jellyfins konfigurierte Untertitelanbieter herunter (OpenSubtitles etc.).",
       "approveAll": "Untertitel für alle {0} angezeigten herunterladen"
+    },
+    "Stale": {
+      "title": "Ungenutzte Inhalte",
+      "hint": "Seit langer Zeit von niemandem abgespielt.",
+      "action": "Prüfen",
+      "actionHint": "Vorerst nur Erkennung — MediaDash listet auf, Sie entscheiden über Löschen oder Behalten.",
+      "approveAll": "Alle {0} angezeigten ungenutzten Inhalte prüfen"
+    },
+    "MalwareRisk": {
+      "title": "Verdächtige ausführbare Dateien",
+      "hint": "Programme oder Skripte im Medienordner — fast immer Schadsoftware aus Raubkopien.",
+      "action": "Datei löschen",
+      "actionHint": "Reiht die Löschung für den nächsten Fix-Lauf ein; die Datei landet im Papierkorb, sofern nicht auf endgültig umgestellt.",
+      "approveAll": "Alle {0} angezeigten verdächtigen Dateien löschen",
+      "doRecycle": "Ausführbare Datei löschen — aus dem Papierkorb wiederherstellbar",
+      "doPermanent": "Ausführbare Datei — endgültig löschen"
     }
   },
   "languages": [
-    ["eng", "Englisch"], ["spa", "Spanisch"], ["fra", "Französisch"], ["deu", "Deutsch"], ["ita", "Italienisch"],
-    ["por", "Portugiesisch"], ["nld", "Niederländisch"], ["rus", "Russisch"], ["jpn", "Japanisch"], ["zho", "Chinesisch"],
-    ["kor", "Koreanisch"], ["ara", "Arabisch"], ["hin", "Hindi"], ["pol", "Polnisch"], ["swe", "Schwedisch"],
-    ["nor", "Norwegisch"], ["dan", "Dänisch"], ["fin", "Finnisch"], ["tur", "Türkisch"], ["ces", "Tschechisch"],
-    ["ell", "Griechisch"], ["heb", "Hebräisch"], ["tha", "Thai"], ["vie", "Vietnamesisch"], ["ukr", "Ukrainisch"],
-    ["hun", "Ungarisch"], ["ron", "Rumänisch"]
+    [
+      "eng",
+      "Englisch"
+    ],
+    [
+      "spa",
+      "Spanisch"
+    ],
+    [
+      "fra",
+      "Französisch"
+    ],
+    [
+      "deu",
+      "Deutsch"
+    ],
+    [
+      "ita",
+      "Italienisch"
+    ],
+    [
+      "por",
+      "Portugiesisch"
+    ],
+    [
+      "nld",
+      "Niederländisch"
+    ],
+    [
+      "rus",
+      "Russisch"
+    ],
+    [
+      "jpn",
+      "Japanisch"
+    ],
+    [
+      "zho",
+      "Chinesisch"
+    ],
+    [
+      "kor",
+      "Koreanisch"
+    ],
+    [
+      "ara",
+      "Arabisch"
+    ],
+    [
+      "hin",
+      "Hindi"
+    ],
+    [
+      "pol",
+      "Polnisch"
+    ],
+    [
+      "swe",
+      "Schwedisch"
+    ],
+    [
+      "nor",
+      "Norwegisch"
+    ],
+    [
+      "dan",
+      "Dänisch"
+    ],
+    [
+      "fin",
+      "Finnisch"
+    ],
+    [
+      "tur",
+      "Türkisch"
+    ],
+    [
+      "ces",
+      "Tschechisch"
+    ],
+    [
+      "ell",
+      "Griechisch"
+    ],
+    [
+      "heb",
+      "Hebräisch"
+    ],
+    [
+      "tha",
+      "Thai"
+    ],
+    [
+      "vie",
+      "Vietnamesisch"
+    ],
+    [
+      "ukr",
+      "Ukrainisch"
+    ],
+    [
+      "hun",
+      "Ungarisch"
+    ],
+    [
+      "ron",
+      "Rumänisch"
+    ]
   ],
   "wizSteps": [
     "Schritt 1 von 9 — Willkommen",
@@ -182,5 +299,7 @@
     "task.scan.description": "Sucht nach Duplikaten, nicht abspielbaren Dateien, übergroßen Encodes, unerwünschten Sprachspuren, falsch abgelegten Dateien und Videos ohne Untertitel.",
     "task.fix.name": "Genehmigte Korrekturen anwenden",
     "task.fix.description": "Wendet genehmigte und automatische Korrekturen an: entfernt Duplikate, kodiert übergroße Dateien neu, entfernt unerwünschte Spuren."
-  }
+  },
+  "savedPerLibrary": "Gespart pro Bibliothek",
+  "unassignedLibrary": "Nicht zugeordnet"
 }

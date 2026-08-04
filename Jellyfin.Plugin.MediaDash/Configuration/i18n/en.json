@@ -133,15 +133,133 @@
       "action": "Download subtitles",
       "actionHint": "Downloads one via Jellyfin's configured subtitle providers (OpenSubtitles etc.).",
       "approveAll": "Download subtitles for all {0} shown"
+    },
+    "Stale": {
+      "title": "Stale content",
+      "hint": "Nobody has played it in a long time.",
+      "action": "Review",
+      "actionHint": "Detect-only for now — MediaDash surfaces the list, you decide whether to delete or keep.",
+      "approveAll": "Review all {0} stale items shown"
+    },
+    "MalwareRisk": {
+      "title": "Suspicious executables",
+      "hint": "Programs or scripts sitting in a media folder — almost always malware from a pirated release.",
+      "action": "Delete this file",
+      "actionHint": "Queues deletion for the next fix run; the file goes to the recycle bin unless you switch it to permanent.",
+      "approveAll": "Delete all {0} suspicious files shown",
+      "doRecycle": "Delete the executable — recoverable from the recycle bin",
+      "doPermanent": "Delete the executable — permanently"
     }
   },
   "languages": [
-    ["eng", "English"], ["spa", "Spanish"], ["fra", "French"], ["deu", "German"], ["ita", "Italian"],
-    ["por", "Portuguese"], ["nld", "Dutch"], ["rus", "Russian"], ["jpn", "Japanese"], ["zho", "Chinese"],
-    ["kor", "Korean"], ["ara", "Arabic"], ["hin", "Hindi"], ["pol", "Polish"], ["swe", "Swedish"],
-    ["nor", "Norwegian"], ["dan", "Danish"], ["fin", "Finnish"], ["tur", "Turkish"], ["ces", "Czech"],
-    ["ell", "Greek"], ["heb", "Hebrew"], ["tha", "Thai"], ["vie", "Vietnamese"], ["ukr", "Ukrainian"],
-    ["hun", "Hungarian"], ["ron", "Romanian"]
+    [
+      "eng",
+      "English"
+    ],
+    [
+      "spa",
+      "Spanish"
+    ],
+    [
+      "fra",
+      "French"
+    ],
+    [
+      "deu",
+      "German"
+    ],
+    [
+      "ita",
+      "Italian"
+    ],
+    [
+      "por",
+      "Portuguese"
+    ],
+    [
+      "nld",
+      "Dutch"
+    ],
+    [
+      "rus",
+      "Russian"
+    ],
+    [
+      "jpn",
+      "Japanese"
+    ],
+    [
+      "zho",
+      "Chinese"
+    ],
+    [
+      "kor",
+      "Korean"
+    ],
+    [
+      "ara",
+      "Arabic"
+    ],
+    [
+      "hin",
+      "Hindi"
+    ],
+    [
+      "pol",
+      "Polish"
+    ],
+    [
+      "swe",
+      "Swedish"
+    ],
+    [
+      "nor",
+      "Norwegian"
+    ],
+    [
+      "dan",
+      "Danish"
+    ],
+    [
+      "fin",
+      "Finnish"
+    ],
+    [
+      "tur",
+      "Turkish"
+    ],
+    [
+      "ces",
+      "Czech"
+    ],
+    [
+      "ell",
+      "Greek"
+    ],
+    [
+      "heb",
+      "Hebrew"
+    ],
+    [
+      "tha",
+      "Thai"
+    ],
+    [
+      "vie",
+      "Vietnamese"
+    ],
+    [
+      "ukr",
+      "Ukrainian"
+    ],
+    [
+      "hun",
+      "Hungarian"
+    ],
+    [
+      "ron",
+      "Romanian"
+    ]
   ],
   "wizSteps": [
     "Step 1 of 9 — Welcome",

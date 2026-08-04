@@ -254,6 +254,118 @@
         .trust strong { display: block; margin-bottom: .2em; }
         .trust p { margin: 0; color: var(--mute); font-size: .95em; }
 
+        /* Community impact */
+        .impact-lede {
+            display: flex; flex-wrap: wrap; align-items: baseline; gap: .8em 1.2em;
+            margin: -.6em 0 1.4em;
+        }
+        .impact-lede .impact-sub { color: var(--mute); font-size: 1.02em; margin: 0; }
+        .impact-lede .impact-pill {
+            display: inline-flex; align-items: center; gap: .4em;
+            font-size: .82em; color: var(--mute-strong);
+            background: rgba(34, 197, 94, .1);
+            border: 1px solid rgba(34, 197, 94, .28);
+            padding: .28em .7em; border-radius: 999px;
+            font-weight: 500;
+        }
+        .impact-lede .impact-pill .live-dot {
+            width: .55em; height: .55em; border-radius: 999px;
+            background: #22c55e;
+            box-shadow: 0 0 0 0 rgba(34, 197, 94, .55);
+            animation: impact-pulse 2.2s ease-out infinite;
+        }
+        @keyframes impact-pulse {
+            0%   { box-shadow: 0 0 0 0    rgba(34, 197, 94, .55); }
+            70%  { box-shadow: 0 0 0 8px  rgba(34, 197, 94, 0); }
+            100% { box-shadow: 0 0 0 0    rgba(34, 197, 94, 0); }
+        }
+        .impact-hero {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1em;
+            margin-bottom: 1.4em;
+        }
+        .impact-tile {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 1.3em 1.4em;
+            position: relative; overflow: hidden;
+            transition: border-color .15s;
+        }
+        .impact-tile:hover { border-color: var(--border-strong); }
+        .impact-tile .impact-tile-icon {
+            position: absolute; top: 1em; right: 1em;
+            font-size: 1.6em; opacity: .18;
+        }
+        .impact-tile .impact-tile-label {
+            font-size: .82em; color: var(--mute);
+            text-transform: uppercase; letter-spacing: .05em;
+            margin-bottom: .5em;
+        }
+        .impact-tile .impact-tile-value {
+            font-size: 2.1em; font-weight: 700; letter-spacing: -.02em;
+            line-height: 1.05;
+            background: linear-gradient(135deg, var(--primary-bright), var(--accent));
+            -webkit-background-clip: text; background-clip: text;
+            color: transparent;
+        }
+        .impact-tile .impact-tile-sub {
+            margin-top: .4em; font-size: .86em; color: var(--mute);
+        }
+        .impact-tile.headline .impact-tile-value {
+            background: linear-gradient(135deg, #22d3ee, #22c55e);
+            -webkit-background-clip: text; background-clip: text;
+        }
+        .impact-breakdown {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 1.2em 1.4em;
+        }
+        .impact-breakdown h3 {
+            margin: 0 0 .9em;
+            font-size: 1em; color: var(--mute-strong);
+            font-weight: 600;
+            display: flex; align-items: center; gap: .5em;
+        }
+        .impact-rows {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: .1em .8em;
+        }
+        .impact-row {
+            display: grid;
+            grid-template-columns: 1.6em 1fr auto auto;
+            align-items: baseline;
+            gap: .55em;
+            padding: .5em 0;
+            border-bottom: 1px dashed var(--border);
+            font-size: .93em;
+        }
+        .impact-row:last-child { border-bottom: none; }
+        .impact-row .material-icons { font-size: 1em; color: var(--primary-bright); }
+        .impact-row .impact-row-label { color: var(--mute-strong); }
+        .impact-row .impact-row-lifetime { font-variant-numeric: tabular-nums; font-weight: 600; }
+        .impact-row .impact-row-month {
+            font-variant-numeric: tabular-nums;
+            font-size: .82em; color: var(--mute);
+            min-width: 4em; text-align: right;
+        }
+        .impact-row .impact-row-month::before { content: '+'; opacity: .55; margin-right: .1em; }
+        .impact-row .impact-row-month.zero { visibility: hidden; }
+        .impact-note {
+            margin-top: .9em; font-size: .85em; color: var(--mute);
+            text-align: center;
+        }
+        .impact-note a { color: var(--mute-strong); }
+        @media (max-width: 860px) {
+            .impact-hero    { grid-template-columns: repeat(2, 1fr); }
+            .impact-rows    { grid-template-columns: 1fr; }
+            .impact-tile .impact-tile-value { font-size: 1.75em; }
+        }
+        #impact.impact-empty { display: none; }
+
         /* FAQ */
         .faq { display: grid; gap: .8em; }
         details.faq-item {
@@ -454,6 +566,61 @@
             </div>
         </section>
 
+        <section id="impact" class="impact-empty">
+            <div class="wrap">
+                <h2 class="sec-head green">Community impact</h2>
+                <div class="impact-lede">
+                    <p class="impact-sub">Aggregated across opt-in installs — updated live from the community board.</p>
+                    <span class="impact-pill"><span class="live-dot"></span>Live</span>
+                </div>
+
+                <div class="impact-hero">
+                    <div class="impact-tile headline">
+                        <span class="material-icons impact-tile-icon">savings</span>
+                        <div class="impact-tile-label">Storage reclaimed</div>
+                        <div class="impact-tile-value" data-impact="bytes_freed_lifetime">—</div>
+                        <div class="impact-tile-sub"><span data-impact="bytes_freed_month">—</span> this month</div>
+                    </div>
+                    <div class="impact-tile">
+                        <span class="material-icons impact-tile-icon">handyman</span>
+                        <div class="impact-tile-label">Files fixed</div>
+                        <div class="impact-tile-value" data-impact="total_fixed_lifetime">—</div>
+                        <div class="impact-tile-sub"><span data-impact="total_fixed_month">—</span> this month</div>
+                    </div>
+                    <div class="impact-tile">
+                        <span class="material-icons impact-tile-icon">home_work</span>
+                        <div class="impact-tile-label">Reporting installs</div>
+                        <div class="impact-tile-value" data-impact="installs_lifetime">—</div>
+                        <div class="impact-tile-sub"><span data-impact="installs_month">—</span> active this month</div>
+                    </div>
+                    <div class="impact-tile">
+                        <span class="material-icons impact-tile-icon">calendar_month</span>
+                        <div class="impact-tile-label">This month</div>
+                        <div class="impact-tile-value" data-impact="bytes_freed_month_big">—</div>
+                        <div class="impact-tile-sub">reclaimed since the 1st</div>
+                    </div>
+                </div>
+
+                <div class="impact-breakdown">
+                    <h3><span class="material-icons" style="font-size:1.1em;color:var(--primary-bright);">bar_chart</span>Where the wins came from</h3>
+                    <div class="impact-rows">
+                        <div class="impact-row"><span class="material-icons">content_copy</span>       <span class="impact-row-label">Duplicate copies removed</span>      <span class="impact-row-lifetime" data-impact="duplicate_lifetime">—</span>       <span class="impact-row-month zero" data-impact="duplicate_month">0</span></div>
+                        <div class="impact-row"><span class="material-icons">play_disabled</span>       <span class="impact-row-label">Broken files removed</span>          <span class="impact-row-lifetime" data-impact="playability_lifetime">—</span>     <span class="impact-row-month zero" data-impact="playability_month">0</span></div>
+                        <div class="impact-row"><span class="material-icons">compress</span>            <span class="impact-row-label">Oversized files re-encoded</span>    <span class="impact-row-lifetime" data-impact="quality_lifetime">—</span>         <span class="impact-row-month zero" data-impact="quality_month">0</span></div>
+                        <div class="impact-row"><span class="material-icons">subtitles</span>           <span class="impact-row-label">Unwanted subtitles stripped</span>   <span class="impact-row-lifetime" data-impact="subtitle_lifetime">—</span>        <span class="impact-row-month zero" data-impact="subtitle_month">0</span></div>
+                        <div class="impact-row"><span class="material-icons">volume_up</span>           <span class="impact-row-label">Unwanted audio stripped</span>       <span class="impact-row-lifetime" data-impact="audio_lifetime">—</span>           <span class="impact-row-month zero" data-impact="audio_month">0</span></div>
+                        <div class="impact-row"><span class="material-icons">drive_file_move</span>     <span class="impact-row-label">Misplaced files moved</span>         <span class="impact-row-lifetime" data-impact="misplaced_lifetime">—</span>       <span class="impact-row-month zero" data-impact="misplaced_month">0</span></div>
+                        <div class="impact-row"><span class="material-icons">closed_caption</span>      <span class="impact-row-label">Missing subtitles downloaded</span>  <span class="impact-row-lifetime" data-impact="missing_subs_lifetime">—</span>    <span class="impact-row-month zero" data-impact="missing_subs_month">0</span></div>
+                        <div class="impact-row"><span class="material-icons">hourglass_bottom</span>    <span class="impact-row-label">Stale files retired</span>           <span class="impact-row-lifetime" data-impact="stale_lifetime">—</span>           <span class="impact-row-month zero" data-impact="stale_month">0</span></div>
+                        <div class="impact-row"><span class="material-icons">image_not_supported</span> <span class="impact-row-label">Corrupt artwork repaired</span>      <span class="impact-row-lifetime" data-impact="corrupt_artwork_lifetime">—</span> <span class="impact-row-month zero" data-impact="corrupt_artwork_month">0</span></div>
+                        <div class="impact-row"><span class="material-icons">gpp_bad</span>             <span class="impact-row-label">Suspicious files quarantined</span>  <span class="impact-row-lifetime" data-impact="suspicious_lifetime">—</span>      <span class="impact-row-month zero" data-impact="suspicious_month">0</span></div>
+                    </div>
+                </div>
+
+                <p class="impact-note">Opt-in only. No paths, no filenames, no usernames — see <a href="https://github.com/crackruckles/MediaDash/blob/main/docs/PRIVACY.md">what's collected</a>.</p>
+            </div>
+        </section>
+
         <section>
             <div class="wrap">
                 <h2 class="sec-head amber">FAQ</h2>
@@ -519,6 +686,64 @@
                 btn.textContent = 'Ctrl+C';
             });
         }
+
+        // Community impact — live fetch from the two public views.
+        // The anon key is shipped in the plugin binary and the workflow already; safe by design (see docs/PRIVACY.md).
+        // Section stays hidden if the fetch fails so a Supabase blip never shows placeholder dashes.
+        (function () {
+            var SUPA = 'https://mcgpyjtcqyrffydpfdrd.supabase.co/rest/v1/';
+            var KEY  = 'sb_publishable_dstMpg4VGn2tSS_DEhsdZg_n9jwnFXk';
+            var TYPES = ['duplicate','playability','quality','subtitle','audio','misplaced','missing_subs','stale','corrupt_artwork','suspicious'];
+
+            function fmtBytes(n) {
+                n = Number(n) || 0;
+                var units = ['B','KB','MB','GB','TB','PB'];
+                var i = 0;
+                while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+                return n.toFixed(n >= 100 || i === 0 ? 0 : 1) + ' ' + units[i];
+            }
+            function fmtInt(n) { return Number(n || 0).toLocaleString('en-US'); }
+            function set(key, val) {
+                var els = document.querySelectorAll('[data-impact="' + key + '"]');
+                for (var i = 0; i < els.length; i++) els[i].textContent = val;
+            }
+            function setMonthCell(key, n) {
+                var el = document.querySelector('[data-impact="' + key + '_month"]');
+                if (!el) return;
+                if (Number(n || 0) === 0) { el.classList.add('zero'); el.textContent = '0'; }
+                else { el.classList.remove('zero'); el.textContent = fmtInt(n); }
+            }
+            function get(url) {
+                return fetch(url, { headers: { apikey: KEY, Authorization: 'Bearer ' + KEY, Accept: 'application/json' } })
+                    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+                    .then(function (rows) { return (rows && rows[0]) || {}; });
+            }
+
+            Promise.all([get(SUPA + 'public_lifetime'), get(SUPA + 'public_current_month')]).then(function (out) {
+                var life = out[0], now = out[1];
+
+                var lifeTotal = 0, monthTotal = 0;
+                for (var i = 0; i < TYPES.length; i++) {
+                    var t = TYPES[i];
+                    var lifeN  = Number(life[t + '_fixed'] || 0);
+                    var monthN = Number(now [t + '_fixed'] || 0);
+                    lifeTotal  += lifeN;
+                    monthTotal += monthN;
+                    set(t + '_lifetime', fmtInt(lifeN));
+                    setMonthCell(t, monthN);
+                }
+
+                set('bytes_freed_lifetime',  fmtBytes(life.bytes_freed));
+                set('bytes_freed_month',     fmtBytes(now.bytes_freed));
+                set('bytes_freed_month_big', fmtBytes(now.bytes_freed));
+                set('total_fixed_lifetime',  fmtInt(lifeTotal));
+                set('total_fixed_month',     fmtInt(monthTotal));
+                set('installs_lifetime',     fmtInt(life.lifetime_installs));
+                set('installs_month',        fmtInt(now.monthly_active_installs));
+
+                document.getElementById('impact').classList.remove('impact-empty');
+            }).catch(function () { /* silent — section stays hidden. */ });
+        })();
     </script>
 </body>
 </html>
