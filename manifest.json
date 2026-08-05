@@ -9,6 +9,22 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.9.2.0",
+        "changelog": "Groups TV episodes into per-show folders and movie franchises (\u003e=2 siblings) into shared folders using Jellyfin\u0027s identified metadata. Fixes false-positive duplicate detection when Jellyfin derives Movie.Name from a folder (name-fallback keys now include the filename; also tightened for Book and Audio, with a required runtime for audio). Fixes transcode failure on filenames near Linux\u0027s 255-byte limit (Cyrillic/CJK) via hash-based sidecar names. Failed fixes that mean \u0027file no longer exists\u0027 or \u0027nothing left to remove\u0027 now auto-clear from the queue instead of retrying every 15 minutes. Move-style fixers now update sibling issues in the DB so they don\u0027t fail with \u0027no longer exists\u0027 after a rename. Issues tab: per-type total pills, \u0027Try to play\u0027 button on Playability cards, Duplicate cards show keeper location. ffmpeg error output now shows the tail (where the actual error is) instead of the codec startup banner.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.9.2/mediadash_0.9.2.zip",
+        "checksum": "6645ed03f6e883f3fb4d1f8a7171f9af",
+        "timestamp": "2026-08-05T10:41:04Z"
+      },
+      {
+        "version": "0.9.2.0",
+        "changelog": "Groups TV episodes into per-show folders and movie franchises (\u003e=2 siblings) into shared folders using Jellyfin\u0027s identified metadata. Fixes false-positive duplicate detection when Jellyfin derives Movie.Name from a folder (name-fallback keys now include the filename; also tightened for Book and Audio, with a required runtime for audio). Fixes transcode failure on filenames near Linux\u0027s 255-byte limit (Cyrillic/CJK) via hash-based sidecar names. Failed fixes that mean \u0027file no longer exists\u0027 or \u0027nothing left to remove\u0027 now auto-clear from the queue instead of retrying every 15 minutes. Move-style fixers now update sibling issues in the DB so they don\u0027t fail with \u0027no longer exists\u0027 after a rename. Issues tab: per-type total pills, \u0027Try to play\u0027 button on Playability cards, Duplicate cards show keeper location. ffmpeg error output now shows the tail (where the actual error is) instead of the codec startup banner.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.9.2/mediadash_0.9.2.zip",
+        "checksum": "6645ed03f6e883f3fb4d1f8a7171f9af",
+        "timestamp": "2026-08-05T10:41:04Z"
+      },
+      {
         "version": "0.9.1.0",
         "changelog": "Fix task now runs opportunistically. Instead of a daily-at-configured-time trigger, it fires every 15 minutes and defers immediately when anyone is watching or has been active in the last 15 minutes (existing \u0027Only run when idle\u0027 setting). Queued fixes now drain the moment the server goes idle instead of waiting for the nightly window. Existing installs auto-migrate their old daily trigger on first startup (30 s after boot). The \u0027Scheduled fix time\u0027 input is retired — no configuration needed.",
         "targetAbi": "12.0.0.0",
@@ -355,6 +371,7 @@
     ]
   }
 ]
+
 
 
 
