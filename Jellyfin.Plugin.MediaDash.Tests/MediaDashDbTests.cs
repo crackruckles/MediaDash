@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using Jellyfin.Plugin.MediaDash.Data;
 using Xunit;
 
@@ -65,6 +66,59 @@ public sealed class MediaDashDbTests : IDisposable
         _db.ReplaceDetectedIssues(IssueType.Playability, [Make("A")]);
 
         Assert.Empty(_db.GetIssues(IssueType.Playability, IssueStatus.Detected));
+    }
+
+    [Fact]
+    public void RelocateIssuePaths_ExactFileMatch_RewritesInPlace()
+    {
+        _db.ReplaceDetectedIssues(IssueType.Playability, [Make("/tv/Show.S01E01.mkv"), Make("/tv/Other.mkv")]);
+
+        var moved = _db.RelocateIssuePaths("/tv/Show.S01E01.mkv", "/tv/Show/Show.S01E01.mkv");
+
+        Assert.Equal(1, moved);
+        var paths = _db.GetIssues(IssueType.Playability).Select(i => i.Path).OrderBy(p => p).ToArray();
+        Assert.Equal(new[] { "/tv/Other.mkv", "/tv/Show/Show.S01E01.mkv" }, paths);
+    }
+
+    [Fact]
+    public void RelocateIssuePaths_FolderMove_RewritesEverythingUnderThePrefix()
+    {
+        // A folder move should carry every child issue with it (audio-language on file A, subtitle on file B, …).
+        _db.ReplaceDetectedIssues(IssueType.Playability,
+        [
+            Make("/tv/ShowS01E01/video.mkv"),
+            Make("/tv/ShowS01E01/subs.srt"),
+            Make("/tv/OtherShow/video.mkv"),
+        ]);
+
+        var moved = _db.RelocateIssuePaths("/tv/ShowS01E01", "/tv/My Show/ShowS01E01");
+
+        Assert.Equal(2, moved);
+        var paths = _db.GetIssues(IssueType.Playability).Select(i => i.Path).OrderBy(p => p).ToArray();
+        Assert.Equal(new[]
+        {
+            "/tv/My Show/ShowS01E01/subs.srt",
+            "/tv/My Show/ShowS01E01/video.mkv",
+            "/tv/OtherShow/video.mkv"
+        }, paths);
+    }
+
+    [Fact]
+    public void RelocateIssuePaths_NoMatch_NoOp()
+    {
+        _db.ReplaceDetectedIssues(IssueType.Playability, [Make("/tv/A.mkv")]);
+        var moved = _db.RelocateIssuePaths("/tv/does-not-exist.mkv", "/tv/wherever.mkv");
+        Assert.Equal(0, moved);
+    }
+
+    [Fact]
+    public void RelocateIssuePaths_DoesNotOverMatchSimilarFolderNames()
+    {
+        // "/tv/Show" as prefix must NOT match "/tv/Show2/…". Requires a '/' or '\' boundary after the prefix.
+        _db.ReplaceDetectedIssues(IssueType.Playability, [Make("/tv/Show2/video.mkv")]);
+        var moved = _db.RelocateIssuePaths("/tv/Show", "/tv/Renamed");
+        Assert.Equal(0, moved);
+        Assert.Equal("/tv/Show2/video.mkv", _db.GetIssues(IssueType.Playability)[0].Path);
     }
 
     [Fact]

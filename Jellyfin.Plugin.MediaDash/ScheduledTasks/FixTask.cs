@@ -201,6 +201,14 @@ public sealed class FixTask : IScheduledTask
                 {
                     RecordFailure(result.Message);
                     _logger.LogWarning("Fix failed for {Path}: {Message}", issue.Path, result.Message);
+
+                    // Stale failure: the file was renamed/rebuilt/removed by an external tool (Sonarr, Radarr,
+                    // manual edit) between the scan and this fix run. Retrying every 15 minutes won't help —
+                    // move the issue out of Queued so the loop stops. Next scan re-detects if still applicable.
+                    if (IsStaleFailure(result.Message))
+                    {
+                        _db.UpdateIssueStatus(issue.Id, IssueStatus.Fixed);
+                    }
                 }
             }
             catch (OperationCanceledException)
@@ -280,6 +288,19 @@ public sealed class FixTask : IScheduledTask
         await _analytics.ReportMonthToDateAsync(cancellationToken).ConfigureAwait(false);
 
         progress.Report(100);
+    }
+
+    // Failures that mean "the underlying state moved between scan and fix". Retrying is guaranteed to
+    // hit the same wall until a fresh scan re-detects (or doesn't). Exposed internal for direct testing.
+    internal static bool IsStaleFailure(string message)
+    {
+        if (string.IsNullOrEmpty(message))
+        {
+            return false;
+        }
+
+        return message.Contains("no longer exists", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("Nothing to remove any more", StringComparison.OrdinalIgnoreCase);
     }
 
     // Fold a specific error message into a short reason-family so 142 permission-denied failures collapse to

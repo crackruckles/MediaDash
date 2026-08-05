@@ -130,12 +130,20 @@ public sealed partial class DuplicateScanner : IScanner
                 }
             }
 
-            // Name-only matching needs a year: without provider IDs and without a year,
-            // two unrelated files with generic names (e.g. "1.mp4") must never be treated as duplicates.
+            // Name-only matching needs a year AND the filename: Jellyfin often derives Movie.Name from
+            // the containing folder for unidentified content (e.g. a "Season Pack" folder where every
+            // .mp4 gets the same Name + year). Grouping on Name+Year alone would then flag every
+            // distinct video in that folder as a duplicate of every other. Adding the normalized
+            // filename makes false positives impossible for the fallback path — real duplicates come in
+            // via the provider-ID branch above, which stays untouched.
             var name = NormalizeName(movie.Name);
-            return name.Length == 0 || movie.ProductionYear is null
-                ? null
-                : string.Create(CultureInfo.InvariantCulture, $"movie:name:{name}:{movie.ProductionYear}");
+            if (name.Length == 0 || movie.ProductionYear is null)
+            {
+                return null;
+            }
+
+            var fileNorm = NormalizeName(Path.GetFileName(movie.Path));
+            return string.Create(CultureInfo.InvariantCulture, $"movie:name:{name}:{movie.ProductionYear}:{fileNorm}");
         }
 
         var kind = item.GetBaseItemKind();
@@ -154,9 +162,15 @@ public sealed partial class DuplicateScanner : IScanner
             }
 
             var titleNorm = NormalizeName(book.Name);
-            return titleNorm.Length == 0
-                ? null
-                : $"book:name:{titleNorm}";
+            if (titleNorm.Length == 0)
+            {
+                return null;
+            }
+
+            // Filename must also match, same guard as the Movie fallback: two files both titled "Dune"
+            // (a novel and a short-story collection, say) should not be flagged as duplicates on title alone.
+            var bookFileNorm = NormalizeName(Path.GetFileName(book.Path));
+            return $"book:name:{titleNorm}:{bookFileNorm}";
         }
 
         if (kind == BaseItemKind.Audio || kind == BaseItemKind.AudioBook)
@@ -180,12 +194,19 @@ public sealed partial class DuplicateScanner : IScanner
                 return null;
             }
 
-            var seconds = audio.RunTimeTicks is long ticks && ticks > 0
-                ? (int)TimeSpan.FromTicks(ticks).TotalSeconds
-                : 0;
+            // Require a known runtime for the fallback path. Without a MusicBrainz id, "artist+album+title"
+            // alone is too loose — two tracks with the same generic title on different releases can collide.
+            // Runtime is the strongest cross-file signal that survives re-encoding.
+            if (audio.RunTimeTicks is not long ticks || ticks <= 0)
+            {
+                return null;
+            }
+
+            var seconds = (int)TimeSpan.FromTicks(ticks).TotalSeconds;
+            var audioFileNorm = NormalizeName(Path.GetFileName(audio.Path));
             return string.Create(
                 CultureInfo.InvariantCulture,
-                $"audio:name:{artistNorm}:{albumNorm}:{titleNorm}:{seconds}");
+                $"audio:name:{artistNorm}:{albumNorm}:{titleNorm}:{seconds}:{audioFileNorm}");
         }
 
         return null;

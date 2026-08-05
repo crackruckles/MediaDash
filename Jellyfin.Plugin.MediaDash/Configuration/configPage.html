@@ -1366,6 +1366,7 @@
                 </div>
 
                 <div id="mdTab-issues" style="display:none;">
+                    <div id="mdIssueTotals" style="display:flex;flex-wrap:wrap;gap:.4em;margin-bottom:.7em;"></div>
                     <div class="mdIssueFilterRow">
                         <div class="selectContainer" style="max-width:18em;flex:1;margin-bottom:0;">
                             <label class="selectLabel" for="mdTypeFilter">Show</label>
@@ -2279,7 +2280,33 @@
 
             function renderIssues(list) {
                 lastIssueList = list;
+                renderIssueTotals();
                 renderIssuesFiltered();
+            }
+
+            function renderIssueTotals() {
+                var el = view.querySelector('#mdIssueTotals');
+                if (!el) return;
+                var counts = {};
+                lastIssueList.forEach(function (i) { counts[i.Type] = (counts[i.Type] || 0) + 1; });
+                var keys = Object.keys(counts).sort();
+                if (!keys.length) { el.innerHTML = ''; return; }
+                var current = view.querySelector('#mdTypeFilter').value;
+                var total = lastIssueList.length;
+                var html = '<button is="emby-button" type="button" class="raised mdTotalPill" data-type="" style="font-size:80%;background:' + (current === '' ? '#00a4dc' : 'rgba(255,255,255,.08)') + ';">All <b style="margin-left:.3em;">' + total + '</b></button>';
+                keys.forEach(function (k) {
+                    var t = STR.types[k] || { title: k, color: '#888' };
+                    var active = current === k;
+                    html += '<button is="emby-button" type="button" class="raised mdTotalPill" data-type="' + esc(k) + '" style="font-size:80%;background:' + (active ? t.color : 'rgba(255,255,255,.08)') + ';border-left:3px solid ' + t.color + ';">' + esc(t.title) + ' <b style="margin-left:.3em;">' + counts[k] + '</b></button>';
+                });
+                el.innerHTML = html;
+                el.querySelectorAll('.mdTotalPill').forEach(function (b) {
+                    b.addEventListener('click', function () {
+                        view.querySelector('#mdTypeFilter').value = b.getAttribute('data-type');
+                        renderIssueTotals();
+                        renderIssuesFiltered();
+                    });
+                });
             }
 
             function renderIssuesFiltered() {
@@ -2288,12 +2315,21 @@
                 var typeFilter = view.querySelector('#mdTypeFilter').value;
                 var textFilter = (view.querySelector('#mdIssueFilter').value || '').trim().toLowerCase();
                 var list = lastIssueList;
+                if (typeFilter) {
+                    list = list.filter(function (i) { return i.Type === typeFilter; });
+                }
                 if (textFilter) {
                     list = list.filter(function (i) {
                         return (i.FileName || '').toLowerCase().indexOf(textFilter) >= 0
                             || (i.Path || '').toLowerCase().indexOf(textFilter) >= 0;
                     });
                 }
+
+                // ponytail: skip re-render when the visible list is unchanged. Without this, the 3s status poll
+                // during a fix run replays mdFade on every card (visible flicker) and swaps click listeners mid-interaction.
+                var fingerprint = typeFilter + '|' + textFilter + '|' + list.slice(0, 100).map(function (i) { return i.Id + ':' + i.Status; }).join(',');
+                if (el.getAttribute('data-fingerprint') === fingerprint) return;
+                el.setAttribute('data-fingerprint', fingerprint);
 
                 if (typeFilter && list.length > 1) {
                     var ft = STR.types[typeFilter] || {};
@@ -2325,17 +2361,36 @@
                     var statusBadge = isQueued
                         ? '<span class="mdBadge" style="background:rgba(0,164,220,.35);color:#fff;">queued</span> '
                         : '';
+                    var verifyBtn = '';
+                    if (i.Type === 'Playability' && i.ItemId && i.ItemId !== '00000000-0000-0000-0000-000000000000') {
+                        verifyBtn = '<button is="emby-button" type="button" class="raised mdOpenInJellyfin" data-item="' + esc(i.ItemId) + '" style="font-size:80%;"><span class="material-icons" style="font-size:1em;vertical-align:middle;margin-right:.2em;">play_arrow</span>Try to play</button>';
+                    }
                     var actions = isQueued
                         ? '<span class="fieldDescription" style="color:#00a4dc;"><span class="material-icons" style="font-size:1em;vertical-align:middle;">schedule</span> Waiting for the next fix run. Click "Run fixes now" on Overview.</span>' +
+                          verifyBtn +
                           '<button is="emby-button" type="button" class="raised mdDismiss" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(STR.dismiss) + '</span></button>'
-                        : '<button is="emby-button" type="button" class="raised button-submit mdApprove" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(t.action || STR.approve) + '</span></button>' +
+                        : verifyBtn +
+                          '<button is="emby-button" type="button" class="raised button-submit mdApprove" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(t.action || STR.approve) + '</span></button>' +
                           '<button is="emby-button" type="button" class="raised mdDismiss" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(STR.dismiss) + '</span></button>' +
                           '<span class="fieldDescription">' + esc(t.actionHint || STR.approveHint) + ' · ' + esc(STR.dismissHint) + '</span>';
+                    var keeperPath = '';
+                    if (i.Type === 'Duplicate' && i.DetailsJson) {
+                        try { var d = JSON.parse(i.DetailsJson); keeperPath = d && d.keeperPath ? d.keeperPath : ''; } catch (e) { keeperPath = ''; }
+                    }
+                    var pathBlock;
+                    if (keeperPath) {
+                        pathBlock = '<div class="fieldDescription" style="margin-top:.3em;"><b style="color:#ef4444;">Delete this copy:</b></div>' +
+                            '<div class="fieldDescription mdIssuePath" data-path="' + esc(i.Path) + '" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" title="Click to open this folder in the Files tab">' + esc(i.Path) + '</div>' +
+                            '<div class="fieldDescription" style="margin-top:.3em;"><b style="color:#22c55e;">Better copy (kept):</b></div>' +
+                            '<div class="fieldDescription mdIssuePath" data-path="' + esc(keeperPath) + '" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" title="Click to open the keeper folder in the Files tab">' + esc(keeperPath) + '</div>';
+                    } else {
+                        pathBlock = '<div class="fieldDescription mdIssuePath" data-path="' + esc(i.Path) + '" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" title="Click to open this folder in the Files tab">' + esc(i.Path) + '</div>';
+                    }
                     html += '<div class="mdCard mdIssueCard mdFade" style="margin:.6em 0;border-left-color:' + t.color + ';' + (isQueued ? 'opacity:.75;' : '') + '" data-issue="' + i.Id + '">' +
                         '<div style="display:flex;justify-content:space-between;gap:1em;flex-wrap:wrap;align-items:center;">' +
                         '<div style="font-weight:600;">' + esc(i.FileName) + '</div>' +
                         '<span>' + statusBadge + '<span class="mdBadge" style="background:' + t.color + ';">' + esc(t.title) + '</span></span></div>' +
-                        '<div class="fieldDescription mdIssuePath" data-path="' + esc(i.Path) + '" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" title="Click to open this folder in the Files tab">' + esc(i.Path) + '</div>' +
+                        pathBlock +
                         '<div style="margin:.3em 0;">' + esc(i.SuggestedFix) +
                         (i.SizeSavings > 0 ? ' <b style="color:' + t.color + ';">(' + bytes(i.SizeSavings) + ')</b>' : '') + '</div>' +
                         '<div style="display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">' + actions + '</div>' +
@@ -2352,6 +2407,15 @@
                 });
                 el.querySelectorAll('.mdIssuePath').forEach(function (p) {
                     p.addEventListener('click', function () { openInFileBrowser(p.getAttribute('data-path')); });
+                });
+                el.querySelectorAll('.mdOpenInJellyfin').forEach(function (b) {
+                    b.addEventListener('click', function () {
+                        var id = b.getAttribute('data-item');
+                        // Open the item's detail page in a new tab; user hits Play there. Falls out to the
+                        // web root if the id format changes between Jellyfin versions — the tab will just
+                        // land on the home screen instead of a broken deep link.
+                        window.open('/web/#/details?id=' + encodeURIComponent(id), '_blank', 'noopener');
+                    });
                 });
             }
 
@@ -3929,9 +3993,9 @@
             // ---------- Common ----------
 
             function loadIssues() {
-                var type = view.querySelector('#mdTypeFilter').value;
-                var url = 'Issues?openOnly=true' + (type ? '&type=' + type : '');
-                api(url).then(renderIssues);
+                // ponytail: always fetch the full open-issue list — the type filter is applied client-side by
+                // renderIssuesFiltered so the totals row can show counts for every type simultaneously.
+                api('Issues?openOnly=true').then(renderIssues);
             }
 
             function loadHistory() {
@@ -4592,7 +4656,7 @@
                         opts += '<option value="' + k + '">' + esc(STR.types[k].title) + '</option>';
                     });
                     filter.innerHTML = opts;
-                    filter.addEventListener('change', loadIssues);
+                    filter.addEventListener('change', function () { renderIssueTotals(); renderIssuesFiltered(); });
                     view.querySelector('#mdIssueFilter').addEventListener('input', renderIssuesFiltered);
 
                     view.querySelectorAll('.mdTab').forEach(function (b) {

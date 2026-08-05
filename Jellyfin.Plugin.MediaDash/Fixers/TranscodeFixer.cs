@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.MediaDash.Configuration;
@@ -33,6 +35,7 @@ public sealed class TranscodeFixer : IFixer
     private readonly ILibraryMonitor _libraryMonitor;
     private readonly ILibraryManager _libraryManager;
     private readonly IServerConfigurationManager _serverConfig;
+    private readonly MediaDashDb _db;
     private readonly ILogger<TranscodeFixer> _logger;
 
     /// <summary>
@@ -46,6 +49,7 @@ public sealed class TranscodeFixer : IFixer
     /// <param name="libraryMonitor">Instance of the <see cref="ILibraryMonitor"/> interface.</param>
     /// <param name="libraryManager">Instance of the <see cref="ILibraryManager"/> interface, used to resolve the item behind an issue for post-encode renaming.</param>
     /// <param name="serverConfig">Instance of the <see cref="IServerConfigurationManager"/> interface, used to read the server's hardware acceleration type.</param>
+    /// <param name="db">The plugin database, used to re-point sibling issues after a container change or canonical rename.</param>
     /// <param name="logger">The logger.</param>
     public TranscodeFixer(
         FfprobeService ffprobe,
@@ -56,6 +60,7 @@ public sealed class TranscodeFixer : IFixer
         ILibraryMonitor libraryMonitor,
         ILibraryManager libraryManager,
         IServerConfigurationManager serverConfig,
+        MediaDashDb db,
         ILogger<TranscodeFixer> logger)
     {
         _ffprobe = ffprobe;
@@ -66,6 +71,7 @@ public sealed class TranscodeFixer : IFixer
         _libraryMonitor = libraryMonitor;
         _libraryManager = libraryManager;
         _serverConfig = serverConfig;
+        _db = db;
         _logger = logger;
     }
 
@@ -125,11 +131,11 @@ public sealed class TranscodeFixer : IFixer
 
         var durationSeconds = double.TryParse(probe.Format?.Duration, NumberStyles.Float, CultureInfo.InvariantCulture, out var d) ? d : 0;
 
-        var tempPath = issue.Path + ".mediadash.tmp." + targetContainer;
+        var tempPath = SidecarPath(issue.Path, "tmp", targetContainer);
         // The swap sidecar sits next to the eventual output so it lands on the same volume, which
         // makes the final rename atomic. Distinct from tempPath so the finally cleanup below never
         // fights the swap-preservation branch.
-        var swapPath = targetPath + ".mediadash.new";
+        var swapPath = SidecarPath(targetPath, "new", string.Empty);
         var originalDisposed = false;
         var swapCompleted = false;
         try
@@ -214,6 +220,9 @@ public sealed class TranscodeFixer : IFixer
 
             _libraryMonitor.ReportFileSystemChanged(issue.Path);
             _libraryMonitor.ReportFileSystemChanged(finalPath);
+            // Re-point any other queued issues on this file (audio-language cleanup, sorter, grouper, …)
+            // at the new location so they don't fail with "no longer exists" on the next fix run.
+            _db.RelocateIssuePaths(issue.Path, finalPath);
             _logger.LogInformation("Transcode fix: {Action}", actionText);
             return new FixResult
             {
@@ -429,7 +438,40 @@ public sealed class TranscodeFixer : IFixer
         return args;
     }
 
-    private static string Truncate(string text) => text.Length > 300 ? text[..300] : text;
+    // ffmpeg spends most of its output on stream/encoder banners; the actual failure line
+    // is always at the end (e.g. "No space left on device", "Invalid argument", codec-specific errors).
+    // Show the tail so the user can see the real reason instead of x265's greeting card.
+    internal static string Truncate(string text)
+    {
+        const int Max = 600;
+        if (string.IsNullOrEmpty(text) || text.Length <= Max)
+        {
+            return text;
+        }
+
+        return "… " + text[^Max..];
+    }
+
+    // Linux's NAME_MAX is 255 bytes. Appending our ".mediadash.tmp.<ext>" suffix to a file whose
+    // own basename is already close to that limit (common with Cyrillic/CJK filenames — each
+    // char is 2-3 UTF-8 bytes) blows past it and ffmpeg fails with "Error opening output".
+    // Fall back to a short, stable hash-based sidecar name in the same directory.
+    // Exposed internal for direct testing without spinning up ffmpeg.
+    internal static string SidecarPath(string sibling, string marker, string extension)
+    {
+        var dir = Path.GetDirectoryName(sibling) ?? string.Empty;
+        var name = Path.GetFileName(sibling);
+        var extSuffix = string.IsNullOrEmpty(extension) ? string.Empty : "." + extension;
+        var candidate = name + ".mediadash." + marker + extSuffix;
+        if (Encoding.UTF8.GetByteCount(candidate) <= 240)
+        {
+            return Path.Combine(dir, candidate);
+        }
+
+        // 16 hex chars = 8 bytes of SHA-256; collision-proof for a per-directory sidecar.
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(name)), 0, 8);
+        return Path.Combine(dir, "mediadash." + marker + "." + hash + extSuffix);
+    }
 
     private string? TryRenameToCanonical(string currentPath, Guid itemId, int height, string extension)
     {

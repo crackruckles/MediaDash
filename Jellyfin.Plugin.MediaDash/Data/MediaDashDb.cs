@@ -451,6 +451,40 @@ public sealed class MediaDashDb
     }
 
     /// <summary>
+    /// Re-points every issue whose stored path is exactly <paramref name="oldPath"/>, or lives under
+    /// <paramref name="oldPath"/> as a directory prefix, to the equivalent location under
+    /// <paramref name="newPath"/>. Call this after a move-style fixer completes so other queued issues
+    /// on the same file/folder don't fail with "no longer exists" the next time they run.
+    /// </summary>
+    /// <param name="oldPath">The pre-move source path (file or directory).</param>
+    /// <param name="newPath">The post-move target path.</param>
+    /// <returns>The number of issue rows updated.</returns>
+    public int RelocateIssuePaths(string oldPath, string newPath)
+    {
+        if (string.IsNullOrEmpty(oldPath) || string.IsNullOrEmpty(newPath) || string.Equals(oldPath, newPath, StringComparison.Ordinal))
+        {
+            return 0;
+        }
+
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        // Exact match (file move) → rewrite in place; the SUBSTR tail is empty so @new stays @new.
+        // Prefix match with '/' or '\' boundary (folder move) → rewrite with the folder prefix swapped.
+        // Uses SUBSTR equality rather than LIKE to avoid % / _ being treated as wildcards on paths.
+        cmd.CommandText = @"
+            UPDATE issues
+               SET path = @new || SUBSTR(path, LENGTH(@old) + 1)
+             WHERE path = @old
+                OR SUBSTR(path, 1, LENGTH(@old) + 1) = @oldSlash
+                OR SUBSTR(path, 1, LENGTH(@old) + 1) = @oldBackslash";
+        cmd.Parameters.AddWithValue("@old", oldPath);
+        cmd.Parameters.AddWithValue("@new", newPath);
+        cmd.Parameters.AddWithValue("@oldSlash", oldPath + "/");
+        cmd.Parameters.AddWithValue("@oldBackslash", oldPath + "\\");
+        return cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
     /// Moves all detected issues of a type into the queue (used by automatic mode).
     /// </summary>
     /// <param name="type">The issue type.</param>

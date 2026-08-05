@@ -33,5 +33,8 @@ public enum IssueType
     CorruptArtwork = 8,
 
     /// <summary>Executable or script file sitting inside a media library folder — nothing legitimate should ship there, so treat as potential malware.</summary>
-    MalwareRisk = 9
+    MalwareRisk = 9,
+
+    /// <summary>The file or containing folder is not filed under a per-title (or per-franchise) parent folder inside its library root.</summary>
+    Ungrouped = 10
 }

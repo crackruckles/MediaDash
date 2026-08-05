@@ -127,6 +127,13 @@
       "actionHint": "Moves the file into the target folder configured in Settings → Libraries.",
       "approveAll": "Move all {0} misplaced files shown"
     },
+    "Ungrouped": {
+      "title": "Ungrouped media",
+      "hint": "Loose files or oddly-named folders that should sit under a per-title (or per-franchise) parent folder.",
+      "action": "Group under title folder",
+      "actionHint": "Moves the file or folder into a folder named after Jellyfin's identified title (franchise stem when siblings share it).",
+      "approveAll": "Group all {0} items shown"
+    },
     "MissingSubtitles": {
       "title": "Missing subtitles",
       "hint": "No subtitle in any of your kept languages.",

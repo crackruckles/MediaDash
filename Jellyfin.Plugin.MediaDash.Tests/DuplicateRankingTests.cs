@@ -89,12 +89,28 @@ public class DuplicateRankingTests
     }
 
     [Fact]
-    public void SameNameAndYearGroupsTogether()
+    public void SameNameYearAndNormalizedFilenameGroupTogether()
     {
-        var a = new Movie { Name = "Big Buck Test", ProductionYear = 2020 };
-        var b = new Movie { Name = "Big.Buck.Test", ProductionYear = 2020 };
-        Assert.Equal(DuplicateScanner.GetGroupKey(a), DuplicateScanner.GetGroupKey(b));
+        // Two copies of the same movie in different folders. Filenames differ only in punctuation, which
+        // NormalizeName strips — they collapse to the same key and get grouped as legit duplicates.
+        var a = new Movie { Name = "Big Buck Test", ProductionYear = 2020, Path = @"C:\a\Big Buck Test (2020).mkv" };
+        var b = new Movie { Name = "Big.Buck.Test", ProductionYear = 2020, Path = @"D:\backup\Big.Buck.Test.2020.mkv" };
         Assert.NotNull(DuplicateScanner.GetGroupKey(a));
+        Assert.Equal(DuplicateScanner.GetGroupKey(a), DuplicateScanner.GetGroupKey(b));
+    }
+
+    [Fact]
+    public void DifferentFilenamesUnderSameFolderDerivedNameDoNotGroup()
+    {
+        // Reproduces the real-world failure: Jellyfin can't identify a folder full of unrelated .mp4s and
+        // derives the same Movie.Name + year for every file. Under the old fallback (name+year only) they all
+        // grouped into one "duplicate" bucket. With filename in the key each stays distinct.
+        var a = new Movie { Name = "Pack Folder", ProductionYear = 2023, Path = @"C:\pack\Video One.mp4" };
+        var b = new Movie { Name = "Pack Folder", ProductionYear = 2023, Path = @"C:\pack\Video Two.mp4" };
+        var c = new Movie { Name = "Pack Folder", ProductionYear = 2023, Path = @"C:\pack\Video Three.mp4" };
+        Assert.NotEqual(DuplicateScanner.GetGroupKey(a), DuplicateScanner.GetGroupKey(b));
+        Assert.NotEqual(DuplicateScanner.GetGroupKey(a), DuplicateScanner.GetGroupKey(c));
+        Assert.NotEqual(DuplicateScanner.GetGroupKey(b), DuplicateScanner.GetGroupKey(c));
     }
 
     [Fact]
@@ -138,18 +154,37 @@ public class DuplicateRankingTests
     }
 
     [Fact]
-    public void GetGroupKey_Audio_FallsBackToArtistAlbumTitleDuration()
+    public void GetGroupKey_Audio_FallsBackToArtistAlbumTitleDurationAndFilename()
     {
         var audio = new AudioEntity
         {
             Name = "Blue in Green",
             Album = "Kind of Blue",
             Artists = new System.Collections.Generic.List<string> { "Miles Davis" },
-            RunTimeTicks = System.TimeSpan.FromSeconds(337).Ticks
+            RunTimeTicks = System.TimeSpan.FromSeconds(337).Ticks,
+            Path = @"C:\music\Miles Davis - Blue in Green.flac"
         };
 
         var key = DuplicateScanner.GetGroupKey(audio);
-        Assert.Equal("audio:name:milesdavis:kindofblue:blueingreen:337", key);
+        Assert.Equal("audio:name:milesdavis:kindofblue:blueingreen:337:milesdavisblueingreenflac", key);
+    }
+
+    [Fact]
+    public void GetGroupKey_Audio_DifferentFilenamesDoNotGroup()
+    {
+        // Two tracks Jellyfin labels identically (folder-derived) but with different physical filenames
+        // must not group under the fallback path.
+        var a = new AudioEntity
+        {
+            Name = "Track", Album = "Album", Artists = new System.Collections.Generic.List<string> { "Artist" },
+            RunTimeTicks = System.TimeSpan.FromSeconds(200).Ticks, Path = @"C:\a\one.mp3"
+        };
+        var b = new AudioEntity
+        {
+            Name = "Track", Album = "Album", Artists = new System.Collections.Generic.List<string> { "Artist" },
+            RunTimeTicks = System.TimeSpan.FromSeconds(200).Ticks, Path = @"C:\a\two.mp3"
+        };
+        Assert.NotEqual(DuplicateScanner.GetGroupKey(a), DuplicateScanner.GetGroupKey(b));
     }
 
     [Fact]
@@ -161,6 +196,18 @@ public class DuplicateRankingTests
             Artists = new System.Collections.Generic.List<string> { "Artist" }
         };
 
+        Assert.Null(DuplicateScanner.GetGroupKey(audio));
+    }
+
+    [Fact]
+    public void GetGroupKey_Audio_ReturnsNullWhenRuntimeMissing()
+    {
+        // Runtime became a hard requirement for the fallback path — without it, matching is too loose.
+        var audio = new AudioEntity
+        {
+            Name = "Track", Album = "Album",
+            Artists = new System.Collections.Generic.List<string> { "Artist" }
+        };
         Assert.Null(DuplicateScanner.GetGroupKey(audio));
     }
 
@@ -178,11 +225,20 @@ public class DuplicateRankingTests
     }
 
     [Fact]
-    public void GetGroupKey_Book_FallsBackToNormalisedName()
+    public void GetGroupKey_Book_FallbackIncludesFilename()
     {
-        var book = new MediaBrowser.Controller.Entities.Book { Name = "Dune" };
+        var book = new MediaBrowser.Controller.Entities.Book { Name = "Dune", Path = @"C:\books\Dune.epub" };
         var key = DuplicateScanner.GetGroupKey(book);
-        Assert.Equal("book:name:dune", key);
+        Assert.Equal("book:name:dune:duneepub", key);
+    }
+
+    [Fact]
+    public void GetGroupKey_Book_DifferentFilesWithSameTitleDoNotGroup()
+    {
+        // Two files both titled "Dune" (novel vs short-story collection, or .epub vs .pdf) → different keys.
+        var a = new MediaBrowser.Controller.Entities.Book { Name = "Dune", Path = @"C:\a\Dune.epub" };
+        var b = new MediaBrowser.Controller.Entities.Book { Name = "Dune", Path = @"C:\b\Dune.pdf" };
+        Assert.NotEqual(DuplicateScanner.GetGroupKey(a), DuplicateScanner.GetGroupKey(b));
     }
 
     [Fact]

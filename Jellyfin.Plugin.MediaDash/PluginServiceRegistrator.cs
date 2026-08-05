@@ -29,6 +29,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IScanner, SubtitleLanguageScanner>();
         serviceCollection.AddSingleton<IScanner, AudioLanguageScanner>();
         serviceCollection.AddSingleton<IScanner, MediaSorterScanner>();
+        serviceCollection.AddSingleton<IScanner, MediaGrouperScanner>();
         serviceCollection.AddSingleton<IScanner, ArtworkScanner>();
         serviceCollection.AddSingleton<IScanner, MissingSubtitleScanner>();
         serviceCollection.AddSingleton<IScanner, StaleContentScanner>();
@@ -43,6 +44,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IFixer, TranscodeFixer>();
         serviceCollection.AddSingleton<IFixer, PlayabilityFixer>();
         serviceCollection.AddSingleton<IFixer, MediaSorterFixer>();
+        serviceCollection.AddSingleton<IFixer, MediaGrouperFixer>();
         serviceCollection.AddSingleton<IFixer, MissingSubtitleFixer>();
         serviceCollection.AddSingleton<IFixer, SuspiciousFileFixer>();
         serviceCollection.AddSingleton<AnalyticsReporter>();

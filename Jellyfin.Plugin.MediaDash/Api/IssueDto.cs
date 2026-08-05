@@ -14,6 +14,11 @@ public sealed class IssueDto
     public long Id { get; set; }
 
     /// <summary>
+    /// Gets or sets the Jellyfin library item id — used by the UI to link back to the item's detail page.
+    /// </summary>
+    public Guid ItemId { get; set; }
+
+    /// <summary>
     /// Gets or sets the issue type name.
     /// </summary>
     public string Type { get; set; } = string.Empty;
@@ -63,6 +68,7 @@ public sealed class IssueDto
         return new IssueDto
         {
             Id = issue.Id,
+            ItemId = issue.ItemId,
             Type = issue.Type.ToString(),
             Path = issue.Path,
             FileName = System.IO.Path.GetFileName(issue.Path),

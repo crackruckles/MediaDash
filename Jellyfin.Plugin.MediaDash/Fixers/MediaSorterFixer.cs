@@ -19,6 +19,7 @@ public sealed class MediaSorterFixer : IFixer
 {
     private readonly LibraryGuard _guard;
     private readonly ILibraryMonitor _libraryMonitor;
+    private readonly MediaDashDb _db;
     private readonly ILogger<MediaSorterFixer> _logger;
 
     /// <summary>
@@ -26,11 +27,13 @@ public sealed class MediaSorterFixer : IFixer
     /// </summary>
     /// <param name="guard">The library path guard.</param>
     /// <param name="libraryMonitor">Instance of the <see cref="ILibraryMonitor"/> interface.</param>
+    /// <param name="db">The plugin database, used to re-point sibling issues after a successful move.</param>
     /// <param name="logger">The logger.</param>
-    public MediaSorterFixer(LibraryGuard guard, ILibraryMonitor libraryMonitor, ILogger<MediaSorterFixer> logger)
+    public MediaSorterFixer(LibraryGuard guard, ILibraryMonitor libraryMonitor, MediaDashDb db, ILogger<MediaSorterFixer> logger)
     {
         _guard = guard;
         _libraryMonitor = libraryMonitor;
+        _db = db;
         _logger = logger;
     }
 
@@ -145,6 +148,7 @@ public sealed class MediaSorterFixer : IFixer
 
         _libraryMonitor.ReportFileSystemChanged(issue.Path);
         _libraryMonitor.ReportFileSystemChanged(targetPath);
+        _db.RelocateIssuePaths(issue.Path, targetPath);
         _logger.LogInformation("Media sort: {Action}", actionText);
         return Task.FromResult(new FixResult
         {

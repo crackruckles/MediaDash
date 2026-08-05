@@ -95,6 +95,7 @@ public sealed class AnalyticsReporter
                 ["p_stale"] = Count(aggregate, IssueType.Stale),
                 ["p_corrupt_artwork"] = Count(aggregate, IssueType.CorruptArtwork),
                 ["p_suspicious"] = Count(aggregate, IssueType.MalwareRisk),
+                ["p_ungrouped"] = Count(aggregate, IssueType.Ungrouped),
                 ["p_bytes_freed"] = aggregate.BytesFreed
             };
 
