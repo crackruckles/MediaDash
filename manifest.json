@@ -9,6 +9,22 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.9.4.0",
+        "changelog": "Fix cascade after 0.9.3 hit real prod hardware. Track-remux fixer now uses the same hash-fallback sidecar name as the transcode fixer (v0.9.2 shipped it for one path, not both) — long-UTF-8 filenames (Cyrillic/CJK) no longer fail with ffmpeg \"Error opening output\" on Linux NAME_MAX. Free-disk-space check now looks at the actual mount containing the file via RecycleBin.FindDriveForPath, not the root filesystem — LXC/Docker setups where /mnt/media is a large bind-mount but / is a tiny rootfs no longer get false \"Not enough free disk space\" bailouts on 30-60 GB BDRemuxes. QualityScanner is less trigger-happy: dropped the container-level bitrate fallback (was flagging remuxes with big lossless audio as \"video too fat\"), and added a 15%-of-file-size minimum-savings gate so HEVC-\u003eHEVC recompression at close bitrates doesn\u0027t burn a 20-minute encode only for the fixer to abort with \"the re-encoded file would be larger than the original\". TrackFixer\u0027s error truncation matches TranscodeFixer now — keeps the ffmpeg-error tail (where the real reason lives), not the head.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.9.4/mediadash_0.9.4.zip",
+        "checksum": "7c39553363e7b731ad7ab3d0df2452b4",
+        "timestamp": "2026-08-06T09:00:40Z"
+      },
+      {
+        "version": "0.9.4.0",
+        "changelog": "Fix cascade after 0.9.3 hit real prod hardware. Track-remux fixer now uses the same hash-fallback sidecar name as the transcode fixer (v0.9.2 shipped it for one path, not both) — long-UTF-8 filenames (Cyrillic/CJK) no longer fail with ffmpeg \"Error opening output\" on Linux NAME_MAX. Free-disk-space check now looks at the actual mount containing the file via RecycleBin.FindDriveForPath, not the root filesystem — LXC/Docker setups where /mnt/media is a large bind-mount but / is a tiny rootfs no longer get false \"Not enough free disk space\" bailouts on 30-60 GB BDRemuxes. QualityScanner is less trigger-happy: dropped the container-level bitrate fallback (was flagging remuxes with big lossless audio as \"video too fat\"), and added a 15%-of-file-size minimum-savings gate so HEVC-\u003eHEVC recompression at close bitrates doesn\u0027t burn a 20-minute encode only for the fixer to abort with \"the re-encoded file would be larger than the original\". TrackFixer\u0027s error truncation matches TranscodeFixer now — keeps the ffmpeg-error tail (where the real reason lives), not the head.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.9.4/mediadash_0.9.4.zip",
+        "checksum": "7c39553363e7b731ad7ab3d0df2452b4",
+        "timestamp": "2026-08-06T09:00:40Z"
+      },
+      {
         "version": "0.9.3.0",
         "changelog": "Transcode fix now actually uses the GPU. v0.9.2 shipped without the hardware-encoder path wired in — the UseHardwareEncoder toggle had no effect and every re-encode ran on the CPU via libx265. This release wires the hw path through and adds full VAAPI support (device auto-picked from /dev/dri/renderD* or Jellyfin\u0027s VaapiDevice, with format=nv12,hwupload / scale_vaapi in the filter chain). When Jellyfin\u0027s own HardwareAccelerationType is unset, the plugin now autodetects: NVIDIA → NVENC, any Linux DRM device (Intel/AMD iGPU or dGPU) → VAAPI, Windows → AMF (or QSV for Intel iGPUs), macOS → VideoToolbox, and falls back to libx265 only when no GPU is present. Any hardware failure still retries with software so no encode gets stuck. Settings page tidy-up: \u0027Thorough playability check\u0027 no longer has the oversized inset box beside the disposal dropdown; Issues tab drops the redundant \u0027Show\u0027 type filter (the count pills already do that) and moves the filename search onto the same row.",
         "targetAbi": "12.0.0.0",
@@ -387,6 +403,7 @@
     ]
   }
 ]
+
 
 
 

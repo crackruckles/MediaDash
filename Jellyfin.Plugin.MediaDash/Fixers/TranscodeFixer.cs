@@ -124,9 +124,9 @@ public sealed class TranscodeFixer : IFixer
         // Temp file lives alongside the original during the encode and is aborted if it ever reaches originalSize
         // (see the newSize >= originalSize check below). Worst case we need room for one more copy of the file plus
         // a small margin for muxer overhead; batches free space as they progress because the original is removed each round.
-        var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(issue.Path))!);
+        var drive = RecycleBin.FindDriveForPath(issue.Path);
         const long safetyMarginBytes = 500L * 1024 * 1024;
-        if (drive.AvailableFreeSpace < originalSize + safetyMarginBytes)
+        if (drive is not null && drive.AvailableFreeSpace < originalSize + safetyMarginBytes)
         {
             return FixResult.Fail("Not enough free disk space to re-encode this file (needs its own size plus about 500 MB free).");
         }

@@ -105,11 +105,12 @@ public sealed class TrackFixer : IFixer
 
         if (removeIndexes.Count > 0)
         {
-            var tempPath = issue.Path + ".mediadash.tmp" + Path.GetExtension(issue.Path);
-            var swapPath = issue.Path + ".mediadash.new" + Path.GetExtension(issue.Path);
-            var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(issue.Path))!);
+            var ext = Path.GetExtension(issue.Path).TrimStart('.');
+            var tempPath = TranscodeFixer.SidecarPath(issue.Path, "tmp", ext);
+            var swapPath = TranscodeFixer.SidecarPath(issue.Path, "new", string.Empty);
+            var drive = RecycleBin.FindDriveForPath(issue.Path);
             const long safetyMarginBytes = 500L * 1024 * 1024;
-            if (drive.AvailableFreeSpace < originalSize + safetyMarginBytes)
+            if (drive is not null && drive.AvailableFreeSpace < originalSize + safetyMarginBytes)
             {
                 return FixResult.Fail("Not enough free disk space to rebuild this file (needs its own size plus about 500 MB free).");
             }
@@ -130,7 +131,7 @@ public sealed class TrackFixer : IFixer
                 var error = await _ffmpeg.RunAsync(args, RemuxTimeout, cancellationToken).ConfigureAwait(false);
                 if (error is not null)
                 {
-                    return FixResult.Fail("Rebuilding the file failed; the original is untouched. Details: " + Truncate(error));
+                    return FixResult.Fail("Rebuilding the file failed; the original is untouched. Details: " + TranscodeFixer.Truncate(error));
                 }
 
                 var verifyError = await _verifier.VerifyAsync(probe, tempPath, cancellationToken).ConfigureAwait(false);
@@ -278,6 +279,4 @@ public sealed class TrackFixer : IFixer
         var keep = disposal == DisposalMethod.RecycleBin ? "original kept in recycle bin" : "original permanently deleted";
         return string.Format(CultureInfo.InvariantCulture, "{0} from {1} ({2})", what, Path.GetFileName(issue.Path), keep);
     }
-
-    private static string Truncate(string text) => text.Length > 300 ? text[..300] : text;
 }

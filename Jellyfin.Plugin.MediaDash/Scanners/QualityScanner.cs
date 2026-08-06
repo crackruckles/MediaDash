@@ -126,7 +126,11 @@ public sealed class QualityScanner : ProbingScannerBase
         var height = video.Height.Value;
         var width = video.Width.Value;
 
-        var videoBitrate = ParseBitrate(video.BitRate) ?? ParseBitrate(probe.Format?.BitRate) ?? 0;
+        // Per-stream video bitrate only — the container-level Format.BitRate includes audio + subtitle
+        // bandwidth, which produced false-positive "too fat" flags on remuxes with multiple lossless
+        // audio tracks. If ffprobe doesn't expose per-stream bitrate the file gets skipped for the
+        // bitrate check; the resolution check (tooTall) still fires from height alone.
+        var videoBitrate = ParseBitrate(video.BitRate) ?? 0;
         var pixels = (double)width * height;
         var cappedPixels = Math.Min(pixels, FullHdPixels * config.MaxResolutionHeight * config.MaxResolutionHeight / (1080.0 * 1080.0));
         var allowedBits = config.MaxBitrateMbpsAt1080p * 1_000_000 * (cappedPixels / FullHdPixels);
@@ -149,6 +153,15 @@ public sealed class QualityScanner : ProbingScannerBase
         }
 
         var savings = EstimateSavings(probe, fileSize, videoBitrate, allowedBits, cappedPixels / pixels);
+        // Recompression at close-to-source bitrates (typical HEVC->HEVC 9.5->8 Mbps case) burns encode time
+        // for a couple hundred MB and often overshoots -maxrate, producing a file the fixer then aborts with
+        // "would be larger than the original". Skip anything projected to save less than 15% of the file up
+        // front — cheaper for everyone than discovering it after a 20-minute encode.
+        if (savings < fileSize * 0.15)
+        {
+            return Task.FromResult<Issue?>(null);
+        }
+
         var issue = new Issue
         {
             DetailsJson = JsonSerializer.Serialize(new
