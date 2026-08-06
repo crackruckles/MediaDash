@@ -9,6 +9,22 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.9.5.0",
+        "changelog": "Fix the \"Fix run finished with failures\" popup firing on every page load. The first-poll guard checked prevFinishedAt !== undefined but lastStatus starts as null, which short-circuited prevFinishedAt to null (not undefined) — so opening the plugin page always fired an alert if the most-recent completed run had any failures, even while a new run was still going. The alert now only fires when a poll\u0027s FinishedAtUtc actually changes from a prior poll.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.9.5/mediadash_0.9.5.zip",
+        "checksum": "d0ebaff6176be47e485b8f027c768eae",
+        "timestamp": "2026-08-06T09:25:24Z"
+      },
+      {
+        "version": "0.9.5.0",
+        "changelog": "Fix the \"Fix run finished with failures\" popup firing on every page load. The first-poll guard checked prevFinishedAt !== undefined but lastStatus starts as null, which short-circuited prevFinishedAt to null (not undefined) — so opening the plugin page always fired an alert if the most-recent completed run had any failures, even while a new run was still going. The alert now only fires when a poll\u0027s FinishedAtUtc actually changes from a prior poll.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.9.5/mediadash_0.9.5.zip",
+        "checksum": "d0ebaff6176be47e485b8f027c768eae",
+        "timestamp": "2026-08-06T09:25:24Z"
+      },
+      {
         "version": "0.9.4.0",
         "changelog": "Fix cascade after 0.9.3 hit real prod hardware. Track-remux fixer now uses the same hash-fallback sidecar name as the transcode fixer (v0.9.2 shipped it for one path, not both) — long-UTF-8 filenames (Cyrillic/CJK) no longer fail with ffmpeg \"Error opening output\" on Linux NAME_MAX. Free-disk-space check now looks at the actual mount containing the file via RecycleBin.FindDriveForPath, not the root filesystem — LXC/Docker setups where /mnt/media is a large bind-mount but / is a tiny rootfs no longer get false \"Not enough free disk space\" bailouts on 30-60 GB BDRemuxes. QualityScanner is less trigger-happy: dropped the container-level bitrate fallback (was flagging remuxes with big lossless audio as \"video too fat\"), and added a 15%-of-file-size minimum-savings gate so HEVC-\u003eHEVC recompression at close bitrates doesn\u0027t burn a 20-minute encode only for the fixer to abort with \"the re-encoded file would be larger than the original\". TrackFixer\u0027s error truncation matches TranscodeFixer now — keeps the ffmpeg-error tail (where the real reason lives), not the head.",
         "targetAbi": "12.0.0.0",
@@ -403,6 +419,7 @@
     ]
   }
 ]
+
 
 
 

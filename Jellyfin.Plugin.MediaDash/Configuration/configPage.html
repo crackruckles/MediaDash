@@ -2045,9 +2045,13 @@
                 // If the timestamp is new since the last poll and any fix failed, pop a dashboard alert.
                 // Fast all-fail runs (e.g. permission denied on every file) finish in under a second, so the
                 // progress bar just flashes; the alert is the only reliable "the button did something" signal.
+                // Guard on lastStatus itself — not on prevFinishedAt !== undefined. lastStatus starts as
+                // null on page load, which short-circuited prevFinishedAt to null, and null !== undefined
+                // is true — so the alert fired on every page open whenever the most-recent completed run
+                // had failures, even mid-flight of a new run.
                 var prevFinishedAt = lastStatus && lastStatus.LastFixRun && lastStatus.LastFixRun.FinishedAtUtc;
                 var curr = s.LastFixRun;
-                if (curr && curr.FinishedAtUtc !== prevFinishedAt && prevFinishedAt !== undefined && (curr.Failed || 0) > 0) {
+                if (lastStatus !== null && curr && curr.FinishedAtUtc !== prevFinishedAt && (curr.Failed || 0) > 0) {
                     var reason = curr.TopFailureReason || 'unknown';
                     var count = curr.TopFailureCount || curr.Failed;
                     var msg = 'Fix run finished: ' + (curr.Succeeded || 0) + ' succeeded, ' + curr.Failed + ' failed.\n\n'
