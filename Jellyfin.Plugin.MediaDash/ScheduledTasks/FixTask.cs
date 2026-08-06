@@ -42,6 +42,7 @@ public sealed class FixTask : IScheduledTask
     private readonly RecycleBin _recycleBin;
     private readonly ISessionManager _sessionManager;
     private readonly Analytics.AnalyticsReporter _analytics;
+    private readonly LibraryGuard _libraryGuard;
     private readonly ILogger<FixTask> _logger;
 
     /// <summary>
@@ -52,14 +53,16 @@ public sealed class FixTask : IScheduledTask
     /// <param name="recycleBin">The recycle bin.</param>
     /// <param name="sessionManager">Instance of the <see cref="ISessionManager"/> interface.</param>
     /// <param name="analytics">The opt-in analytics reporter.</param>
+    /// <param name="libraryGuard">Library guard, used to enumerate library roots when sweeping orphan sidecars.</param>
     /// <param name="logger">The logger.</param>
-    public FixTask(MediaDashDb db, IEnumerable<IFixer> fixers, RecycleBin recycleBin, ISessionManager sessionManager, Analytics.AnalyticsReporter analytics, ILogger<FixTask> logger)
+    public FixTask(MediaDashDb db, IEnumerable<IFixer> fixers, RecycleBin recycleBin, ISessionManager sessionManager, Analytics.AnalyticsReporter analytics, LibraryGuard libraryGuard, ILogger<FixTask> logger)
     {
         _db = db;
         _fixers = fixers;
         _recycleBin = recycleBin;
         _sessionManager = sessionManager;
         _analytics = analytics;
+        _libraryGuard = libraryGuard;
         _logger = logger;
     }
 
@@ -301,6 +304,24 @@ public sealed class FixTask : IScheduledTask
         }
 
         _recycleBin.Purge(config.RecycleBinRetentionDays);
+
+        // Orphan-sidecar sweep: at end of a fix run no encode is active, so any *.mediadash.tmp* /
+        // *.mediadash.new* file sitting in a library folder is a leftover from a hard-killed encode
+        // (SIGKILL, container restart, Jellyfin crash) where the fixer's finally couldn't clean up.
+        try
+        {
+            var orphans = _libraryGuard.SweepOrphanSidecars();
+            if (orphans.Count > 0)
+            {
+                var freed = orphans.Sum(o => o.Bytes);
+                _logger.LogInformation("Removed {Count} orphan MediaDash sidecar file(s), reclaimed {Bytes} bytes.", orphans.Count, freed);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Orphan-sidecar sweep failed; will retry next run.");
+        }
+
         Plugin.CurrentActivity = null;
 
         // Post the run summary so the dashboard can pop a single alert on completion instead of leaving the

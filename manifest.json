@@ -9,6 +9,22 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.9.8.0",
+        "changelog": "Two fixes and a reclaim.\n\nVAAPI hardware encodes now pass -rc_mode VBR to hevc_vaapi / h264_vaapi / av1_vaapi. Mesa VAAPI\u0027s default rate-control is CQP, which ignores -b:v/-maxrate and picks a QP that routinely produces output LARGER than a modest-bitrate source — the \"the re-encoded file would be larger than the original, so the original was kept\" retry loop that some AMD iGPU users saw every 30-70 minutes on the same file. VBR honours -b:v as the target and -maxrate as the ceiling, so the encoder actually stays under the requested bitrate.\n\nOrphan sidecar sweep: at the end of every fix run (right after the recycle bin purge), MediaDash now walks each library root and deletes any *.mediadash.tmp*, *.mediadash.new*, mediadash.tmp.*, or mediadash.new.* file it finds. These are leftovers from a hard-killed encode (SIGKILL, container restart, Jellyfin crash) where the C# finally block that normally deletes them never ran. Deleted-count + reclaimed-bytes go into Jellyfin\u0027s log.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.9.8/mediadash_0.9.8.zip",
+        "checksum": "028cf3ecc7099308d0342b44fcd2aeee",
+        "timestamp": "2026-08-06T12:26:47Z"
+      },
+      {
+        "version": "0.9.8.0",
+        "changelog": "Two fixes and a reclaim.\n\nVAAPI hardware encodes now pass -rc_mode VBR to hevc_vaapi / h264_vaapi / av1_vaapi. Mesa VAAPI\u0027s default rate-control is CQP, which ignores -b:v/-maxrate and picks a QP that routinely produces output LARGER than a modest-bitrate source — the \"the re-encoded file would be larger than the original, so the original was kept\" retry loop that some AMD iGPU users saw every 30-70 minutes on the same file. VBR honours -b:v as the target and -maxrate as the ceiling, so the encoder actually stays under the requested bitrate.\n\nOrphan sidecar sweep: at the end of every fix run (right after the recycle bin purge), MediaDash now walks each library root and deletes any *.mediadash.tmp*, *.mediadash.new*, mediadash.tmp.*, or mediadash.new.* file it finds. These are leftovers from a hard-killed encode (SIGKILL, container restart, Jellyfin crash) where the C# finally block that normally deletes them never ran. Deleted-count + reclaimed-bytes go into Jellyfin\u0027s log.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.9.8/mediadash_0.9.8.zip",
+        "checksum": "028cf3ecc7099308d0342b44fcd2aeee",
+        "timestamp": "2026-08-06T12:26:47Z"
+      },
+      {
         "version": "0.9.7.0",
         "changelog": "FfmpegExecutor now sweeps for orphaned MediaDash ffmpeg processes before spawning a new encode. Linux only (reads /proc/\u003cpid\u003e/cmdline; Windows/macOS would need extra deps for a very rare failure mode). Any ffmpeg whose command line contains a mediadash.tmp or mediadash.new marker is killed with SIGKILL and its sidecar output file is deleted. Prevents the \"two ffmpegs writing to the same output\" scenario after a plugin hot-reload or a Jellyfin restart mid-encode. Also cleans up the interleaved-bytes .tmp file that would otherwise sit on disk until the next fix run on the same source overwrote it.",
         "targetAbi": "12.0.0.0",
@@ -451,6 +467,7 @@
     ]
   }
 ]
+
 
 
 

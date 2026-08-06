@@ -462,6 +462,13 @@ public sealed class TranscodeFixer : IFixer
             }
         }
 
+        if (hardwareEncoder is not null && hardwareEncoder.EndsWith("_vaapi", StringComparison.Ordinal))
+        {
+            // Mesa VAAPI defaults to CQP for hevc/h264, which ignores -b:v/-maxrate and picks a QP that
+            // routinely produces output LARGER than the source. Force VBR so the rate targets actually apply.
+            args.AddRange(["-rc_mode", "VBR"]);
+        }
+
         if (hardwareEncoder is not null)
         {
             // Hardware encoders don't support CRF; target the configured bitrate ceiling scaled to the output resolution,
