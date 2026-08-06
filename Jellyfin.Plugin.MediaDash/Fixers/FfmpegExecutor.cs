@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -58,6 +60,12 @@ public sealed class FfmpegExecutor
         {
             return "The server has no ffmpeg configured.";
         }
+
+        // Orphan-sweep before spawning: a hot-reloaded plugin or a Jellyfin crash mid-encode can leave a
+        // stale ffmpeg still writing to our sidecar path. Two ffmpegs open on the same output produces
+        // interleaved garbage. Anything that clearly belongs to us (cmdline contains a mediadash.tmp/new
+        // marker) gets killed and its output cleaned up so the fresh encode starts on a clean file.
+        SweepStaleMediaDashFfmpegs();
 
         var reportProgress = progress is not null && totalDurationSeconds > 0;
 
@@ -169,6 +177,88 @@ public sealed class FfmpegExecutor
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "Could not kill ffmpeg process");
+        }
+    }
+
+    private void SweepStaleMediaDashFfmpegs()
+    {
+        // /proc/<pid>/cmdline is the cheap cross-distro way to read a process's argv without shelling out.
+        // Windows would need System.Management (WMI) or P/Invoke to CreateToolhelp32Snapshot — not worth
+        // pulling in for the primary failure mode we care about (Linux container hot-reload).
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (var p in Process.GetProcessesByName("ffmpeg"))
+            {
+                using (p)
+                {
+                    string? cmd;
+                    try
+                    {
+                        var cmdlinePath = "/proc/" + p.Id.ToString(CultureInfo.InvariantCulture) + "/cmdline";
+                        if (!File.Exists(cmdlinePath))
+                        {
+                            continue;
+                        }
+
+                        cmd = File.ReadAllText(cmdlinePath);
+                    }
+                    catch (IOException)
+                    {
+                        continue;
+                    }
+                    catch (UnauthorizedAccessException)
+                    {
+                        continue;
+                    }
+
+                    if (!cmd.Contains("mediadash.tmp", StringComparison.Ordinal)
+                        && !cmd.Contains("mediadash.new", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    // /proc/pid/cmdline uses NUL as the argv separator. The output path is the last argument.
+                    var args = cmd.Split('\0', StringSplitOptions.RemoveEmptyEntries);
+                    var outputPath = args.Length > 0 ? args[^1] : null;
+
+                    _logger.LogWarning(
+                        "Killing stale MediaDash ffmpeg pid={Pid}, output={Output}. Likely an orphan from a hot-reload or a Jellyfin restart mid-encode.",
+                        p.Id,
+                        outputPath ?? "(unknown)");
+                    try
+                    {
+                        p.Kill(entireProcessTree: true);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "Could not kill stale ffmpeg pid={Pid}", p.Id);
+                    }
+
+                    if (outputPath is not null
+                        && (outputPath.Contains("mediadash.tmp", StringComparison.Ordinal)
+                            || outputPath.Contains("mediadash.new", StringComparison.Ordinal))
+                        && File.Exists(outputPath))
+                    {
+                        try
+                        {
+                            File.Delete(outputPath);
+                        }
+                        catch (IOException ex)
+                        {
+                            _logger.LogWarning(ex, "Could not delete stale sidecar {Path}", outputPath);
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "MediaDash ffmpeg sweep failed");
         }
     }
 }

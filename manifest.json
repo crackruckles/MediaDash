@@ -9,6 +9,22 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.9.7.0",
+        "changelog": "FfmpegExecutor now sweeps for orphaned MediaDash ffmpeg processes before spawning a new encode. Linux only (reads /proc/\u003cpid\u003e/cmdline; Windows/macOS would need extra deps for a very rare failure mode). Any ffmpeg whose command line contains a mediadash.tmp or mediadash.new marker is killed with SIGKILL and its sidecar output file is deleted. Prevents the \"two ffmpegs writing to the same output\" scenario after a plugin hot-reload or a Jellyfin restart mid-encode. Also cleans up the interleaved-bytes .tmp file that would otherwise sit on disk until the next fix run on the same source overwrote it.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.9.7/mediadash_0.9.7.zip",
+        "checksum": "b723fec74e85312caa61c22aa20fdab8",
+        "timestamp": "2026-08-06T12:21:23Z"
+      },
+      {
+        "version": "0.9.7.0",
+        "changelog": "FfmpegExecutor now sweeps for orphaned MediaDash ffmpeg processes before spawning a new encode. Linux only (reads /proc/\u003cpid\u003e/cmdline; Windows/macOS would need extra deps for a very rare failure mode). Any ffmpeg whose command line contains a mediadash.tmp or mediadash.new marker is killed with SIGKILL and its sidecar output file is deleted. Prevents the \"two ffmpegs writing to the same output\" scenario after a plugin hot-reload or a Jellyfin restart mid-encode. Also cleans up the interleaved-bytes .tmp file that would otherwise sit on disk until the next fix run on the same source overwrote it.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.9.7/mediadash_0.9.7.zip",
+        "checksum": "b723fec74e85312caa61c22aa20fdab8",
+        "timestamp": "2026-08-06T12:21:23Z"
+      },
+      {
         "version": "0.9.6.0",
         "changelog": "Manual fix runs now pause instead of bailing when someone starts watching. Click \"Run fixes now\", the queue drains as before, but if the pause-on-playback check trips between files the run pauses (with an amber banner: \"Paused: someone is watching. Click \u0027Ignore activity\u0027 to resume anyway.\") and re-checks every 30 seconds. When the viewer stops or you hit the Ignore activity button, the run resumes from where it stopped. Scheduled runs keep the previous behaviour (break on activity, next 15-minute tick tries again). The Ignore flag only applies to the current run — a fresh Run fixes now click brings the pause behaviour back.",
         "targetAbi": "12.0.0.0",
@@ -435,6 +451,7 @@
     ]
   }
 ]
+
 
 
 
