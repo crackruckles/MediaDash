@@ -64,10 +64,25 @@ public sealed class FixTask : IScheduledTask
     }
 
     /// <summary>
-    /// Gets or sets a value indicating whether the next run skips the server-idle check.
-    /// Set by the dashboard's "Run fixes now" button — the person clicking it is themselves an active session.
+    /// Gets or sets a value indicating whether the next run skips the initial server-idle check.
+    /// Set by the dashboard's "Run fixes now" button — the person clicking it is themselves an active session,
+    /// so the check would otherwise refuse to start. Only affects the first check; the per-file activity check
+    /// still runs so a manual run yields to a viewer that appeared after the run began.
     /// </summary>
     internal static bool BypassIdleCheckOnce { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the currently-running manual fix run should ignore per-file
+    /// activity checks. Flipped by the "Ignore activity for this run" button in the dashboard when the user
+    /// wants the queue to drain regardless of viewers. Reset at the start of every run.
+    /// </summary>
+    internal static bool IgnoreActivityForCurrentRun { get; set; }
+
+    /// <summary>
+    /// Gets or sets a human-readable reason the current fix run is paused, or null when the run is not paused.
+    /// Only set on manual runs — scheduled runs still break out of the loop and requeue.
+    /// </summary>
+    internal static string? PauseReason { get; set; }
 
     /// <inheritdoc />
     public string Name => I18n.I18nCatalog.GetHtml(System.Globalization.CultureInfo.CurrentUICulture.Name, "task.fix.name", "Apply approved fixes");
@@ -85,10 +100,12 @@ public sealed class FixTask : IScheduledTask
     public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
     {
         var config = Plugin.Instance!.Configuration;
-        var bypassIdleCheck = BypassIdleCheckOnce;
+        var isManualRun = BypassIdleCheckOnce;
         BypassIdleCheckOnce = false;
+        IgnoreActivityForCurrentRun = false;
+        PauseReason = null;
 
-        if (config.PauseDuringPlayback && !bypassIdleCheck && IdleCheck.IsServerBusy(_sessionManager))
+        if (config.PauseDuringPlayback && !isManualRun && IdleCheck.IsServerBusy(_sessionManager))
         {
             _logger.LogInformation("Skipping fix run: someone is watching or was recently active. Queued issues stay queued.");
             progress.Report(100);
@@ -155,10 +172,30 @@ public sealed class FixTask : IScheduledTask
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (config.PauseDuringPlayback && !bypassIdleCheck && IdleCheck.IsServerBusy(_sessionManager))
+            if (config.PauseDuringPlayback && !IgnoreActivityForCurrentRun && IdleCheck.IsServerBusy(_sessionManager))
             {
-                _logger.LogInformation("Pausing fix run: someone started using the server. Remaining issues stay queued.");
-                break;
+                if (isManualRun)
+                {
+                    // Manual run: the user is standing at the dashboard waiting for this to finish, so pause
+                    // rather than break. Re-poll every 30 s. The user can bail out via Stop, unstick the loop
+                    // by flipping IgnoreActivityForCurrentRun, or wait for the viewer to finish.
+                    PauseReason = "Paused: someone is watching. Click 'Ignore activity' to resume anyway.";
+                    _logger.LogInformation("Fix run paused for viewer activity; waiting for idle or ignore-flag.");
+                    while (config.PauseDuringPlayback
+                        && !IgnoreActivityForCurrentRun
+                        && IdleCheck.IsServerBusy(_sessionManager))
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
+                    }
+
+                    PauseReason = null;
+                    _logger.LogInformation("Fix run resuming.");
+                }
+                else
+                {
+                    _logger.LogInformation("Pausing fix run: someone started using the server. Remaining issues stay queued.");
+                    break;
+                }
             }
 
             var issue = queue[i];

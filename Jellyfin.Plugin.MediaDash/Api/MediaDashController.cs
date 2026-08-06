@@ -197,7 +197,8 @@ public class MediaDashController : ControllerBase
             System = SystemStats.Sample(),
             RecycleBinPath = _recycleBin.GetEffectiveRoot(),
             RecycleBinCrossVolume = ComputeRecycleBinCrossVolume(drives),
-            LastFixRun = Plugin.LastFixRun
+            LastFixRun = Plugin.LastFixRun,
+            FixPauseReason = FixTask.PauseReason
         };
     }
 
@@ -400,6 +401,19 @@ public class MediaDashController : ControllerBase
             _taskManager.Cancel(fixTask);
         }
 
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Flips the "ignore viewer activity" flag for the currently-running manual fix run so a paused run
+    /// resumes even if someone is still watching. The flag resets when the next fix run starts.
+    /// </summary>
+    /// <returns>No content.</returns>
+    [HttpPost("Fix/IgnoreActivity")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public ActionResult IgnoreFixActivity()
+    {
+        FixTask.IgnoreActivityForCurrentRun = true;
         return NoContent();
     }
 

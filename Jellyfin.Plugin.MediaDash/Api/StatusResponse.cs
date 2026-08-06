@@ -105,4 +105,7 @@ public sealed class StatusResponse
 
     /// <summary>Gets or sets the summary of the most-recently-completed fix run (attempted / succeeded / failed / top reason), or null if no run has ever completed.</summary>
     public FixRunSummary? LastFixRun { get; set; }
+
+    /// <summary>Gets or sets a human-readable reason the current fix run is paused, or null when the run is not paused.</summary>
+    public string? FixPauseReason { get; set; }
 }

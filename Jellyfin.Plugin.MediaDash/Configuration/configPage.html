@@ -974,6 +974,13 @@
                     <div class="mdBarTrack" style="height:10px;"><div id="mdProgressFill" class="mdBarFill" style="width:3%;background:#00a4dc;"></div></div>
                     <div id="mdActivity" class="fieldDescription" style="margin-top:.3em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:monospace;font-size:.85em;"></div>
                 </div>
+                <div id="mdFixPauseNote" style="display:none;max-width:36em;margin:.4em 0 .8em;padding:.7em 1em;border-radius:10px;background:rgba(245,158,11,.16);border:1px solid rgba(245,158,11,.5);align-items:center;gap:.8em;flex-wrap:wrap;">
+                    <span class="material-icons" style="color:#f59e0b;">pause_circle</span>
+                    <span id="mdFixPauseText" style="flex:1;min-width:12em;font-size:.9em;"></span>
+                    <button is="emby-button" type="button" id="mdFixIgnoreActivity" class="raised" style="font-size:80%;" title="Continue the fix run even while someone is watching. Only affects this run.">
+                        <span class="material-icons" style="font-size:1.1em;margin-right:.3em;">play_arrow</span><span>Ignore activity</span>
+                    </button>
+                </div>
                 <div id="mdDryRunNote" style="display:none;margin-bottom:1em;padding:.8em 1.2em;border-radius:12px;background:rgba(245,158,11,.16);border:2px solid #f59e0b;">
                     <div style="display:flex;gap:.8em;align-items:center;flex-wrap:wrap;">
                         <span class="material-icons" style="color:#f59e0b;font-size:1.8em;">shield</span>
@@ -2134,6 +2141,14 @@
                 } else {
                     activityEl.textContent = '';
                     activityEl.title = '';
+                }
+
+                var pauseNote = view.querySelector('#mdFixPauseNote');
+                if (s.IsFixing && s.FixPauseReason) {
+                    view.querySelector('#mdFixPauseText').textContent = s.FixPauseReason;
+                    pauseNote.style.display = 'flex';
+                } else {
+                    pauseNote.style.display = 'none';
                 }
 
                 // Keep polling while the Overview tab is visible so the system-performance card is actually live
@@ -4685,6 +4700,13 @@
                         view.querySelector('#mdScanState').textContent = STR.fixStarting;
                         setProgress(true, 3);
                         post('Fix').then(function () { setTimeout(refresh, 700); });
+                    });
+
+                    view.querySelector('#mdFixIgnoreActivity').addEventListener('click', function () {
+                        // Hide the banner immediately so the click feels responsive; the next status poll (within
+                        // 30 s, matching the server's re-check cadence) will confirm the run resumed.
+                        view.querySelector('#mdFixPauseNote').style.display = 'none';
+                        post('Fix/IgnoreActivity').then(function () { setTimeout(refresh, 700); });
                     });
 
                     view.querySelector('#mdRecycleWarnFix').addEventListener('click', function () {

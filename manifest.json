@@ -9,6 +9,22 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.9.6.0",
+        "changelog": "Manual fix runs now pause instead of bailing when someone starts watching. Click \"Run fixes now\", the queue drains as before, but if the pause-on-playback check trips between files the run pauses (with an amber banner: \"Paused: someone is watching. Click \u0027Ignore activity\u0027 to resume anyway.\") and re-checks every 30 seconds. When the viewer stops or you hit the Ignore activity button, the run resumes from where it stopped. Scheduled runs keep the previous behaviour (break on activity, next 15-minute tick tries again). The Ignore flag only applies to the current run — a fresh Run fixes now click brings the pause behaviour back.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.9.6/mediadash_0.9.6.zip",
+        "checksum": "93330f3d5fd09654d8301f6580521d45",
+        "timestamp": "2026-08-06T12:09:51Z"
+      },
+      {
+        "version": "0.9.6.0",
+        "changelog": "Manual fix runs now pause instead of bailing when someone starts watching. Click \"Run fixes now\", the queue drains as before, but if the pause-on-playback check trips between files the run pauses (with an amber banner: \"Paused: someone is watching. Click \u0027Ignore activity\u0027 to resume anyway.\") and re-checks every 30 seconds. When the viewer stops or you hit the Ignore activity button, the run resumes from where it stopped. Scheduled runs keep the previous behaviour (break on activity, next 15-minute tick tries again). The Ignore flag only applies to the current run — a fresh Run fixes now click brings the pause behaviour back.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.9.6/mediadash_0.9.6.zip",
+        "checksum": "93330f3d5fd09654d8301f6580521d45",
+        "timestamp": "2026-08-06T12:09:51Z"
+      },
+      {
         "version": "0.9.5.0",
         "changelog": "Fix the \"Fix run finished with failures\" popup firing on every page load. The first-poll guard checked prevFinishedAt !== undefined but lastStatus starts as null, which short-circuited prevFinishedAt to null (not undefined) — so opening the plugin page always fired an alert if the most-recent completed run had any failures, even while a new run was still going. The alert now only fires when a poll\u0027s FinishedAtUtc actually changes from a prior poll.",
         "targetAbi": "12.0.0.0",
@@ -419,6 +435,7 @@
     ]
   }
 ]
+
 
 
 
