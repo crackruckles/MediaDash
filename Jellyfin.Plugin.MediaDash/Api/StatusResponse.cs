@@ -108,4 +108,7 @@ public sealed class StatusResponse
 
     /// <summary>Gets or sets a human-readable reason the current fix run is paused, or null when the run is not paused.</summary>
     public string? FixPauseReason { get; set; }
+
+    /// <summary>Gets or sets the current list of detected redownload / restore cases (see <see cref="RedownloadDetector"/>).</summary>
+    public IReadOnlyList<RedownloadWarning> RedownloadWarnings { get; set; } = Array.Empty<RedownloadWarning>();
 }

@@ -9,6 +9,22 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.9.9.0",
+        "changelog": "New Overview banner warns when a MediaDash re-encode gets undone by something external (typically Sonarr/Radarr redownloading a \"too-small\" file whose size dropped below the quality profile minimum, but also fires on manual recycle-bin restores or backup-restore overwrites).\n\nDetection is evidence-based, not guessed: at the end of every scan MediaDash walks the last 30 days of successful non-dry-run history entries, and for each one where the ORIGINAL is still preserved in the recycle bin, compares the file currently at the same path against the recycled original. If the current file is within 10% of the original size — i.e. the same rough size we shrank down — the shrunk copy has been replaced. Only paths meeting that concrete size-match trigger the warning. False positives are limited to genuine restores, which are also worth surfacing.\n\nThe red banner shows the filename, the shrunk-to size, the current size, and the fix date. Dismissable per browser session; reappears on the next scan if the condition still holds.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.9.9/mediadash_0.9.9.zip",
+        "checksum": "270f3278ba8679956d5009aecab09e38",
+        "timestamp": "2026-08-06T14:56:00Z"
+      },
+      {
+        "version": "0.9.9.0",
+        "changelog": "New Overview banner warns when a MediaDash re-encode gets undone by something external (typically Sonarr/Radarr redownloading a \"too-small\" file whose size dropped below the quality profile minimum, but also fires on manual recycle-bin restores or backup-restore overwrites).\n\nDetection is evidence-based, not guessed: at the end of every scan MediaDash walks the last 30 days of successful non-dry-run history entries, and for each one where the ORIGINAL is still preserved in the recycle bin, compares the file currently at the same path against the recycled original. If the current file is within 10% of the original size — i.e. the same rough size we shrank down — the shrunk copy has been replaced. Only paths meeting that concrete size-match trigger the warning. False positives are limited to genuine restores, which are also worth surfacing.\n\nThe red banner shows the filename, the shrunk-to size, the current size, and the fix date. Dismissable per browser session; reappears on the next scan if the condition still holds.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.9.9/mediadash_0.9.9.zip",
+        "checksum": "270f3278ba8679956d5009aecab09e38",
+        "timestamp": "2026-08-06T14:56:00Z"
+      },
+      {
         "version": "0.9.8.0",
         "changelog": "Two fixes and a reclaim.\n\nVAAPI hardware encodes now pass -rc_mode VBR to hevc_vaapi / h264_vaapi / av1_vaapi. Mesa VAAPI\u0027s default rate-control is CQP, which ignores -b:v/-maxrate and picks a QP that routinely produces output LARGER than a modest-bitrate source — the \"the re-encoded file would be larger than the original, so the original was kept\" retry loop that some AMD iGPU users saw every 30-70 minutes on the same file. VBR honours -b:v as the target and -maxrate as the ceiling, so the encoder actually stays under the requested bitrate.\n\nOrphan sidecar sweep: at the end of every fix run (right after the recycle bin purge), MediaDash now walks each library root and deletes any *.mediadash.tmp*, *.mediadash.new*, mediadash.tmp.*, or mediadash.new.* file it finds. These are leftovers from a hard-killed encode (SIGKILL, container restart, Jellyfin crash) where the C# finally block that normally deletes them never ran. Deleted-count + reclaimed-bytes go into Jellyfin\u0027s log.",
         "targetAbi": "12.0.0.0",
@@ -467,6 +483,7 @@
     ]
   }
 ]
+
 
 
 

@@ -1354,6 +1354,20 @@
                 </div>
 
                 <div id="mdTab-overview">
+                    <div id="mdRedownloadWarn" style="display:none;margin-bottom:1em;padding:.8em 1.2em;border-radius:12px;background:rgba(239,68,68,.14);border:2px solid #ef4444;">
+                        <div style="display:flex;gap:.8em;align-items:flex-start;flex-wrap:wrap;">
+                            <span class="material-icons" style="color:#ef4444;font-size:1.5em;">restart_alt</span>
+                            <div style="flex:1;min-width:20em;">
+                                <div style="font-weight:600;color:#ef4444;">Something is undoing MediaDash re-encodes</div>
+                                <div class="fieldDescription" style="margin-top:.2em;"><span id="mdRedownloadWarnLead"></span> A file we successfully shrank has been replaced by something roughly the size of the original. Most likely cause: Sonarr / Radarr saw the smaller file drop below its quality profile and re-downloaded a bigger copy. Also possible: a manual restore from the recycle bin, or a rsync-style backup restore overwriting the shrunk file.</div>
+                                <details style="margin-top:.4em;">
+                                    <summary style="cursor:pointer;font-size:.9em;color:rgba(230,237,243,.75);">Show the files</summary>
+                                    <ul id="mdRedownloadWarnList" style="margin:.4em 0 0;padding-left:1.4em;font-size:.85em;font-family:monospace;"></ul>
+                                </details>
+                            </div>
+                            <button is="emby-button" type="button" class="mdDismissBanner" data-banner="mdRedownloadWarn" style="background:transparent;border:0;color:#ef4444;padding:.3em;min-width:0;" title="Hide this notice for this browser session. It comes back on next scan if the condition still holds."><span class="material-icons" style="font-size:1.2em;">close</span></button>
+                        </div>
+                    </div>
                     <div id="mdRecycleWarn" style="display:none;margin-bottom:1em;padding:.8em 1.2em;border-radius:12px;background:rgba(245,158,11,.16);border:2px solid #f59e0b;">
                         <div style="display:flex;gap:.8em;align-items:center;flex-wrap:wrap;">
                             <span class="material-icons" style="color:#f59e0b;font-size:1.5em;">warning</span>
@@ -2176,6 +2190,23 @@
                         'Move the recycle bin onto the same volume as your media (e.g. "/mnt/media/.mediadash-recycle") to make recycles instant.';
                 } else {
                     recycleWarn.style.display = 'none';
+                }
+
+                var redlBanner = view.querySelector('#mdRedownloadWarn');
+                var redl = s.RedownloadWarnings || [];
+                if (redl.length > 0 && !bannerDismissed('mdRedownloadWarn')) {
+                    redlBanner.style.display = '';
+                    view.querySelector('#mdRedownloadWarnLead').textContent =
+                        redl.length + ' file' + (redl.length === 1 ? '' : 's') + ' flagged since the last scan.';
+                    var listEl = view.querySelector('#mdRedownloadWarnList');
+                    listEl.innerHTML = redl.map(function (w) {
+                        var mb = function (b) { return (b / 1048576).toFixed(0) + ' MB'; };
+                        return '<li title="' + esc(w.Path) + '">' + esc(w.Path.split('/').pop()) +
+                               ' — original ' + mb(w.OriginalBytes) + ' → shrunk → now back at ' + mb(w.CurrentBytes) +
+                               ' (fixed ' + new Date(w.FixedAtUtc).toLocaleDateString() + ')</li>';
+                    }).join('');
+                } else {
+                    redlBanner.style.display = 'none';
                 }
 
                 // Skip re-rendering the static content (hero, per-type cards, savings bars, drives) on silent

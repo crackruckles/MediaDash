@@ -198,7 +198,8 @@ public class MediaDashController : ControllerBase
             RecycleBinPath = _recycleBin.GetEffectiveRoot(),
             RecycleBinCrossVolume = ComputeRecycleBinCrossVolume(drives),
             LastFixRun = Plugin.LastFixRun,
-            FixPauseReason = FixTask.PauseReason
+            FixPauseReason = FixTask.PauseReason,
+            RedownloadWarnings = Plugin.RedownloadWarnings
         };
     }
 

@@ -53,6 +53,12 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     /// </summary>
     public static Api.FixRunSummary? LastFixRun { get; set; }
 
+    /// <summary>
+    /// Gets or sets the most recent redownload/restore warnings found by <see cref="Api.RedownloadDetector"/>.
+    /// Refreshed at the end of every scan.
+    /// </summary>
+    public static System.Collections.Generic.IReadOnlyList<Api.RedownloadWarning> RedownloadWarnings { get; set; } = System.Array.Empty<Api.RedownloadWarning>();
+
     /// <inheritdoc />
     public IEnumerable<PluginPageInfo> GetPages()
     {

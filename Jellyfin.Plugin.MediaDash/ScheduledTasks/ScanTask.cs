@@ -123,6 +123,23 @@ public sealed class ScanTask : IScheduledTask
             _logger.LogInformation("MediaDash scanner {Type} found {Count} issues", scanner.Type, issues.Count);
         }
 
+        // Refresh the redownload-warning list. Compares each recent successful re-encode against the
+        // file currently at the same path — if the file is close to the size of the original still in
+        // the recycle bin, something replaced our shrunk copy (Sonarr/Radarr redownload, or a manual
+        // restore). Cheap: at most a couple stats per recent history row.
+        try
+        {
+            Plugin.RedownloadWarnings = Api.RedownloadDetector.Detect(_db, TimeSpan.FromDays(30));
+            if (Plugin.RedownloadWarnings.Count > 0)
+            {
+                _logger.LogInformation("MediaDash detected {Count} file(s) that appear to have been replaced after a successful re-encode.", Plugin.RedownloadWarnings.Count);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Redownload detection failed.");
+        }
+
         progress.Report(100);
     }
 
