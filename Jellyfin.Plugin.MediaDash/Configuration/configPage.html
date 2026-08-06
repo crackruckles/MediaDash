@@ -483,6 +483,7 @@
                 align-items: flex-start;
                 gap: 4px;
                 padding: 8px 0;
+                user-select: none;
             }
             #MediaDashConfigPage .mdInsetRow--stack .mdInsetRowMain {
                 display: inline-flex; align-items: center; gap: 8px;
@@ -1366,13 +1367,10 @@
                 </div>
 
                 <div id="mdTab-issues" style="display:none;">
-                    <div id="mdIssueTotals" style="display:flex;flex-wrap:wrap;gap:.4em;margin-bottom:.7em;"></div>
                     <div class="mdIssueFilterRow">
-                        <div class="selectContainer" style="max-width:18em;flex:1;margin-bottom:0;">
-                            <label class="selectLabel" for="mdTypeFilter">Show</label>
-                            <select is="emby-select" id="mdTypeFilter" class="emby-select-withcolor emby-select"></select>
-                        </div>
-                        <div class="inputContainer" style="max-width:22em;flex:1;margin-bottom:0;">
+                        <div id="mdIssueTotals" style="display:flex;flex-wrap:wrap;gap:.4em;flex:1;min-width:0;"></div>
+                        <input id="mdTypeFilter" type="hidden" value="" />
+                        <div class="inputContainer" style="max-width:22em;margin-bottom:0;">
                             <label class="inputLabel" for="mdIssueFilter">Filter by filename</label>
                             <input id="mdIssueFilter" type="search" is="emby-input" placeholder="Type to filter…" />
                         </div>
@@ -2691,7 +2689,7 @@
                 if (key === 'Playability') {
                     return '<div class="mdFieldGrid mdFieldGrid-2">' +
                         disposalField('Playability', 'Broken files go to') +
-                        '<label class="mdInsetRow mdInsetRow--stack" style="cursor:pointer;" title="Test-plays start, middle and end (30s each). Slower first scan; cached after.">' +
+                        '<label class="mdInsetRow--stack" style="cursor:pointer;" title="Test-plays start, middle and end (30s each). Slower first scan; cached after.">' +
                             '<span class="mdInsetRowMain">' +
                                 '<input id="mdThorough" type="checkbox" class="mdInsetCheck" />' +
                                 '<span style="font-size:13px;font-weight:600;">Thorough playability check</span>' +
@@ -4650,13 +4648,8 @@
             function initAfterI18n() {
 
                 var filter = view.querySelector('#mdTypeFilter');
-                if (!filter.options.length) {
-                    var opts = '<option value="">' + esc(STR.allTypes) + '</option>';
-                    Object.keys(STR.types).forEach(function (k) {
-                        opts += '<option value="' + k + '">' + esc(STR.types[k].title) + '</option>';
-                    });
-                    filter.innerHTML = opts;
-                    filter.addEventListener('change', function () { renderIssueTotals(); renderIssuesFiltered(); });
+                if (!filter.dataset.init) {
+                    filter.dataset.init = '1';
                     view.querySelector('#mdIssueFilter').addEventListener('input', renderIssuesFiltered);
 
                     view.querySelectorAll('.mdTab').forEach(function (b) {

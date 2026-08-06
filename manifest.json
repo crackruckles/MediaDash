@@ -9,6 +9,22 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "0.9.3.0",
+        "changelog": "Transcode fix now actually uses the GPU. v0.9.2 shipped without the hardware-encoder path wired in — the UseHardwareEncoder toggle had no effect and every re-encode ran on the CPU via libx265. This release wires the hw path through and adds full VAAPI support (device auto-picked from /dev/dri/renderD* or Jellyfin\u0027s VaapiDevice, with format=nv12,hwupload / scale_vaapi in the filter chain). When Jellyfin\u0027s own HardwareAccelerationType is unset, the plugin now autodetects: NVIDIA → NVENC, any Linux DRM device (Intel/AMD iGPU or dGPU) → VAAPI, Windows → AMF (or QSV for Intel iGPUs), macOS → VideoToolbox, and falls back to libx265 only when no GPU is present. Any hardware failure still retries with software so no encode gets stuck. Settings page tidy-up: \u0027Thorough playability check\u0027 no longer has the oversized inset box beside the disposal dropdown; Issues tab drops the redundant \u0027Show\u0027 type filter (the count pills already do that) and moves the filename search onto the same row.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.9.3/mediadash_0.9.3.zip",
+        "checksum": "eac4a6a92580c85e67ac54cf0596dd25",
+        "timestamp": "2026-08-06T04:09:53Z"
+      },
+      {
+        "version": "0.9.3.0",
+        "changelog": "Transcode fix now actually uses the GPU. v0.9.2 shipped without the hardware-encoder path wired in — the UseHardwareEncoder toggle had no effect and every re-encode ran on the CPU via libx265. This release wires the hw path through and adds full VAAPI support (device auto-picked from /dev/dri/renderD* or Jellyfin\u0027s VaapiDevice, with format=nv12,hwupload / scale_vaapi in the filter chain). When Jellyfin\u0027s own HardwareAccelerationType is unset, the plugin now autodetects: NVIDIA → NVENC, any Linux DRM device (Intel/AMD iGPU or dGPU) → VAAPI, Windows → AMF (or QSV for Intel iGPUs), macOS → VideoToolbox, and falls back to libx265 only when no GPU is present. Any hardware failure still retries with software so no encode gets stuck. Settings page tidy-up: \u0027Thorough playability check\u0027 no longer has the oversized inset box beside the disposal dropdown; Issues tab drops the redundant \u0027Show\u0027 type filter (the count pills already do that) and moves the filename search onto the same row.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v0.9.3/mediadash_0.9.3.zip",
+        "checksum": "eac4a6a92580c85e67ac54cf0596dd25",
+        "timestamp": "2026-08-06T04:09:53Z"
+      },
+      {
         "version": "0.9.2.0",
         "changelog": "Groups TV episodes into per-show folders and movie franchises (\u003e=2 siblings) into shared folders using Jellyfin\u0027s identified metadata. Fixes false-positive duplicate detection when Jellyfin derives Movie.Name from a folder (name-fallback keys now include the filename; also tightened for Book and Audio, with a required runtime for audio). Fixes transcode failure on filenames near Linux\u0027s 255-byte limit (Cyrillic/CJK) via hash-based sidecar names. Failed fixes that mean \u0027file no longer exists\u0027 or \u0027nothing left to remove\u0027 now auto-clear from the queue instead of retrying every 15 minutes. Move-style fixers now update sibling issues in the DB so they don\u0027t fail with \u0027no longer exists\u0027 after a rename. Issues tab: per-type total pills, \u0027Try to play\u0027 button on Playability cards, Duplicate cards show keeper location. ffmpeg error output now shows the tail (where the actual error is) instead of the codec startup banner.",
         "targetAbi": "12.0.0.0",
@@ -371,6 +387,7 @@
     ]
   }
 ]
+
 
 
 

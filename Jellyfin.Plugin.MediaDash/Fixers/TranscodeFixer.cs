@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Plugin.MediaDash.Api;
 using Jellyfin.Plugin.MediaDash.Configuration;
 using Jellyfin.Plugin.MediaDash.Data;
 using Jellyfin.Plugin.MediaDash.Probing;
@@ -140,11 +142,12 @@ public sealed class TranscodeFixer : IFixer
         var swapCompleted = false;
         try
         {
-            var hwEncoder = config.UseHardwareEncoder ? GetHardwareEncoder(config.PreferredCodec) : null;
+            string? vaapiDevice = null;
+            var hwEncoder = config.UseHardwareEncoder ? GetHardwareEncoder(config.PreferredCodec, out vaapiDevice) : null;
             string? error;
             if (hwEncoder is not null)
             {
-                var hwArgs = BuildArgs(issue.Path, tempPath, probe, video, config, needsDownscale, targetContainer, hwEncoder);
+                var hwArgs = BuildArgs(issue.Path, tempPath, probe, video, config, needsDownscale, targetContainer, hwEncoder, vaapiDevice);
                 error = await _ffmpeg.RunAsync(hwArgs, TranscodeTimeout, cancellationToken, progress, durationSeconds).ConfigureAwait(false);
                 if (error is not null)
                 {
@@ -154,13 +157,13 @@ public sealed class TranscodeFixer : IFixer
                         File.Delete(tempPath);
                     }
 
-                    var swArgs = BuildArgs(issue.Path, tempPath, probe, video, config, needsDownscale, targetContainer, null);
+                    var swArgs = BuildArgs(issue.Path, tempPath, probe, video, config, needsDownscale, targetContainer, null, null);
                     error = await _ffmpeg.RunAsync(swArgs, TranscodeTimeout, cancellationToken, progress, durationSeconds).ConfigureAwait(false);
                 }
             }
             else
             {
-                var args = BuildArgs(issue.Path, tempPath, probe, video, config, needsDownscale, targetContainer, null);
+                var args = BuildArgs(issue.Path, tempPath, probe, video, config, needsDownscale, targetContainer, null, null);
                 error = await _ffmpeg.RunAsync(args, TranscodeTimeout, cancellationToken, progress, durationSeconds).ConfigureAwait(false);
             }
 
@@ -271,17 +274,19 @@ public sealed class TranscodeFixer : IFixer
         }
     }
 
-    private string? GetHardwareEncoder(string preferredCodec)
+    private string? GetHardwareEncoder(string preferredCodec, out string? vaapiDevice)
     {
-        var accel = _serverConfig.GetConfiguration<EncodingOptions>("encoding").HardwareAccelerationType.ToString().ToLowerInvariant();
+        vaapiDevice = null;
+        var enc = _serverConfig.GetConfiguration<EncodingOptions>("encoding");
+        var accel = enc.HardwareAccelerationType.ToString().ToLowerInvariant();
         var suffix = accel switch
         {
             "amf" => "_amf",
             "nvenc" => "_nvenc",
             "qsv" => "_qsv",
             "videotoolbox" => "_videotoolbox",
-            // vaapi needs device/hwupload plumbing; software fallback handles those setups for now.
-            _ => null
+            "vaapi" => "_vaapi",
+            _ => AutodetectSuffix()
         };
         if (suffix is null)
         {
@@ -296,14 +301,88 @@ public sealed class TranscodeFixer : IFixer
             "vp9" => "vp9",
             _ => "hevc"
         };
-        // VP9 hardware encoding is Intel-QSV-only in the wild: NVENC/AMF/VideoToolbox all lack a VP9
-        // encoder path. Fall through to software rather than emitting a non-existent ffmpeg encoder.
+        // VP9 hardware encoding is Intel-QSV-only in the wild: NVENC/AMF/VideoToolbox/VAAPI all lack a
+        // reliable VP9 encoder path. Fall through to software rather than emitting one that won't load.
         if (codec == "vp9" && suffix != "_qsv")
         {
             return null;
         }
 
+        if (suffix == "_vaapi")
+        {
+            vaapiDevice = ResolveVaapiDevice(enc);
+        }
+
         return codec + suffix;
+    }
+
+    // Prefer dedicated (NVIDIA) → any GPU on Linux (VAAPI covers Intel/AMD iGPU + dGPU uniformly)
+    // → any GPU on Windows (AMF is broadest; QSV needs Intel-specific plumbing users can pin via
+    // Jellyfin's HardwareAccelerationType) → VideoToolbox on macOS → software. Returns null only
+    // when no usable GPU is present.
+    private static string? AutodetectSuffix()
+    {
+        try
+        {
+            var gpus = SystemStats.Sample().Gpus;
+            if (gpus.Any(g => string.Equals(g.Source, "NVIDIA", StringComparison.Ordinal)))
+            {
+                return "_nvenc";
+            }
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) && gpus.Count > 0)
+            {
+                return "_vaapi";
+            }
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && gpus.Count > 0)
+            {
+                // PDH doesn't expose vendor; guess Intel iGPU by name so QSV wins over AMF for Intel-only
+                // boxes. Everything else defaults to AMF, which the software-fallback branch covers if wrong.
+                return gpus[0].Name.Contains("Intel", StringComparison.OrdinalIgnoreCase) ? "_qsv" : "_amf";
+            }
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                return "_videotoolbox";
+            }
+        }
+        catch (Exception)
+        {
+            // Best-effort probe; any failure means we fall through to software rather than crash the fix.
+        }
+
+        return null;
+    }
+
+    private static string ResolveVaapiDevice(EncodingOptions enc)
+    {
+        if (!string.IsNullOrWhiteSpace(enc.VaapiDevice))
+        {
+            return enc.VaapiDevice;
+        }
+
+        // Common convention: renderD128 is the first DRM render node. Prefer whatever's actually
+        // there so a box with only renderD129 still works.
+        try
+        {
+            if (Directory.Exists("/dev/dri"))
+            {
+                var first = Directory.EnumerateFiles("/dev/dri", "renderD*")
+                    .OrderBy(p => p, StringComparer.Ordinal)
+                    .FirstOrDefault();
+                if (first is not null)
+                {
+                    return first;
+                }
+            }
+        }
+        catch (IOException)
+        {
+            // Enumeration failed; fall through to the standard default.
+        }
+
+        return "/dev/dri/renderD128";
     }
 
     private static List<string> BuildArgs(
@@ -314,7 +393,8 @@ public sealed class TranscodeFixer : IFixer
         PluginConfiguration config,
         bool needsDownscale,
         string targetContainer,
-        string? hardwareEncoder)
+        string? hardwareEncoder,
+        string? vaapiDevice)
     {
         var encoder = hardwareEncoder ?? config.PreferredCodec.ToLowerInvariant() switch
         {
@@ -325,7 +405,14 @@ public sealed class TranscodeFixer : IFixer
             _ => "libx265"
         };
 
-        var args = new List<string> { "-i", inputPath, "-map", "0:" + video.Index.ToString(CultureInfo.InvariantCulture) };
+        var args = new List<string>();
+        if (vaapiDevice is not null)
+        {
+            // Global VAAPI device init must come before -i so the encoder + filter chain can hwupload to it.
+            args.AddRange(["-vaapi_device", vaapiDevice]);
+        }
+
+        args.AddRange(["-i", inputPath, "-map", "0:" + video.Index.ToString(CultureInfo.InvariantCulture)]);
 
         var audioStreams = probe.Streams!.Where(s => string.Equals(s.CodecType, "audio", StringComparison.OrdinalIgnoreCase)).ToList();
         var keptAudio = config.AllowedAudioLanguages.Length > 0
@@ -399,9 +486,11 @@ public sealed class TranscodeFixer : IFixer
                 "-maxrate", (targetBits * 3 / 2).ToString(CultureInfo.InvariantCulture),
                 "-bufsize", (targetBits * 2).ToString(CultureInfo.InvariantCulture)
             ]);
-            if (encoder.StartsWith("h264", StringComparison.Ordinal))
+            if (encoder.StartsWith("h264", StringComparison.Ordinal) && vaapiDevice is null)
             {
                 // h264 hardware encoders are 8-bit; normalize input so 10-bit sources don't abort the encoder.
+                // Skipped for VAAPI: frames are already nv12-on-GPU via the hwupload filter below, and
+                // -pix_fmt would try to force a CPU format on a hardware surface and fail.
                 args.AddRange(["-pix_fmt", "yuv420p"]);
             }
         }
@@ -429,7 +518,16 @@ public sealed class TranscodeFixer : IFixer
             }
         }
 
-        if (needsDownscale)
+        if (vaapiDevice is not null)
+        {
+            // VAAPI encoders require frames on the GPU as vaapi surfaces. format=nv12 normalises 10-bit sources
+            // for hwupload; scale_vaapi keeps the downscale on-GPU so we don't round-trip through system memory.
+            var vf = needsDownscale
+                ? "format=nv12,hwupload,scale_vaapi=w=-2:h=" + config.MaxResolutionHeight.ToString(CultureInfo.InvariantCulture)
+                : "format=nv12,hwupload";
+            args.AddRange(["-vf", vf]);
+        }
+        else if (needsDownscale)
         {
             args.AddRange(["-vf", "scale=-2:" + config.MaxResolutionHeight.ToString(CultureInfo.InvariantCulture)]);
         }
