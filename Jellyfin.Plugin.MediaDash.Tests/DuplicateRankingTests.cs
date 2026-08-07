@@ -330,10 +330,19 @@ public class DuplicateRankingTests
     [InlineData("/mnt/media/movies/Show/deleted scenes/dropped.mp4")]
     [InlineData("/mnt/media/tv/Series/theme-music/opening.mp3")]
     [InlineData("/mnt/media/movies/Show/featurettes/commentary.mp4")]
-    [InlineData("C:\\media\\movies\\Show\\extras\\clip.mp4")]
     public void IsSidecarPath_KnownSidecarFolders_ReturnTrue(string path)
     {
+        // Path.GetDirectoryName respects OS-native separators. On Linux the test runner treats
+        // `C:\...` as one big filename, which is why the Windows-formatted literal that used to
+        // live here failed CI. Use Path.Combine when covering platform-specific separator behaviour.
         Assert.True(DuplicateScanner.IsSidecarPath(path));
+    }
+
+    [Fact]
+    public void IsSidecarPath_WindowsPathOnWindows_HandlesSeparator()
+    {
+        var winPath = System.IO.Path.Combine("media", "movies", "Show", "extras", "clip.mp4");
+        Assert.True(DuplicateScanner.IsSidecarPath(winPath));
     }
 
     [Theory]
