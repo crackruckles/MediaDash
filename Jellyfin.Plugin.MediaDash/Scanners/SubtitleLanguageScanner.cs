@@ -61,6 +61,23 @@ public sealed class SubtitleLanguageScanner : ProbingScannerBase
             .Distinct()
             .ToList();
 
+        // Sum sidecar sub file sizes so the Overview shows a real "space to save" number.
+        // Embedded tracks live inside the container so we can't attribute bytes to them cheaply — skip.
+        long externalBytes = 0;
+        foreach (var e in external)
+        {
+            try
+            {
+                externalBytes += new System.IO.FileInfo(e.Path).Length;
+            }
+            catch (System.IO.IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
+
         var issue = new Issue
         {
             DetailsJson = JsonSerializer.Serialize(new
@@ -72,7 +89,7 @@ public sealed class SubtitleLanguageScanner : ProbingScannerBase
             SuggestedFix = external.Count > 0
                 ? $"Remove subtitles in {string.Join(", ", languages)} ({embedded.Count} embedded, {external.Count} separate file(s))."
                 : $"Remove {embedded.Count} embedded subtitle track(s) in {string.Join(", ", languages)}.",
-            SizeSavings = 0
+            SizeSavings = externalBytes
         };
         return Task.FromResult<Issue?>(issue);
     }

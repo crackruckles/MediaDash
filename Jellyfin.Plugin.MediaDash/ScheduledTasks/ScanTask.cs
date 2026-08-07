@@ -88,6 +88,11 @@ public sealed class ScanTask : IScheduledTask
             Recursive = true
         });
 
+        // Jellyfin indexes sidecar theme.mp3 / themevideo.* as ordinary Audio/Video items alongside
+        // the parent series/movie. They should not be checked as library content — no subs, no
+        // duplicates, no "unplayable" — so drop them before the scanners see them.
+        items = items.Where(i => !i.IsThemeMedia).ToList();
+
         var scanIsScoped = false;
         var enabledLibraries = Plugin.Instance!.Configuration.EnabledLibraries;
         if (enabledLibraries.Length > 0)

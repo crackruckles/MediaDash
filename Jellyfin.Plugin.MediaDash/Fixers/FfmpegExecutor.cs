@@ -130,7 +130,11 @@ public sealed class FfmpegExecutor
             if (process.ExitCode != 0)
             {
                 var tail = stderrTail.ToString();
-                return string.IsNullOrWhiteSpace(tail) ? $"ffmpeg exited with code {process.ExitCode}" : tail;
+                var msg = string.IsNullOrWhiteSpace(tail) ? $"ffmpeg exited with code {process.ExitCode}" : tail;
+                Api.Diagnostics.Record(
+                    "Ffmpeg.Error",
+                    "ffmpeg failed" + FindInputHint(args) + ": " + TrimForDiagnostic(msg) + ". The original file was left untouched.");
+                return msg;
             }
 
             return null;
@@ -138,7 +142,11 @@ public sealed class FfmpegExecutor
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             TryKill(process);
-            return $"ffmpeg exceeded the {timeout} time limit and was stopped";
+            var msg = TimeoutError(timeout);
+            Api.Diagnostics.Record(
+                "Ffmpeg.Timeout",
+                "ffmpeg exceeded the " + timeout + " limit" + FindInputHint(args) + " and was stopped. Larger files or slow disks may need a longer window — the track fixer already auto-retries once with a 5-hour cap.");
+            return msg;
         }
         catch (OperationCanceledException)
         {
@@ -151,6 +159,36 @@ public sealed class FfmpegExecutor
             Api.Diagnostics.Record("Ffmpeg.RunFailed", "Could not execute ffmpeg at '" + encoderPath + "': " + ex.Message + ". Every re-encode fix is blocked until this is fixed.");
             return ex.Message;
         }
+    }
+
+    /// <summary>Sentinel test callers use to detect a wall-clock timeout vs any other ffmpeg failure.</summary>
+    /// <param name="error">The error string returned by <see cref="RunAsync"/>.</param>
+    /// <returns>True if the failure was due to the RunAsync timeout expiring.</returns>
+    public static bool IsTimeoutError(string error)
+    {
+        return error is not null && error.Contains("time limit and was stopped", StringComparison.Ordinal);
+    }
+
+    private static string TimeoutError(TimeSpan timeout) => $"ffmpeg exceeded the {timeout} time limit and was stopped";
+
+    private static string FindInputHint(IReadOnlyList<string> args)
+    {
+        for (var i = 0; i < args.Count - 1; i++)
+        {
+            if (string.Equals(args[i], "-i", StringComparison.Ordinal))
+            {
+                return " on '" + args[i + 1] + "'";
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static string TrimForDiagnostic(string message)
+    {
+        // Diagnostic panel prefers a single readable line — collapse whitespace + cap length.
+        var collapsed = System.Text.RegularExpressions.Regex.Replace(message, @"\s+", " ").Trim();
+        return collapsed.Length > 400 ? collapsed[..400] + "…" : collapsed;
     }
 
     private static bool IsProgressKeyValueLine(string line)

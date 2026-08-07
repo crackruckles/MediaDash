@@ -24,6 +24,11 @@ public sealed class TrackFixer : IFixer
 {
     private static readonly TimeSpan RemuxTimeout = TimeSpan.FromMinutes(30);
 
+    // Retry ceiling for slow disks / big files: if the 30-min first pass hits the timeout, run
+    // one more attempt with a 5-hour cap before giving up. Real bugs still fail fast (bad codec,
+    // permissions, disk full) since those don't trigger the timeout branch.
+    private static readonly TimeSpan RemuxRetryTimeout = TimeSpan.FromHours(5);
+
     private readonly FfprobeService _ffprobe;
     private readonly FfmpegExecutor _ffmpeg;
     private readonly OutputVerifier _verifier;
@@ -129,6 +134,15 @@ public sealed class TrackFixer : IFixer
             try
             {
                 var error = await _ffmpeg.RunAsync(args, RemuxTimeout, cancellationToken).ConfigureAwait(false);
+                if (error is not null && FfmpegExecutor.IsTimeoutError(error))
+                {
+                    _logger.LogInformation("Track remux hit the {InitialTimeout} limit on '{Path}'; retrying with {RetryTimeout}.", RemuxTimeout, issue.Path, RemuxRetryTimeout);
+                    Api.Diagnostics.Record(
+                        "Track.RemuxRetry",
+                        "First remux pass on '" + issue.Path + "' hit the " + RemuxTimeout + " limit — retrying with an extended " + RemuxRetryTimeout + " window for large files on slow machines.");
+                    error = await _ffmpeg.RunAsync(args, RemuxRetryTimeout, cancellationToken).ConfigureAwait(false);
+                }
+
                 if (error is not null)
                 {
                     return FixResult.Fail("Rebuilding the file failed; the original is untouched. Details: " + TranscodeFixer.Truncate(error));

@@ -283,16 +283,37 @@ public class FileBrowserController : ControllerBase
             return Conflict("An entry already exists at the destination.");
         }
 
+        var sourceIsDir = Directory.Exists(source);
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-            if (Directory.Exists(source))
+            if (sourceIsDir)
             {
                 Directory.Move(source, target);
             }
             else
             {
                 System.IO.File.Move(source, target);
+            }
+        }
+        catch (IOException ex) when (IsCrossDeviceError(ex))
+        {
+            // Bind-mount setups: /movies and /media/shared-movies can both live under the same Jellyfin
+            // library while the container sees them as separate filesystems. rename() returns EXDEV — the
+            // .NET APIs surface it as IOException with "Invalid cross-device link". Fall back to copy →
+            // rename → delete-source with a staging suffix so an interruption never leaves a half-copied
+            // file under its final name.
+            try
+            {
+                CrossDeviceMove(source, target, sourceIsDir);
+            }
+            catch (UnauthorizedAccessException innerAuth)
+            {
+                return PermissionDenied(source + " -> " + target, innerAuth);
+            }
+            catch (IOException innerIo)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, "Move failed: " + innerIo.Message);
             }
         }
         catch (UnauthorizedAccessException ex)
@@ -570,17 +591,107 @@ public class FileBrowserController : ControllerBase
         return name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
     }
 
-    private static void CopyDirectory(string source, string target)
+    private static void CopyDirectory(string source, string target, bool preserveTimestamps = false)
     {
         Directory.CreateDirectory(target);
         foreach (var file in Directory.EnumerateFiles(source))
         {
-            System.IO.File.Copy(file, Path.Combine(target, Path.GetFileName(file)), overwrite: false);
+            var dst = Path.Combine(target, Path.GetFileName(file));
+            System.IO.File.Copy(file, dst, overwrite: false);
+            if (preserveTimestamps)
+            {
+                System.IO.File.SetLastWriteTimeUtc(dst, System.IO.File.GetLastWriteTimeUtc(file));
+            }
         }
 
         foreach (var sub in Directory.EnumerateDirectories(source))
         {
-            CopyDirectory(sub, Path.Combine(target, Path.GetFileName(sub)));
+            CopyDirectory(sub, Path.Combine(target, Path.GetFileName(sub)), preserveTimestamps);
+        }
+
+        if (preserveTimestamps)
+        {
+            Directory.SetLastWriteTimeUtc(target, Directory.GetLastWriteTimeUtc(source));
+        }
+    }
+
+    private static bool IsCrossDeviceError(IOException ex)
+    {
+        // Linux rename() returns EXDEV (18) when the target is on a different filesystem; .NET reports
+        // this as IOException "Invalid cross-device link". macOS produces the same message. Windows falls
+        // back internally so we never see this there. Message match is the portable check — HResult is
+        // repackaged differently across TFMs.
+        return ex.Message.Contains("cross-device", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static void CrossDeviceMove(string source, string target, bool sourceIsDir)
+    {
+        // Copy under a marker suffix first — if we die mid-copy, the partial payload is obvious and never
+        // sits under the final name. Only after the copy verifies do we rename → delete-source.
+        var staging = target + ".mediadash-moving";
+
+        try
+        {
+            if (sourceIsDir)
+            {
+                CopyDirectory(source, staging, preserveTimestamps: true);
+            }
+            else
+            {
+                System.IO.File.Copy(source, staging, overwrite: false);
+                var copiedInfo = new FileInfo(staging);
+                var sourceInfo = new FileInfo(source);
+                if (copiedInfo.Length != sourceInfo.Length)
+                {
+                    throw new IOException("Copy verification failed: size mismatch (" + copiedInfo.Length + " vs " + sourceInfo.Length + " bytes).");
+                }
+
+                System.IO.File.SetLastWriteTimeUtc(staging, System.IO.File.GetLastWriteTimeUtc(source));
+            }
+
+            // Same-filesystem rename now — this one is a true atomic rename.
+            if (sourceIsDir)
+            {
+                Directory.Move(staging, target);
+            }
+            else
+            {
+                System.IO.File.Move(staging, target);
+            }
+
+            // Source removal LAST, so any failure above still leaves the user's original intact.
+            if (sourceIsDir)
+            {
+                Directory.Delete(source, recursive: true);
+            }
+            else
+            {
+                System.IO.File.Delete(source);
+            }
+        }
+        catch
+        {
+            // Any failure: sweep the staging file/dir. The user's source is untouched — that's the
+            // invariant this fallback guarantees.
+            try
+            {
+                if (Directory.Exists(staging))
+                {
+                    Directory.Delete(staging, recursive: true);
+                }
+                else if (System.IO.File.Exists(staging))
+                {
+                    System.IO.File.Delete(staging);
+                }
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+
+            throw;
         }
     }
 }

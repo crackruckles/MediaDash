@@ -373,6 +373,15 @@
                 margin: 0 0 14px;
                 border: none; background: none; padding: 0;
             }
+            #MediaDashConfigPage .mdSetCard--collapsible .mdSetHead { cursor: pointer; user-select: none; }
+            #MediaDashConfigPage .mdSetHeadChevron {
+                margin-left: auto; align-self: center;
+                color: var(--md-accent, currentColor);
+                transition: transform .15s ease;
+            }
+            #MediaDashConfigPage .mdSetCard.mdSetCardCollapsed .mdSetHeadChevron { transform: rotate(-90deg); }
+            #MediaDashConfigPage .mdSetCard.mdSetCardCollapsed > *:not(.mdSetHead) { display: none !important; }
+            #MediaDashConfigPage .mdSetCard.mdSetCardCollapsed .mdSetHead { margin-bottom: 0; }
             #MediaDashConfigPage .mdSetIcon {
                 width: 38px; height: 38px; flex: 0 0 38px;
                 border-radius: 11px;
@@ -1354,6 +1363,17 @@
                 </div>
 
                 <div id="mdTab-overview">
+                    <div id="mdUpdateAvailable" style="display:none;margin-bottom:1em;padding:.8em 1.2em;border-radius:12px;background:rgba(139,92,246,.14);border:2px solid #8b5cf6;">
+                        <div style="display:flex;gap:.8em;align-items:center;flex-wrap:wrap;">
+                            <span class="material-icons" style="color:#8b5cf6;font-size:1.5em;">system_update</span>
+                            <div style="flex:1;min-width:20em;">
+                                <div style="font-weight:600;color:#8b5cf6;">MediaDash update available</div>
+                                <div class="fieldDescription" id="mdUpdateAvailableText" style="margin-top:.2em;"></div>
+                            </div>
+                            <a is="emby-linkbutton" id="mdUpdateAvailableLink" href="#" target="_blank" rel="noopener" class="raised emby-button" style="font-size:80%;text-decoration:none;padding:.5em 1em;"><span>View release notes</span></a>
+                            <button is="emby-button" type="button" id="mdUpdateAvailableDismiss" style="background:transparent;border:0;color:#8b5cf6;padding:.3em;min-width:0;" title="Hide this notice for the current version. It comes back on the next release."><span class="material-icons" style="font-size:1.2em;">close</span></button>
+                        </div>
+                    </div>
                     <div id="mdRedownloadWarn" style="display:none;margin-bottom:1em;padding:.8em 1.2em;border-radius:12px;background:rgba(239,68,68,.14);border:2px solid #ef4444;">
                         <div style="display:flex;gap:.8em;align-items:flex-start;flex-wrap:wrap;">
                             <span class="material-icons" style="color:#ef4444;font-size:1.5em;">restart_alt</span>
@@ -1491,24 +1511,33 @@
 
                         <nav class="mdSetNav" id="mdSetNav" aria-label="Settings sections"></nav>
 
-                        <section id="mdSet-libraries" class="mdSetCard mdSetCard--libraries mdSetCard--full">
+                        <div class="mdTaskHeadRow" style="margin-bottom:0;">
+                            <div></div>
+                            <div class="mdTaskHeadPills">
+                                <button type="button" class="mdTaskPill" id="mdTaskCollapseAll">Collapse all</button>
+                            </div>
+                        </div>
+
+                        <section id="mdSet-libraries" class="mdSetCard mdSetCard--libraries mdSetCard--collapsible mdSetCard--full">
                             <h2 class="mdSetHead">
                                 <span class="mdSetIcon"><span class="material-icons">video_library</span></span>
                                 <span class="mdSetHeadText">
                                     <span class="mdSetTitle">Libraries</span>
                                     <span class="mdSetSubtitle">Which Jellyfin libraries every task is allowed to touch. Empty = all movie / TV / music / book libraries.</span>
                                 </span>
+                                <span class="material-icons mdSetHeadChevron">expand_more</span>
                             </h2>
                             <div id="mdLibraries"></div>
                         </section>
 
-                        <section id="mdSet-safety" class="mdSetCard mdSetCard--safety mdSetCard--full">
+                        <section id="mdSet-safety" class="mdSetCard mdSetCard--safety mdSetCard--collapsible mdSetCard--full">
                             <h2 class="mdSetHead">
                                 <span class="mdSetIcon"><span class="material-icons">shield</span></span>
                                 <span class="mdSetHeadText">
                                     <span class="mdSetTitle" data-i18n="settings.safety.title">Safety</span>
                                     <span class="mdSetSubtitle">Guardrails that apply to every task below.</span>
                                 </span>
+                                <span class="material-icons mdSetHeadChevron">expand_more</span>
                             </h2>
                             <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 32px;">
                                 <div class="checkboxContainer checkboxContainer-withDescription" style="margin:0;">
@@ -1542,20 +1571,20 @@
                                 <div class="mdTaskEyebrowSub">Turn a task on and its settings appear with it. Nothing runs while a task is Off.</div>
                             </div>
                             <div class="mdTaskHeadPills">
-                                <button type="button" class="mdTaskPill" id="mdTaskCollapseAll">Collapse all</button>
                                 <span class="mdTaskPill" id="mdTaskActiveCount" style="cursor:default;">— of 8 active</span>
                             </div>
                         </div>
 
                         <div class="mdTaskList" id="mdFixTypeRows"></div>
 
-                        <section id="mdSet-recycle" class="mdSetCard mdSetCard--bin mdSetCard--full">
+                        <section id="mdSet-recycle" class="mdSetCard mdSetCard--bin mdSetCard--collapsible mdSetCard--full">
                             <h2 class="mdSetHead">
                                 <span class="mdSetIcon"><span class="material-icons">delete</span></span>
                                 <span class="mdSetHeadText">
                                     <span class="mdSetTitle">Recycle bin</span>
                                     <span class="mdSetSubtitle">Where removed files are kept and how long they stay there. Recycled files are managed on the Recycle bin tab.</span>
                                 </span>
+                                <span class="material-icons mdSetHeadChevron">expand_more</span>
                             </h2>
                             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(20em,1fr));gap:18px 32px;">
                                 <div class="inputContainer" style="margin:0;">
@@ -1571,13 +1600,14 @@
                             </div>
                         </section>
 
-                        <section id="mdSet-maintenance" class="mdSetCard mdSetCard--maintenance mdSetCard--full">
+                        <section id="mdSet-maintenance" class="mdSetCard mdSetCard--maintenance mdSetCard--collapsible mdSetCard--full">
                             <h2 class="mdSetHead">
                                 <span class="mdSetIcon"><span class="material-icons">handyman</span></span>
                                 <span class="mdSetHeadText">
                                     <span class="mdSetTitle">Maintenance</span>
                                     <span class="mdSetSubtitle">Reset and re-run actions. Only use these if something looks stuck.</span>
                                 </span>
+                                <span class="material-icons mdSetHeadChevron">expand_more</span>
                             </h2>
                             <div style="margin:.4em 0;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
                                 <button is="emby-button" type="button" id="mdRerunSetup" class="raised" title="Reopen the first-run walkthrough at the top of Overview" style="font-size:80%;"><span>Run first-time setup again</span></button>
@@ -2996,6 +3026,7 @@
                     });
                 });
                 view.querySelectorAll('.mdChipInput').forEach(wireChipInput);
+                wireSetCardCollapse();
                 var collapseAll = view.querySelector('#mdTaskCollapseAll');
                 if (collapseAll) collapseAll.addEventListener('click', function () {
                     var anyExpanded = false;
@@ -3003,9 +3034,51 @@
                         var card = view.querySelector('.mdTask[data-key="' + k + '"]');
                         if (card && !card.classList.contains('mdTaskCollapsed') && !card.classList.contains('mdTaskOff')) anyExpanded = true;
                     });
+                    view.querySelectorAll('.mdSetCard--collapsible').forEach(function (card) {
+                        if (!card.classList.contains('mdSetCardCollapsed')) anyExpanded = true;
+                    });
                     TASK_ORDER.forEach(function (k) { setCollapseState(k, anyExpanded); });
                     TASK_ORDER.forEach(applyCollapse);
+                    view.querySelectorAll('.mdSetCard--collapsible').forEach(function (card) {
+                        setSetCardCollapsed(card, anyExpanded);
+                    });
+                    updateCollapseAllLabel();
                 });
+                updateCollapseAllLabel();
+            }
+
+            function setSetCardCollapsed(card, collapsed) {
+                card.classList.toggle('mdSetCardCollapsed', collapsed);
+                try { localStorage.setItem('mdSetCollapse:' + card.id, collapsed ? '1' : '0'); } catch (e) {}
+            }
+
+            function wireSetCardCollapse() {
+                view.querySelectorAll('.mdSetCard--collapsible').forEach(function (card) {
+                    var stored = '0';
+                    try { stored = localStorage.getItem('mdSetCollapse:' + card.id) || '0'; } catch (e) {}
+                    card.classList.toggle('mdSetCardCollapsed', stored === '1');
+                    var head = card.querySelector('.mdSetHead');
+                    if (head) {
+                        head.addEventListener('click', function () {
+                            setSetCardCollapsed(card, !card.classList.contains('mdSetCardCollapsed'));
+                            updateCollapseAllLabel();
+                        });
+                    }
+                });
+            }
+
+            function updateCollapseAllLabel() {
+                var btn = view.querySelector('#mdTaskCollapseAll');
+                if (!btn) return;
+                var anyExpanded = false;
+                TASK_ORDER.forEach(function (k) {
+                    var card = view.querySelector('.mdTask[data-key="' + k + '"]');
+                    if (card && !card.classList.contains('mdTaskCollapsed') && !card.classList.contains('mdTaskOff')) anyExpanded = true;
+                });
+                view.querySelectorAll('.mdSetCard--collapsible').forEach(function (card) {
+                    if (!card.classList.contains('mdSetCardCollapsed')) anyExpanded = true;
+                });
+                btn.textContent = anyExpanded ? 'Collapse all' : 'Expand all';
             }
 
             function setTaskMode(key, newMode) {
@@ -3023,6 +3096,7 @@
                 if (newMode === 'Off') setCollapseState(key, true);
                 else if (oldMode === 'Off') setCollapseState(key, false);
                 applyCollapse(key);
+                updateCollapseAllLabel();
             }
 
             function syncModeSegments(key) {
@@ -3057,6 +3131,7 @@
                 if (!card || card.classList.contains('mdTaskOff')) return;
                 setCollapseState(key, !card.classList.contains('mdTaskCollapsed'));
                 applyCollapse(key);
+                updateCollapseAllLabel();
             }
 
             function applyCollapse(key) {
@@ -3362,7 +3437,10 @@
                     view.querySelector('#mdBinInfo').textContent = b.FileCount > 0
                         ? fmt(STR.binHolding, b.FileCount, bytes(b.SizeBytes))
                         : STR.binEmpty;
-                    view.querySelector('#mdBinEmpty').disabled = b.FileCount === 0;
+                    // Track state on the button for the click handler; do NOT set `disabled`. A
+                    // silently-disabled button looks clickable but no-ops on click, which is exactly
+                    // what users report as "nothing happens".
+                    view.querySelector('#mdBinEmpty').dataset.fileCount = String(b.FileCount || 0);
                 });
             }
 
@@ -4150,6 +4228,51 @@
                 if (el) el.style.display = 'none';
             }
 
+            // Version tuple compare: "0.9.10" > "0.9.9" (numeric), tolerant of a leading "v" and
+            // trailing ".0" (Plugin.Version is 4-part, GitHub tag is usually 3-part).
+            function parseVersion(v) {
+                if (!v) return null;
+                var s = String(v).replace(/^v/i, '').trim();
+                var parts = s.split(/[.\-+]/).map(function (p) { return parseInt(p, 10); });
+                if (parts.some(isNaN)) return null;
+                while (parts.length < 4) parts.push(0);
+                return parts;
+            }
+            function versionGreater(a, b) {
+                for (var i = 0; i < Math.max(a.length, b.length); i++) {
+                    var ai = a[i] || 0, bi = b[i] || 0;
+                    if (ai !== bi) return ai > bi;
+                }
+                return false;
+            }
+
+            function checkForUpdate() {
+                var banner = view.querySelector('#mdUpdateAvailable');
+                if (!banner) return;
+                loadEnv().then(function (env) {
+                    if (!env || !env.PluginVersion) return;
+                    var current = parseVersion(env.PluginVersion);
+                    if (!current) return;
+                    // GitHub REST releases/latest — CORS-enabled, unauth 60/hr per IP, plenty for once-per-load.
+                    fetch('https://api.github.com/repos/crackruckles/MediaDash/releases/latest', { headers: { 'Accept': 'application/vnd.github+json' } })
+                        .then(function (r) { return r.ok ? r.json() : null; }, function () { return null; })
+                        .then(function (rel) {
+                            if (!rel || !rel.tag_name) return;
+                            var latest = parseVersion(rel.tag_name);
+                            if (!latest || !versionGreater(latest, current)) return;
+                            var latestStr = rel.tag_name.replace(/^v/i, '');
+                            var dismissed = '';
+                            try { dismissed = localStorage.getItem('mdUpdateDismissed') || ''; } catch (e) {}
+                            if (dismissed === latestStr) return;
+                            banner.setAttribute('data-version', latestStr);
+                            view.querySelector('#mdUpdateAvailableText').textContent =
+                                'You’re on ' + env.PluginVersion + '. Version ' + latestStr + ' is out — install it from Dashboard → Catalog, or from the release page.';
+                            view.querySelector('#mdUpdateAvailableLink').setAttribute('href', rel.html_url || 'https://github.com/crackruckles/MediaDash/releases');
+                            banner.style.display = '';
+                        });
+                });
+            }
+
             // ---------- Env / diagnostics ----------
             // Cache the env snapshot for the wizard + Settings hints so we don't hit /Environment on every
             // load. Refreshed on demand by copyDiagnostics().
@@ -4755,6 +4878,14 @@
                         btn.addEventListener('click', function () { dismissBanner(btn.getAttribute('data-banner')); });
                     });
 
+                    view.querySelector('#mdUpdateAvailableDismiss').addEventListener('click', function () {
+                        var latest = view.querySelector('#mdUpdateAvailable').getAttribute('data-version') || '';
+                        try { localStorage.setItem('mdUpdateDismissed', latest); } catch (e) {}
+                        view.querySelector('#mdUpdateAvailable').style.display = 'none';
+                    });
+
+                    checkForUpdate();
+
                     // Delegated so links rendered inside task-card templates (created later) reach us.
                     view.addEventListener('click', function (e) {
                         var link = e.target.closest('.mdGoRecycleTab');
@@ -4828,8 +4959,25 @@
                     setupFirstRun();
 
                     view.querySelector('#mdBinEmpty').addEventListener('click', function () {
-                        if (!window.confirm(STR.confirmEmptyBin)) return;
                         var btn = this;
+                        // Fetch the bin's current state before doing anything expensive. If empty, tell
+                        // the user out loud instead of the button silently no-op'ing.
+                        api('RecycleBin').then(function (state) {
+                            if (!state || (state.FileCount || 0) === 0) {
+                                Dashboard.alert({ title: 'Empty recycle bin', message: STR.binEmpty });
+                                return;
+                            }
+
+                            if (!window.confirm(STR.confirmEmptyBin)) return;
+                            runEmptyBin(btn);
+                        }, function () {
+                            // Fetch failed — still let the user try; the server will report empty-bin state.
+                            if (!window.confirm(STR.confirmEmptyBin)) return;
+                            runEmptyBin(btn);
+                        });
+                    });
+
+                    function runEmptyBin(btn) {
                         var infoEl = view.querySelector('#mdBinInfo');
                         btn.disabled = true;
                         view.querySelector('#mdBinList').style.display = 'none';
@@ -4881,7 +5029,7 @@
                             bar.style.display = 'none';
                             Dashboard.alert({ title: 'Empty recycle bin', message: 'The server refused the request. Check the Errors tab for details.' });
                         });
-                    });
+                    }
 
 
                     view.querySelector('#mdRerunSetup').addEventListener('click', function () {

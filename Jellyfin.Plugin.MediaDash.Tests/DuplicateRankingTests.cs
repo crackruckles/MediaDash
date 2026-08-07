@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Jellyfin.Plugin.MediaDash.Scanners;
 using MediaBrowser.Controller.Entities.Movies;
@@ -93,8 +94,10 @@ public class DuplicateRankingTests
     {
         // Two copies of the same movie in different folders. Filenames differ only in punctuation, which
         // NormalizeName strips — they collapse to the same key and get grouped as legit duplicates.
-        var a = new Movie { Name = "Big Buck Test", ProductionYear = 2020, Path = @"C:\a\Big Buck Test (2020).mkv" };
-        var b = new Movie { Name = "Big.Buck.Test", ProductionYear = 2020, Path = @"D:\backup\Big.Buck.Test.2020.mkv" };
+        // Paths built via Path.Combine so tests pass on both Windows and Linux CI (Path.GetFileName on
+        // Linux treats "\" as literal, keeping the whole "C:\a\Big Buck Test..." string as the filename).
+        var a = new Movie { Name = "Big Buck Test", ProductionYear = 2020, Path = Path.Combine("a", "Big Buck Test (2020).mkv") };
+        var b = new Movie { Name = "Big.Buck.Test", ProductionYear = 2020, Path = Path.Combine("backup", "Big.Buck.Test.2020.mkv") };
         Assert.NotNull(DuplicateScanner.GetGroupKey(a));
         Assert.Equal(DuplicateScanner.GetGroupKey(a), DuplicateScanner.GetGroupKey(b));
     }
@@ -162,7 +165,7 @@ public class DuplicateRankingTests
             Album = "Kind of Blue",
             Artists = new System.Collections.Generic.List<string> { "Miles Davis" },
             RunTimeTicks = System.TimeSpan.FromSeconds(337).Ticks,
-            Path = @"C:\music\Miles Davis - Blue in Green.flac"
+            Path = Path.Combine("music", "Miles Davis - Blue in Green.flac")
         };
 
         var key = DuplicateScanner.GetGroupKey(audio);
@@ -227,7 +230,7 @@ public class DuplicateRankingTests
     [Fact]
     public void GetGroupKey_Book_FallbackIncludesFilename()
     {
-        var book = new MediaBrowser.Controller.Entities.Book { Name = "Dune", Path = @"C:\books\Dune.epub" };
+        var book = new MediaBrowser.Controller.Entities.Book { Name = "Dune", Path = Path.Combine("books", "Dune.epub") };
         var key = DuplicateScanner.GetGroupKey(book);
         Assert.Equal("book:name:dune:duneepub", key);
     }
@@ -246,5 +249,23 @@ public class DuplicateRankingTests
     {
         var book = new MediaBrowser.Controller.Entities.Book { Name = string.Empty };
         Assert.Null(DuplicateScanner.GetGroupKey(book));
+    }
+
+    [Theory]
+    [InlineData("Movie -1080p.mkv", "1080p")]
+    [InlineData("Movie -4K.mkv", "4k")]
+    [InlineData("Movie -finalcut.mkv", "finalcut")]
+    [InlineData("Movie -Directors Cut.mkv", "directors cut")]
+    [InlineData("Movie - Final Cut.mkv", "final cut")]
+    [InlineData("Movie -Special Edition.mkv", "special edition")]
+    [InlineData("Movie.2020.-.Director's.Cut.mkv", "director's.cut")]
+    [InlineData("Movie.2020.2160p.BluRay.mkv", "bluray")]
+    [InlineData("Movie {edition-Directors Cut}.mkv", "directors cut")]
+    [InlineData("Movie (2020).mkv", "")]
+    [InlineData("Batman Begins.mkv", "")]
+    [InlineData("The Final.mkv", "")]
+    public void GetEdition_MatchesTrailingQualityAndEditionTags(string filename, string expected)
+    {
+        Assert.Equal(expected, DuplicateScanner.GetEdition(filename));
     }
 }

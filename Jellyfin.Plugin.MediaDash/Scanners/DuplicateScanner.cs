@@ -232,10 +232,21 @@ public sealed partial class DuplicateScanner : IScanner
         }
     }
 
-    private static string GetEdition(string path)
+    internal static string GetEdition(string path)
     {
-        var match = EditionRegex().Match(Path.GetFileNameWithoutExtension(path));
-        return match.Success ? match.Groups[1].Value : string.Empty;
+        var stem = Path.GetFileNameWithoutExtension(path);
+        var match = EditionRegex().Match(stem);
+        if (match.Success)
+        {
+            return match.Groups[1].Value.Trim().ToLowerInvariant();
+        }
+
+        // Users often keep alt encodings/versions under trailing tags like "-1080p", "-4k",
+        // "-finalcut", "- Directors Cut" instead of Jellyfin's {edition-X} convention. Treat a
+        // known quality- or edition-keyword suffix as an edition marker so TreatEditionsAsDuplicates
+        // =false splits them apart. Whitelist keeps the risk of splitting genuine duplicates low.
+        var trailing = TrailingEditionRegex().Match(stem);
+        return trailing.Success ? trailing.Groups[1].Value.Trim().ToLowerInvariant() : string.Empty;
     }
 
     private async Task<List<Issue>> RankGroupAsync(string groupKey, List<(BaseItem Item, string Path)> group, CancellationToken cancellationToken)
@@ -363,6 +374,13 @@ public sealed partial class DuplicateScanner : IScanner
 
     [GeneratedRegex(@"\{edition-([^}]+)\}", RegexOptions.IgnoreCase)]
     private static partial Regex EditionRegex();
+
+    // Separator requires a dash somewhere (or a dot/underscore) — a plain space isn't enough, otherwise
+    // titles like "The Final" would false-positive on "final". Edition keywords accept an optional
+    // second word ("Cut", "Edition", "Version") separated by any of `\s._-`, so "-Directors Cut",
+    // "-directors cut", "-directors_cut", "-directorscut", "-Final Cut", "-Special Edition" all match.
+    [GeneratedRegex(@"(?:\s-|[-_.])[\s._-]*((?:director'?s?|final|collector'?s?|extended|theatrical|ultimate|special|super)(?:[\s._-]?(?:cut|edition|version))?|\d{3,4}p|\d+k|uhd|remux|bluray|blu-?ray|bdrip|web-?dl|web-?rip|hdrip|dvdrip|hdr(?:10\+?)?|dv|proper|repack|uncut|imax|unrated)\s*$", RegexOptions.IgnoreCase)]
+    private static partial Regex TrailingEditionRegex();
 
     internal sealed class Candidate
     {

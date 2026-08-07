@@ -31,7 +31,7 @@ public class PluginConfiguration : BasePluginConfiguration
         SkipHdrContent = true;
         KeeperPolicyOrder = ["Resolution", "Codec", "Bitrate", "Size"];
         ThoroughPlayabilityCheck = true;
-        TreatEditionsAsDuplicates = false;
+        TreatEditionsAsDuplicates = true;
         DryRun = true;
         DuplicateFixMode = FixMode.DetectOnly;
         TranscodeFixMode = FixMode.DetectOnly;
