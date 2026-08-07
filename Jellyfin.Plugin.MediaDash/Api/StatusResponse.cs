@@ -34,6 +34,12 @@ public sealed class StatusResponse
     public int OpenIssueTotal { get; set; }
 
     /// <summary>
+    /// Gets or sets the count of failed history rows visible on the History tab (excludes dry-runs
+    /// and rows before the Clear-history watermark). Powers the History tab's badge.
+    /// </summary>
+    public int FailedHistoryTotal { get; set; }
+
+    /// <summary>
     /// Gets or sets the free bytes across the drives that hold the libraries.
     /// </summary>
     public long FreeDiskBytes { get; set; }

@@ -1354,8 +1354,8 @@
 
                 <div class="mdTabBar">
                     <button is="emby-button" type="button" class="raised mdTab mdTabActive" data-tab="overview" title="System stats, drive usage and library summary at a glance"><span data-i18n="tab.overview">Overview</span></button>
-                    <button is="emby-button" type="button" class="raised mdTab" data-tab="issues" title="Detected problems waiting for you to approve or that are queued to fix"><span data-i18n="tab.issues">Issues</span></button>
-                    <button is="emby-button" type="button" class="raised mdTab" data-tab="history" title="Every fix MediaDash has run, with Restore for anything sent to the recycle bin"><span data-i18n="tab.history">History</span></button>
+                    <button is="emby-button" type="button" class="raised mdTab" data-tab="issues" title="Detected problems waiting for you to approve or that are queued to fix"><span data-i18n="tab.issues">Issues</span><span id="mdIssueBadge" class="mdBadge" style="display:none;background:#00a4dc;margin-left:.4em;">0</span></button>
+                    <button is="emby-button" type="button" class="raised mdTab" data-tab="history" title="Every fix MediaDash has run, with Restore for anything sent to the recycle bin"><span data-i18n="tab.history">History</span><span id="mdHistoryBadge" class="mdBadge" style="display:none;background:#f59e0b;margin-left:.4em;">0</span></button>
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="files" title="Browse and manage the files inside your libraries"><span data-i18n="tab.files">Files</span></button>
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="recycle" title="Files removed by MediaDash. Restore anything you still want, or empty the bin to reclaim space now."><span>Recycle bin</span></button>
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="errors" title="Plugin errors captured during scans and fixes"><span data-i18n="tab.errors">Errors</span><span id="mdErrorBadge" class="mdBadge" style="display:none;background:#ef4444;margin-left:.4em;">0</span></button>
@@ -1690,13 +1690,13 @@
                 showingOf: 'Showing the first {0} of {1} issues. Use the filter above to narrow the list.',
                 approve: 'Approve',
                 approveHint: 'Queues this fix for the next fix run.',
-                dismiss: 'Dismiss',
-                dismissHint: 'Hides this issue permanently; future scans will not report it again.',
+                dismiss: 'Ignore this',
+                dismissHint: 'Excludes this file from future scans of this issue type — it won’t be reported again.',
                 approveAll: 'Approve all {0} shown',
                 approveAllTypes: 'Approve all {0} issues (all types)',
                 approveAllNote: 'Approves every issue currently listed — each will be fixed on the next fix run.',
                 approved: 'Approved — will be handled by the next fix run.',
-                dismissed: 'Dismissed.',
+                dismissed: 'Ignored — this file won’t be reported again.',
                 restore: 'Restore',
                 restoreHint: 'Puts the file back exactly where it was.',
                 restored: 'Restored.',
@@ -2092,6 +2092,8 @@
             }
 
             function renderStatus(s, silent) {
+                updateTabBadge('#mdIssueBadge', s.OpenIssueTotal || 0);
+                updateTabBadge('#mdHistoryBadge', s.FailedHistoryTotal || 0);
                 // Detect a just-finished fix run — the server sets s.LastFixRun.FinishedAtUtc on completion.
                 // If the timestamp is new since the last poll and any fix failed, pop a dashboard alert.
                 // Fast all-fail runs (e.g. permission denied on every file) finish in under a second, so the
@@ -4423,10 +4425,12 @@
                 });
             }
 
-            function updateErrorBadge(count) {
-                var badge = view.querySelector('#mdErrorBadge');
+            function updateErrorBadge(count) { updateTabBadge('#mdErrorBadge', count); }
+            function updateTabBadge(selector, count) {
+                var badge = view.querySelector(selector);
+                if (!badge) return;
                 if (count > 0) {
-                    badge.textContent = count;
+                    badge.textContent = count > 999 ? '999+' : String(count);
                     badge.style.display = '';
                 } else {
                     badge.style.display = 'none';

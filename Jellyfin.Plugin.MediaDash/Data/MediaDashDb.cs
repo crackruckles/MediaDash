@@ -579,6 +579,22 @@ public sealed class MediaDashDb
     }
 
     /// <summary>
+    /// Counts failed non-dry-run history rows since the given watermark (Config.HistoryHiddenBeforeUtcTicks).
+    /// Powers the History tab's badge. 0 for a fresh install or when everything has been cleared.
+    /// </summary>
+    /// <param name="hiddenBeforeUtcTicks">The Clear-history watermark; 0 = count everything.</param>
+    /// <returns>Row count.</returns>
+    public int GetFailedHistoryCount(long hiddenBeforeUtcTicks)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM history WHERE success = 0 AND dry_run = 0 AND fixed_at_utc >= @hidden";
+        cmd.Parameters.AddWithValue("@hidden", hiddenBeforeUtcTicks);
+        var raw = cmd.ExecuteScalar();
+        return raw is long l ? (int)l : 0;
+    }
+
+    /// <summary>
     /// Returns the lifetime total of bytes reclaimed by successful non-dry-run fixes. Same
     /// success=1 AND dry_run=0 filter as the monthly aggregate so the number the user sees on
     /// Overview matches what actually happened to their disk. Returns 0 for a fresh install.

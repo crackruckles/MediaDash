@@ -26,6 +26,26 @@ public sealed partial class DuplicateScanner : IScanner
 {
     private static readonly string[] MovieProviders = ["Tmdb", "Imdb", "Tvdb"];
 
+    // Jellyfin's per-item sidecar naming convention. Any file whose basename (without extension)
+    // matches one of these is a poster / theme song / theme video / logo etc, NOT library content.
+    // Kept as a HashSet<> so lookup is O(1) even for the ~15 names.
+    private static readonly HashSet<string> SidecarFilenames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "theme", "themevideo",
+        "poster", "folder", "backdrop", "banner", "logo", "clearart", "clearlogo",
+        "disc", "thumb", "landscape", "characterart", "fanart"
+    };
+
+    // Folder names Jellyfin scans for extras/theme media. Files inside these subtrees are
+    // trailers, deleted scenes, behind-the-scenes clips, theme songs — never real library items.
+    private static readonly HashSet<string> SidecarFolders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "extras", "trailers", "theme-music", "theme music", "themes",
+        "behind the scenes", "behindthescenes",
+        "deleted scenes", "deletedscenes",
+        "interviews", "scenes", "shorts", "featurettes", "others", "sample", "samples"
+    };
+
     private readonly FfprobeService _ffprobe;
     private readonly ILogger<DuplicateScanner> _logger;
 
@@ -59,6 +79,16 @@ public sealed partial class DuplicateScanner : IScanner
 
             foreach (var path in MediaFileHelper.GetFilePaths(item))
             {
+                // Jellyfin sidecars (theme.mp3, themevideo.*, files inside extras/trailers/behind
+                // the scenes/etc folders) share a filename across every show or movie folder and
+                // would otherwise pile up as false-positive duplicates. Skip them at group-build
+                // time so nothing about them reaches SplitByEdition or RankGroupAsync.
+                // Doc: https://jellyfin.org/docs/general/server/media/movies/#extras
+                if (IsSidecarPath(path))
+                {
+                    continue;
+                }
+
                 if (!groups.TryGetValue(key, out var list))
                 {
                     list = [];
@@ -217,6 +247,56 @@ public sealed partial class DuplicateScanner : IScanner
         return name is null ? string.Empty : NonAlphanumericRegex().Replace(name.ToLowerInvariant(), string.Empty);
     }
 
+    internal static bool IsSidecarPath(string path)
+    {
+        var stem = Path.GetFileNameWithoutExtension(path);
+        if (SidecarFilenames.Contains(stem))
+        {
+            return true;
+        }
+
+        // Jellyfin's per-item extras convention is the compact form ("MovieName-trailer.mp4",
+        // "MovieName-behindthescenes.mp4") but users routinely write the spaced form too
+        // ("Movie (2009) - Behind the scenes.m2ts", "Show - Deleted Scenes.mkv" — real 2026-08-07
+        // bug report). A single regex catches BOTH: any of the extras keywords at end-of-stem,
+        // preceded by a separator run that includes at least one dash/dot/underscore. Requiring
+        // that separator keeps a title like "Deleted Scenes: The Movie" from tripping (its final
+        // word wouldn't be an extras keyword). Multi-song themes ("theme-1.mp3") stay covered
+        // by the prefix check below.
+        if (SidecarSuffixRegex().IsMatch(stem))
+        {
+            return true;
+        }
+
+        if (stem.StartsWith("theme-", StringComparison.OrdinalIgnoreCase)
+            || stem.StartsWith("themevideo-", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        // Any directory in the path matching an extras folder name → sidecar. Walks up the path
+        // string once; cheap. Handles both Windows and POSIX separators.
+        var dir = Path.GetDirectoryName(path);
+        while (!string.IsNullOrEmpty(dir))
+        {
+            var name = Path.GetFileName(dir);
+            if (SidecarFolders.Contains(name))
+            {
+                return true;
+            }
+
+            var parent = Path.GetDirectoryName(dir);
+            if (string.Equals(parent, dir, StringComparison.Ordinal))
+            {
+                break;
+            }
+
+            dir = parent;
+        }
+
+        return false;
+    }
+
     private static IEnumerable<List<(BaseItem Item, string Path)>> SplitByEdition(List<(BaseItem Item, string Path)> group)
     {
         var distinct = group.DistinctBy(e => e.Path, StringComparer.OrdinalIgnoreCase).ToList();
@@ -235,18 +315,22 @@ public sealed partial class DuplicateScanner : IScanner
     internal static string GetEdition(string path)
     {
         var stem = Path.GetFileNameWithoutExtension(path);
+
+        // Explicit {edition-X} marker (Jellyfin/Plex convention) wins when present.
         var match = EditionRegex().Match(stem);
         if (match.Success)
         {
-            return match.Groups[1].Value.Trim().ToLowerInvariant();
+            return "edition:" + match.Groups[1].Value.Trim().ToLowerInvariant();
         }
 
-        // Users often keep alt encodings/versions under trailing tags like "-1080p", "-4k",
-        // "-finalcut", "- Directors Cut" instead of Jellyfin's {edition-X} convention. Treat a
-        // known quality- or edition-keyword suffix as an edition marker so TreatEditionsAsDuplicates
-        // =false splits them apart. Whitelist keeps the risk of splitting genuine duplicates low.
-        var trailing = TrailingEditionRegex().Match(stem);
-        return trailing.Success ? trailing.Groups[1].Value.Trim().ToLowerInvariant() : string.Empty;
+        // Fall through: the normalised filename IS the edition key. Any variation between two
+        // TMDb-matched files — quality tag, source, group name, cut name, anything — means the
+        // user filed them under different names, so treat them as different editions and don't
+        // flag as duplicates. Byte-identical copies (Sonarr/Radarr places the same filename
+        // in two library folders) still normalise to the same string and still get flagged.
+        // Replaces the older regex-whitelist approach, which was fragile — users kept reporting
+        // new suffix combinations (2026-08-07 bug report) and the list grew unbounded.
+        return NormalizeName(stem);
     }
 
     private async Task<List<Issue>> RankGroupAsync(string groupKey, List<(BaseItem Item, string Path)> group, CancellationToken cancellationToken)
@@ -375,12 +459,11 @@ public sealed partial class DuplicateScanner : IScanner
     [GeneratedRegex(@"\{edition-([^}]+)\}", RegexOptions.IgnoreCase)]
     private static partial Regex EditionRegex();
 
-    // Separator requires a dash somewhere (or a dot/underscore) — a plain space isn't enough, otherwise
-    // titles like "The Final" would false-positive on "final". Edition keywords accept an optional
-    // second word ("Cut", "Edition", "Version") separated by any of `\s._-`, so "-Directors Cut",
-    // "-directors cut", "-directors_cut", "-directorscut", "-Final Cut", "-Special Edition" all match.
-    [GeneratedRegex(@"(?:\s-|[-_.])[\s._-]*((?:director'?s?|final|collector'?s?|extended|theatrical|ultimate|special|super)(?:[\s._-]?(?:cut|edition|version))?|\d{3,4}p|\d+k|uhd|remux|bluray|blu-?ray|bdrip|web-?dl|web-?rip|hdrip|dvdrip|hdr(?:10\+?)?|dv|proper|repack|uncut|imax|unrated)\s*$", RegexOptions.IgnoreCase)]
-    private static partial Regex TrailingEditionRegex();
+    // Separator run must include at least one [-._] so a plain-space title ending in a keyword
+    // ("The Trailer") is safe. Extras keywords are the Jellyfin-documented ones plus common spaced
+    // variants: behind[-_ ]?the[-_ ]?scenes, deleted[-_ ]?scenes?, trailer, clip, featurette, etc.
+    [GeneratedRegex(@"(?:\s+[-._]|[-._])[\s._-]*(behind[\s._-]?the[\s._-]?scenes|deleted[\s._-]?scenes?|featurettes?|interviews?|clips?|shorts?|trailers?|samples?|scenes?)\s*$", RegexOptions.IgnoreCase)]
+    private static partial Regex SidecarSuffixRegex();
 
     internal sealed class Candidate
     {

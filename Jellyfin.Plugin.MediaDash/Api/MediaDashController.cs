@@ -174,6 +174,7 @@ public class MediaDashController : ControllerBase
             IsFixing = fixTask is not null && fixTask.State != TaskState.Idle,
             FixProgress = fixTask?.CurrentProgress,
             OpenIssueTotal = summary.Sum(s => s.Count),
+            FailedHistoryTotal = _db.GetFailedHistoryCount(config.HistoryHiddenBeforeUtcTicks),
             FreeDiskBytes = freeDisk,
             TotalDiskBytes = totalDisk,
             LastScanUtc = summary.Count > 0 ? summary.Max(s => s.NewestDetectedUtc) : null,

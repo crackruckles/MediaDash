@@ -251,21 +251,97 @@ public class DuplicateRankingTests
         Assert.Null(DuplicateScanner.GetGroupKey(book));
     }
 
-    [Theory]
-    [InlineData("Movie -1080p.mkv", "1080p")]
-    [InlineData("Movie -4K.mkv", "4k")]
-    [InlineData("Movie -finalcut.mkv", "finalcut")]
-    [InlineData("Movie -Directors Cut.mkv", "directors cut")]
-    [InlineData("Movie - Final Cut.mkv", "final cut")]
-    [InlineData("Movie -Special Edition.mkv", "special edition")]
-    [InlineData("Movie.2020.-.Director's.Cut.mkv", "director's.cut")]
-    [InlineData("Movie.2020.2160p.BluRay.mkv", "bluray")]
-    [InlineData("Movie {edition-Directors Cut}.mkv", "directors cut")]
-    [InlineData("Movie (2020).mkv", "")]
-    [InlineData("Batman Begins.mkv", "")]
-    [InlineData("The Final.mkv", "")]
-    public void GetEdition_MatchesTrailingQualityAndEditionTags(string filename, string expected)
+    [Fact]
+    public void GetEdition_ExplicitEditionMarkerWinsAndIsPrefixed()
     {
-        Assert.Equal(expected, DuplicateScanner.GetEdition(filename));
+        // Jellyfin {edition-X} marker takes priority and gets a distinctive prefix so a bare
+        // filename that normalises to the same characters can't collide with the marker key.
+        Assert.Equal("edition:directors cut", DuplicateScanner.GetEdition("Movie {edition-Directors Cut}.mkv"));
+    }
+
+    [Theory]
+    [InlineData("Movie -1080p.mkv", "Movie -4K.mkv")]
+    [InlineData("Movie -finalcut.mkv", "Movie.mkv")]
+    [InlineData("Movie -Directors Cut.mkv", "Movie -Extended.mkv")]
+    [InlineData("Movie.2020.2160p.BluRay.x265.HDR.mkv", "Movie.2020.1080p.WEB-DL.mkv")]
+    [InlineData("Movie -DDP5.1.mkv", "Movie -AAC.mkv")]
+    [InlineData("Show S01E01 - Pilot.mkv", "Show S01E01 - Pilot [PROPER].mkv")]
+    // Real 2026-08-07 report: two files in the same folder, same TMDb id, different suffixes
+    // after a shared prefix. Under the old whitelist neither suffix matched a known tag so both
+    // fell into the same empty-edition bucket and got flagged as dupes.
+    [InlineData("StarWarsCloneWars2003 - Connecting the Dots.mkv", "StarWarsCloneWars2003 - Bridging the Saga.mkv")]
+    public void GetEdition_DifferentFilenames_YieldDifferentKeys(string a, string b)
+    {
+        // The user has "Treat editions as duplicates" off. Any filename variation between two
+        // TMDb-matched files means the user filed them under different names — treat them as
+        // different editions and don't flag as duplicates. Covers every possible suffix
+        // combination without a whitelist that has to grow.
+        Assert.NotEqual(DuplicateScanner.GetEdition(a), DuplicateScanner.GetEdition(b));
+    }
+
+    [Theory]
+    [InlineData("Movie.mkv", "Movie.mkv")]
+    [InlineData("Movie.mkv", "movie.mkv")]
+    [InlineData("Movie.mkv", "Movie.mp4")]
+    [InlineData("Movie (2020).mkv", "Movie.2020.mkv")]
+    public void GetEdition_EssentiallyIdenticalFilenames_YieldSameKey(string a, string b)
+    {
+        // Byte-identical or near-identical copies (case, punctuation, container swap) still
+        // normalise to the same string, so they group as duplicates as expected.
+        Assert.Equal(DuplicateScanner.GetEdition(a), DuplicateScanner.GetEdition(b));
+    }
+
+    [Theory]
+    [InlineData("theme.mp3")]
+    [InlineData("theme.flac")]
+    [InlineData("Theme.MP3")]
+    [InlineData("themevideo.mp4")]
+    [InlineData("theme-1.mp3")]
+    [InlineData("theme-2.mp3")]
+    [InlineData("poster.jpg")]
+    [InlineData("folder.jpg")]
+    [InlineData("backdrop.jpg")]
+    [InlineData("banner.png")]
+    [InlineData("logo.png")]
+    [InlineData("clearart.png")]
+    [InlineData("Movie-trailer.mp4")]
+    [InlineData("Movie-behindthescenes.mp4")]
+    [InlineData("Movie-featurette.mp4")]
+    // Spaced/multi-word suffix variants (2026-08-07 bug report — Crank High Voltage extras
+    // named "Crank High Voltage (2009) - Behind the scenes.m2ts" were being flagged as dupes
+    // of the main film because the compact-form check didn't cover them).
+    [InlineData("Crank High Voltage (2009) - Behind the scenes.m2ts")]
+    [InlineData("Movie (2020) - Deleted Scenes.mkv")]
+    [InlineData("Movie - Deleted Scene.mkv")]
+    [InlineData("Movie - Trailer.mp4")]
+    [InlineData("Movie - Featurette.mp4")]
+    [InlineData("Movie - Interview.mp4")]
+    [InlineData("Movie.2020.-.Behind.The.Scenes.mp4")]
+    [InlineData("Movie_-_Behind_The_Scenes.mp4")]
+    public void IsSidecarPath_KnownSidecarFilenames_ReturnTrue(string filename)
+    {
+        Assert.True(DuplicateScanner.IsSidecarPath(filename));
+    }
+
+    [Theory]
+    [InlineData("/mnt/media/movies/Show/extras/short.mp4")]
+    [InlineData("/mnt/media/movies/Show/trailers/final.mp4")]
+    [InlineData("/mnt/media/movies/Show/behind the scenes/making of.mp4")]
+    [InlineData("/mnt/media/movies/Show/deleted scenes/dropped.mp4")]
+    [InlineData("/mnt/media/tv/Series/theme-music/opening.mp3")]
+    [InlineData("/mnt/media/movies/Show/featurettes/commentary.mp4")]
+    [InlineData("C:\\media\\movies\\Show\\extras\\clip.mp4")]
+    public void IsSidecarPath_KnownSidecarFolders_ReturnTrue(string path)
+    {
+        Assert.True(DuplicateScanner.IsSidecarPath(path));
+    }
+
+    [Theory]
+    [InlineData("/mnt/media/movies/Movie (2020).mkv")]
+    [InlineData("/mnt/media/tv/Show/Season 01/Show S01E01.mkv")]
+    [InlineData("C:\\media\\Movie.mkv")]
+    public void IsSidecarPath_RegularLibraryFiles_ReturnFalse(string path)
+    {
+        Assert.False(DuplicateScanner.IsSidecarPath(path));
     }
 }
