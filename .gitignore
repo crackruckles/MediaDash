@@ -10,3 +10,6 @@ artifacts/
 _verify/
 _stage_*/
 mediadash_*.zip
+
+__pycache__/
+*.pyc
