@@ -89,7 +89,7 @@ Scan results are incremental: `FfprobeService` caches probe output keyed on `(pa
 
 - Each fix type has an independent mode: **Off / Detect only / Manual approve / Automatic**.
 - Each *removing* fix type has an independent disposal: **Recycle bin** (default, plugin-managed trash folder, configurable retention, one-click restore) or **Permanent**. Media sorter (moves) and missing-subs (adds) have no disposal.
-- `FixTask` (scheduled, default nightly, off-peak) drains the queue: automatic-mode issues go straight in; manual-mode issues wait for approval from the UI.
+- `FixTask` runs on a 15-minute opportunistic interval and defers via the idle check while anyone is watching or has been active in the last 15 minutes. Automatic-mode issues go straight in; manual-mode issues wait for approval from the UI.
 - **Transcode fix:** ffmpeg re-encode to the ceiling, hardware encoder (NVENC / AMF / QSV / VideoToolbox) used when available with automatic per-file software fallback. Output → temp file → ffprobe verify (duration within 2s, streams present) → swap in → original disposal per config.
 - **Track strip fix:** remux with `ffmpeg -map` excluding disallowed tracks, `-c copy` (lossless). Same temp→verify→swap flow.
 - **Duplicate fix:** move losing file(s) to disposal target; trigger library refresh on the affected item.

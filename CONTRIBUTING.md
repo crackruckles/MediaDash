@@ -4,7 +4,7 @@ Thanks for helping! MediaDash is a small, opinionated Jellyfin plugin. A few not
 
 ## Building
 
-Requires the .NET 9 SDK.
+Requires the **.NET 9.0.11+ SDK**. The csproj enforces `TreatWarningsAsErrors=true` and `AnalysisMode=AllEnabledByDefault` against the shipped `jellyfin.ruleset`; older SDKs will fail CI locally when the analyzer set drifts.
 
 ```
 dotnet build Jellyfin.Plugin.MediaDash.sln

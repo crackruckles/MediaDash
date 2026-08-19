@@ -78,7 +78,10 @@ public sealed class TranscodeFixer : IFixer
     }
 
     /// <inheritdoc />
-    public bool CanFix(IssueType type) => type == IssueType.Quality;
+    public bool CanFix(IssueType type)
+        => type == IssueType.Quality
+        || type == IssueType.HeavyTranscode
+        || type == IssueType.FailedTranscode;
 
     /// <inheritdoc />
     public async Task<FixResult> FixAsync(Issue issue, IProgress<double>? progress, CancellationToken cancellationToken)
@@ -105,7 +108,7 @@ public sealed class TranscodeFixer : IFixer
         var targetContainer = string.IsNullOrWhiteSpace(config.TargetContainer) ? "mkv" : config.TargetContainer.TrimStart('.').ToLowerInvariant();
         var targetPath = Path.ChangeExtension(issue.Path, "." + targetContainer);
         var needsDownscale = video.Height is > 0 && video.Height.Value > config.MaxResolutionHeight;
-        var disposal = config.GetDisposal(IssueType.Quality);
+        var disposal = config.GetDisposal(issue.Type);
 
         var actionText = string.Format(
             CultureInfo.InvariantCulture,
@@ -133,11 +136,17 @@ public sealed class TranscodeFixer : IFixer
 
         var durationSeconds = double.TryParse(probe.Format?.Duration, NumberStyles.Float, CultureInfo.InvariantCulture, out var d) ? d : 0;
 
-        var tempPath = SidecarPath(issue.Path, "tmp", targetContainer);
+        // Per-run GUID on both sidecars so a hot-reload leaving an old ffmpeg mid-run (past the sweep's
+        // 5-min age guard) can't collide with a fresh run on the same target — the fresh run would
+        // otherwise File.Delete the old run's about-to-commit swap and truncate the user's file.
+        // The GUID still contains the "mediadash.tmp" / "mediadash.new" substring so the sweep and the
+        // library-guard sidecar patterns still match for cleanup.
+        var runToken = Guid.NewGuid().ToString("N")[..8];
+        var tempPath = SidecarPath(issue.Path, "tmp." + runToken, targetContainer);
         // The swap sidecar sits next to the eventual output so it lands on the same volume, which
         // makes the final rename atomic. Distinct from tempPath so the finally cleanup below never
         // fights the swap-preservation branch.
-        var swapPath = SidecarPath(targetPath, "new", string.Empty);
+        var swapPath = SidecarPath(targetPath, "new." + runToken, string.Empty);
         var originalDisposed = false;
         var swapCompleted = false;
         try

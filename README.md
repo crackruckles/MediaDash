@@ -30,7 +30,7 @@ Duplicates, broken files, oversized encodes, wrong-language tracks, misplaced fi
    https://raw.githubusercontent.com/crackruckles/MediaDash/main/manifest.json
    ```
 
-2. Open **Catalog**, find **MediaDash**, click **Install**, restart Jellyfin.
+2. Open **Catalog**, find **MediaDash**, click **Install**, restart Jellyfin. (If MediaDash doesn't appear, hit the refresh icon next to the repository — Jellyfin caches catalog manifests for 6 hours.)
 3. Open **Dashboard → My Plugins → MediaDash** — the first-run wizard walks you through each feature, one step at a time.
 
 Requires Jellyfin **10.11+** or **12.0+**. One binary covers both — the manifest advertises `targetAbi` for each host line, and the plugin bridges the `IUserManager` / `User` entity changes between 10.11 and 12.0 via reflection so the same install works everywhere.
@@ -49,6 +49,13 @@ Requires Jellyfin **10.11+** or **12.0+**. One binary covers both — the manife
 | 🎨 **Corrupt artwork** | Zero-byte, truncated or unreadable poster / backdrop files inside Jellyfin's metadata folders | Deletes the broken image so Jellyfin's own metadata pipeline re-fetches on the next scan (never touches artwork alongside your media) |
 | ⚠️ **Executables and scripts** | `.exe`, `.msi`, `.bat`, `.ps1`, `.sh`, `.lnk` and other non-media files sitting inside library folders — almost always malware bundled with pirated releases | Moves them to the recycle bin |
 | ⏳ **Stale content** | Media nobody has played in your configured window (default 365 days) — video, audio, audiobook, book | Detect-only — surfaces the list so you can decide whether to prune |
+| 🔥 **Heavy / failed transcodes** | Files Jellyfin has had to transcode on the fly recently, and files whose last live transcode attempt failed | One-off re-encode with MediaDash's settings so future plays direct-play |
+| 🗑 **Orphaned debris** | Empty folders, subtitle sidecars, trickplay folders and Jellyfin metadata folders whose parent no longer exists | Removes the orphan; re-checks at fix time that no companion has reappeared |
+| 📄 **Corrupt NFO** | Zero-byte, malformed, or unrecognised-root `.nfo` sidecars that stop Jellyfin from reading metadata | Deletes the broken sidecar; Jellyfin re-fetches on the next scan |
+| 🖼 **Trickplay space savings** | Scrub-bar preview thumbnails still stored as raw JPG | Re-encodes to WebP renamed `.jpg` — clients keep serving them exactly the same |
+| 🎵 **Duplicated embedded cover art** | Music / audiobook folders where every track carries its own copy of the same cover but the folder has no shared `cover.jpg` | Extracts once and (optionally) strips the redundant per-file copies |
+| 📁 **Ungrouped media** | Loose files or oddly-named folders that should sit under a per-title (or per-franchise) parent folder | Moves them into a folder named after the identified title |
+| 🔤 **Subtitle fonts** | Embedded fonts inside `.ass` sidecars that no style actually references | Rewrites the sidecar without them — contents-only edit, still a valid subtitle |
 
 Every fix type runs independently: **Off · Detect only · Ask me first · Automatic**. Stale content and audio-quality checks are detect-only.
 
@@ -89,7 +96,7 @@ _Refreshes on the 1st of each month from opt-in installs. See [docs/PRIVACY.md](
 ## Highlights
 
 - **Runs on Jellyfin 10.11 *and* 12.0** — one .NET 9 binary covers both host lines. The plugin bridges the `User` / `IUserManager` entity changes and the `VirtualFolderInfo.ItemId` shape drift between the two ABIs via reflection, so scoped-library filters work on either.
-- **Opportunistic fix scheduling (new in v0.9.1)** — no more picking a nightly time. The fix task fires every 15 minutes and skips whenever anyone is watching or was active in the last 15 minutes, so approved fixes drain the instant the server frees up.
+- **Opportunistic fix scheduling** — no more picking a nightly time. The fix task fires every 15 minutes and skips whenever anyone is watching or was active in the last 15 minutes, so approved fixes drain the instant the server frees up.
 - **Full media-type coverage** — every scanner (Duplicate, Playability, Quality, Sub/Audio, Stale, Misplaced) now covers Movies, TV, Music, Audiobooks and Books alongside video. Music duplicates group by MusicBrainz recording ID (or artist + album + title + duration); books group by ISBN.
 - **Book & comic integrity probes** — pure stdlib EPUB / PDF / MOBI / AZW3 checks, plus CBZ / CBR / CB7 archive validation via SharpCompress. Catches container-corrupt e-books and comics ffprobe never sees.
 - **Corrupt artwork fixer** — deletes zero-byte / truncated / decode-failing poster and backdrop files inside Jellyfin's metadata cache so Jellyfin's own metadata pipeline re-fetches on the next scan. Never touches artwork you placed alongside your media.

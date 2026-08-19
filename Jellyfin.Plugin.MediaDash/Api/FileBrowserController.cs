@@ -37,6 +37,18 @@ public class FileBrowserController : ControllerBase
 {
     private const string UploadTempSuffix = ".mediadash.upload.tmp";
 
+    // Cap at 50 GB — realistic ceiling for any single media file admins would upload via a plugin
+    // (Blu-ray remuxes top out at ~40 GB). Without the cap [DisableRequestSizeLimit] lets any admin
+    // stream a multi-TB body and fill the host disk (denial of service).
+    private const long UploadMaxBytes = 50L * 1024 * 1024 * 1024;
+
+    private static readonly HashSet<string> WindowsReservedNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CON", "PRN", "AUX", "NUL",
+        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+    };
+
     private readonly LibraryGuard _guard;
     private readonly RecycleBin _recycleBin;
     private readonly ILibraryMonitor _libraryMonitor;
@@ -73,7 +85,10 @@ public class FileBrowserController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(path))
         {
+            // Snapshot VirtualFolders before iterating — Jellyfin mutates this collection when a
+            // library is added / removed via the dashboard, and a concurrent enumerate throws.
             var roots = _libraryManager.GetVirtualFolders()
+                .ToList()
                 .SelectMany(f => f.Locations)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Where(Directory.Exists)
@@ -103,32 +118,61 @@ public class FileBrowserController : ControllerBase
         }
 
         var entries = new List<FileEntry>();
-        foreach (var dir in Directory.EnumerateDirectories(full))
+        try
         {
-            var info = new DirectoryInfo(dir);
-            entries.Add(new FileEntry
+            foreach (var dir in Directory.EnumerateDirectories(full))
             {
-                Name = info.Name,
-                IsDirectory = true,
-                SizeBytes = 0,
-                ModifiedUtc = info.LastWriteTimeUtc
-            });
-        }
+                try
+                {
+                    var info = new DirectoryInfo(dir);
+                    entries.Add(new FileEntry
+                    {
+                        Name = info.Name,
+                        IsDirectory = true,
+                        SizeBytes = 0,
+                        ModifiedUtc = info.LastWriteTimeUtc
+                    });
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    // Skip a single unreadable entry so one bad ACL doesn't 500 the whole listing.
+                    Diagnostics.Record("FileBrowser.List", "Skipping unreadable subfolder '" + dir + "': " + ex.Message + ".");
+                }
+            }
 
-        foreach (var file in Directory.EnumerateFiles(full))
-        {
-            var info = new FileInfo(file);
-            entries.Add(new FileEntry
+            foreach (var file in Directory.EnumerateFiles(full))
             {
-                Name = info.Name,
-                IsDirectory = false,
-                SizeBytes = info.Length,
-                ModifiedUtc = info.LastWriteTimeUtc
-            });
+                try
+                {
+                    var info = new FileInfo(file);
+                    entries.Add(new FileEntry
+                    {
+                        Name = info.Name,
+                        IsDirectory = false,
+                        SizeBytes = info.Length,
+                        ModifiedUtc = info.LastWriteTimeUtc
+                    });
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    Diagnostics.Record("FileBrowser.List", "Skipping unreadable file '" + file + "': " + ex.Message + ".");
+                }
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Diagnostics.Record("FileBrowser.List", "Access denied listing '" + full + "': " + ex.Message + ". Grant the Jellyfin user read access on the folder.");
+            return StatusCode(StatusCodes.Status403Forbidden, "Jellyfin lacks read access to " + full + ".");
+        }
+        catch (IOException ex)
+        {
+            Diagnostics.Record("FileBrowser.List", "IO error listing '" + full + "': " + ex.Message + ".");
+            return StatusCode(StatusCodes.Status500InternalServerError, "Could not list folder: " + ex.Message);
         }
 
         // Parent is the pseudo-root (empty) when 'full' is itself a library location, otherwise the containing directory.
         var isLibraryRoot = _libraryManager.GetVirtualFolders()
+            .ToList()
             .SelectMany(f => f.Locations)
             .Any(l => string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(l)), Path.TrimEndingDirectorySeparator(full), OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal));
 
@@ -220,6 +264,10 @@ public class FileBrowserController : ControllerBase
         }
 
         var target = Path.Combine(Path.GetDirectoryName(source)!, request.NewName);
+        // Pre-check kept as fast path for a clean 409; the Move-time check below is the real atomicity
+        // guarantee — Directory.Move throws on collision, and File.Move (default overwrite:false)
+        // uses rename(2) on Linux which is kernel-level atomic. A concurrent rename to the same name
+        // can no longer silently overwrite the first request's result.
         if (System.IO.File.Exists(target) || Directory.Exists(target))
         {
             return Conflict("An entry with that name already exists.");
@@ -233,12 +281,16 @@ public class FileBrowserController : ControllerBase
             }
             else
             {
-                System.IO.File.Move(source, target);
+                System.IO.File.Move(source, target, overwrite: false);
             }
         }
         catch (UnauthorizedAccessException ex)
         {
             return PermissionDenied(source, ex);
+        }
+        catch (IOException) when (System.IO.File.Exists(target) || Directory.Exists(target))
+        {
+            return Conflict("An entry with that name already exists (created by a concurrent request).");
         }
         catch (IOException ex)
         {
@@ -293,8 +345,15 @@ public class FileBrowserController : ControllerBase
             }
             else
             {
-                System.IO.File.Move(source, target);
+                // overwrite:false — on Linux this is a kernel-atomic rename(2). A concurrent Move to the
+                // same target throws IOException and gets translated to 409 below rather than silently
+                // clobbering the winner's result.
+                System.IO.File.Move(source, target, overwrite: false);
             }
+        }
+        catch (IOException ex2) when (!IsCrossDeviceError(ex2) && (System.IO.File.Exists(target) || Directory.Exists(target)))
+        {
+            return Conflict("An entry already exists at the destination (created by a concurrent request).");
         }
         catch (IOException ex) when (IsCrossDeviceError(ex))
         {
@@ -436,15 +495,25 @@ public class FileBrowserController : ControllerBase
     /// <returns>No content on success.</returns>
     [HttpPost("Upload")]
     [DisableRequestSizeLimit]
+    [RequestFormLimits(MultipartBodyLengthLimit = UploadMaxBytes)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status413PayloadTooLarge)]
     public async Task<ActionResult> Upload([FromQuery] string path, [FromQuery] string name)
     {
         if (!IsSimpleName(name))
         {
             return BadRequest("File name contains invalid characters.");
+        }
+
+        // Reject over-cap uploads before any disk I/O — the streaming counter below is the second
+        // gate for chunked-encoding requests without a declared length, but that means up to 50 GB
+        // hits the disk before the check fires. Content-Length short-circuits that.
+        if (Request.ContentLength is long declaredLength && declaredLength > UploadMaxBytes)
+        {
+            return StatusCode(StatusCodes.Status413PayloadTooLarge, "Upload exceeds the " + (UploadMaxBytes / (1024L * 1024 * 1024)) + " GB per-file cap.");
         }
 
         if (!TryResolveInsideLibrary(path, out var parent, out var forbid))
@@ -463,7 +532,10 @@ public class FileBrowserController : ControllerBase
             return Conflict("An entry with that name already exists.");
         }
 
-        var tempPath = target + UploadTempSuffix;
+        // Include a per-request GUID so two concurrent uploads to the same target (or a retry landing
+        // beside an in-flight upload) get distinct temp files. Without this, the failure/cancel
+        // catch-block could delete the other upload's temp mid-flight.
+        var tempPath = target + "." + Guid.NewGuid().ToString("N")[..8] + UploadTempSuffix;
         System.IO.FileStream output;
         try
         {
@@ -480,7 +552,21 @@ public class FileBrowserController : ControllerBase
 
         try
         {
-            await Request.Body.CopyToAsync(output, HttpContext.RequestAborted).ConfigureAwait(false);
+            // Byte-counted copy — stop and 413 if the body exceeds the cap rather than filling the disk.
+            var buffer = new byte[81920];
+            long totalRead = 0;
+            int read;
+            while ((read = await Request.Body.ReadAsync(buffer, HttpContext.RequestAborted).ConfigureAwait(false)) > 0)
+            {
+                totalRead += read;
+                if (totalRead > UploadMaxBytes)
+                {
+                    throw new IOException("Upload exceeded the " + (UploadMaxBytes / (1024L * 1024 * 1024)) + " GB per-file cap.");
+                }
+
+                await output.WriteAsync(buffer.AsMemory(0, read), HttpContext.RequestAborted).ConfigureAwait(false);
+            }
+
             await output.FlushAsync(HttpContext.RequestAborted).ConfigureAwait(false);
             await output.DisposeAsync().ConfigureAwait(false);
 
@@ -588,13 +674,32 @@ public class FileBrowserController : ControllerBase
             return false;
         }
 
-        return name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
+        if (name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            return false;
+        }
+
+        // Windows collapses trailing dots/spaces silently; refuse to create paths that would then
+        // fail to be re-opened by name. Also reject reserved device names — CreateDirectory("CON")
+        // aliases to the console device rather than creating a folder.
+        if (name.EndsWith('.') || name.EndsWith(' '))
+        {
+            return false;
+        }
+
+        var baseName = Path.GetFileNameWithoutExtension(name);
+        return !WindowsReservedNames.Contains(baseName);
     }
 
     private static void CopyDirectory(string source, string target, bool preserveTimestamps = false)
     {
+        // Skip reparse points to defend against symlink cycles inside the tree — an accidental self-
+        // referential link (e.g. /movies/all -> /movies) would otherwise recurse until StackOverflow
+        // terminates the Jellyfin process.
+        var enumOpts = new EnumerationOptions { AttributesToSkip = FileAttributes.ReparsePoint };
+
         Directory.CreateDirectory(target);
-        foreach (var file in Directory.EnumerateFiles(source))
+        foreach (var file in Directory.EnumerateFiles(source, "*", enumOpts))
         {
             var dst = Path.Combine(target, Path.GetFileName(file));
             System.IO.File.Copy(file, dst, overwrite: false);
@@ -604,7 +709,7 @@ public class FileBrowserController : ControllerBase
             }
         }
 
-        foreach (var sub in Directory.EnumerateDirectories(source))
+        foreach (var sub in Directory.EnumerateDirectories(source, "*", enumOpts))
         {
             CopyDirectory(sub, Path.Combine(target, Path.GetFileName(sub)), preserveTimestamps);
         }
@@ -617,11 +722,13 @@ public class FileBrowserController : ControllerBase
 
     private static bool IsCrossDeviceError(IOException ex)
     {
-        // Linux rename() returns EXDEV (18) when the target is on a different filesystem; .NET reports
-        // this as IOException "Invalid cross-device link". macOS produces the same message. Windows falls
-        // back internally so we never see this there. Message match is the portable check — HResult is
-        // repackaged differently across TFMs.
-        return ex.Message.Contains("cross-device", StringComparison.OrdinalIgnoreCase);
+        // Check the HResult first — message strings are localized on non-English hosts and would
+        // otherwise miss real EXDEV errors ("デバイスをまたぐ…" instead of "cross-device"). Windows
+        // uses ERROR_NOT_SAME_DEVICE (0x11 = 17); Linux/macOS use EXDEV (18). Fall back to the message
+        // check for TFMs where the HResult happens to be repackaged.
+        var code = ex.HResult & 0xFFFF;
+        return code == 17 || code == 18
+            || ex.Message.Contains("cross-device", StringComparison.OrdinalIgnoreCase);
     }
 
     internal static void CrossDeviceMove(string source, string target, bool sourceIsDir)

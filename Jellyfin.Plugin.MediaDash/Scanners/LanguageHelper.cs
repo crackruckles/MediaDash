@@ -45,6 +45,24 @@ public static class LanguageHelper
         }
 
         var lang = language.Trim().ToLowerInvariant();
+        // ISO 639-1 (2-letter) → 639-2/T (3-letter) via CultureInfo. Without this, an "en"-tagged track
+        // never matches an allowed list of ["eng"] and gets flagged for removal — including the file's
+        // only English audio track when Spanish also exists ("last audio" invariant wouldn't save it).
+        if (lang.Length == 2)
+        {
+            try
+            {
+                var culture = System.Globalization.CultureInfo.GetCultureInfo(lang);
+                if (!string.IsNullOrEmpty(culture.ThreeLetterISOLanguageName) && culture.ThreeLetterISOLanguageName != "xx")
+                {
+                    lang = culture.ThreeLetterISOLanguageName.ToLowerInvariant();
+                }
+            }
+            catch (System.Globalization.CultureNotFoundException)
+            {
+            }
+        }
+
         return BibliographicToTerminological.TryGetValue(lang, out var terminological) ? terminological : lang;
     }
 

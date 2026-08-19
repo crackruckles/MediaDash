@@ -63,4 +63,11 @@ public sealed class HistoryEntry
     /// Gets or sets a value indicating whether the file has been restored from the recycle bin.
     /// </summary>
     public bool Restored { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the user has acknowledged a redownload warning for
+    /// this row. Acknowledged rows are skipped by <see cref="Api.RedownloadDetector"/> so the banner
+    /// stops flagging them on subsequent scans.
+    /// </summary>
+    public bool Acknowledged { get; set; }
 }

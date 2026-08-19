@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using MediaBrowser.Common.Configuration;
+using MediaBrowser.Controller;
 using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Logging;
 
@@ -23,7 +24,7 @@ namespace Jellyfin.Plugin.MediaDash.Fixers;
 /// </remarks>
 public sealed class PostUpgradeCleanup
 {
-    private readonly IApplicationPaths _appPaths;
+    private readonly IServerApplicationPaths _appPaths;
     private readonly ILibraryManager _libraryManager;
     private readonly ILogger<PostUpgradeCleanup> _logger;
 
@@ -31,7 +32,7 @@ public sealed class PostUpgradeCleanup
     /// <param name="appPaths">Jellyfin's application paths (used to locate the trickplay data dir).</param>
     /// <param name="libraryManager">Used to resolve GUIDs back to items.</param>
     /// <param name="logger">Logger.</param>
-    public PostUpgradeCleanup(IApplicationPaths appPaths, ILibraryManager libraryManager, ILogger<PostUpgradeCleanup> logger)
+    public PostUpgradeCleanup(IServerApplicationPaths appPaths, ILibraryManager libraryManager, ILogger<PostUpgradeCleanup> logger)
     {
         _appPaths = appPaths;
         _libraryManager = libraryManager;
@@ -45,58 +46,74 @@ public sealed class PostUpgradeCleanup
     /// <returns>The sweep result.</returns>
     public Task<PostUpgradeCleanupResult> RunAsync()
     {
-        // Trickplay lives under <data>/trickplay in every Jellyfin version we support. IApplicationPaths.DataPath
-        // is the base MediaDash already uses for its own SQLite + recycle bin, so no new dependency.
-        var trickplayRoot = Path.Combine(_appPaths.DataPath, "trickplay");
+        // Jellyfin's trickplay layout has shifted across versions: 10.x kept per-item GUID folders
+        // under <data>/trickplay OR <metadata>/trickplay, while 12.x puts trickplay next to media in
+        // *-trickplay folders (that layout is handled by OrphanCleanupScanner during normal scans).
+        // Try every plausible per-GUID root — if none exist the sweep reports 0, and the library-
+        // adjacent layout is picked up by the regular scan.
+        var candidateRoots = new[]
+        {
+            Path.Combine(_appPaths.DataPath, "trickplay"),
+            Path.Combine(_appPaths.DataPath, "metadata", "trickplay"),
+            Path.Combine(_appPaths.InternalMetadataPath, "trickplay")
+        };
+
         var errors = new List<string>();
         var deleted = 0;
         long bytes = 0;
+        var swept = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        if (!Directory.Exists(trickplayRoot))
+        foreach (var trickplayRoot in candidateRoots)
         {
-            _logger.LogInformation("PostUpgradeCleanup: trickplay dir does not exist ({Path}); nothing to sweep.", trickplayRoot);
-            return Task.FromResult(new PostUpgradeCleanupResult(0, 0, errors));
-        }
-
-        foreach (var dir in Directory.EnumerateDirectories(trickplayRoot))
-        {
-            var name = Path.GetFileName(dir);
-            // Trickplay subfolders are item GUIDs. Anything that doesn't parse as a GUID isn't ours to touch.
-            if (!Guid.TryParse(name, out var itemId))
+            if (!Directory.Exists(trickplayRoot) || !swept.Add(Path.GetFullPath(trickplayRoot)))
             {
                 continue;
             }
 
-            if (_libraryManager.GetItemById(itemId) is not null)
+            foreach (var dir in Directory.EnumerateDirectories(trickplayRoot))
             {
-                continue;
-            }
-
-            long folderBytes = 0;
-            try
-            {
-                foreach (var file in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
+                var name = Path.GetFileName(dir);
+                if (!Guid.TryParse(name, out var itemId))
                 {
-                    folderBytes += new FileInfo(file).Length;
+                    continue;
                 }
 
-                Directory.Delete(dir, recursive: true);
-                deleted++;
-                bytes += folderBytes;
-                _logger.LogInformation("PostUpgradeCleanup: removed orphaned trickplay folder {Path} ({Bytes} bytes)", dir, folderBytes);
+                if (_libraryManager.GetItemById(itemId) is not null)
+                {
+                    continue;
+                }
+
+                long folderBytes = 0;
+                try
+                {
+                    foreach (var file in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
+                    {
+                        folderBytes += new FileInfo(file).Length;
+                    }
+
+                    Directory.Delete(dir, recursive: true);
+                    deleted++;
+                    bytes += folderBytes;
+                    _logger.LogInformation("PostUpgradeCleanup: removed orphaned trickplay folder {Path} ({Bytes} bytes)", dir, folderBytes);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    var msg = $"{name}: {ex.Message}";
+                    errors.Add(msg);
+                    _logger.LogWarning(ex, "PostUpgradeCleanup: could not remove {Path}", dir);
+                    Api.Diagnostics.Record("PostUpgradeCleanup.DeleteFailed", msg);
+                }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                var msg = $"{name}: {ex.Message}";
-                errors.Add(msg);
-                _logger.LogWarning(ex, "PostUpgradeCleanup: could not remove {Path}", dir);
-                Api.Diagnostics.Record("PostUpgradeCleanup.DeleteFailed", msg);
-            }
+        }
+
+        if (swept.Count == 0)
+        {
+            _logger.LogInformation("PostUpgradeCleanup: no per-GUID trickplay root exists under DataPath or InternalMetadataPath; nothing to sweep.");
         }
 
         _logger.LogInformation(
-            "PostUpgradeCleanup: swept {Root}. Removed {Deleted} orphaned folders, freed {Bytes} bytes.",
-            trickplayRoot,
+            "PostUpgradeCleanup: swept {RootCount} root(s). Removed {Deleted} orphaned folders, freed {Bytes} bytes.",
+            swept.Count,
             deleted,
             bytes);
 

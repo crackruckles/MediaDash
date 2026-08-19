@@ -147,6 +147,52 @@
       "approveAll": "Verwijder alle {0} getoonde verdachte bestanden",
       "doRecycle": "Uitvoerbaar bestand verwijderen — herstelbaar uit de prullenbak",
       "doPermanent": "Uitvoerbaar bestand permanent verwijderen"
+    },
+    "HeavyTranscode": {
+      "title": "Heavy transcodes",
+      "hint": "Files that keep transcoding on the fly instead of direct-playing.",
+      "action": "Re-encode to compatible codec",
+      "actionHint": "Queues a one-off re-encode with the plugin's own settings so future plays become direct-play.",
+      "approveAll": "Re-encode all {0} heavy-transcode files shown",
+      "doRecycle": "Re-encode; keep the original in the recycle bin",
+      "doPermanent": "Re-encode; permanently delete the original"
+    },
+    "FailedTranscode": {
+      "title": "Failed transcodes",
+      "hint": "Recent transcode attempts failed (non-zero ffmpeg exit or a 'Conversion failed' tail).",
+      "action": "Retry with plugin settings",
+      "actionHint": "Runs a targeted re-encode with MediaDash's settings; often succeeds where the on-the-fly attempt didn't.",
+      "approveAll": "Retry all {0} failed-transcode files shown",
+      "doRecycle": "Retry; keep the original in the recycle bin",
+      "doPermanent": "Retry; permanently delete the original"
+    },
+    "OrphanedDebris": {
+      "title": "Orphaned debris",
+      "hint": "Empty folders, orphan subtitles, orphan trickplay folders and orphan metadata whose parent no longer exists.",
+      "action": "Delete orphan",
+      "actionHint": "Re-verifies at fix time that the parent still doesn't exist; refuses if a companion has reappeared.",
+      "approveAll": "Delete all {0} orphaned items shown"
+    },
+    "LargeTrickplay": {
+      "title": "Large trickplay images",
+      "hint": "Trickplay sprite thumbnails still stored as raw JPG — reclaimable by re-encoding as WebP.",
+      "action": "Optimize trickplay images",
+      "actionHint": "Re-encodes each sprite as WebP renamed .jpg so the client still fetches them; no client-side change.",
+      "approveAll": "Optimize all {0} trickplay folders shown"
+    },
+    "EmbeddedCoverArt": {
+      "title": "Embedded cover art",
+      "hint": "Music or audiobook folders with per-file embedded covers but no folder-level cover.jpg.",
+      "action": "Extract shared folder cover",
+      "actionHint": "Writes cover.jpg once and (optionally) strips the redundant per-file copies.",
+      "approveAll": "Extract shared covers for all {0} folders shown"
+    },
+    "CorruptArtwork": {
+      "title": "Corrupt artwork",
+      "hint": "Poster / backdrop / thumb files inside Jellyfin's metadata folder that are zero-byte, truncated, or fail to decode.",
+      "action": "Delete corrupt artwork",
+      "actionHint": "Removes the broken image; Jellyfin's next library scan re-fetches from providers.",
+      "approveAll": "Delete all {0} corrupt artwork files shown"
     }
   },
   "languages": [
@@ -293,12 +339,13 @@
     "settings.safety.dryRunHint": "Aan (standaard): correctieruns loggen alleen wat ze zouden doen — er wordt niets veranderd. Schakel uit zodra het plan in Geschiedenis er goed uitziet.",
     "settings.safety.idle": "Alleen uitvoeren als de server inactief is",
     "settings.safety.idleHint": "Aan (standaard): geplande scans en correcties wachten tot niemand iets kijkt en Jellyfin al 15 minuten niet is gebruikt. De knoppen \"Nu scannen\" en \"Correcties nu uitvoeren\" starten altijd direct. Dit overschrijft de geplande tijd hieronder — als de server bezig is wanneer de planning afgaat, wordt de run overgeslagen.",
-    "settings.safety.scheduleLabel": "Geplande correctietijd (lokale servertijd, 24u)",
-    "settings.safety.scheduleHint": "Tijdstip waarop de correctietaak dagelijks start — inclusief herencoderingen. Standaard 03:00.",
     "task.scan.name": "Bibliotheken scannen op problemen",
     "task.scan.description": "Zoekt naar duplicaten, onafspeelbare bestanden, te grote encodes, ongewenste taalsporen, verkeerd geplaatste bestanden en video's zonder ondertitels.",
     "task.fix.name": "Goedgekeurde correcties toepassen",
-    "task.fix.description": "Past goedgekeurde en automatische correcties toe: verwijdert duplicaten, hercodeert te grote bestanden, verwijdert ongewenste sporen."
+    "task.fix.description": "Past goedgekeurde en automatische correcties toe: verwijdert duplicaten, hercodeert te grote bestanden, verwijdert ongewenste sporen.",
+    "tab.recyclebin": "Recycle bin",
+    "settings.safety.analytics": "Share anonymous stats with the community board",
+    "settings.safety.analyticsHint": "Off by default. Sends monthly aggregate counts and byte totals (no paths, filenames, or user identifiers) so we can show which fixes save the most disk on the community board."
   },
   "savedPerLibrary": "Bespaard per bibliotheek",
   "unassignedLibrary": "Niet toegewezen"

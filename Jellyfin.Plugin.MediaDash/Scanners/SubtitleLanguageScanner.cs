@@ -43,9 +43,14 @@ public sealed class SubtitleLanguageScanner : ProbingScannerBase
             .ToList() ?? [];
 
         // External subtitle files are indexed by Jellyfin with language parsed from the filename.
+        // Some Jellyfin builds mark embedded PGS/Bluray subtitle streams as IsExternal with Path pointing
+        // at the video file itself — we filter those out here so the reclaim math doesn't credit the
+        // video's own size as "external subtitle savings" and so TrackFixer never sees the video path in
+        // its externalFiles list (which would send the just-remuxed video to the recycle bin).
         var external = string.Equals(item.Path, path, StringComparison.Ordinal)
             ? item.GetMediaStreams()
                 .Where(s => s.Type == MediaStreamType.Subtitle && s.IsExternal && !string.IsNullOrEmpty(s.Path)
+                    && !string.Equals(s.Path, path, StringComparison.OrdinalIgnoreCase)
                     && !LanguageHelper.IsAllowed(s.Language, allowed))
                 .Select(s => new { s.Path, Language = LanguageHelper.Normalize(s.Language) })
                 .ToList()

@@ -106,39 +106,97 @@ public sealed class PlayabilityFixer : IFixer
 
     private async Task<bool> IsStillBrokenAsync(Issue issue, CancellationToken cancellationToken)
     {
+        // Re-verify only the *specific* condition the scanner flagged. Older logic tested "no video
+        // stream" for every issue, which recycled healthy audio-kind files flagged with reason "no-audio".
+        var reason = TryGetReason(issue.DetailsJson);
+
         var probe = await _ffprobe.ProbeAsync(issue.Path, cancellationToken).ConfigureAwait(false);
         if (probe is null || probe.Error is not null || probe.Streams is null || probe.Streams.Count == 0)
         {
             return true;
         }
 
-        if (!probe.Streams.Any(s => string.Equals(s.CodecType, "video", StringComparison.OrdinalIgnoreCase)))
+        switch (reason)
         {
-            return true;
-        }
+            case "no-audio":
+                return !probe.Streams.Any(s => string.Equals(s.CodecType, "audio", StringComparison.OrdinalIgnoreCase));
 
-        if (!double.TryParse(probe.Format?.Duration, System.Globalization.NumberStyles.Float, CultureInfo.InvariantCulture, out var duration) || duration <= 0)
-        {
-            return true;
-        }
+            case "no-video":
+                return !probe.Streams.Any(s => string.Equals(s.CodecType, "video", StringComparison.OrdinalIgnoreCase));
 
-        // The probe looks fine — if the scan flagged a decode error, confirm it by test-playing again.
-        var wasDecodeError = false;
+            case "no-duration":
+                return !TryGetDuration(probe, out var d) || d <= 0;
+
+            case "size-truncated":
+                // A truncated file usually still reports a positive header duration — that's what
+                // made it truncated in the first place. Re-run the scanner's bitrate × duration vs
+                // file-size heuristic; only if the file now matches its advertised size (or its
+                // bitrate/duration are unknown) does the reason no longer hold.
+                if (!TryGetDuration(probe, out var truncDuration) || truncDuration <= 0)
+                {
+                    return true;
+                }
+
+                if (!long.TryParse(probe.Format?.BitRate, System.Globalization.NumberStyles.Integer, CultureInfo.InvariantCulture, out var bitrate) || bitrate <= 0)
+                {
+                    // Without bitrate we can't recompute — trust the original detection.
+                    return true;
+                }
+
+                try
+                {
+                    var actualSize = new FileInfo(issue.Path).Length;
+                    var expectedBytes = bitrate / 8.0 * truncDuration;
+                    return actualSize < expectedBytes * 0.6;
+                }
+                catch (IOException)
+                {
+                    return true;
+                }
+
+            case "decode-error":
+                if (!TryGetDuration(probe, out var duration) || duration <= 0)
+                {
+                    return true;
+                }
+
+                var decodeError = await _ffprobe.DecodeCheckAsync(issue.Path, duration, cancellationToken).ConfigureAwait(false);
+                return decodeError is not null;
+
+            case "unreadable":
+            case "book-or-comic-corrupt":
+                // Reached only if the probe now returns streams — the file is readable, no longer broken.
+                return false;
+
+            default:
+                // Legacy issues without a persisted reason: fall back to the original strict check
+                // (any missing video stream or missing duration counts as broken).
+                if (!probe.Streams.Any(s => string.Equals(s.CodecType, "video", StringComparison.OrdinalIgnoreCase)))
+                {
+                    return true;
+                }
+
+                return !TryGetDuration(probe, out var legacyDuration) || legacyDuration <= 0;
+        }
+    }
+
+    private static string? TryGetReason(string detailsJson)
+    {
         try
         {
-            using var details = JsonDocument.Parse(issue.DetailsJson);
-            wasDecodeError = details.RootElement.TryGetProperty("reason", out var r) && r.GetString() == "decode-error";
+            using var details = JsonDocument.Parse(detailsJson);
+            return details.RootElement.TryGetProperty("reason", out var r) ? r.GetString() : null;
         }
         catch (JsonException)
         {
+            return null;
         }
+    }
 
-        if (!wasDecodeError)
-        {
-            return false;
-        }
-
-        var decodeError = await _ffprobe.DecodeCheckAsync(issue.Path, duration, cancellationToken).ConfigureAwait(false);
-        return decodeError is not null;
+    private static bool TryGetDuration(FfprobeData probe, out double duration)
+    {
+        duration = 0;
+        var raw = probe.Format?.Duration ?? probe.Streams?.FirstOrDefault(s => s.Duration is not null)?.Duration;
+        return raw is not null && double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out duration);
     }
 }

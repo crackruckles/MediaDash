@@ -28,19 +28,32 @@ public static class Diagnostics
         }
 
         var trimmed = message.Length > 800 ? message[..800] + "…" : message;
+        // Dedup key hashes the *pre-truncation* message so two different long errors that share the
+        // truncation prefix don't get collapsed into one entry with a misleading Count.
+        var messageHash = message.GetHashCode(StringComparison.Ordinal);
         var now = DateTime.UtcNow;
         lock (Lock)
         {
-            // Dedup: if the most recent entry has the same source + message, bump its count and update its
-            // last-seen timestamp instead of appending a new row. Keeps the Errors tab readable when a fixer
-            // hits the same permission denial across dozens of files back to back.
+            // Dedup: if the most recent entry has the same source + full message, replace it with a new
+            // instance whose Count is bumped and LastAtUtc is updated. Replacing (rather than mutating
+            // the existing entry) avoids torn reads for concurrent Recent() callers whose returned list
+            // still holds references to the previous instance.
             var head = Entries.First;
             if (head is not null
                 && string.Equals(head.Value.Source, source, StringComparison.Ordinal)
+                && head.Value.MessageHash == messageHash
                 && string.Equals(head.Value.Message, trimmed, StringComparison.Ordinal))
             {
-                head.Value.Count++;
-                head.Value.LastAtUtc = now;
+                Entries.RemoveFirst();
+                Entries.AddFirst(new DiagnosticEntry
+                {
+                    AtUtc = head.Value.AtUtc,
+                    LastAtUtc = now,
+                    Source = source,
+                    Message = trimmed,
+                    MessageHash = messageHash,
+                    Count = head.Value.Count + 1
+                });
                 return;
             }
 
@@ -50,6 +63,7 @@ public static class Diagnostics
                 LastAtUtc = now,
                 Source = source,
                 Message = trimmed,
+                MessageHash = messageHash,
                 Count = 1
             });
             while (Entries.Count > MaxEntries)

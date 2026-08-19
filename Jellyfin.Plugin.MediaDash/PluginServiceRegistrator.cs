@@ -34,6 +34,12 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IScanner, MissingSubtitleScanner>();
         serviceCollection.AddSingleton<IScanner, StaleContentScanner>();
         serviceCollection.AddSingleton<IScanner, SuspiciousFileScanner>();
+        serviceCollection.AddSingleton<IScanner, TrickplayOptimizeScanner>();
+        serviceCollection.AddSingleton<IScanner, SubtitleFontScanner>();
+        serviceCollection.AddSingleton<IScanner, OrphanCleanupScanner>();
+        serviceCollection.AddSingleton<IScanner, NfoScanner>();
+        serviceCollection.AddSingleton<IScanner, TranscodeLogScanner>();
+        serviceCollection.AddSingleton<IScanner, EmbeddedCoverArtScanner>();
         serviceCollection.AddSingleton<LibraryGuard>();
         serviceCollection.AddSingleton<RecycleBin>();
         serviceCollection.AddSingleton<FfmpegExecutor>();
@@ -47,6 +53,11 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IFixer, MediaGrouperFixer>();
         serviceCollection.AddSingleton<IFixer, MissingSubtitleFixer>();
         serviceCollection.AddSingleton<IFixer, SuspiciousFileFixer>();
+        serviceCollection.AddSingleton<IFixer, TrickplayOptimizeFixer>();
+        serviceCollection.AddSingleton<IFixer, SubtitleFontFixer>();
+        serviceCollection.AddSingleton<IFixer, OrphanCleanupFixer>();
+        serviceCollection.AddSingleton<IFixer, NfoFixer>();
+        serviceCollection.AddSingleton<IFixer, EmbeddedCoverArtFixer>();
         serviceCollection.AddSingleton<AnalyticsReporter>();
         serviceCollection.AddSingleton<PostUpgradeCleanup>();
         serviceCollection.AddHostedService<ScheduleMigrator>();

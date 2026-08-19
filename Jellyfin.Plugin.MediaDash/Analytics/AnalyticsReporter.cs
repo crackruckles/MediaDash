@@ -107,7 +107,9 @@ public sealed class AnalyticsReporter
             var response = await Http.SendAsync(request, cancellationToken).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogDebug("Analytics report returned {Status}", (int)response.StatusCode);
+                // Warn once so backend schema drift is visible in the logs — Debug alone hides silent
+                // analytics breakage indefinitely. Still doesn't nag the user; server logs only.
+                _logger.LogWarning("Analytics report returned {Status} — server schema may have drifted from client payload.", (int)response.StatusCode);
             }
         }
         catch (OperationCanceledException)

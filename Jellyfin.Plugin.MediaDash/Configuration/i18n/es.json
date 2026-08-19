@@ -147,6 +147,52 @@
       "approveAll": "Eliminar los {0} archivos sospechosos mostrados",
       "doRecycle": "Eliminar el ejecutable — recuperable desde la papelera",
       "doPermanent": "Eliminar el ejecutable — permanentemente"
+    },
+    "HeavyTranscode": {
+      "title": "Heavy transcodes",
+      "hint": "Files that keep transcoding on the fly instead of direct-playing.",
+      "action": "Re-encode to compatible codec",
+      "actionHint": "Queues a one-off re-encode with the plugin's own settings so future plays become direct-play.",
+      "approveAll": "Re-encode all {0} heavy-transcode files shown",
+      "doRecycle": "Re-encode; keep the original in the recycle bin",
+      "doPermanent": "Re-encode; permanently delete the original"
+    },
+    "FailedTranscode": {
+      "title": "Failed transcodes",
+      "hint": "Recent transcode attempts failed (non-zero ffmpeg exit or a 'Conversion failed' tail).",
+      "action": "Retry with plugin settings",
+      "actionHint": "Runs a targeted re-encode with MediaDash's settings; often succeeds where the on-the-fly attempt didn't.",
+      "approveAll": "Retry all {0} failed-transcode files shown",
+      "doRecycle": "Retry; keep the original in the recycle bin",
+      "doPermanent": "Retry; permanently delete the original"
+    },
+    "OrphanedDebris": {
+      "title": "Orphaned debris",
+      "hint": "Empty folders, orphan subtitles, orphan trickplay folders and orphan metadata whose parent no longer exists.",
+      "action": "Delete orphan",
+      "actionHint": "Re-verifies at fix time that the parent still doesn't exist; refuses if a companion has reappeared.",
+      "approveAll": "Delete all {0} orphaned items shown"
+    },
+    "LargeTrickplay": {
+      "title": "Large trickplay images",
+      "hint": "Trickplay sprite thumbnails still stored as raw JPG — reclaimable by re-encoding as WebP.",
+      "action": "Optimize trickplay images",
+      "actionHint": "Re-encodes each sprite as WebP renamed .jpg so the client still fetches them; no client-side change.",
+      "approveAll": "Optimize all {0} trickplay folders shown"
+    },
+    "EmbeddedCoverArt": {
+      "title": "Embedded cover art",
+      "hint": "Music or audiobook folders with per-file embedded covers but no folder-level cover.jpg.",
+      "action": "Extract shared folder cover",
+      "actionHint": "Writes cover.jpg once and (optionally) strips the redundant per-file copies.",
+      "approveAll": "Extract shared covers for all {0} folders shown"
+    },
+    "CorruptArtwork": {
+      "title": "Corrupt artwork",
+      "hint": "Poster / backdrop / thumb files inside Jellyfin's metadata folder that are zero-byte, truncated, or fail to decode.",
+      "action": "Delete corrupt artwork",
+      "actionHint": "Removes the broken image; Jellyfin's next library scan re-fetches from providers.",
+      "approveAll": "Delete all {0} corrupt artwork files shown"
     }
   },
   "languages": [
@@ -293,12 +339,13 @@
     "settings.safety.dryRunHint": "Activado (predeterminado): las correcciones solo registran lo que harían — nada se cambia. Desactívalo cuando el plan mostrado en Historial te convenza.",
     "settings.safety.idle": "Ejecutar solo cuando el servidor esté inactivo",
     "settings.safety.idleHint": "Activado (predeterminado): los escaneos y correcciones programados esperan a que nadie esté reproduciendo y a que Jellyfin no se haya usado durante 15 minutos. Los botones \"Escanear ahora\" y \"Ejecutar correcciones ahora\" siempre se ejecutan al instante. Esto anula la hora programada de abajo — si el servidor está ocupado al dispararse, la ejecución se omite.",
-    "settings.safety.scheduleLabel": "Hora programada de corrección (local del servidor, 24h)",
-    "settings.safety.scheduleHint": "Hora del día en que se dispara la tarea de corrección — incluidas recodificaciones. Predeterminado 03:00.",
     "task.scan.name": "Escanear bibliotecas en busca de problemas",
     "task.scan.description": "Busca duplicados, archivos irreproducibles, codificaciones sobredimensionadas, pistas de idioma no deseadas, archivos mal ubicados y vídeos sin subtítulos.",
     "task.fix.name": "Aplicar correcciones aprobadas",
-    "task.fix.description": "Aplica correcciones aprobadas y automáticas: elimina duplicados, recodifica archivos sobredimensionados, quita pistas no deseadas."
+    "task.fix.description": "Aplica correcciones aprobadas y automáticas: elimina duplicados, recodifica archivos sobredimensionados, quita pistas no deseadas.",
+    "tab.recyclebin": "Recycle bin",
+    "settings.safety.analytics": "Share anonymous stats with the community board",
+    "settings.safety.analyticsHint": "Off by default. Sends monthly aggregate counts and byte totals (no paths, filenames, or user identifiers) so we can show which fixes save the most disk on the community board."
   },
   "savedPerLibrary": "Ahorrado por biblioteca",
   "unassignedLibrary": "Sin asignar"

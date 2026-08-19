@@ -12,7 +12,16 @@ namespace Jellyfin.Plugin.MediaDash.Fixers;
 /// </summary>
 public sealed class LibraryGuard
 {
-    private static readonly string[] SidecarPatterns = ["*.mediadash.tmp*", "*.mediadash.new*", "mediadash.tmp.*", "mediadash.new.*"];
+    private static readonly string[] SidecarPatterns =
+    [
+        "*.mediadash.tmp*",
+        "*.mediadash.new*",
+        "*.mediadash.swap*",
+        "*.mediadash.strip*",
+        "*.mediadash.upload.tmp",
+        "mediadash.tmp.*",
+        "mediadash.new.*"
+    ];
 
     private readonly ILibraryManager _libraryManager;
 
@@ -33,9 +42,62 @@ public sealed class LibraryGuard
     public bool IsInsideLibrary(string path)
     {
         var fullPath = Path.GetFullPath(path);
-        return _libraryManager.GetVirtualFolders()
+        var inSomeLibrary = _libraryManager.GetVirtualFolders()
             .SelectMany(f => f.Locations)
             .Any(location => IsUnder(fullPath, location));
+        if (!inSomeLibrary)
+        {
+            return false;
+        }
+
+        // Lexical check passed; now defend against symlinks / NTFS junctions. Path.GetFullPath is purely
+        // lexical, so a link planted inside a library that targets /etc or C:\Windows slips through.
+        // Cheapest safe stance: refuse when any ancestor is a reparse point. Legitimate library trees
+        // don't need links; hostile multi-tenant hosts (the actual threat model) never should.
+        // ponytail: refuse-any-link is conservative; upgrade to per-target resolution if a real
+        // deployment needs symlinks inside a library.
+        try
+        {
+            return !HasReparsePointAncestor(fullPath);
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Security",
+        "CA3003:Review code for file path injection vulnerabilities",
+        Justification = "This method IS the security check — inspecting the caller-supplied path for reparse points is its purpose. Callers pass here specifically to validate the path before touching it.")]
+    private static bool HasReparsePointAncestor(string fullPath)
+    {
+        var current = fullPath;
+        while (!string.IsNullOrEmpty(current))
+        {
+            FileSystemInfo? info = File.Exists(current) ? new FileInfo(current)
+                : Directory.Exists(current) ? new DirectoryInfo(current)
+                : null;
+
+            if (info is not null && (info.Attributes & FileAttributes.ReparsePoint) != 0)
+            {
+                return true;
+            }
+
+            var parent = Path.GetDirectoryName(current);
+            if (string.IsNullOrEmpty(parent) || string.Equals(parent, current, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            current = parent;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -57,12 +119,22 @@ public sealed class LibraryGuard
                 continue;
             }
 
+            // AttributesToSkip = ReparsePoint defends against symlink cycles under a library root —
+            // /movies/all -> /movies would otherwise spin the sweep until thread-pool starvation on
+            // every FixTask cycle. IgnoreInaccessible ensures one unreadable subfolder doesn't abort
+            // the whole sweep mid-walk.
+            var enumOpts = new EnumerationOptions
+            {
+                RecurseSubdirectories = true,
+                AttributesToSkip = FileAttributes.ReparsePoint,
+                IgnoreInaccessible = true
+            };
             foreach (var pattern in SidecarPatterns)
             {
                 IEnumerable<string> matches;
                 try
                 {
-                    matches = Directory.EnumerateFiles(root, pattern, SearchOption.AllDirectories);
+                    matches = Directory.EnumerateFiles(root, pattern, enumOpts);
                 }
                 catch (Exception)
                 {
@@ -72,6 +144,14 @@ public sealed class LibraryGuard
                 foreach (var path in matches)
                 {
                     if (!seen.Add(path))
+                    {
+                        continue;
+                    }
+
+                    // Defense in depth: enumeration is scoped to library roots, but re-check on the
+                    // exact path before deletion. Every other destructive path in the plugin passes
+                    // through IsInsideLibrary; leaving this one out is the only inconsistency.
+                    if (!IsInsideLibrary(path))
                     {
                         continue;
                     }

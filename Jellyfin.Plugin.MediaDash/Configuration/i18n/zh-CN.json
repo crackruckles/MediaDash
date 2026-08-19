@@ -147,6 +147,52 @@
       "approveAll": "删除显示的全部 {0} 个可疑文件",
       "doRecycle": "删除该可执行文件 —— 可从回收站恢复",
       "doPermanent": "永久删除该可执行文件"
+    },
+    "HeavyTranscode": {
+      "title": "Heavy transcodes",
+      "hint": "Files that keep transcoding on the fly instead of direct-playing.",
+      "action": "Re-encode to compatible codec",
+      "actionHint": "Queues a one-off re-encode with the plugin's own settings so future plays become direct-play.",
+      "approveAll": "Re-encode all {0} heavy-transcode files shown",
+      "doRecycle": "Re-encode; keep the original in the recycle bin",
+      "doPermanent": "Re-encode; permanently delete the original"
+    },
+    "FailedTranscode": {
+      "title": "Failed transcodes",
+      "hint": "Recent transcode attempts failed (non-zero ffmpeg exit or a 'Conversion failed' tail).",
+      "action": "Retry with plugin settings",
+      "actionHint": "Runs a targeted re-encode with MediaDash's settings; often succeeds where the on-the-fly attempt didn't.",
+      "approveAll": "Retry all {0} failed-transcode files shown",
+      "doRecycle": "Retry; keep the original in the recycle bin",
+      "doPermanent": "Retry; permanently delete the original"
+    },
+    "OrphanedDebris": {
+      "title": "Orphaned debris",
+      "hint": "Empty folders, orphan subtitles, orphan trickplay folders and orphan metadata whose parent no longer exists.",
+      "action": "Delete orphan",
+      "actionHint": "Re-verifies at fix time that the parent still doesn't exist; refuses if a companion has reappeared.",
+      "approveAll": "Delete all {0} orphaned items shown"
+    },
+    "LargeTrickplay": {
+      "title": "Large trickplay images",
+      "hint": "Trickplay sprite thumbnails still stored as raw JPG — reclaimable by re-encoding as WebP.",
+      "action": "Optimize trickplay images",
+      "actionHint": "Re-encodes each sprite as WebP renamed .jpg so the client still fetches them; no client-side change.",
+      "approveAll": "Optimize all {0} trickplay folders shown"
+    },
+    "EmbeddedCoverArt": {
+      "title": "Embedded cover art",
+      "hint": "Music or audiobook folders with per-file embedded covers but no folder-level cover.jpg.",
+      "action": "Extract shared folder cover",
+      "actionHint": "Writes cover.jpg once and (optionally) strips the redundant per-file copies.",
+      "approveAll": "Extract shared covers for all {0} folders shown"
+    },
+    "CorruptArtwork": {
+      "title": "Corrupt artwork",
+      "hint": "Poster / backdrop / thumb files inside Jellyfin's metadata folder that are zero-byte, truncated, or fail to decode.",
+      "action": "Delete corrupt artwork",
+      "actionHint": "Removes the broken image; Jellyfin's next library scan re-fetches from providers.",
+      "approveAll": "Delete all {0} corrupt artwork files shown"
     }
   },
   "languages": [
@@ -293,12 +339,13 @@
     "settings.safety.dryRunHint": "开启(默认):修复运行只记录将执行的操作 — 不做任何更改。等你对历史中显示的计划满意后再关闭。",
     "settings.safety.idle": "仅在服务器空闲时运行",
     "settings.safety.idleHint": "开启(默认):计划的扫描和修复会等到无人观看且 Jellyfin 15 分钟未使用后再运行。\"立即扫描\"和\"立即执行修复\"按钮始终立即运行。这会覆盖下面的计划时间 — 如果计划触发时服务器忙,则跳过此次运行。",
-    "settings.safety.scheduleLabel": "计划修复时间(服务器本地,24 小时)",
-    "settings.safety.scheduleHint": "修复任务每天触发的时间 — 包括重新编码。默认 03:00。",
     "task.scan.name": "扫描媒体库以查找问题",
     "task.scan.description": "查找重复项、无法播放的文件、过大的编码、不需要的语言音轨、位置错误的文件以及缺少字幕的视频。",
     "task.fix.name": "应用已批准的修复",
-    "task.fix.description": "应用已批准和自动修复:移除重复项、重新编码过大文件、移除不需要的音轨。"
+    "task.fix.description": "应用已批准和自动修复:移除重复项、重新编码过大文件、移除不需要的音轨。",
+    "tab.recyclebin": "Recycle bin",
+    "settings.safety.analytics": "Share anonymous stats with the community board",
+    "settings.safety.analyticsHint": "Off by default. Sends monthly aggregate counts and byte totals (no paths, filenames, or user identifiers) so we can show which fixes save the most disk on the community board."
   },
   "savedPerLibrary": "各媒体库节省空间",
   "unassignedLibrary": "未分配"

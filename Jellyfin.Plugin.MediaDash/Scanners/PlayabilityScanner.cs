@@ -65,6 +65,13 @@ public sealed class PlayabilityScanner : ProbingScannerBase
             };
         }
 
+        // .strm files are text pointers to remote/network streams; ffprobe on the local text file
+        // would always flag them as unreadable. Skip playability checks for them.
+        if (string.Equals(System.IO.Path.GetExtension(path), ".strm", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
         if (item.GetBaseItemKind() == BaseItemKind.Book)
         {
             var ext = System.IO.Path.GetExtension(path).ToLowerInvariant();

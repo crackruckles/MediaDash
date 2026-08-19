@@ -631,6 +631,24 @@ public sealed class SystemStats
         return idx < 0 ? "unknown" : instanceName[(idx + "engtype_".Length)..];
     }
 
+    // Resolve nvidia-smi via absolute paths on Linux before falling back to PATH — a multi-tenant
+    // user controlling PATH could otherwise plant a fake binary in a higher-priority directory.
+    private static string ResolveNvidiaSmi()
+    {
+        if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux))
+        {
+            foreach (var abs in new[] { "/usr/bin/nvidia-smi", "/usr/local/bin/nvidia-smi", "/opt/nvidia/nvidia-smi" })
+            {
+                if (System.IO.File.Exists(abs))
+                {
+                    return abs;
+                }
+            }
+        }
+
+        return NvidiaSmiCommand;
+    }
+
     private static List<GpuInfo>? SampleNvidiaGpus()
     {
         if (!_gpuAvailable)
@@ -646,13 +664,18 @@ public sealed class SystemStats
         _lastGpuSample = DateTime.UtcNow;
         try
         {
-            var psi = new ProcessStartInfo(NvidiaSmiCommand, "--query-gpu=index,name,utilization.gpu --format=csv,noheader,nounits")
+            // Prefer absolute path on Linux over PATH resolution — a multi-tenant user controlling
+            // PATH could otherwise plant a fake nvidia-smi in a higher-priority directory. Args go
+            // via ArgumentList so a compromised binary can't turn the fixed args into anything else.
+            var psi = new ProcessStartInfo(ResolveNvidiaSmi())
             {
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            psi.ArgumentList.Add("--query-gpu=index,name,utilization.gpu");
+            psi.ArgumentList.Add("--format=csv,noheader,nounits");
             using var p = Process.Start(psi);
             if (p is null)
             {

@@ -15,7 +15,7 @@ git grep -n "IUserManager\|IUserDataManager\|ILibraryManager\|ISubtitleManager\|
 ## 2. Smoke test — localhost v12
 
 1. Build: `dotnet publish Jellyfin.Plugin.MediaDash/Jellyfin.Plugin.MediaDash.csproj -c Release`
-2. Copy `bin/Release/net9.0/publish/*` to your Jellyfin 12.0 host's plugin folder (e.g., `%LOCALAPPDATA%\jellyfin\plugins\MediaDash_0.9.0.0\`).
+2. Copy `bin/Release/net9.0/publish/*` to your Jellyfin 12.0 host's plugin folder (e.g., `%LOCALAPPDATA%\jellyfin\plugins\MediaDash_1.0.0.0\`).
 3. Restart Jellyfin.
 4. In Jellyfin dashboard → Scheduled Tasks, run **MediaDash: Scan libraries** in dry-run.
 5. Tail Jellyfin's log folder:
@@ -31,7 +31,7 @@ Same procedure against Jellyfin 10.11. If you don't have a native install, use D
 ```
 docker pull jellyfin/jellyfin:10.11
 docker run -d --name jf-1011 -p 8098:8096 -v /path/to/fixtures:/media jellyfin/jellyfin:10.11
-# Copy the plugin publish output into /config/plugins/MediaDash_0.9.0.0/ inside the container.
+# Copy the plugin publish output into /config/plugins/MediaDash_1.0.0.0/ inside the container.
 docker restart jf-1011
 # ... run tasks + tail logs as above
 docker stop jf-1011 && docker rm jf-1011

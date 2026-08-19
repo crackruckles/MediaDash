@@ -80,6 +80,14 @@ public sealed class DuplicateFixer : IFixer
             return Task.FromResult(FixResult.Fail("The file is outside your library folders; MediaDash will not touch it."));
         }
 
+        // Defense in depth against a scanner ever writing a keeperPath outside the library — recycling
+        // issue.Path when the "better copy" it references lives outside any library means we're
+        // silently losing content in favour of a file the user can't reach through Jellyfin.
+        if (!_guard.IsInsideLibrary(keeperPath))
+        {
+            return Task.FromResult(FixResult.Fail("Refused: the recorded better copy '" + keeperPath + "' is outside your library folders."));
+        }
+
         var size = new FileInfo(issue.Path).Length;
         var disposal = config.GetDisposal(IssueType.Duplicate);
         var sizeText = size >= 1_073_741_824

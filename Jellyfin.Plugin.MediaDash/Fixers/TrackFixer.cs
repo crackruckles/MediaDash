@@ -217,6 +217,17 @@ public sealed class TrackFixer : IFixer
 
         foreach (var externalFile in externalFiles)
         {
+            // Defence-in-depth: refuse to touch the video path itself. If a stale DetailsJson (written by
+            // an older scanner build) lists the video as an external sidecar, we'd otherwise recycle the
+            // freshly-remuxed video and credit its size to freed.
+            if (IsSelfReferentialSubtitle(externalFile, issue.Path))
+            {
+                Api.Diagnostics.Record(
+                    "Track.ExternalPathCollision",
+                    "Refused to recycle '" + externalFile + "' as an external subtitle — path matches the video being fixed. Re-scan to rebuild the issue with the current scanner.");
+                continue;
+            }
+
             if (!File.Exists(externalFile) || !_guard.IsInsideLibrary(externalFile))
             {
                 continue;
@@ -267,6 +278,41 @@ public sealed class TrackFixer : IFixer
             .Select(s => s.Index)
             .ToList();
     }
+
+    /// <summary>
+    /// True when an "external subtitle" path from the scanner's DetailsJson is actually the video file
+    /// being fixed. Jellyfin can report embedded PGS/Bluray tracks with IsExternal=true and Path pointing
+    /// at the container itself; without this guard the remuxed video would be recycled and its size
+    /// double-counted into freed bytes. Exposed internal for direct unit testing.
+    /// </summary>
+    /// <param name="externalPath">Path from the scanner's externalFiles list.</param>
+    /// <param name="videoPath">The Issue.Path (the video being fixed).</param>
+    /// <returns>True when the two paths refer to the same file.</returns>
+    internal static bool IsSelfReferentialSubtitle(string externalPath, string videoPath)
+    {
+        if (string.IsNullOrEmpty(externalPath) || string.IsNullOrEmpty(videoPath))
+        {
+            return false;
+        }
+
+        // Normalise both sides — legacy scanner rows can store relative paths, trailing separators,
+        // or Windows 8.3-form paths that would slip past a raw string comparison and let the
+        // just-remuxed video get recycled by the fixer.
+        try
+        {
+            var externalFull = Path.GetFullPath(externalPath);
+            var videoFull = Path.GetFullPath(videoPath);
+            return string.Equals(externalFull, videoFull, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
+        {
+            // Fall back to the strict compare on unusable paths — the guard should refuse deletion
+            // rather than incorrectly say "not the video".
+            return string.Equals(externalPath, videoPath, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    internal static List<string> GetExternalFilesForTest(string detailsJson) => GetExternalFiles(detailsJson);
 
     private static List<string> GetExternalFiles(string detailsJson)
     {

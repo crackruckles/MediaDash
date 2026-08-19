@@ -25,6 +25,10 @@ public sealed class FfmpegExecutor
         "dup_frames=", "drop_frames=", "speed=", "progress="
     ];
 
+    // Any MediaDash-sidecar ffmpeg older than this is considered orphaned (crash / hot-reload leftover)
+    // and safe to kill. A living sibling started seconds ago is NOT stale, so the sweep must not touch it.
+    private static readonly TimeSpan StaleFfmpegWindow = TimeSpan.FromMinutes(5);
+
     private readonly IMediaEncoder _mediaEncoder;
     private readonly ILogger<FfmpegExecutor> _logger;
 
@@ -193,17 +197,26 @@ public sealed class FfmpegExecutor
 
     private static bool IsProgressKeyValueLine(string line)
     {
-        // -progress emits key=value noise (fps, bitrate, speed, progress, per-stream stats).
-        // Filter is narrow so real ffmpeg errors still bubble up in the stderr tail.
+        // -progress emits `key=value` lines (fps, bitrate, speed, progress, per-stream stats). Only
+        // filter when the line matches the exact `key=value` shape — a real error whose message happens
+        // to start with a progress key ("bitrate=" telemetry from x265 that ALSO carries an error, or
+        // "stream_0_0: audio stream missing") must still bubble up in the stderr tail.
         foreach (var key in ProgressKeys)
         {
-            if (line.StartsWith(key, StringComparison.Ordinal))
+            if (!line.StartsWith(key, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var rest = line.AsSpan(key.Length);
+            // A pure progress value has no spaces (e.g. "fps=42.0"); anything else is a real message.
+            if (rest.IndexOf(' ') < 0)
             {
                 return true;
             }
         }
 
-        return line.StartsWith("stream_", StringComparison.Ordinal);
+        return false;
     }
 
     private void TryKill(Process process)
@@ -211,6 +224,10 @@ public sealed class FfmpegExecutor
         try
         {
             process.Kill(entireProcessTree: true);
+            // Wait for the OS to fully tear down the process before returning — otherwise the caller's
+            // `finally` can hit File.Delete(tempPath) while ffmpeg is still flushing to it and throw
+            // "file in use" on Windows. Bounded so a stuck ffmpeg never blocks the fixer indefinitely.
+            process.WaitForExit(3000);
         }
         catch (Exception ex)
         {
@@ -254,9 +271,24 @@ public sealed class FfmpegExecutor
                         continue;
                     }
 
-                    if (!cmd.Contains("mediadash.tmp", StringComparison.Ordinal)
-                        && !cmd.Contains("mediadash.new", StringComparison.Ordinal))
+                    if (!ContainsMediadashSidecarMarker(cmd))
                     {
+                        continue;
+                    }
+
+                    // Only kill processes older than the safe-orphan window. A live sibling ffmpeg
+                    // started seconds ago is not stale — killing it would corrupt an in-flight fix
+                    // (e.g. trickplay conversion running in parallel with a track/transcode fix).
+                    try
+                    {
+                        if ((DateTime.UtcNow - p.StartTime.ToUniversalTime()) < StaleFfmpegWindow)
+                        {
+                            continue;
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        // If StartTime is unreadable we can't judge age — err on the side of leaving it alone.
                         continue;
                     }
 
@@ -278,8 +310,7 @@ public sealed class FfmpegExecutor
                     }
 
                     if (outputPath is not null
-                        && (outputPath.Contains("mediadash.tmp", StringComparison.Ordinal)
-                            || outputPath.Contains("mediadash.new", StringComparison.Ordinal))
+                        && ContainsMediadashSidecarMarker(outputPath)
                         && File.Exists(outputPath))
                     {
                         try
@@ -298,5 +329,13 @@ public sealed class FfmpegExecutor
         {
             _logger.LogDebug(ex, "MediaDash ffmpeg sweep failed");
         }
+    }
+
+    private static bool ContainsMediadashSidecarMarker(string s)
+    {
+        return s.Contains("mediadash.tmp", StringComparison.Ordinal)
+            || s.Contains("mediadash.new", StringComparison.Ordinal)
+            || s.Contains("mediadash.swap", StringComparison.Ordinal)
+            || s.Contains("mediadash.strip", StringComparison.Ordinal);
     }
 }

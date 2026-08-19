@@ -1,17 +1,20 @@
 ---
 name: "MediaDash"
 guid: "38bdb090-b763-4294-934b-b54ade4d9d6d"
-version: "0.9.0.0"
+version: "1.0.0.0"
 targetAbi: "10.11.0.0"
 framework: "net9.0"
-overview: "The one plugin a Jellyfin library owner needs: finds duplicates, broken files, oversized encodes, unwanted or missing language tracks, and misplaced files — then fixes them safely."
+overview: "The one plugin a Jellyfin library owner needs: finds duplicates, broken files, oversized encodes, unwanted or missing language tracks, misplaced files, corrupt artwork, orphaned metadata, and space-heavy trickplay — then fixes them safely."
 description: >
-  MediaDash keeps your Jellyfin library tidy, complete, and playable. It scans
-  for duplicate copies, files that won't play, encodes above your quality ceiling,
-  audio/subtitle tracks in unwanted languages, videos missing subtitles, and
-  files sitting in the wrong library folder. Each fix type can run automatically
-  or wait for your approval, with a built-in recycle bin so nothing is lost by
-  accident. Dry-run mode ships on by default.
+  MediaDash keeps your Jellyfin library tidy, complete, and playable — covering
+  movies, TV, music, audiobooks, books and comics on both Jellyfin 10.11 and 12.0
+  from one binary. It finds duplicate copies, files that won't play, encodes above
+  your quality ceiling, audio and subtitle tracks in unwanted languages, videos
+  missing subtitles, misplaced files, ungrouped media, corrupt artwork,
+  suspicious executables, orphaned metadata, stale content and space-heavy
+  trickplay. Each fix type can run automatically or wait for your approval, with
+  a built-in recycle bin so nothing is lost by accident. Dry-run mode ships on
+  by default.
 category: "General"
 owner: "crackruckles"
 artifacts:

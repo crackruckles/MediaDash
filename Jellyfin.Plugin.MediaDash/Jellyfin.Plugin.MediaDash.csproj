@@ -26,6 +26,9 @@
     </PackageReference>
     <!-- Windows-only. Referenced everywhere at compile time; runtime code gates by OS so Linux/macOS don't load it. -->
     <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="9.0.0" />
+    <!-- Windows-only. WMI queries against MSFT_PhysicalDisk / MSStorageDriver_FailurePredictStatus for SMART
+         health without needing smartmontools installed. Gated by RuntimeInformation.IsOSPlatform at runtime. -->
+    <PackageReference Include="System.Management" Version="9.0.0" />
     <!-- CBR/CB7 archive reading for comic integrity probes. -->
     <PackageReference Include="SharpCompress" Version="0.50.1" />
   </ItemGroup>

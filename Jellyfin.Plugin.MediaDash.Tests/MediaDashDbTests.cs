@@ -168,6 +168,37 @@ public sealed class MediaDashDbTests : IDisposable
     }
 
     [Fact]
+    public void AcknowledgeHistoryEntry_SetsFlag()
+    {
+        _db.AddHistory(new HistoryEntry
+        {
+            IssueId = 1,
+            Type = IssueType.SubtitleLanguage,
+            Path = "/library/Film.mkv",
+            Action = "test",
+            BytesFreed = 4_000_000_000,
+            RecyclePath = "/bin/orig/Film.mkv",
+            FixedAtUtc = DateTime.UtcNow,
+            Success = true
+        });
+
+        var row = _db.GetHistory().Single();
+        Assert.False(row.Acknowledged);
+
+        Assert.True(_db.AcknowledgeHistoryEntry(row.Id));
+
+        var reread = _db.GetHistoryEntry(row.Id);
+        Assert.NotNull(reread);
+        Assert.True(reread!.Acknowledged);
+    }
+
+    [Fact]
+    public void AcknowledgeHistoryEntry_ReturnsFalseWhenRowMissing()
+    {
+        Assert.False(_db.AcknowledgeHistoryEntry(9999));
+    }
+
+    [Fact]
     public void FormatProbeCache_RoundTrips()
     {
         var dbPath = Path.Combine(Path.GetTempPath(), $"mediadash-fmt-{Guid.NewGuid():N}.db");

@@ -18,6 +18,9 @@ namespace Jellyfin.Plugin.MediaDash.ScheduledTasks;
 /// </summary>
 public sealed class FixTask : IScheduledTask
 {
+    // Every IssueType that has a fixer registered. Stale is intentionally omitted (no fixer, it's an
+    // informational category). MissingSubtitles / Ungrouped / HeavyTranscode / FailedTranscode /
+    // EmbeddedCoverArt used to be missing here, silently no-op'ing FixMode.Automatic for those types.
     private static readonly IssueType[] FixableTypes =
     [
         IssueType.CorruptArtwork,
@@ -27,7 +30,16 @@ public sealed class FixTask : IScheduledTask
         IssueType.AudioLanguage,
         IssueType.Playability,
         IssueType.Misplaced,
-        IssueType.MalwareRisk
+        IssueType.MissingSubtitles,
+        IssueType.MalwareRisk,
+        IssueType.Ungrouped,
+        IssueType.LargeTrickplay,
+        IssueType.SubtitleFonts,
+        IssueType.OrphanedDebris,
+        IssueType.CorruptNfo,
+        IssueType.HeavyTranscode,
+        IssueType.FailedTranscode,
+        IssueType.EmbeddedCoverArt
     ];
 
     /// <summary>
@@ -202,6 +214,17 @@ public sealed class FixTask : IScheduledTask
             }
 
             var issue = queue[i];
+
+            // Re-check status against the DB before applying — the queue snapshot is minutes to hours
+            // old on big libraries, and a user who pressed "Ignore" mid-run expects the file to be
+            // skipped. Without this, the fix runs on stale intent and the user's ignore is silently lost.
+            var currentStatus = _db.GetIssueStatus(issue.Id);
+            if (currentStatus != IssueStatus.Queued)
+            {
+                _logger.LogInformation("Skipping {Path}: status changed to {Status} since queue snapshot.", issue.Path, currentStatus?.ToString() ?? "gone");
+                continue;
+            }
+
             var fixer = _fixers.FirstOrDefault(f => f.CanFix(issue.Type));
             if (fixer is null)
             {
@@ -298,6 +321,19 @@ public sealed class FixTask : IScheduledTask
                 RecordFailure("Unexpected error");
                 _logger.LogError(ex, "Unexpected error fixing {Path}", issue.Path);
                 Api.Diagnostics.Record("FixTask", $"{issue.Path}: {ex.Message}");
+                // Write a History row for unexpected exceptions too — without this the user sees the
+                // diagnostic but has no audit trail of which issue actually failed.
+                _db.AddHistory(new HistoryEntry
+                {
+                    IssueId = issue.Id,
+                    Type = issue.Type,
+                    Path = issue.Path,
+                    Action = "Fix failed — unexpected error: " + ex.Message,
+                    BytesFreed = 0,
+                    FixedAtUtc = DateTime.UtcNow,
+                    WasDryRun = false,
+                    Success = false
+                });
             }
 
             progress.Report((i + 1) * 100.0 / queue.Count);

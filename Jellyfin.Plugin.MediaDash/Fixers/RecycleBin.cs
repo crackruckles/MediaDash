@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using MediaBrowser.Common.Configuration;
+using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.MediaDash.Fixers;
@@ -13,21 +14,32 @@ namespace Jellyfin.Plugin.MediaDash.Fixers;
 /// </summary>
 public sealed class RecycleBin
 {
+    // OS-reserved roots the recycle bin must not sit under — an admin who accidentally (or
+    // maliciously) sets RecycleBinPath = "/etc" would otherwise land recycled files at
+    // /etc/<timestamp>/<original-name>. Refusing these here is defense in depth; the setting is
+    // admin-only, but restored config XML from an untrusted source is a real threat model.
+    private static readonly string[] LinuxReservedRoots = ["/etc", "/bin", "/sbin", "/usr", "/boot", "/lib", "/lib64", "/proc", "/sys", "/dev", "/root"];
+
     private readonly string _defaultRoot;
+    private readonly string _pluginDataRoot;
+    private readonly ILibraryManager _libraryManager;
     private readonly ILogger<RecycleBin> _logger;
     private int _emptyingTotal;
     private int _emptyingDone;
-    private volatile bool _isEmptying;
+    private int _emptyingGate; // 0 = idle, 1 = running (CompareExchange gate)
     private volatile string? _lastEmptyError;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RecycleBin"/> class.
     /// </summary>
     /// <param name="applicationPaths">Instance of the <see cref="IApplicationPaths"/> interface.</param>
+    /// <param name="libraryManager">Used to check whether a configured bin path sits inside a library root.</param>
     /// <param name="logger">The logger.</param>
-    public RecycleBin(IApplicationPaths applicationPaths, ILogger<RecycleBin> logger)
+    public RecycleBin(IApplicationPaths applicationPaths, ILibraryManager libraryManager, ILogger<RecycleBin> logger)
     {
-        _defaultRoot = Path.Combine(applicationPaths.DataPath, "mediadash", "recycle");
+        _pluginDataRoot = Path.Combine(applicationPaths.DataPath, "mediadash");
+        _defaultRoot = Path.Combine(_pluginDataRoot, "recycle");
+        _libraryManager = libraryManager;
         _logger = logger;
     }
 
@@ -36,7 +48,93 @@ public sealed class RecycleBin
         get
         {
             var configured = Plugin.Instance!.Configuration.RecycleBinPath;
-            return string.IsNullOrWhiteSpace(configured) ? _defaultRoot : configured;
+            if (string.IsNullOrWhiteSpace(configured))
+            {
+                return _defaultRoot;
+            }
+
+            if (IsSystemReservedPath(configured))
+            {
+                _logger.LogWarning("Configured RecycleBinPath '{Path}' sits under an OS-reserved root; falling back to the default location.", configured);
+                Api.Diagnostics.Record("RecycleBin.ReservedPath", "Configured recycle bin path '" + configured + "' sits under an OS-reserved root and was rejected. Falling back to the plugin's default location. Update Settings → Recycle bin to a path inside a library folder or on a data volume.");
+                return _defaultRoot;
+            }
+
+            // Only accept paths under the plugin's own data folder OR inside a configured library
+            // root. Without this an admin (or a poisoned config-XML restore) could set the bin to
+            // /home/jellyfin/.ssh/ and every fixer disposal would deposit files there. The default
+            // fallback still exists so misconfiguration degrades to a working state.
+            if (!IsAcceptableBinLocation(configured))
+            {
+                _logger.LogWarning("Configured RecycleBinPath '{Path}' is not inside a library or the plugin data dir; falling back to the default.", configured);
+                Api.Diagnostics.Record("RecycleBin.NotLibraryAdjacent", "Configured recycle bin path '" + configured + "' isn't inside a Jellyfin library or the plugin's data folder. Falling back to the default location. Update Settings → Recycle bin to a path inside a library folder for cross-volume-free moves.");
+                return _defaultRoot;
+            }
+
+            return configured;
+        }
+    }
+
+    private bool IsAcceptableBinLocation(string configured)
+    {
+        try
+        {
+            var full = Path.GetFullPath(configured);
+            if (LibraryGuard.IsUnder(full, _pluginDataRoot))
+            {
+                return true;
+            }
+
+            foreach (var location in _libraryManager.GetVirtualFolders().SelectMany(f => f.Locations))
+            {
+                if (LibraryGuard.IsUnder(full, location))
+                {
+                    return true;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or ArgumentException or NotSupportedException)
+        {
+            return false;
+        }
+
+        return false;
+    }
+
+    internal static bool IsSystemReservedPath(string path)
+    {
+        try
+        {
+            var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+            if (OperatingSystem.IsWindows())
+            {
+                var windir = Path.TrimEndingDirectorySeparator(Environment.GetFolderPath(Environment.SpecialFolder.Windows));
+                var programFiles = Path.TrimEndingDirectorySeparator(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles));
+                var programFilesX86 = Path.TrimEndingDirectorySeparator(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86));
+                foreach (var reserved in new[] { windir, programFiles, programFilesX86 })
+                {
+                    if (!string.IsNullOrEmpty(reserved) && LibraryGuard.IsUnder(full, reserved))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
+            foreach (var reserved in LinuxReservedRoots)
+            {
+                if (LibraryGuard.IsUnder(full, reserved))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        catch (Exception ex) when (ex is IOException or ArgumentException or NotSupportedException)
+        {
+            return false;
         }
     }
 
@@ -44,7 +142,7 @@ public sealed class RecycleBin
     /// <returns>Whether an empty is running, and how many top-level batches have been deleted out of the total.</returns>
     public (bool IsRunning, int Done, int Total, string? LastError) GetEmptyingProgress()
     {
-        return (_isEmptying, System.Threading.Volatile.Read(ref _emptyingDone), System.Threading.Volatile.Read(ref _emptyingTotal), _lastEmptyError);
+        return (System.Threading.Volatile.Read(ref _emptyingGate) == 1, System.Threading.Volatile.Read(ref _emptyingDone), System.Threading.Volatile.Read(ref _emptyingTotal), _lastEmptyError);
     }
 
     /// <summary>
@@ -54,9 +152,24 @@ public sealed class RecycleBin
     /// <returns>The item's location inside the bin.</returns>
     public string MoveToBin(string path)
     {
-        var folder = Path.Combine(Root, DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff", CultureInfo.InvariantCulture));
+        // Timestamp alone collides when two files with the same basename are recycled inside the same
+        // millisecond (e.g. concurrent Delete + fix run). Suffix with a short GUID so folder names stay
+        // unique. ListContents sorts by folder-name descending, and the timestamp prefix still
+        // controls ordering because the GUID is short and comes after.
+        var folder = Path.Combine(
+            Root,
+            DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff", CultureInfo.InvariantCulture)
+                + "-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(folder);
-        var target = Path.Combine(folder, Path.GetFileName(path));
+        // Trim trailing separator before GetFileName — otherwise a caller passing "/foo/bar/" reduces
+        // target to `folder` itself, and Directory.Move(source, target) becomes "move to self" and throws.
+        var basename = Path.GetFileName(Path.TrimEndingDirectorySeparator(path));
+        if (string.IsNullOrEmpty(basename))
+        {
+            throw new IOException("Cannot recycle '" + path + "': no basename to move into the bin.");
+        }
+
+        var target = Path.Combine(folder, basename);
 
         // Cross-volume moves are copy+delete under the hood — they need the file's size to fit on the recycle
         // bin volume. Pre-check when we can, so users get a clear "put the bin next to the media" message
@@ -104,7 +217,7 @@ public sealed class RecycleBin
             var full = Path.GetFullPath(path);
             return DriveInfo.GetDrives()
                 .Where(d => d.IsReady)
-                .Where(d => full.StartsWith(d.RootDirectory.FullName, StringComparison.OrdinalIgnoreCase))
+                .Where(d => LibraryGuard.IsUnder(full, d.RootDirectory.FullName))
                 .OrderByDescending(d => d.RootDirectory.FullName.Length)
                 .FirstOrDefault();
         }
@@ -152,7 +265,9 @@ public sealed class RecycleBin
 
         var count = 0;
         long size = 0;
-        foreach (var file in Directory.EnumerateFiles(Root, "*", SearchOption.AllDirectories))
+        // IgnoreInaccessible so one unreadable subfolder doesn't abort the whole size scan mid-walk.
+        var enumOpts = new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = true };
+        foreach (var file in Directory.EnumerateFiles(Root, "*", enumOpts))
         {
             count++;
             try
@@ -192,7 +307,12 @@ public sealed class RecycleBin
                 try
                 {
                     var info = new FileInfo(file);
-                    result.Add((info.Name, file, info.Length, Directory.GetCreationTimeUtc(dir)));
+                    // Parse the timestamp from the folder name (yyyyMMdd-HHmmss-fff-<guid>) so the
+                    // listing is correct even on filesystems (FAT/exFAT/some SMB) whose creation time
+                    // is stored as local time and returned to us in the wrong TZ.
+                    var folderName = Path.GetFileName(dir);
+                    var recycledAt = TryParseRecycleTimestamp(folderName) ?? Directory.GetCreationTimeUtc(dir);
+                    result.Add((info.Name, file, info.Length, recycledAt));
                 }
                 catch (IOException ex)
                 {
@@ -216,14 +336,108 @@ public sealed class RecycleBin
     }
 
     /// <summary>
+    /// Finds the "optimized twin" of a recycled original: the smaller sibling bin file with the same
+    /// basename, recycled within a small time window of <paramref name="fixedAtUtc"/>. Used by the
+    /// redownload-warning restore flow to recover the remuxed copy that the pre-0.9.9 SubtitleLanguage
+    /// bug wrongly moved to the bin alongside the original. Returns null when no unambiguous twin can
+    /// be identified.
+    /// </summary>
+    /// <param name="originalRecyclePath">Bin path of the original file (from the history row).</param>
+    /// <param name="fixedAtUtc">When the buggy fix ran.</param>
+    /// <returns>The twin's bin path and size, or null.</returns>
+    public (string BinPath, long SizeBytes)? FindOptimizedTwin(string originalRecyclePath, DateTime fixedAtUtc)
+    {
+        if (string.IsNullOrEmpty(originalRecyclePath) || !File.Exists(originalRecyclePath))
+        {
+            return null;
+        }
+
+        long originalSize;
+        try
+        {
+            originalSize = new FileInfo(originalRecyclePath).Length;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
+
+        return SelectOptimizedTwin(ListContents(limit: 5000), originalRecyclePath, originalSize, fixedAtUtc);
+    }
+
+    /// <summary>
+    /// Pure-logic core of <see cref="FindOptimizedTwin"/>: picks the single smaller sibling in
+    /// <paramref name="entries"/> that shares the original's basename and was recycled within 5
+    /// minutes of the buggy fix. Returns null when no candidate matches or when the choice is
+    /// ambiguous. Exposed internal for direct unit testing.
+    /// </summary>
+    /// <param name="entries">Bin listing to search.</param>
+    /// <param name="originalRecyclePath">Bin path of the original file.</param>
+    /// <param name="originalSize">Size in bytes of the original.</param>
+    /// <param name="fixedAtUtc">When the buggy fix ran.</param>
+    /// <returns>The twin's bin path and size, or null.</returns>
+    internal static (string BinPath, long SizeBytes)? SelectOptimizedTwin(
+        IReadOnlyList<(string FileName, string BinPath, long SizeBytes, DateTime RecycledAtUtc)> entries,
+        string originalRecyclePath,
+        long originalSize,
+        DateTime fixedAtUtc)
+    {
+        var basename = Path.GetFileName(originalRecyclePath);
+        var window = TimeSpan.FromMinutes(5);
+        var candidates = new List<(string BinPath, long SizeBytes)>();
+
+        foreach (var entry in entries)
+        {
+            if (!string.Equals(entry.FileName, basename, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (string.Equals(entry.BinPath, originalRecyclePath, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if ((entry.RecycledAtUtc - fixedAtUtc).Duration() > window)
+            {
+                continue;
+            }
+
+            if (entry.SizeBytes >= originalSize)
+            {
+                continue;
+            }
+
+            candidates.Add((entry.BinPath, entry.SizeBytes));
+        }
+
+        // Multiple candidates in the same window mean we can't be sure which is "the" twin.
+        // Better to make the user pick from the recycle bin UI than restore the wrong file.
+        return candidates.Count == 1 ? candidates[0] : null;
+    }
+
+    /// <summary>
     /// Permanently deletes everything in the bin, regardless of retention. Reports batch-level progress
     /// via <see cref="GetEmptyingProgress"/> so the UI can show a bar while a large bin is being cleared.
     /// </summary>
     public void EmptyAll()
     {
+        // Atomic single-runner gate — two concurrent POSTs racing the "already running" check on the
+        // controller both saw IsRunning=false and could start twice; CompareExchange makes the second
+        // arrival return early without touching state.
+        if (System.Threading.Interlocked.CompareExchange(ref _emptyingGate, 1, 0) != 0)
+        {
+            return;
+        }
+
         _lastEmptyError = null;
         if (!Directory.Exists(Root))
         {
+            System.Threading.Volatile.Write(ref _emptyingGate, 0);
             return;
         }
 
@@ -232,7 +446,6 @@ public sealed class RecycleBin
             var dirs = Directory.GetDirectories(Root);
             System.Threading.Volatile.Write(ref _emptyingTotal, dirs.Length);
             System.Threading.Volatile.Write(ref _emptyingDone, 0);
-            _isEmptying = true;
             foreach (var dir in dirs)
             {
                 try
@@ -260,7 +473,7 @@ public sealed class RecycleBin
         }
         finally
         {
-            _isEmptying = false;
+            System.Threading.Volatile.Write(ref _emptyingGate, 0);
         }
     }
 
@@ -299,6 +512,22 @@ public sealed class RecycleBin
         }
     }
 
+    private static DateTime? TryParseRecycleTimestamp(string folderName)
+    {
+        // Folder names are yyyyMMdd-HHmmss-fff-<8charGuid>. The first 18 chars are the timestamp.
+        if (folderName.Length < 18)
+        {
+            return null;
+        }
+
+        return DateTime.TryParseExact(
+            folderName[..18],
+            "yyyyMMdd-HHmmss-fff",
+            CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal,
+            out var parsed) ? parsed : null;
+    }
+
     private static void MoveAcrossVolumes(string source, string target)
     {
         try
@@ -307,9 +536,10 @@ public sealed class RecycleBin
         }
         catch (IOException)
         {
-            // Cross-volume move: copy then delete.
-            File.Copy(source, target, overwrite: false);
-            File.Delete(source);
+            // Cross-volume: verified copy → rename → delete-source. Never delete the source before the
+            // copy has been proven complete; a truncated write on the target volume would otherwise lose
+            // the user's file.
+            Api.FileBrowserController.CrossDeviceMove(source, target, sourceIsDir: false);
         }
     }
 }

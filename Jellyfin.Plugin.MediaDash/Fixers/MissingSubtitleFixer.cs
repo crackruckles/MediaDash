@@ -82,6 +82,14 @@ public sealed class MissingSubtitleFixer : IFixer
                 attempts.Add($"{normalized}: provider unreachable ({ex.Message})");
                 continue;
             }
+            catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                // OpenSubtitles' HttpClient throws TaskCanceledException on network timeout even when
+                // our outer cancellation token hasn't fired. Treat that as an unreachable provider —
+                // don't let one stalled DNS lookup abort the whole fix run.
+                attempts.Add($"{normalized}: provider timed out ({ex.Message})");
+                continue;
+            }
 
             if (hits is null || hits.Length == 0)
             {

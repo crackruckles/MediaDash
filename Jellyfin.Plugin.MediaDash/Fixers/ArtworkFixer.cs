@@ -36,7 +36,9 @@ public sealed class ArtworkFixer : IFixer
     public Task<FixResult> FixAsync(Issue issue, IProgress<double>? progress, CancellationToken cancellationToken)
     {
         // Defense in depth: ArtworkScanner already gates on InternalMetadataPath, but refuse here too.
-        if (!issue.Path.StartsWith(_applicationPaths.InternalMetadataPath, StringComparison.OrdinalIgnoreCase))
+        // Use the canonical LibraryGuard.IsUnder helper — a raw StartsWith would accept sibling
+        // directories with the same prefix (e.g. "metadata-evil" under "metadata").
+        if (!LibraryGuard.IsUnder(Path.GetFullPath(issue.Path), _applicationPaths.InternalMetadataPath))
         {
             return Task.FromResult(FixResult.Fail("Refused to touch artwork outside the Jellyfin metadata folder: " + issue.Path));
         }

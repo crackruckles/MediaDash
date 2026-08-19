@@ -36,6 +36,7 @@ public class MediaDashController : ControllerBase
     private readonly IEnumerable<ISubtitleProvider> _subtitleProviders;
     private readonly IEnumerable<IScanner> _scanners;
     private readonly PostUpgradeCleanup _postUpgradeCleanup;
+    private readonly LibraryGuard _libraryGuard;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MediaDashController"/> class.
@@ -49,6 +50,7 @@ public class MediaDashController : ControllerBase
     /// <param name="subtitleProviders">Registered subtitle providers, used to warn when none are configured.</param>
     /// <param name="scanners">Registered scanners, used by targeted-scan endpoints like the Maintenance virus scan.</param>
     /// <param name="postUpgradeCleanup">The one-shot post-Jellyfin-12 upgrade cleaner.</param>
+    /// <param name="libraryGuard">The library boundary guard; used to refuse restores whose stored path escaped the current library set.</param>
     public MediaDashController(
         MediaDashDb db,
         ITaskManager taskManager,
@@ -58,7 +60,8 @@ public class MediaDashController : ControllerBase
         IServerApplicationHost appHost,
         IEnumerable<ISubtitleProvider> subtitleProviders,
         IEnumerable<IScanner> scanners,
-        PostUpgradeCleanup postUpgradeCleanup)
+        PostUpgradeCleanup postUpgradeCleanup,
+        LibraryGuard libraryGuard)
     {
         _db = db;
         _taskManager = taskManager;
@@ -69,6 +72,7 @@ public class MediaDashController : ControllerBase
         _subtitleProviders = subtitleProviders;
         _scanners = scanners;
         _postUpgradeCleanup = postUpgradeCleanup;
+        _libraryGuard = libraryGuard;
     }
 
     /// <summary>
@@ -118,14 +122,20 @@ public class MediaDashController : ControllerBase
                     totalDisk += drive.TotalSize;
                 }
 
-                drives.Add(new DriveUsage
+                var usage = new DriveUsage
                 {
                     Root = drive.Name,
                     FreeBytes = drive.AvailableFreeSpace,
                     TotalBytes = drive.TotalSize,
                     IsLibraryDrive = isLibraryDrive,
                     IsRecycleBinDrive = isRecycleDrive
-                });
+                };
+                if (isLibraryDrive || isRecycleDrive)
+                {
+                    CopySmartFields(usage, Probing.SmartHealthProbe.Get(drive.Name));
+                }
+
+                drives.Add(usage);
             }
             catch (IOException ex)
             {
@@ -145,14 +155,16 @@ public class MediaDashController : ControllerBase
         {
             try
             {
-                drives.Add(new DriveUsage
+                var recycleUsage = new DriveUsage
                 {
                     Root = recycleDrive.Name,
                     FreeBytes = recycleDrive.AvailableFreeSpace,
                     TotalBytes = recycleDrive.TotalSize,
                     IsLibraryDrive = false,
                     IsRecycleBinDrive = true
-                });
+                };
+                CopySmartFields(recycleUsage, Probing.SmartHealthProbe.Get(recycleDrive.Name));
+                drives.Add(recycleUsage);
             }
             catch (IOException)
             {
@@ -202,6 +214,21 @@ public class MediaDashController : ControllerBase
             FixPauseReason = FixTask.PauseReason,
             RedownloadWarnings = Plugin.RedownloadWarnings
         };
+    }
+
+    // Flatten a Probing.SmartHealthResult onto a DriveUsage. Keeping the DTO flat (as opposed to nesting a
+    // "smart" object) means older clients ignore new fields cleanly and the Overview JS reads one row.
+    private static void CopySmartFields(DriveUsage usage, Probing.SmartHealthResult health)
+    {
+        usage.SmartHealth = health.Status.ToString().ToLowerInvariant();
+        usage.SmartMessage = health.Message;
+        usage.SmartModel = health.ModelName;
+        usage.SmartTemperatureCelsius = health.TemperatureCelsius;
+        usage.SmartTemperatureMaxCelsius = health.TemperatureMaxCelsius;
+        usage.SmartWearPercent = health.WearPercent;
+        usage.SmartPowerOnHours = health.PowerOnHours;
+        usage.SmartReadErrorsUncorrected = health.ReadErrorsUncorrected;
+        usage.SmartWriteErrorsUncorrected = health.WriteErrorsUncorrected;
     }
 
     private bool ComputeRecycleBinCrossVolume(List<DriveUsage> drives)
@@ -443,6 +470,49 @@ public class MediaDashController : ControllerBase
     }
 
     /// <summary>
+    /// Bulk-updates a set of issues by id. Used by the Issues tab's filtered "approve all shown"
+    /// and the context-menu "ignore all in this folder / of this type / etc." actions — the client
+    /// computes the id list, the server just applies the status.
+    /// </summary>
+    /// <param name="request">Ids and target action ("Approve" or "Dismiss").</param>
+    /// <returns>The number of issues updated.</returns>
+    [HttpPost("Issues/Bulk")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public ActionResult<int> BulkUpdateIssues([FromBody] BulkIssueRequest request)
+    {
+        if (request?.Ids is null || request.Ids.Count == 0)
+        {
+            return BadRequest("Ids required.");
+        }
+
+        // Sanity cap on the request array so an absurd payload can't allocate GB of list memory before
+        // the DB layer chunks it. 50k covers every plausible real-world "approve all shown" use case.
+        if (request.Ids.Count > 50_000)
+        {
+            return BadRequest("Too many IDs (max 50000 per request).");
+        }
+
+        IssueStatus target;
+        if (string.Equals(request.Action, "Approve", StringComparison.OrdinalIgnoreCase))
+        {
+            target = IssueStatus.Queued;
+        }
+        else if (string.Equals(request.Action, "Dismiss", StringComparison.OrdinalIgnoreCase))
+        {
+            target = IssueStatus.Dismissed;
+        }
+        else
+        {
+            return BadRequest("Action must be 'Approve' or 'Dismiss'.");
+        }
+
+        // Guarded transition — only Detected/Queued rows are touched. Prevents a stale client
+        // snapshot from un-ignoring items via bulk-approve, or un-fixing them via bulk-dismiss.
+        return _db.BulkUpdateOpenIssueStatus(request.Ids, target);
+    }
+
+    /// <summary>
     /// Gets the fix history, newest first.
     /// </summary>
     /// <returns>The history entries.</returns>
@@ -507,22 +577,77 @@ public class MediaDashController : ControllerBase
     /// Restores a recycled file to its original location.
     /// </summary>
     /// <param name="id">The history entry id.</param>
+    /// <param name="force">When true and a file already exists at the original location, that file
+    /// is moved to the recycle bin (and logged to history for its own restore) before this one
+    /// is put back in its place. Without force=true the endpoint returns 409 so the UI can prompt.</param>
     /// <returns>No content on success; 404 when unknown; 409 when the file cannot be restored.</returns>
     [HttpPost("History/{id}/Restore")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public ActionResult RestoreFromHistory([FromRoute] long id)
+    public ActionResult RestoreFromHistory([FromRoute] long id, [FromQuery] bool force = false)
     {
-        var entry = _db.GetHistory().FirstOrDefault(h => h.Id == id);
+        var entry = _db.GetHistoryEntry(id);
         if (entry is null)
         {
             return NotFound();
         }
 
+        // Defense in depth: history rows from older MediaDash versions or a hand-edited DB can carry
+        // a target path outside the current library set. Without this guard, a poisoned row could
+        // direct MoveAcrossVolumes to write to arbitrary paths (e.g. /etc/cron.d/) that Jellyfin can
+        // reach — arbitrary file write escalation. Mirrors RestoreOptimizedCopy's guard.
+        if (!_libraryGuard.IsInsideLibrary(entry.Path))
+        {
+            return Conflict("Refused: the target path '" + entry.Path + "' is not inside a configured Jellyfin library.");
+        }
+
         if (entry.Restored || string.IsNullOrEmpty(entry.RecyclePath) || !System.IO.File.Exists(entry.RecyclePath))
         {
             return Conflict("This file is no longer in the recycle bin.");
+        }
+
+        // The common conflict: a fix run replaced the file at entry.Path with a new (re-encoded /
+        // stripped) version, so File.Exists(target) is true and RecycleBin.Restore refuses. When
+        // force=true the caller has explicitly opted in — send the current file to the bin first
+        // (reversible) and log it, then restore the original on top.
+        if (System.IO.File.Exists(entry.Path))
+        {
+            if (!force)
+            {
+                return Conflict("A file already exists at " + entry.Path + ". Restoring would overwrite it. Use force=true to send the current file to the recycle bin first, then restore this one.");
+            }
+
+            try
+            {
+                var swappedBinPath = _recycleBin.MoveToBin(entry.Path);
+                long swappedSize = 0;
+                try
+                {
+                    swappedSize = new System.IO.FileInfo(swappedBinPath).Length;
+                }
+                catch (IOException)
+                {
+                }
+
+                _db.AddHistory(new HistoryEntry
+                {
+                    IssueId = 0,
+                    Type = entry.Type,
+                    Path = entry.Path,
+                    Action = "Swapped out to recycle bin so an older copy could be restored in its place.",
+                    BytesFreed = 0,
+                    RecyclePath = swappedBinPath,
+                    FixedAtUtc = DateTime.UtcNow,
+                    WasDryRun = false,
+                    Success = true
+                });
+                _ = swappedSize; // reserved for a future BytesFreed reporting change
+            }
+            catch (IOException ex)
+            {
+                return Conflict("Couldn't move the current file to the recycle bin before restoring: " + ex.Message);
+            }
         }
 
         try
@@ -670,6 +795,136 @@ public class MediaDashController : ControllerBase
             .Where(l => !string.IsNullOrEmpty(l.ItemId))
             .ToList();
         return Ok(libraries);
+    }
+
+    /// <summary>
+    /// Per-library aggregates for the Overview breakdown charts: total item count, on-disk bytes,
+    /// resolution / codec / container distribution. One item is matched to its library by path prefix
+    /// against each virtual folder's Locations.
+    /// </summary>
+    /// <returns>One <see cref="LibraryStat"/> per configured library, sorted by name.</returns>
+    [HttpGet("LibraryStats")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<IReadOnlyList<LibraryStat>> GetLibraryStats()
+    {
+        var idLookup = Scanners.VirtualFolderIdentity.BuildIdLookup(_libraryManager);
+        var folders = _libraryManager.GetVirtualFolders()
+            .Where(f => Scanners.VirtualFolderIdentity.GetId(f, idLookup) is not null)
+            .Select(f => new
+            {
+                Folder = f,
+                Id = Scanners.VirtualFolderIdentity.GetId(f, idLookup)!,
+                Locations = (f.Locations ?? Array.Empty<string>())
+                    .Select(l => Path.TrimEndingDirectorySeparator(l) + Path.DirectorySeparatorChar)
+                    .ToList()
+            })
+            .ToList();
+
+        if (folders.Count == 0)
+        {
+            return Ok(new List<LibraryStat>());
+        }
+
+        var stats = folders.ToDictionary(
+            f => f.Id,
+            f => new LibraryStat
+            {
+                ItemId = f.Id,
+                Name = f.Folder.Name ?? string.Empty,
+                CollectionType = f.Folder.CollectionType?.ToString()?.ToLowerInvariant()
+            });
+
+        var items = _libraryManager.GetItemList(new MediaBrowser.Controller.Entities.InternalItemsQuery
+        {
+            IncludeItemTypes = new[]
+            {
+                Jellyfin.Data.Enums.BaseItemKind.Movie,
+                Jellyfin.Data.Enums.BaseItemKind.Episode,
+                Jellyfin.Data.Enums.BaseItemKind.MusicVideo,
+                Jellyfin.Data.Enums.BaseItemKind.AudioBook
+            },
+            IsVirtualItem = false,
+            Recursive = true
+        });
+
+        foreach (var item in items)
+        {
+            if (string.IsNullOrEmpty(item.Path))
+            {
+                continue;
+            }
+
+            LibraryStat? stat = null;
+            foreach (var f in folders)
+            {
+                if (f.Locations.Any(loc => item.Path.StartsWith(loc, StringComparison.OrdinalIgnoreCase)))
+                {
+                    stat = stats[f.Id];
+                    break;
+                }
+            }
+
+            if (stat is null)
+            {
+                continue;
+            }
+
+            stat.ItemCount++;
+            stat.TotalBytes += SafeFileSize(item.Path);
+
+            var video = item.GetMediaStreams()
+                .FirstOrDefault(s => s.Type == MediaBrowser.Model.Entities.MediaStreamType.Video);
+
+            var resKey = ResolutionBucket(video?.Height);
+            stat.Resolutions[resKey] = stat.Resolutions.GetValueOrDefault(resKey) + 1;
+
+            var codecKey = string.IsNullOrEmpty(video?.Codec) ? "unknown" : video!.Codec.ToLowerInvariant();
+            stat.Codecs[codecKey] = stat.Codecs.GetValueOrDefault(codecKey) + 1;
+
+            var ext = Path.GetExtension(item.Path).TrimStart('.').ToLowerInvariant();
+            var contKey = string.IsNullOrEmpty(ext) ? "other" : ext;
+            stat.Containers[contKey] = stat.Containers.GetValueOrDefault(contKey) + 1;
+        }
+
+        return Ok(stats.Values.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase).ToList());
+    }
+
+    private static long SafeFileSize(string path)
+    {
+        try
+        {
+            return new FileInfo(path).Length;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return 0;
+        }
+    }
+
+    private static string ResolutionBucket(int? height)
+    {
+        if (!height.HasValue || height <= 0)
+        {
+            return "Unknown";
+        }
+
+        // Bucket to nearest common label — DVD-era vertical is 480/576, so 700 threshold catches HD.
+        if (height.Value >= 2000)
+        {
+            return "4K";
+        }
+
+        if (height.Value >= 1000)
+        {
+            return "1080p";
+        }
+
+        if (height.Value >= 700)
+        {
+            return "720p";
+        }
+
+        return "SD";
     }
 
     /// <summary>Gets the recycle bin contents summary including any in-flight empty progress.</summary>
@@ -821,11 +1076,110 @@ public class MediaDashController : ControllerBase
             Action = $"Removed {result.OrphanedFoldersDeleted} orphaned trickplay folder(s) reclaiming {result.BytesFreed} bytes.",
             FixedAtUtc = DateTime.UtcNow,
             BytesFreed = result.BytesFreed,
-            Success = true
+            Success = result.Errors.Count == 0
         });
-        config.PostV12CleanupCompleted = true;
-        Plugin.Instance!.SaveConfiguration();
+        // Only mark the sweep permanently completed when nothing failed. If some folders errored the
+        // banner stays available so the user can retry, otherwise the failed folders would be
+        // unreachable through the UI.
+        if (result.Errors.Count == 0)
+        {
+            config.PostV12CleanupCompleted = true;
+            Plugin.Instance!.SaveConfiguration();
+        }
+
         return Ok(new { OrphanedFoldersDeleted = result.OrphanedFoldersDeleted, BytesFreed = result.BytesFreed, Errors = result.Errors, Dismissed = false });
+    }
+
+    /// <summary>
+    /// Acknowledges a redownload warning. The row stays in history (savings totals unchanged) but the
+    /// banner stops flagging it on subsequent scans.
+    /// </summary>
+    /// <param name="historyId">The history row id from the RedownloadWarning.</param>
+    /// <returns>No content on success, 404 when unknown.</returns>
+    [HttpPost("RedownloadWarnings/{historyId}/Acknowledge")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public ActionResult AcknowledgeRedownloadWarning([FromRoute] long historyId)
+    {
+        if (!_db.AcknowledgeHistoryEntry(historyId))
+        {
+            return NotFound();
+        }
+
+        Plugin.RedownloadWarnings = RedownloadDetector.Detect(_db, TimeSpan.FromDays(30));
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Restores the "optimized copy" for a redownload-warning row flagged as a pre-0.9.9
+    /// SubtitleLanguage bug artefact: finds the smaller twin the bug wrongly moved to the recycle
+    /// bin and puts it back at the original path. Acknowledges the row on success.
+    /// </summary>
+    /// <param name="historyId">The history row id.</param>
+    /// <param name="force">When true and a file already exists at the target path, that file is sent
+    /// to the recycle bin first so the twin can be restored on top.</param>
+    /// <returns>No content on success, 404 when unknown, 409 when unresolvable.</returns>
+    [HttpPost("RedownloadWarnings/{historyId}/RestoreOptimized")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public ActionResult RestoreOptimizedCopy([FromRoute] long historyId, [FromQuery] bool force = false)
+    {
+        var entry = _db.GetHistoryEntry(historyId);
+        if (entry is null)
+        {
+            return NotFound();
+        }
+
+        if (string.IsNullOrEmpty(entry.RecyclePath))
+        {
+            return Conflict("This history row has no recorded recycle path — the original file wasn't sent to the bin.");
+        }
+
+        // Defense in depth: history rows from older MediaDash versions (or a hand-edited DB) can carry
+        // a Path outside any currently-configured library. Refuse to touch it — every other user path
+        // through this controller validates via LibraryGuard.
+        if (!_libraryGuard.IsInsideLibrary(entry.Path))
+        {
+            return Conflict("Refused: the target path '" + entry.Path + "' is not inside a configured Jellyfin library.");
+        }
+
+        var twin = _recycleBin.FindOptimizedTwin(entry.RecyclePath, entry.FixedAtUtc);
+        if (twin is null)
+        {
+            return Conflict("Couldn't find an unambiguous optimized twin in the recycle bin. It may have been purged, or multiple candidates were found. Use the Recycle bin tab to pick manually, or use the History tab's Restore to bring back the original instead.");
+        }
+
+        if (System.IO.File.Exists(entry.Path))
+        {
+            if (!force)
+            {
+                return Conflict("A file already exists at " + entry.Path + ". Use force=true to send it to the recycle bin first, then restore the optimized copy in its place.");
+            }
+
+            try
+            {
+                _recycleBin.MoveToBin(entry.Path);
+            }
+            catch (IOException ex)
+            {
+                return Conflict("Couldn't move the current file to the recycle bin before restoring: " + ex.Message);
+            }
+        }
+
+        try
+        {
+            _recycleBin.Restore(twin.Value.BinPath, entry.Path);
+        }
+        catch (IOException ex)
+        {
+            return Conflict(ex.Message);
+        }
+
+        _db.AcknowledgeHistoryEntry(historyId);
+        _libraryMonitor.ReportFileSystemChanged(entry.Path);
+        Plugin.RedownloadWarnings = RedownloadDetector.Detect(_db, TimeSpan.FromDays(30));
+        return NoContent();
     }
 
     /// <summary>

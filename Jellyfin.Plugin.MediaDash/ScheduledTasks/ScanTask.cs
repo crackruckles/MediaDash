@@ -124,7 +124,11 @@ public sealed class ScanTask : IScheduledTask
             var scannerProgress = new Progress<double>(p => progress.Report(baseProgress + (p * slice / 100.0)));
 
             var issues = await scanner.ScanAsync(items, scannerProgress, cancellationToken).ConfigureAwait(false);
-            _db.ReplaceDetectedIssues(scanner.Type, issues, scannedPaths);
+            // Scanners that emit non-video-file paths (orphan folders, trickplay dirs, subtitle sidecars)
+            // opt out of the scoped-delete branch — otherwise stale rows sit in the DB forever when the
+            // user has EnabledLibraries set, because scannedPaths only contains video file paths.
+            var pathsForReplace = scanner.AlwaysUnscoped ? null : scannedPaths;
+            _db.ReplaceDetectedIssues(scanner.Type, issues, pathsForReplace);
             _logger.LogInformation("MediaDash scanner {Type} found {Count} issues", scanner.Type, issues.Count);
         }
 
@@ -143,6 +147,7 @@ public sealed class ScanTask : IScheduledTask
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Redownload detection failed.");
+            Api.Diagnostics.Record("ScanTask.RedownloadDetect", "Redownload detection failed: " + ex.Message + ". Recycle-bin redownload warnings will be stale until the next successful scan.");
         }
 
         progress.Report(100);

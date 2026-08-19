@@ -172,7 +172,7 @@ public sealed partial class DuplicateScanner : IScanner
                 return null;
             }
 
-            var fileNorm = NormalizeName(Path.GetFileName(movie.Path));
+            var fileNorm = NormalizeName(Path.GetFileName(movie.Path) ?? string.Empty);
             return string.Create(CultureInfo.InvariantCulture, $"movie:name:{name}:{movie.ProductionYear}:{fileNorm}");
         }
 
@@ -199,7 +199,7 @@ public sealed partial class DuplicateScanner : IScanner
 
             // Filename must also match, same guard as the Movie fallback: two files both titled "Dune"
             // (a novel and a short-story collection, say) should not be flagged as duplicates on title alone.
-            var bookFileNorm = NormalizeName(Path.GetFileName(book.Path));
+            var bookFileNorm = NormalizeName(Path.GetFileName(book.Path) ?? string.Empty);
             return $"book:name:{titleNorm}:{bookFileNorm}";
         }
 

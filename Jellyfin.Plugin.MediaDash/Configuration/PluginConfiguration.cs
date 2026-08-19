@@ -45,11 +45,12 @@ public class PluginConfiguration : BasePluginConfiguration
         PlayabilityDisposal = DisposalMethod.RecycleBin;
         RecycleBinPath = string.Empty;
         RecycleBinRetentionDays = 30;
-        MaxConcurrentTranscodes = 1;
         PauseDuringPlayback = true;
-        ScheduledFixTime = "03:00";
         FirstRunDone = false;
-        AnalyticsEnabled = true;
+        // Off by default — the wizard's opt-in path mints an AnalyticsInstallId and flips this on when
+        // the user checks the box. Every user-facing string ("Off by default", tooltip, hint, wizard)
+        // depends on this being false at first-run.
+        AnalyticsEnabled = false;
         AnalyticsInstallId = string.Empty;
         EnabledLibraries = [];
         MisplacedFixMode = FixMode.DetectOnly;
@@ -72,6 +73,29 @@ public class PluginConfiguration : BasePluginConfiguration
         SuspiciousFileFixMode = FixMode.DetectOnly;
         SuspiciousFileDisposal = DisposalMethod.RecycleBin;
         HistoryHiddenBeforeUtcTicks = 0;
+        TrickplayFixMode = FixMode.DetectOnly;
+        TrickplayWebPQuality = 80;
+        SubtitleFontFixMode = FixMode.DetectOnly;
+        SubtitleForceFont = string.Empty;
+        OrphanCleanupFixMode = FixMode.DetectOnly;
+        OrphanCleanupDisposal = DisposalMethod.RecycleBin;
+        OrphanScanEmptyFolders = true;
+        OrphanScanSubtitles = true;
+        OrphanScanTrickplay = true;
+        OrphanScanMetadata = true;
+        NfoFixMode = FixMode.DetectOnly;
+        NfoDisposal = DisposalMethod.RecycleBin;
+        HeavyTranscodeFixMode = FixMode.DetectOnly;
+        HeavyTranscodeDisposal = DisposalMethod.RecycleBin;
+        HeavyTranscodeLookbackDays = 30;
+        FailedTranscodeFixMode = FixMode.DetectOnly;
+        FailedTranscodeDisposal = DisposalMethod.RecycleBin;
+        EmbeddedCoverFixMode = FixMode.DetectOnly;
+        EmbeddedCoverDisposal = DisposalMethod.RecycleBin;
+        EmbeddedCoverStripFromAudio = true;
+        EmbeddedCoverFilename = "cover.jpg";
+        UngroupedFixMode = FixMode.DetectOnly;
+        CorruptArtworkFixMode = FixMode.DetectOnly;
     }
 
     /// <summary>
@@ -145,25 +169,12 @@ public class PluginConfiguration : BasePluginConfiguration
     public int RecycleBinRetentionDays { get; set; }
 
     /// <summary>
-    /// Gets or sets the maximum number of simultaneous re-encodes.
-    /// </summary>
-    public int MaxConcurrentTranscodes { get; set; }
-
-    /// <summary>
     /// Gets or sets a value indicating whether scheduled scans and fixes only run while the server is idle:
     /// nobody playing media and no session active in the last 15 minutes. Manual runs from the dashboard ignore this.
     /// The fix task fires on an interval and returns immediately when this check fails, so it stays out of the
     /// way whenever someone is using the server.
     /// </summary>
     public bool PauseDuringPlayback { get; set; }
-
-    /// <summary>
-    /// Gets or sets the (obsolete since v0.9.1) daily fix time. The fix task no longer fires at a daily
-    /// time — it runs opportunistically on an interval and defers via the idle check while anyone is using
-    /// the server (see <see cref="ScheduledTasks.FixTask.FixInterval"/>). Retained on the config so existing
-    /// XML deserializes cleanly; not read by any code path.
-    /// </summary>
-    public string ScheduledFixTime { get; set; } = "03:00";
 
     /// <summary>
     /// Gets or sets a value indicating whether MediaDash reports aggregated, anonymous per-run statistics
@@ -419,6 +430,105 @@ public class PluginConfiguration : BasePluginConfiguration
     public DisposalMethod SuspiciousFileDisposal { get; set; }
 
     /// <summary>
+    /// Gets or sets how the trickplay-optimise scanner acts. Detect-only by default so the very first
+    /// scan surfaces the projected reclaim size (typically 40-55% of the trickplay data folder) before
+    /// the user opts into rewriting sidecar images.
+    /// </summary>
+    public FixMode TrickplayFixMode { get; set; }
+
+    /// <summary>
+    /// Gets or sets the libwebp quality (0-100) used when re-encoding trickplay JPG sprites to WebP.
+    /// Default 80 sits at the "indistinguishable at scrub-bar zoom" edge of the curve; below 75 starts
+    /// showing soft edges on high-contrast text overlays, above 85 gives up size savings for pixel-peeping.
+    /// </summary>
+    public int TrickplayWebPQuality { get; set; }
+
+    /// <summary>
+    /// Gets or sets how the subtitle-font optimiser acts. DetectOnly by default so users see the
+    /// projected reclaim size before opting into rewriting .ass sidecars.
+    /// </summary>
+    public FixMode SubtitleFontFixMode { get; set; }
+
+    /// <summary>
+    /// Gets or sets the family name every subtitle should be forced to use. Empty (default) means keep
+    /// each sidecar's original per-style fonts and only strip unused embedded ones. Setting a value
+    /// rewrites every Style.Fontname / <c>{\fn}</c> override to this name AND removes the entire
+    /// <c>[Fonts]</c> section — the client is expected to have this font available.
+    /// </summary>
+    public string SubtitleForceFont { get; set; }
+
+    /// <summary>
+    /// Gets or sets how the orphan-cleanup task acts. Defaults to Off because deletion is destructive
+    /// and users need to opt in after seeing what would be removed.
+    /// </summary>
+    public FixMode OrphanCleanupFixMode { get; set; }
+
+    /// <summary>Gets or sets where orphan-cleanup deletions go — recycle bin by default so any misdetection stays recoverable.</summary>
+    public DisposalMethod OrphanCleanupDisposal { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether the orphan-cleanup pass looks for empty media folders.</summary>
+    public bool OrphanScanEmptyFolders { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether the orphan-cleanup pass looks for subtitle sidecars whose companion video is gone.</summary>
+    public bool OrphanScanSubtitles { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether the orphan-cleanup pass looks for media-folder trickplay folders whose companion video is gone.</summary>
+    public bool OrphanScanTrickplay { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether the orphan-cleanup pass looks for Jellyfin metadata folders whose item GUID no longer resolves.</summary>
+    public bool OrphanScanMetadata { get; set; }
+
+    /// <summary>
+    /// Gets or sets how the NFO-integrity task acts. Detect-only by default so the user sees the list
+    /// before opting into deletion — a hand-curated NFO that went corrupt is user work that's easy to
+    /// mistake for regenerable metadata.
+    /// </summary>
+    public FixMode NfoFixMode { get; set; }
+
+    /// <summary>Gets or sets where deleted corrupt NFOs go. RecycleBin default keeps hand-curated files recoverable.</summary>
+    public DisposalMethod NfoDisposal { get; set; }
+
+    /// <summary>Gets or sets how the heavy-transcode task acts. Fix reuses the transcode pipeline, so on Automatic
+    /// the plugin will re-encode any file that has needed a live transcode in the lookback window.</summary>
+    public FixMode HeavyTranscodeFixMode { get; set; }
+
+    /// <summary>Gets or sets where the original goes after a heavy-transcode re-encode. RecycleBin default.</summary>
+    public DisposalMethod HeavyTranscodeDisposal { get; set; }
+
+    /// <summary>Gets or sets how many days back the transcode-log scanner reads. 30 by default; higher = more
+    /// history but more log parsing per scan.</summary>
+    public int HeavyTranscodeLookbackDays { get; set; }
+
+    /// <summary>Gets or sets how the failed-transcode task acts. Same fix path as the heavy-transcode task.</summary>
+    public FixMode FailedTranscodeFixMode { get; set; }
+
+    /// <summary>Gets or sets where the original goes after a failed-transcode re-encode. RecycleBin default.</summary>
+    public DisposalMethod FailedTranscodeDisposal { get; set; }
+
+    /// <summary>Gets or sets how the embedded-cover-art task acts. Extract-only when just the mode is set;
+    /// stripping requires <see cref="EmbeddedCoverStripFromAudio"/> to also be on.</summary>
+    public FixMode EmbeddedCoverFixMode { get; set; }
+
+    /// <summary>Gets or sets how loose files that should sit under a per-title folder are handled.</summary>
+    public FixMode UngroupedFixMode { get; set; }
+
+    /// <summary>Gets or sets how corrupt Jellyfin-managed artwork (poster/backdrop/thumb inside InternalMetadataPath) is handled.</summary>
+    public FixMode CorruptArtworkFixMode { get; set; }
+
+    /// <summary>Gets or sets where original audio files go after their embedded covers are stripped.
+    /// Only meaningful when <see cref="EmbeddedCoverStripFromAudio"/> is on.</summary>
+    public DisposalMethod EmbeddedCoverDisposal { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether the fixer also strips the redundant embedded cover
+    /// from each audio file after writing the shared folder cover. Big savings (500 KB × track count per folder)
+    /// but the audio files get rewritten — hence the recycle-bin disposal safety net.</summary>
+    public bool EmbeddedCoverStripFromAudio { get; set; }
+
+    /// <summary>Gets or sets the filename the fixer writes into each folder. Jellyfin recognises
+    /// <c>cover.jpg</c> / <c>folder.jpg</c> equally; <c>cover.jpg</c> is the modern default.</summary>
+    public string EmbeddedCoverFilename { get; set; } = "cover.jpg";
+
+    /// <summary>
     /// Gets the fix mode for an issue type.
     /// </summary>
     /// <param name="type">The issue type.</param>
@@ -436,6 +546,15 @@ public class PluginConfiguration : BasePluginConfiguration
             Data.IssueType.MissingSubtitles => MissingSubtitlesFixMode,
             Data.IssueType.Stale => StaleFixMode,
             Data.IssueType.MalwareRisk => SuspiciousFileFixMode,
+            Data.IssueType.LargeTrickplay => TrickplayFixMode,
+            Data.IssueType.SubtitleFonts => SubtitleFontFixMode,
+            Data.IssueType.OrphanedDebris => OrphanCleanupFixMode,
+            Data.IssueType.CorruptNfo => NfoFixMode,
+            Data.IssueType.HeavyTranscode => HeavyTranscodeFixMode,
+            Data.IssueType.FailedTranscode => FailedTranscodeFixMode,
+            Data.IssueType.EmbeddedCoverArt => EmbeddedCoverFixMode,
+            Data.IssueType.Ungrouped => UngroupedFixMode,
+            Data.IssueType.CorruptArtwork => CorruptArtworkFixMode,
             _ => FixMode.DetectOnly
         };
     }
@@ -455,6 +574,11 @@ public class PluginConfiguration : BasePluginConfiguration
             Data.IssueType.AudioLanguage => AudioDisposal,
             Data.IssueType.Playability => PlayabilityDisposal,
             Data.IssueType.MalwareRisk => SuspiciousFileDisposal,
+            Data.IssueType.OrphanedDebris => OrphanCleanupDisposal,
+            Data.IssueType.CorruptNfo => NfoDisposal,
+            Data.IssueType.HeavyTranscode => HeavyTranscodeDisposal,
+            Data.IssueType.FailedTranscode => FailedTranscodeDisposal,
+            Data.IssueType.EmbeddedCoverArt => EmbeddedCoverDisposal,
             _ => DisposalMethod.RecycleBin
         };
     }

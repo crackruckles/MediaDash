@@ -10,3 +10,10 @@ artifacts/
 _verify/
 _stage_*/
 mediadash_*.zip
+
+# Cookie jars from curl-based audits — never commit
+_audit_cookies.txt
+*.cookies.txt
+
+# Claude Code IDE state
+.claude/

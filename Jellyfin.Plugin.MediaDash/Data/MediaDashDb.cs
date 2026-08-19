@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using MediaBrowser.Common.Configuration;
 using Microsoft.Data.Sqlite;
 
@@ -14,7 +15,8 @@ public sealed class MediaDashDb
 {
     // Bump when a semantic change to the decode check would make old cache entries misleading.
     // v1: -xerror + exit-code-only in the decode check (2026-07-20) — previous stderr-noise-as-error entries invalidated.
-    private const int SchemaVersion = 2;
+    // v3: history.acknowledged column for redownload-warning acknowledgement (2026-08-17).
+    private const int SchemaVersion = 3;
 
     private readonly string _connectionString;
 
@@ -89,7 +91,8 @@ public sealed class MediaDashDb
                 fixed_at_utc INTEGER NOT NULL,
                 dry_run INTEGER NOT NULL DEFAULT 0,
                 restored INTEGER NOT NULL DEFAULT 0,
-                success INTEGER NOT NULL DEFAULT 1
+                success INTEGER NOT NULL DEFAULT 1,
+                acknowledged INTEGER NOT NULL DEFAULT 0
             );
             """;
         cmd.ExecuteNonQuery();
@@ -97,6 +100,11 @@ public sealed class MediaDashDb
         MigrateSchema(connection);
     }
 
+    // Each step below is idempotent by design (DELETE on empty table is a no-op; column probes precede
+    // any ALTER TABLE; back-fills use conditional WHERE). PRAGMA user_version is only advanced after
+    // every step succeeds, so a crash mid-migration re-runs cleanly on next boot. Do not restructure
+    // this method into an all-or-nothing transaction without preserving that invariant, or
+    // upgrades from pre-v1 installs will start failing on transient IO errors.
     private static void MigrateSchema(SqliteConnection connection)
     {
         using var getVersion = connection.CreateCommand();
@@ -148,6 +156,31 @@ public sealed class MediaDashDb
             }
         }
 
+        if (current < 3)
+        {
+            var hasAck = false;
+            using (var probe = connection.CreateCommand())
+            {
+                probe.CommandText = "PRAGMA table_info(history)";
+                using var pr = probe.ExecuteReader();
+                while (pr.Read())
+                {
+                    if (string.Equals(pr.GetString(1), "acknowledged", StringComparison.Ordinal))
+                    {
+                        hasAck = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!hasAck)
+            {
+                using var addColumn = connection.CreateCommand();
+                addColumn.CommandText = "ALTER TABLE history ADD COLUMN acknowledged INTEGER NOT NULL DEFAULT 0";
+                addColumn.ExecuteNonQuery();
+            }
+        }
+
         using var setVersion = connection.CreateCommand();
 #pragma warning disable CA2100 // SchemaVersion is a compile-time constant, and PRAGMA does not accept bound parameters.
         setVersion.CommandText = $"PRAGMA user_version = {SchemaVersion}";
@@ -159,6 +192,19 @@ public sealed class MediaDashDb
     {
         var dataDir = Path.Combine(applicationPaths.DataPath, "mediadash");
         Directory.CreateDirectory(dataDir);
+
+        // Mark the dir as cache-like so backup tools (rsync --exclude-caches, restic, borg, Time Machine
+        // via .nobackup patterns) skip our SQLite + probe cache + recycle bin by default. Spec:
+        // https://bford.info/cachedir/ — first line must be exactly the Signature: line with no BOM.
+        var tagPath = Path.Combine(dataDir, "CACHEDIR.TAG");
+        if (!File.Exists(tagPath))
+        {
+            File.WriteAllText(
+                tagPath,
+                "Signature: 8a477f597d28d172789f06886806bc55\n# This file is a cache directory tag created by MediaDash.\n# For information about cache directory tags see https://bford.info/cachedir/\n",
+                new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        }
+
         return Path.Combine(dataDir, "mediadash.db");
     }
 
@@ -451,6 +497,65 @@ public sealed class MediaDashDb
     }
 
     /// <summary>
+    /// Reads a single issue's current status. Used by the fix loop to re-verify that a queued
+    /// item hasn't been dismissed since the run's initial snapshot — otherwise a user pressing
+    /// "Ignore" during a long fix run has no effect on the file that's about to be touched.
+    /// </summary>
+    /// <param name="issueId">The issue id.</param>
+    /// <returns>The current status, or null if the row is gone.</returns>
+    public IssueStatus? GetIssueStatus(long issueId)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT status FROM issues WHERE id = @id";
+        cmd.Parameters.AddWithValue("@id", issueId);
+        var raw = cmd.ExecuteScalar();
+        return raw is null || raw is DBNull ? null : (IssueStatus)Convert.ToInt32(raw, CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Guarded bulk status update. Only transitions rows currently in Detected or Queued to the
+    /// target status — Dismissed and Fixed rows are left alone. Prevents a stale client snapshot
+    /// (from before the last poll) from un-ignoring items via bulk-approve, or un-fixing them.
+    /// </summary>
+    /// <param name="ids">Issue ids to update.</param>
+    /// <param name="target">Target status.</param>
+    /// <returns>Number of rows actually updated.</returns>
+    public int BulkUpdateOpenIssueStatus(IReadOnlyList<long> ids, IssueStatus target)
+    {
+        if (ids.Count == 0)
+        {
+            return 0;
+        }
+
+        // SQLite's default parameter limit is 999; a fresh install with 5000+ duplicates otherwise
+        // throws SqliteException here. Chunk into 500-id batches — each batch runs its own UPDATE.
+        const int chunkSize = 500;
+        using var connection = Open();
+        var total = 0;
+        for (var offset = 0; offset < ids.Count; offset += chunkSize)
+        {
+            var count = Math.Min(chunkSize, ids.Count - offset);
+            using var cmd = connection.CreateCommand();
+            var placeholders = string.Join(",", Enumerable.Range(0, count).Select(i => "@id" + i.ToString(CultureInfo.InvariantCulture)));
+#pragma warning disable CA2100, CA3001 // placeholder list is machine-composed from an int range, ids are bound as parameters — no user text reaches the SQL string
+            cmd.CommandText = "UPDATE issues SET status = @target WHERE id IN (" + placeholders + ") AND status IN (@detected, @queued)";
+#pragma warning restore CA2100, CA3001
+            cmd.Parameters.AddWithValue("@target", (int)target);
+            cmd.Parameters.AddWithValue("@detected", (int)IssueStatus.Detected);
+            cmd.Parameters.AddWithValue("@queued", (int)IssueStatus.Queued);
+            for (var i = 0; i < count; i++)
+            {
+                cmd.Parameters.AddWithValue("@id" + i.ToString(CultureInfo.InvariantCulture), ids[offset + i]);
+            }
+
+            total += cmd.ExecuteNonQuery();
+        }
+
+        return total;
+    }
+
+    /// <summary>
     /// Re-points every issue whose stored path is exactly <paramref name="oldPath"/>, or lives under
     /// <paramref name="oldPath"/> as a directory prefix, to the equivalent location under
     /// <paramref name="newPath"/>. Call this after a move-style fixer completes so other queued issues
@@ -461,7 +566,18 @@ public sealed class MediaDashDb
     /// <returns>The number of issue rows updated.</returns>
     public int RelocateIssuePaths(string oldPath, string newPath)
     {
-        if (string.IsNullOrEmpty(oldPath) || string.IsNullOrEmpty(newPath) || string.Equals(oldPath, newPath, StringComparison.Ordinal))
+        if (string.IsNullOrEmpty(oldPath) || string.IsNullOrEmpty(newPath))
+        {
+            return 0;
+        }
+
+        // Callers pass paths from different sources — some already TrimEndingDirectorySeparator,
+        // some don't. A trailing separator collapses the boundary check (@oldSlash duplicates the
+        // separator) and the prefix match silently misses. Normalize here so the callers don't have to.
+        oldPath = Path.TrimEndingDirectorySeparator(oldPath);
+        newPath = Path.TrimEndingDirectorySeparator(newPath);
+
+        if (string.Equals(oldPath, newPath, StringComparison.Ordinal))
         {
             return 0;
         }
@@ -471,12 +587,15 @@ public sealed class MediaDashDb
         // Exact match (file move) → rewrite in place; the SUBSTR tail is empty so @new stays @new.
         // Prefix match with '/' or '\' boundary (folder move) → rewrite with the folder prefix swapped.
         // Uses SUBSTR equality rather than LIKE to avoid % / _ being treated as wildcards on paths.
+        // COLLATE NOCASE on the WHERE — on Windows the stored path can differ in case from the fixer's
+        // post-move path (drive letter, case-fold varying scanner sources); without this the sibling
+        // issues never re-point and every subsequent fix run fails with "no longer exists".
         cmd.CommandText = @"
             UPDATE issues
                SET path = @new || SUBSTR(path, LENGTH(@old) + 1)
-             WHERE path = @old
-                OR SUBSTR(path, 1, LENGTH(@old) + 1) = @oldSlash
-                OR SUBSTR(path, 1, LENGTH(@old) + 1) = @oldBackslash";
+             WHERE path = @old COLLATE NOCASE
+                OR SUBSTR(path, 1, LENGTH(@old) + 1) = @oldSlash COLLATE NOCASE
+                OR SUBSTR(path, 1, LENGTH(@old) + 1) = @oldBackslash COLLATE NOCASE";
         cmd.Parameters.AddWithValue("@old", oldPath);
         cmd.Parameters.AddWithValue("@new", newPath);
         cmd.Parameters.AddWithValue("@oldSlash", oldPath + "/");
@@ -507,15 +626,28 @@ public sealed class MediaDashDb
     /// <returns>The issue, or null.</returns>
     public Issue? GetIssue(long issueId)
     {
-        foreach (var issue in GetIssues())
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT id, type, item_id, path, details, suggested_fix, size_savings, status, detected_at_utc FROM issues WHERE id = @id";
+        cmd.Parameters.AddWithValue("@id", issueId);
+        using var reader = cmd.ExecuteReader();
+        if (!reader.Read())
         {
-            if (issue.Id == issueId)
-            {
-                return issue;
-            }
+            return null;
         }
 
-        return null;
+        return new Issue
+        {
+            Id = reader.GetInt64(0),
+            Type = (IssueType)reader.GetInt32(1),
+            ItemId = Guid.ParseExact(reader.GetString(2), "N"),
+            Path = reader.GetString(3),
+            DetailsJson = reader.GetString(4),
+            SuggestedFix = reader.GetString(5),
+            SizeSavings = reader.GetInt64(6),
+            Status = (IssueStatus)reader.GetInt32(7),
+            DetectedAtUtc = new DateTime(reader.GetInt64(8), DateTimeKind.Utc)
+        };
     }
 
     /// <summary>
@@ -551,7 +683,7 @@ public sealed class MediaDashDb
     {
         using var connection = Open();
         using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT id, issue_id, type, path, action, bytes_freed, recycle_path, fixed_at_utc, dry_run, restored, success"
+        cmd.CommandText = "SELECT id, issue_id, type, path, action, bytes_freed, recycle_path, fixed_at_utc, dry_run, restored, success, acknowledged"
             + " FROM history ORDER BY id DESC LIMIT @limit";
         cmd.Parameters.AddWithValue("@limit", limit);
 
@@ -571,11 +703,61 @@ public sealed class MediaDashDb
                 FixedAtUtc = new DateTime(reader.GetInt64(7), DateTimeKind.Utc),
                 WasDryRun = reader.GetInt32(8) != 0,
                 Restored = reader.GetInt32(9) != 0,
-                Success = reader.GetInt32(10) != 0
+                Success = reader.GetInt32(10) != 0,
+                Acknowledged = reader.GetInt32(11) != 0
             });
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Marks a history row as acknowledged so the redownload-warning banner stops flagging it.
+    /// No-op when the row does not exist.
+    /// </summary>
+    /// <param name="historyId">The history row id.</param>
+    /// <returns>True when a row was updated.</returns>
+    public bool AcknowledgeHistoryEntry(long historyId)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "UPDATE history SET acknowledged = 1 WHERE id = @id";
+        cmd.Parameters.AddWithValue("@id", historyId);
+        return cmd.ExecuteNonQuery() > 0;
+    }
+
+    /// <summary>Gets a single history row by id.</summary>
+    /// <param name="historyId">The row id.</param>
+    /// <returns>The row, or null.</returns>
+    public HistoryEntry? GetHistoryEntry(long historyId)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT id, issue_id, type, path, action, bytes_freed, recycle_path, fixed_at_utc, dry_run, restored, success, acknowledged"
+            + " FROM history WHERE id = @id";
+        cmd.Parameters.AddWithValue("@id", historyId);
+
+        using var reader = cmd.ExecuteReader();
+        if (!reader.Read())
+        {
+            return null;
+        }
+
+        return new HistoryEntry
+        {
+            Id = reader.GetInt64(0),
+            IssueId = reader.GetInt64(1),
+            Type = (IssueType)reader.GetInt32(2),
+            Path = reader.GetString(3),
+            Action = reader.GetString(4),
+            BytesFreed = reader.GetInt64(5),
+            RecyclePath = reader.IsDBNull(6) ? null : reader.GetString(6),
+            FixedAtUtc = new DateTime(reader.GetInt64(7), DateTimeKind.Utc),
+            WasDryRun = reader.GetInt32(8) != 0,
+            Restored = reader.GetInt32(9) != 0,
+            Success = reader.GetInt32(10) != 0,
+            Acknowledged = reader.GetInt32(11) != 0
+        };
     }
 
     /// <summary>
@@ -708,7 +890,20 @@ public sealed class MediaDashDb
     private SqliteConnection Open()
     {
         var connection = new SqliteConnection(_connectionString);
-        connection.Open();
-        return connection;
+        try
+        {
+            connection.Open();
+            return connection;
+        }
+        catch (SqliteException ex)
+        {
+            // Backup tool / virus scanner / WAL checkpoint holding a Windows file lock produces a
+            // hard failure with no breadcrumb otherwise. Record so admins can see it in the Errors tab
+            // and correlate with the resulting API 500. Rethrow — callers cannot recover from a
+            // completely-unopenable database.
+            connection.Dispose();
+            Api.Diagnostics.Record("MediaDashDb.Open", "Could not open SQLite database: " + ex.Message + ". Something else may be holding a lock on the file (backup software, antivirus, running scan).");
+            throw;
+        }
     }
 }

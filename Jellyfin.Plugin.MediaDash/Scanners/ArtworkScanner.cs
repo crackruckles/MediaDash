@@ -60,8 +60,9 @@ public sealed class ArtworkScanner : IScanner
                 }
 
                 // Only touch Jellyfin-managed artwork — anchored to the actual InternalMetadataPath prefix.
-                // A user library folder named "metadata" is NOT a match; safety invariant preserved.
-                if (!image.Path.StartsWith(_applicationPaths.InternalMetadataPath, StringComparison.OrdinalIgnoreCase))
+                // A user library folder named "metadata" or "metadata-evil" is NOT a match; the shared
+                // LibraryGuard.IsUnder helper enforces the separator boundary that a raw StartsWith misses.
+                if (!Fixers.LibraryGuard.IsUnder(Path.GetFullPath(image.Path), _applicationPaths.InternalMetadataPath))
                 {
                     continue;
                 }

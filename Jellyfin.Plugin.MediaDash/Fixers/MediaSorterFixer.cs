@@ -94,14 +94,18 @@ public sealed class MediaSorterFixer : IFixer
 
         // Cross-volume moves in .NET are copy+delete, which requires target free-space equal to the file's size.
         // Same-volume moves are a metadata-only rename, so the check is skipped in that case.
-        var sourceRoot = Path.GetPathRoot(Path.GetFullPath(issue.Path));
-        var targetRoot = Path.GetPathRoot(Path.GetFullPath(targetPath));
-        if (!string.Equals(sourceRoot, targetRoot, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(targetRoot))
+        // Path.GetPathRoot returns "/" for every Linux path, so use RecycleBin.FindDriveForPath which
+        // resolves the deepest-matching mount point on Linux and the drive letter on Windows.
+        var sourceDrive = RecycleBin.FindDriveForPath(issue.Path);
+        var targetDrive = RecycleBin.FindDriveForPath(targetPath);
+        var targetRoot = targetDrive?.RootDirectory.FullName;
+        if (sourceDrive is not null && targetDrive is not null
+            && !string.Equals(sourceDrive.RootDirectory.FullName, targetDrive.RootDirectory.FullName, StringComparison.OrdinalIgnoreCase))
         {
             try
             {
                 var fileSize = new FileInfo(issue.Path).Length;
-                var free = new DriveInfo(targetRoot).AvailableFreeSpace;
+                var free = targetDrive.AvailableFreeSpace;
                 const long safetyMarginBytes = 100L * 1024 * 1024;
                 if (free < fileSize + safetyMarginBytes)
                 {
@@ -144,6 +148,15 @@ public sealed class MediaSorterFixer : IFixer
         {
             return Task.FromResult(FixResult.Fail(
                 "The target drive filled up mid-move; the original was left in place. Free some space on " + (targetRoot ?? "the target drive") + " and try again."));
+        }
+        catch (IOException ex)
+        {
+            // Catch-all for other IOException shapes (e.g. TOCTOU race: something appeared at targetPath
+            // between the pre-check and File.Move). Without this catch, the exception bubbles to
+            // FixTask's generic handler which records a diagnostic but writes NO History row —
+            // the audit trail loses the failure entirely.
+            return Task.FromResult(FixResult.Fail(
+                "Couldn't move '" + Path.GetFileName(issue.Path) + "' → '" + targetPath + "': " + ex.Message));
         }
 
         _libraryMonitor.ReportFileSystemChanged(issue.Path);
