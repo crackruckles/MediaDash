@@ -3095,6 +3095,7 @@
                         <button is="emby-button" type="button" class="raised mdHistFilter" data-filter="succeeded" style="font-size:80%;" title="Fixes that completed without error"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;color:#22c55e;">check_circle</span> <span>Succeeded</span> <span class="mdHistCount" style="opacity:.7;"></span></button>
                         <button is="emby-button" type="button" class="raised mdHistFilter" data-filter="failed" style="font-size:80%;" title="Fixes that failed for any reason"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;color:#ef4444;">error</span> <span>Failed</span> <span class="mdHistCount" style="opacity:.7;"></span></button>
                         <button is="emby-button" type="button" class="raised mdHistFilter" data-filter="dryrun" style="font-size:80%;" title="Dry-run entries that only logged what they would have done"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;color:#94a3b8;">preview</span> <span>Dry run</span> <span class="mdHistCount" style="opacity:.7;"></span></button>
+                        <select is="emby-select" id="mdHistoryFailReason" class="emby-select-withcolor emby-select" style="display:none;flex:0 0 auto;min-width:16em;font-size:.85em;" title="Narrow the failed list to a specific reason"></select>
                         <span style="flex:1;"></span>
                         <button is="emby-button" type="button" id="mdHistoryClear" class="raised" style="font-size:80%;background:#7f1d1d;color:#fff;" title="Hide every current history row from this list. The rows stay in the database, so the per-library chart and 'Reclaimed since install' totals are untouched."><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;margin-right:.3em;">delete_sweep</span><span>Clear history log</span></button>
                     </div>
@@ -4894,14 +4895,47 @@
             // ---------- History ----------
 
             var historyCache = [];
+            var historyStatsCache = null;
             var historyFilter = 'all';
+            var historyFailReason = '';
             // Watermark below which history rows are hidden from the visible list. Loaded from
             // plugin config each time the History tab renders. Chart aggregation ignores this.
             var historyHiddenBeforeMs = 0;
 
+            // Categorise a failed history row into a short "reason" the user can filter by.
+            // Cheap heuristic: strip the common "Fix failed — " prefix, then take the first phrase
+            // (up to a colon, dash or period). Buckets known-common suffixes so casing / variance
+            // doesn't fragment the dropdown ("permission denied" / "Permission denied." → same).
+            function historyFailReason_of(h) {
+                if (!h || h.Success) return '';
+                var s = (h.Action || '').toString();
+                s = s.replace(/^Fix failed\s*[—-]\s*/i, '').trim();
+                // Cut at the first sentence boundary.
+                var cut = s.search(/[.:—]/);
+                if (cut > 0) s = s.substring(0, cut).trim();
+                if (!s) return 'Unspecified';
+                // Normalise a handful of common phrases so casing doesn't split the dropdown.
+                var lower = s.toLowerCase();
+                if (lower.indexOf('permission denied') === 0) return 'Permission denied';
+                if (lower.indexOf('i/o error') === 0 || lower.indexOf('io error') === 0) return 'I/O error';
+                if (lower.indexOf('unexpected error') === 0) return 'Unexpected error';
+                if (lower.indexOf('cross-device') >= 0) return 'Cross-device link';
+                if (lower.indexOf('no longer exists') >= 0) return 'File no longer exists';
+                if (lower.indexOf('outside your library') >= 0 || lower.indexOf('not inside a configured library') >= 0) return 'Outside library folders';
+                if (lower.indexOf('not enough free space') >= 0) return 'Not enough free space';
+                if (lower.indexOf('nothing to remove any more') >= 0) return 'Refused (no longer applicable)';
+                if (lower.indexOf('refused') === 0) return 'Refused by safety guard';
+                // Sentence-case the first char for a consistent-looking dropdown option.
+                return s.charAt(0).toUpperCase() + s.slice(1);
+            }
+
             function historyMatches(h, filter) {
                 if (filter === 'succeeded') return h.Success && !h.WasDryRun;
-                if (filter === 'failed') return !h.Success;
+                if (filter === 'failed') {
+                    if (h.Success) return false;
+                    if (historyFailReason && historyFailReason_of(h) !== historyFailReason) return false;
+                    return true;
+                }
                 if (filter === 'dryrun') return h.WasDryRun;
                 return true;
             }
@@ -4917,18 +4951,70 @@
 
                 // Refresh the per-filter counts on every render so the chip labels stay honest as new
                 // fix runs land, and the disabled-state on empty buckets doesn't drift out of date.
+                // Count IGNORES the fail-reason sub-filter — the chip is a top-level filter and
+                // should show the total count in its bucket regardless of the sub-selection.
                 view.querySelectorAll('.mdHistFilter').forEach(function (btn) {
                     var f = btn.getAttribute('data-filter');
-                    var n = visible.filter(function (h) { return historyMatches(h, f); }).length;
+                    var n;
+                    if (f === 'failed') {
+                        n = visible.filter(function (h) { return !h.Success; }).length;
+                    } else if (f === 'succeeded') {
+                        n = visible.filter(function (h) { return h.Success && !h.WasDryRun; }).length;
+                    } else if (f === 'dryrun') {
+                        n = visible.filter(function (h) { return h.WasDryRun; }).length;
+                    } else {
+                        n = visible.length;
+                    }
                     btn.querySelector('.mdHistCount').textContent = n;
                     btn.classList.toggle('mdHistFilterActive', f === historyFilter);
                 });
 
+                // Only surface the fail-reason dropdown when the Failed filter is active AND there
+                // are failed rows to slice up. Options come from the visible failed rows only, so
+                // clearing history + re-filling produces a fresh option list without stale reasons.
+                var reasonSel = view.querySelector('#mdHistoryFailReason');
+                if (reasonSel) {
+                    if (historyFilter === 'failed') {
+                        var failedRows = visible.filter(function (h) { return !h.Success; });
+                        if (failedRows.length > 0) {
+                            var reasonCounts = {};
+                            failedRows.forEach(function (h) {
+                                var r = historyFailReason_of(h);
+                                reasonCounts[r] = (reasonCounts[r] || 0) + 1;
+                            });
+                            var reasons = Object.keys(reasonCounts).sort(function (a, b) {
+                                return reasonCounts[b] - reasonCounts[a] || a.localeCompare(b);
+                            });
+                            if (historyFailReason && reasons.indexOf(historyFailReason) < 0) {
+                                historyFailReason = '';
+                            }
+
+                            var opts = '<option value="">All failure reasons (' + failedRows.length + ')</option>';
+                            reasons.forEach(function (r) {
+                                opts += '<option value="' + esc(r) + '"' + (r === historyFailReason ? ' selected' : '') + '>' + esc(r) + ' (' + reasonCounts[r] + ')</option>';
+                            });
+                            reasonSel.innerHTML = opts;
+                            reasonSel.style.display = '';
+                        } else {
+                            reasonSel.style.display = 'none';
+                            historyFailReason = '';
+                        }
+                    } else {
+                        reasonSel.style.display = 'none';
+                        historyFailReason = '';
+                    }
+                }
+
                 var filtered = visible.filter(function (h) { return historyMatches(h, historyFilter); });
                 var el = view.querySelector('#mdHistoryList');
-                var saved = 0;
-                full.forEach(function (h) { if (!h.WasDryRun && h.Success) saved += h.BytesFreed; });
+                // Summary + chart are sourced from /History/Stats (server-side aggregation over the
+                // full history table), NOT from the paginated `full` row list — a user with >500 fix
+                // runs would otherwise see the summary and per-library chart under-count everything
+                // that fell off the paginated window, while the Overview's "Reclaimed since install"
+                // panel (also server-side) showed the true total.
+                var stats = historyStatsCache;
                 var summaryEl = view.querySelector('#mdHistorySummary');
+                var saved = stats ? (stats.TotalBytesFreed || 0) : 0;
                 if (saved > 0) {
                     summaryEl.innerHTML = '<div class="mdHistSummaryLabel">Reclaimed since install</div>' +
                         '<div class="mdHistSummaryValue">' + esc(bytes(saved)) + '</div>';
@@ -4936,17 +5022,10 @@
                     summaryEl.innerHTML = '';
                 }
 
-                // Per-library saved totals, sorted highest → lowest so the biggest wins lead.
-                // Filter only narrows the row list below; this always aggregates every real fix.
                 var chartEl = view.querySelector('#mdHistoryChart');
-                var byLib = {};
-                full.forEach(function (h) {
-                    if (h.WasDryRun || !h.Success || !h.BytesFreed) return;
-                    var key = h.Library || STR.unassignedLibrary;
-                    byLib[key] = (byLib[key] || 0) + h.BytesFreed;
-                });
-                var libRows = Object.keys(byLib).map(function (k) { return { name: k, saved: byLib[k] }; })
-                    .sort(function (a, b) { return b.saved - a.saved; });
+                var libRows = stats && stats.ByLibrary
+                    ? stats.ByLibrary.map(function (r) { return { name: r.Library || STR.unassignedLibrary, saved: r.BytesFreed }; })
+                    : [];
                 if (libRows.length) {
                     var maxSaved = libRows[0].saved || 1;
                     chartEl.innerHTML = '<div class="mdCard mdFade">' +
@@ -7139,14 +7218,18 @@
             }
 
             function loadHistory() {
-                // Pull the Clear-history watermark alongside the row list so the tab renders in one paint.
+                // Pull the Clear-history watermark, the row list, AND lifetime stats in one paint.
+                // Stats come from the server so they're accurate over the entire history, not just
+                // the paginated 500-row window /History returns.
                 Promise.all([
                     api('History'),
-                    ApiClient.getPluginConfiguration(PLUGIN_ID)
+                    ApiClient.getPluginConfiguration(PLUGIN_ID),
+                    api('History/Stats').catch(function () { return null; })
                 ]).then(function (results) {
                     var ticks = results[1].HistoryHiddenBeforeUtcTicks || 0;
                     // .NET UTC ticks (100 ns since year 0001) → JS millis (since 1970 epoch).
                     historyHiddenBeforeMs = ticks > 0 ? (ticks - 621355968000000000) / 10000 : 0;
+                    historyStatsCache = results[2] || null;
                     renderHistory(results[0]);
                 });
             }
@@ -8313,9 +8396,20 @@
                     view.querySelectorAll('.mdHistFilter').forEach(function (btn) {
                         btn.addEventListener('click', function () {
                             historyFilter = btn.getAttribute('data-filter');
+                            // Reset the fail-reason sub-filter when the top-level filter changes; the
+                            // dropdown will re-populate from the new bucket's rows on next render.
+                            historyFailReason = '';
                             renderHistory();
                         });
                     });
+
+                    var failReasonSel = view.querySelector('#mdHistoryFailReason');
+                    if (failReasonSel) {
+                        failReasonSel.addEventListener('change', function () {
+                            historyFailReason = this.value || '';
+                            renderHistory();
+                        });
+                    }
 
                     view.querySelector('#mdHistoryClear').addEventListener('click', function () {
                         if (!window.confirm('Hide every current history row from the list? Per-library totals and lifetime reclaim stay intact.')) return;

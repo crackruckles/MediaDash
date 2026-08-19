@@ -229,6 +229,44 @@ public static class SmartHealthProbe
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
+            // smartctl always writes JSON, even when it couldn't actually check the device
+            // (permission denied, unsupported device, no SMART support). Its own exit_status field
+            // is the tell — non-zero means smartctl failed to complete, so any absence of
+            // smart_status is NOT "self-assessment failed" — it's Unknown with a specific reason.
+            // On Linux this is the most common case: Jellyfin runs unprivileged, smartctl needs
+            // CAP_SYS_RAWIO or sudo, and every drive comes back Unknown without a useful hint.
+            if (root.TryGetProperty("smartctl", out var meta)
+                && meta.TryGetProperty("exit_status", out var exit)
+                && exit.ValueKind == JsonValueKind.Number
+                && exit.GetInt32() != 0)
+            {
+                var firstMessage = string.Empty;
+                if (meta.TryGetProperty("messages", out var msgs) && msgs.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var m in msgs.EnumerateArray())
+                    {
+                        if (m.TryGetProperty("string", out var ms) && ms.ValueKind == JsonValueKind.String)
+                        {
+                            firstMessage = ms.GetString() ?? string.Empty;
+                            break;
+                        }
+                    }
+                }
+
+                var hint = firstMessage;
+                if (firstMessage.Contains("Permission denied", StringComparison.OrdinalIgnoreCase))
+                {
+                    hint = "smartctl needs CAP_SYS_RAWIO to read SMART on " + device + ". On Linux with the jellyfin-server package: `sudo setcap 'cap_sys_rawio+ep' $(which smartctl)`. Docker: run the container with `--cap-add=SYS_RAWIO --device=" + device + "`.";
+                }
+                else if (string.IsNullOrEmpty(firstMessage))
+                {
+                    hint = "smartctl exited " + exit.GetInt32() + " on " + device + " without a diagnostic message.";
+                }
+
+                Diagnostics.Record("SmartHealth", "smartctl exit_status=" + exit.GetInt32() + " on " + device + ": " + (firstMessage.Length > 0 ? firstMessage : "(no message)"));
+                return new SmartHealthResult(SmartHealth.Unknown, hint);
+            }
+
             bool overallPassed = root.TryGetProperty("smart_status", out var status)
                 && status.TryGetProperty("passed", out var passed)
                 && passed.ValueKind == JsonValueKind.True;

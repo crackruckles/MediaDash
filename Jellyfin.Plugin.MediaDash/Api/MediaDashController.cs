@@ -91,11 +91,15 @@ public class MediaDashController : ControllerBase
 
         // Roots that host a library folder — used to mark library drives and to keep the aggregated
         // FreeDiskBytes/TotalDiskBytes fields scoped to what MediaDash actually cares about.
+        // FindDriveForPath is the right resolver on both Windows AND Linux — Path.GetPathRoot
+        // returns "/" for every Linux path, which would collapse every library folder to root
+        // and never match any mount point (leaving all drives unmarked as library drives on Linux,
+        // which suppressed the SMART probe for every library drive there).
         var libraryRoots = _libraryManager.GetVirtualFolders()
             .SelectMany(f => f.Locations)
-            .Select(l => System.IO.Path.GetPathRoot(System.IO.Path.GetFullPath(l)))
-            .Where(r => !string.IsNullOrEmpty(r))
-            .Select(r => System.IO.Path.TrimEndingDirectorySeparator(r!))
+            .Select(l => Fixers.RecycleBin.FindDriveForPath(l))
+            .Where(d => d is not null)
+            .Select(d => System.IO.Path.TrimEndingDirectorySeparator(d!.RootDirectory.FullName))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var recycleDrive = Fixers.RecycleBin.FindDriveForPath(_recycleBin.GetEffectiveRoot());
@@ -532,6 +536,40 @@ public class MediaDashController : ControllerBase
             dto.Library = ResolveLibraryName(entry.Path, libraryLocations);
             return dto;
         }).ToList());
+    }
+
+    /// <summary>
+    /// Lifetime reclaim totals broken out per library. Computed over the full history table so the
+    /// number matches Status.LifetimeBytesReclaimed regardless of how many rows /History returns.
+    /// Fixes the drift between the Overview "Reclaimed since install" panel (server-side sum) and
+    /// the History tab's per-library chart (was client-side sum over the paginated 500-row window).
+    /// </summary>
+    /// <returns>Total bytes reclaimed + one entry per library (highest first).</returns>
+    [HttpGet("History/Stats")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<object> GetHistoryStats()
+    {
+        var libraryLocations = _libraryManager.GetVirtualFolders()
+            .SelectMany(f => (f.Locations ?? []).Select(l => (Name: f.Name, Root: Path.TrimEndingDirectorySeparator(Path.GetFullPath(l)))))
+            .ToList();
+
+        long total = 0;
+        var byLibrary = new Dictionary<string, long>(StringComparer.Ordinal);
+        foreach (var (path, bytesFreed) in _db.GetLifetimePathTotals())
+        {
+            total += bytesFreed;
+            var libName = ResolveLibraryName(path, libraryLocations);
+            byLibrary[libName] = (byLibrary.TryGetValue(libName, out var running) ? running : 0) + bytesFreed;
+        }
+
+        return Ok(new
+        {
+            TotalBytesFreed = total,
+            ByLibrary = byLibrary
+                .Select(kv => new { Library = kv.Key, BytesFreed = kv.Value })
+                .OrderByDescending(x => x.BytesFreed)
+                .ToList()
+        });
     }
 
     private static string ResolveLibraryName(string path, List<(string Name, string Root)> libraries)

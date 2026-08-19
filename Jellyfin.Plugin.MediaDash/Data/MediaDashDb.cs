@@ -792,6 +792,28 @@ public sealed class MediaDashDb
     }
 
     /// <summary>
+    /// Returns every successful non-dry-run history row as (path, bytes_freed). Used by the History
+    /// tab's per-library chart so the totals reflect ALL history — not just the newest 500 rows the
+    /// paginated <see cref="GetHistory(int)"/> returns. Path stays server-side; the caller resolves
+    /// it to a library name via Jellyfin's library manager in one pass.
+    /// </summary>
+    /// <returns>One row per successful non-dry-run fix.</returns>
+    public IReadOnlyList<(string Path, long BytesFreed)> GetLifetimePathTotals()
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT path, bytes_freed FROM history WHERE success = 1 AND dry_run = 0 AND bytes_freed > 0";
+        var result = new List<(string, long)>();
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            result.Add((reader.GetString(0), reader.GetInt64(1)));
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// Per-type breakdown of the lifetime reclaim total. Powers the donut on the right half of the
     /// Overview reclaim card so the user can see which fix type has recovered the most disk.
     /// </summary>

@@ -188,9 +188,20 @@ public sealed class TranscodeFixer : IFixer
             }
 
             var newSize = new FileInfo(tempPath).Length;
-            if (newSize >= originalSize)
+            // Size gate applies only to Quality fixes — the whole point of Quality is disk reclaim,
+            // so a re-encode that ends up bigger defeats the purpose. HeavyTranscode / FailedTranscode
+            // are about direct-play compatibility: even a slightly larger HEVC output is a win because
+            // future plays skip live transcoding. Cap the tolerance at 30% to guard against pathological
+            // re-encodes (misconfigured bitrate, wrong preset) but otherwise accept the swap.
+            if (issue.Type == IssueType.Quality && newSize >= originalSize)
             {
                 return FixResult.Fail("The re-encoded file would be larger than the original, so the original was kept.");
+            }
+
+            if (issue.Type != IssueType.Quality && newSize > originalSize * 1.3)
+            {
+                var overheadPct = (int)((newSize - originalSize) * 100.0 / originalSize);
+                return FixResult.Fail("The re-encoded file is " + overheadPct + "% larger than the original — something's off with the encode settings, so the original was kept. Try a lower bitrate ceiling or a different codec in Settings → Files wasting space.");
             }
 
             // Move the verified encode to a sidecar next to the target BEFORE touching the original.
