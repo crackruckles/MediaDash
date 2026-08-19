@@ -9,6 +9,22 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "1.0.2.0",
+        "changelog": "Follow-up polish on 1.0.1: fewer noisy issues, sharper reclaim numbers, more control over dashboards banners.\n\nFeatures\n- Trickplay scanner has a configurable minimum-size threshold (Settings → Trickplay space savings). Default 10 MB filters out per-clip trickplay folders that swamp libraries with many short videos; 0 disables the threshold and flags every convertible folder.\n- Recycle-bin size-warning threshold is now user-configurable (Settings → Recycle bin). Default 10 GB matches the old hardcoded value; 0 disables the banner.\n- Recycle-bin cross-volume warning dismiss button now persists across browser sessions (localStorage). Other banners stay session-scoped because their conditions self-clear.\n\nBug fixes\n- Overview \"Space you could reclaim\" panel now shows reclaimable bytes per issue type (with the file count as a muted parenthetical), and the donut is sized by bytes instead of by count so the visual is proportional to actual reclaim. Types with zero savings (Ungrouped, MissingSubtitles, Stale) are filtered out — they belong on the Issues tab, not the space-reclaim summary.\n- Progress bar wrap on the masthead now spans the full width of the scan-state line above it (was previously capped at 36em).",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v1.0.2/mediadash_1.0.2.zip",
+        "checksum": "253e103a3ad761c2a0dc5f824583720c",
+        "timestamp": "2026-08-19T15:26:26Z"
+      },
+      {
+        "version": "1.0.2.0",
+        "changelog": "Follow-up polish on 1.0.1: fewer noisy issues, sharper reclaim numbers, more control over dashboards banners.\n\nFeatures\n- Trickplay scanner has a configurable minimum-size threshold (Settings → Trickplay space savings). Default 10 MB filters out per-clip trickplay folders that swamp libraries with many short videos; 0 disables the threshold and flags every convertible folder.\n- Recycle-bin size-warning threshold is now user-configurable (Settings → Recycle bin). Default 10 GB matches the old hardcoded value; 0 disables the banner.\n- Recycle-bin cross-volume warning dismiss button now persists across browser sessions (localStorage). Other banners stay session-scoped because their conditions self-clear.\n\nBug fixes\n- Overview \"Space you could reclaim\" panel now shows reclaimable bytes per issue type (with the file count as a muted parenthetical), and the donut is sized by bytes instead of by count so the visual is proportional to actual reclaim. Types with zero savings (Ungrouped, MissingSubtitles, Stale) are filtered out — they belong on the Issues tab, not the space-reclaim summary.\n- Progress bar wrap on the masthead now spans the full width of the scan-state line above it (was previously capped at 36em).",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v1.0.2/mediadash_1.0.2.zip",
+        "checksum": "253e103a3ad761c2a0dc5f824583720c",
+        "timestamp": "2026-08-19T15:26:26Z"
+      },
+      {
         "version": "1.0.1.0",
         "changelog": "Post-1.0 UI polish and a recycle-bin config regression fix.\n\nBug fixes\n- RecycleBin path no longer requires library-adjacency. Users can point the bin at any writable location (e.g. `/mnt/media/.mediadash-recycle` as a sibling of the library for cross-volume-free moves). Only OS-reserved roots (/etc, /bin, /usr, Windows System32, etc.) are refused.\n- Errors tab: badge no longer shows a stale count (e.g. \"691\") after the tab has been cleared. The periodic status poll now delegates to loadErrors() when the user is on the Errors tab, so badge + list update from the same fetch.\n- Issues tab: badge is now sourced from the actual issue list length, so \"999+\" no longer disagrees with the visible cards.\n- Overview issue-shortcut cards now show reclaimable space (bytes / MB / GB) as the primary number, with the file count as a subtitle. Types with no space-savings info still show the raw count.\n- Progress bar activity text now spans the full width of the scan-state line above it (was capped at 36em).\n- Removed the second empty \"Subtitles\" settings card that appeared post-1.0 (SubtitleFonts controls are already folded into the SubtitleLanguage card).\n- \"Collapse all\" / \"Expand all\" button on Settings now truthfully reflects what a click will do: it excludes force-collapsed Off-mode tasks from the state check, and hides itself entirely when nothing on the page is togglable.",
         "targetAbi": "12.0.0.0",
@@ -531,6 +547,7 @@
     ]
   }
 ]
+
 
 
 
