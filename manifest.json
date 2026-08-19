@@ -9,6 +9,22 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "1.0.3.0",
+        "changelog": "Post-1.0.2 UX polish: inline access probes, better Overview labels, orphan-cleanup cross-volume fallback.\n\nFeatures\n- New \"Test read / write access\" buttons under Settings → Libraries and Settings → Recycle bin. Results render inline next to each library (green ✓ readable + writable, or red ✗ with the specific error in a hover tooltip). Same probe as the first-run wizard, re-runnable any time.\n- Libraries scoping list now shows every library type MediaDash can scan (movies, TV, music, audiobooks, books, comics, mixed) with a small type label next to each. Previously filtered to movies + TV only, hiding music / books / audiobooks even though every scanner has covered those since 0.9.\n- Overview \"Reclaimed since install\" panel labels replace the older \"Space saved to date\" phrasing; per-library chart header matches.\n\nBug fixes\n- OrphanCleanupFixer no longer errors out with \"Invalid cross-device link\" when a Jellyfin metadata folder (e.g. /var/lib/jellyfin/data/collections/*) is recycled and the recycle bin lives on a different volume. Directory.Move now falls back to the verified copy → rename → delete-source helper the file path uses.\n- Errors tab no longer flashes / clears / closes user-expanded \u003cdetails\u003e when a new error arrives. loadErrors fingerprints the response (source + creation timestamp + count) and only re-renders when the entry set actually changes.\n- Redundant \"Where the savings are\" bar section removed from Overview. The reclaim panel legend has shown the same per-type bytes breakdown since 1.0.2.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v1.0.3/mediadash_1.0.3.zip",
+        "checksum": "721f2ca4015e58700afc05ac9e024e4d",
+        "timestamp": "2026-08-19T15:42:56Z"
+      },
+      {
+        "version": "1.0.3.0",
+        "changelog": "Post-1.0.2 UX polish: inline access probes, better Overview labels, orphan-cleanup cross-volume fallback.\n\nFeatures\n- New \"Test read / write access\" buttons under Settings → Libraries and Settings → Recycle bin. Results render inline next to each library (green ✓ readable + writable, or red ✗ with the specific error in a hover tooltip). Same probe as the first-run wizard, re-runnable any time.\n- Libraries scoping list now shows every library type MediaDash can scan (movies, TV, music, audiobooks, books, comics, mixed) with a small type label next to each. Previously filtered to movies + TV only, hiding music / books / audiobooks even though every scanner has covered those since 0.9.\n- Overview \"Reclaimed since install\" panel labels replace the older \"Space saved to date\" phrasing; per-library chart header matches.\n\nBug fixes\n- OrphanCleanupFixer no longer errors out with \"Invalid cross-device link\" when a Jellyfin metadata folder (e.g. /var/lib/jellyfin/data/collections/*) is recycled and the recycle bin lives on a different volume. Directory.Move now falls back to the verified copy → rename → delete-source helper the file path uses.\n- Errors tab no longer flashes / clears / closes user-expanded \u003cdetails\u003e when a new error arrives. loadErrors fingerprints the response (source + creation timestamp + count) and only re-renders when the entry set actually changes.\n- Redundant \"Where the savings are\" bar section removed from Overview. The reclaim panel legend has shown the same per-type bytes breakdown since 1.0.2.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v1.0.3/mediadash_1.0.3.zip",
+        "checksum": "721f2ca4015e58700afc05ac9e024e4d",
+        "timestamp": "2026-08-19T15:42:56Z"
+      },
+      {
         "version": "1.0.2.0",
         "changelog": "Follow-up polish on 1.0.1: fewer noisy issues, sharper reclaim numbers, more control over dashboards banners.\n\nFeatures\n- Trickplay scanner has a configurable minimum-size threshold (Settings → Trickplay space savings). Default 10 MB filters out per-clip trickplay folders that swamp libraries with many short videos; 0 disables the threshold and flags every convertible folder.\n- Recycle-bin size-warning threshold is now user-configurable (Settings → Recycle bin). Default 10 GB matches the old hardcoded value; 0 disables the banner.\n- Recycle-bin cross-volume warning dismiss button now persists across browser sessions (localStorage). Other banners stay session-scoped because their conditions self-clear.\n\nBug fixes\n- Overview \"Space you could reclaim\" panel now shows reclaimable bytes per issue type (with the file count as a muted parenthetical), and the donut is sized by bytes instead of by count so the visual is proportional to actual reclaim. Types with zero savings (Ungrouped, MissingSubtitles, Stale) are filtered out — they belong on the Issues tab, not the space-reclaim summary.\n- Progress bar wrap on the masthead now spans the full width of the scan-state line above it (was previously capped at 36em).",
         "targetAbi": "12.0.0.0",
@@ -547,6 +563,7 @@
     ]
   }
 ]
+
 
 
 
