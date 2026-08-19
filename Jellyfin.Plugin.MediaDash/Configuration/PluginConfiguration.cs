@@ -45,6 +45,7 @@ public class PluginConfiguration : BasePluginConfiguration
         PlayabilityDisposal = DisposalMethod.RecycleBin;
         RecycleBinPath = string.Empty;
         RecycleBinRetentionDays = 30;
+        RecycleBinWarnThresholdGb = 10;
         PauseDuringPlayback = true;
         FirstRunDone = false;
         // Off by default — the wizard's opt-in path mints an AnalyticsInstallId and flips this on when
@@ -75,6 +76,7 @@ public class PluginConfiguration : BasePluginConfiguration
         HistoryHiddenBeforeUtcTicks = 0;
         TrickplayFixMode = FixMode.DetectOnly;
         TrickplayWebPQuality = 80;
+        TrickplayMinSizeMb = 10;
         SubtitleFontFixMode = FixMode.DetectOnly;
         SubtitleForceFont = string.Empty;
         OrphanCleanupFixMode = FixMode.DetectOnly;
@@ -167,6 +169,12 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets how many days recycled files are kept before automatic purge.
     /// </summary>
     public int RecycleBinRetentionDays { get; set; }
+
+    /// <summary>
+    /// Gets or sets the recycle-bin size (in GB) that triggers the "bin is getting big" banner on the
+    /// dashboard. 0 disables the banner entirely.
+    /// </summary>
+    public int RecycleBinWarnThresholdGb { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether scheduled scans and fixes only run while the server is idle:
@@ -442,6 +450,13 @@ public class PluginConfiguration : BasePluginConfiguration
     /// showing soft edges on high-contrast text overlays, above 85 gives up size savings for pixel-peeping.
     /// </summary>
     public int TrickplayWebPQuality { get; set; }
+
+    /// <summary>
+    /// Gets or sets the minimum size (in MB) a trickplay folder must have before it's flagged as a
+    /// LargeTrickplay issue. Prevents 1000s of low-savings items from swamping the Issues tab on
+    /// libraries with many small clips. 0 disables the threshold (flag every convertible folder).
+    /// </summary>
+    public int TrickplayMinSizeMb { get; set; }
 
     /// <summary>
     /// Gets or sets how the subtitle-font optimiser acts. DetectOnly by default so users see the

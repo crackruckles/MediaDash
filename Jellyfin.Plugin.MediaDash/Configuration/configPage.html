@@ -2507,7 +2507,7 @@
                              below doesn't shift while a run is in progress. -->
                         <div id="mdScanState" class="fieldDescription" style="margin: 12px 0 0;"></div>
                         <div id="mdProgressWrap" style="display:none;margin:8px 0 0;">
-                            <div class="mdBarTrack" style="height:10px;max-width:36em;"><div id="mdProgressFill" class="mdBarFill" style="width:3%;background:#00a4dc;"></div></div>
+                            <div class="mdBarTrack" style="height:10px;"><div id="mdProgressFill" class="mdBarFill" style="width:3%;background:#00a4dc;"></div></div>
                             <div id="mdActivity" class="fieldDescription" style="margin-top:.3em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:monospace;font-size:.85em;"></div>
                         </div>
                         <!-- Tab bar populated by JS on init; the empty container lets it live inside the
@@ -3036,7 +3036,7 @@
                                 <div class="fieldDescription" id="mdRecycleWarnText" style="margin-top:.2em;"></div>
                             </div>
                             <button is="emby-button" type="button" id="mdRecycleWarnFix" class="raised" style="font-size:80%;" title="Jump to Settings → Recycle bin to change the location."><span>Change in Settings</span></button>
-                            <button is="emby-button" type="button" class="mdDismissBanner" data-banner="mdRecycleWarn" style="background:transparent;border:0;color:#f59e0b;padding:.3em;min-width:0;" title="Hide this notice for this browser session. It comes back on next tab open if the condition still holds."><span class="material-icons" style="font-size:1.2em;">close</span></button>
+                            <button is="emby-button" type="button" class="mdDismissBanner" data-banner="mdRecycleWarn" data-persistent="1" style="background:transparent;border:0;color:#f59e0b;padding:.3em;min-width:0;" title="Hide this notice permanently. It stays dismissed across sessions — clear your browser's local storage for this site to bring it back."><span class="material-icons" style="font-size:1.2em;">close</span></button>
                         </div>
                     </div>
                     <div id="mdSystem"></div>
@@ -3289,6 +3289,11 @@
                                     <label class="inputLabel" for="mdRetention">Keep recycled files for<span class="mdSliderVal" id="mdRetentionVal"></span></label>
                                     <input id="mdRetention" type="range" min="1" max="365" step="1" />
                                     <div class="fieldDescription">After this many days, recycled files are deleted for good. Default: 30.</div>
+                                </div>
+                                <div class="inputContainer" style="margin:0;">
+                                    <label class="inputLabel" for="mdBinWarnThreshold">Warn me when the bin exceeds<span class="mdSliderVal" id="mdBinWarnThresholdVal"></span></label>
+                                    <input id="mdBinWarnThreshold" type="range" min="0" max="500" step="1" />
+                                    <div class="fieldDescription">Shows a banner on the dashboard when the recycle bin passes this size. Set to 0 to disable. Default: 10 GB.</div>
                                 </div>
                             </div>
                         </section>
@@ -3624,7 +3629,9 @@
                 { id: 'mdMaxBitrate', val: 'mdMaxBitrateVal', unit: 'unitMbps' },
                 { id: 'mdTolerance', val: 'mdToleranceVal', unit: 'unitPercent' },
                 { id: 'mdRetention', val: 'mdRetentionVal', unit: 'unitDays' },
-                { id: 'mdTrickplayQuality', val: 'mdTrickplayQualityVal', unit: 'unitPercent' }
+                { id: 'mdTrickplayQuality', val: 'mdTrickplayQualityVal', unit: 'unitPercent' },
+                { id: 'mdTrickplayMinSize', val: 'mdTrickplayMinSizeVal', format: function (v) { return v === '0' || v === 0 ? ' (flag every folder)' : ' ' + v + ' MB'; } },
+                { id: 'mdBinWarnThreshold', val: 'mdBinWarnThresholdVal', format: function (v) { return v === '0' || v === 0 ? ' (off)' : ' ' + v + ' GB'; } }
             ];
 
             function fmt(str) {
@@ -4432,9 +4439,13 @@
                     function reclaimLegend(items) {
                         return items.map(function (c) {
                             var t = STR.types[c.Type] || { title: c.Type, color: '#888' };
+                            var val = c.PotentialSavings || 0;
+                            // Show reclaimable bytes as the primary metric with the issue count as a
+                            // muted suffix — the panel is about space, not issue-tab density.
+                            var s = c.Count === 1 ? '' : 's';
                             return '<div style="display:flex;align-items:center;gap:10px;font-size:14px;color:var(--md-body);">' +
-                                '<span style="min-width:24px;text-align:center;padding:3px 6px;border-radius:6px;background:color-mix(in srgb, ' + t.color + ' 18%, transparent);color:' + t.color + ';font:700 11.5px \'IBM Plex Mono\', monospace;">' + c.Count + '</span>' +
-                                '<span>' + esc(t.title) + '</span>' +
+                                '<span style="min-width:60px;text-align:right;font:700 12px \'IBM Plex Mono\', monospace;color:' + t.color + ';">' + esc(bytes(val)) + '</span>' +
+                                '<span>' + esc(t.title) + ' <span style="opacity:.55;font-size:.85em;">(' + c.Count + ' file' + s + ')</span></span>' +
                             '</div>';
                         }).join('');
                     }
@@ -4450,6 +4461,10 @@
                         }).join('');
                     }
                     var panelBg = getComputedStyle(view).getPropertyValue('--md-panel').trim() || '#242b36';
+                    // Left panel is exclusively about space reclaim. Filter out types that don't free
+                    // any bytes (Ungrouped is a move, MissingSubtitles adds a file, Stale is detect-only,
+                    // etc.) — they showed up here with a count but no savings, which was confusing.
+                    var reclaimCounts = counts.filter(function (c) { return (c.PotentialSavings || 0) > 0; });
                     var reclaimHtml =
                         '<div class="mdHero mdFade">' +
                             '<div class="mdPanel" style="--md-accent:#3b82f6;">' +
@@ -4457,7 +4472,7 @@
                                 '<div class="mdPanelBody">' +
                                     '<div style="font:700 11.5px Figtree,sans-serif;letter-spacing:.13em;text-transform:uppercase;color:var(--md-meta);">' + esc(STR.totalSavings) + '</div>' +
                                     '<div style="margin:10px 0 22px;font:700 40px \'IBM Plex Mono\', monospace;letter-spacing:-.03em;color:#60a5fa;">' + esc(bytes(s.TotalPotentialSavings)) + '</div>' +
-                                    (counts.length ? '<div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">' + conicDonut(counts, 'count', panelBg) + '<div style="display:flex;flex-direction:column;gap:11px;">' + reclaimLegend(counts) + '</div></div>' : '') +
+                                    (reclaimCounts.length ? '<div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">' + conicDonut(reclaimCounts, 'bytes', panelBg) + '<div style="display:flex;flex-direction:column;gap:11px;">' + reclaimLegend(reclaimCounts) + '</div></div>' : '') +
                                 '</div>' +
                             '</div>' +
                             '<div class="mdPanel" style="--md-accent:#10b981;">' +
@@ -5473,6 +5488,11 @@
                 if (key === 'LargeTrickplay') {
                     return '<div class="mdFieldGrid mdFieldGrid-2">' +
                         '<div class="mdField" style="grid-column:1/-1;">' +
+                            '<label for="mdTrickplayMinSize" title="Trickplay folders smaller than this threshold aren\'t flagged. Prevents libraries with many short clips from producing thousands of low-savings issues. 0 = flag every convertible folder.">Only flag trickplay folders above <span class="mdSliderVal" id="mdTrickplayMinSizeVal"></span></label>' +
+                            '<input id="mdTrickplayMinSize" type="range" min="0" max="500" step="1" />' +
+                            '<span class="mdFieldHint">Filters out tiny per-clip trickplay folders. Default 10 MB catches movies and series while ignoring short-video libraries. Set to 0 to flag every convertible folder.</span>' +
+                        '</div>' +
+                        '<div class="mdField" style="grid-column:1/-1;">' +
                             '<label for="mdTrickplayQuality" title="libwebp quality 40-95. 80 lands where compression artefacts stop mattering on scrub-bar thumbnails; 75 gives more space but occasional soft edges on high-contrast text; 85+ trades size back for pixel-perfect zoom.">WebP quality <span class="mdSliderVal" id="mdTrickplayQualityVal">80%</span></label>' +
                             '<input id="mdTrickplayQuality" type="range" min="40" max="95" step="1" />' +
                             '<span class="mdFieldHint">Quality 80 halves the trickplay folder without visible change on scrub thumbnails. Lower saves more disk at the cost of soft edges; higher gives up space for pixel-perfect zoom nobody will do.</span>' +
@@ -6078,12 +6098,16 @@
                 sections.forEach(function (s) { io.observe(s); });
             }
 
+            function sliderLabelText(s, value) {
+                return s.format ? s.format(value) : fmt(STR[s.unit], value);
+            }
+
             function initSliders() {
                 SLIDERS.forEach(function (s) {
                     var input = view.querySelector('#' + s.id);
                     var label = view.querySelector('#' + s.val);
                     input.addEventListener('input', function () {
-                        label.textContent = fmt(STR[s.unit], input.value);
+                        label.textContent = sliderLabelText(s, input.value);
                     });
                 });
             }
@@ -6091,7 +6115,7 @@
             function syncSliderLabels() {
                 SLIDERS.forEach(function (s) {
                     var input = view.querySelector('#' + s.id);
-                    view.querySelector('#' + s.val).textContent = fmt(STR[s.unit], input.value);
+                    view.querySelector('#' + s.val).textContent = sliderLabelText(s, input.value);
                 });
             }
 
@@ -6353,11 +6377,13 @@
                     view.querySelector('#mdRenameAfterTranscode').checked = !!c.RenameAfterTranscode;
                     view.querySelector('#mdBinPath').value = c.RecycleBinPath || '';
                     view.querySelector('#mdRetention').value = c.RecycleBinRetentionDays;
+                    view.querySelector('#mdBinWarnThreshold').value = (c.RecycleBinWarnThresholdGb != null ? c.RecycleBinWarnThresholdGb : 10);
                     view.querySelector('#mdThorough').checked = c.ThoroughPlayabilityCheck;
                     view.querySelector('#mdEditions').checked = c.TreatEditionsAsDuplicates;
                     view.querySelector('#mdDuplicateMinAge').value = c.DuplicateMinAgeDays == null ? 7 : c.DuplicateMinAgeDays;
                     view.querySelector('#mdStaleExcludedGenres').value = (c.StaleExcludedGenres || []).join(', ');
                     view.querySelector('#mdTrickplayQuality').value = c.TrickplayWebPQuality > 0 ? c.TrickplayWebPQuality : 80;
+                    view.querySelector('#mdTrickplayMinSize').value = (c.TrickplayMinSizeMb != null ? c.TrickplayMinSizeMb : 10);
                     var subForce = view.querySelector('#mdSubForceFont');
                     subForce.value = c.SubtitleForceFont || '';
                     syncSubForceFontFace();
@@ -6475,6 +6501,8 @@
                     c.RenameAfterTranscode = view.querySelector('#mdRenameAfterTranscode').checked;
                     c.RecycleBinPath = view.querySelector('#mdBinPath').value.trim();
                     c.RecycleBinRetentionDays = parseInt(view.querySelector('#mdRetention').value, 10) || 30;
+                    var warnGb = parseInt(view.querySelector('#mdBinWarnThreshold').value, 10);
+                    c.RecycleBinWarnThresholdGb = isNaN(warnGb) ? 10 : Math.max(0, warnGb);
                     c.ThoroughPlayabilityCheck = view.querySelector('#mdThorough').checked;
                     c.TreatEditionsAsDuplicates = view.querySelector('#mdEditions').checked;
                     c.EnabledLibraries = Array.prototype.map.call(view.querySelectorAll('.mdLib:checked'), function (cb) {
@@ -6493,6 +6521,8 @@
                         .filter(function (s) { return s.length > 0; });
                     var trickQ = parseInt(view.querySelector('#mdTrickplayQuality').value, 10);
                     c.TrickplayWebPQuality = isNaN(trickQ) ? 80 : Math.max(40, Math.min(95, trickQ));
+                    var trickMin = parseInt(view.querySelector('#mdTrickplayMinSize').value, 10);
+                    c.TrickplayMinSizeMb = isNaN(trickMin) ? 10 : Math.max(0, trickMin);
                     c.SubtitleForceFont = (view.querySelector('#mdSubForceFont').value || '').trim();
                     c.OrphanScanEmptyFolders = view.querySelector('#mdOrphanEmpty').checked;
                     c.OrphanScanSubtitles = view.querySelector('#mdOrphanSubs').checked;
@@ -7063,12 +7093,20 @@
                         updateErrorBadge(total);
                     }, function () { });
                 }
-                // Recycle-bin size banner. 10 GB is arbitrary; the point is to nudge users before
-                // the bin silently eats a chunk of their library drive. Auto-purge still runs after
-                // the retention window, but a visible banner is a lot louder than a settings hint.
+                // Recycle-bin size banner. Threshold is user-configurable (Settings → Recycle bin);
+                // 0 disables the banner. The point is to nudge users before the bin silently eats a
+                // chunk of their library drive. Auto-purge still runs after the retention window,
+                // but a visible banner is a lot louder than a settings hint.
                 api('RecycleBin').then(function (b) {
-                    var over = b && b.SizeBytes > 10 * 1024 * 1024 * 1024;
                     var banner = view.querySelector('#mdBinFullNote');
+                    // Read the threshold from the settings slider (kept in sync with config on load /
+                    // save). Fall back to 10 GB when the slider hasn't rendered yet — same default the
+                    // constructor sets.
+                    var thresholdInput = view.querySelector('#mdBinWarnThreshold');
+                    var thresholdGb = thresholdInput ? parseInt(thresholdInput.value, 10) : 10;
+                    if (isNaN(thresholdGb)) thresholdGb = 10;
+                    if (thresholdGb <= 0) { banner.style.display = 'none'; return; }
+                    var over = b && b.SizeBytes > thresholdGb * 1024 * 1024 * 1024;
                     var show = over && !bannerDismissed('mdBinFullNote');
                     banner.style.display = show ? '' : 'none';
                     if (show) {
@@ -7138,10 +7176,18 @@
             // closes. Deliberate over localStorage because these are self-clearing conditions (bin gets emptied,
             // volume gets moved) - if the user hasn't fixed it by next session, seeing the reminder again is fine.
             function bannerDismissed(id) {
-                try { return sessionStorage.getItem('mdBannerDismissed:' + id) === '1'; } catch (e) { return false; }
+                try {
+                    // Persistent flag wins over session — a banner marked data-persistent stays hidden
+                    // even after the browser tab restarts, honouring the user's "don't show again" intent.
+                    if (localStorage.getItem('mdBannerDismissed:' + id) === '1') return true;
+                    return sessionStorage.getItem('mdBannerDismissed:' + id) === '1';
+                } catch (e) { return false; }
             }
-            function dismissBanner(id) {
-                try { sessionStorage.setItem('mdBannerDismissed:' + id, '1'); } catch (e) { }
+            function dismissBanner(id, persistent) {
+                try {
+                    var store = persistent ? localStorage : sessionStorage;
+                    store.setItem('mdBannerDismissed:' + id, '1');
+                } catch (e) { }
                 var el = view.querySelector('#' + id);
                 if (el) el.style.display = 'none';
             }
@@ -7832,7 +7878,9 @@
 
                     // Delegated so future banners with class="mdDismissBanner" don't need separate wiring.
                     view.querySelectorAll('.mdDismissBanner').forEach(function (btn) {
-                        btn.addEventListener('click', function () { dismissBanner(btn.getAttribute('data-banner')); });
+                        btn.addEventListener('click', function () {
+                            dismissBanner(btn.getAttribute('data-banner'), btn.getAttribute('data-persistent') === '1');
+                        });
                     });
 
                     view.querySelector('#mdUpdateAvailableDismiss').addEventListener('click', function () {

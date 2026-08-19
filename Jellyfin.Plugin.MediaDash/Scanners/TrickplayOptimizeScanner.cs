@@ -64,6 +64,11 @@ public sealed class TrickplayOptimizeScanner : IScanner
     {
         var issues = new List<Issue>();
 
+        // ponytail: min-size gate is a user-configurable MB threshold. Default 10 MB filters out the
+        // per-clip trickplay dirs that make the Issues tab explode on libraries with many short videos,
+        // while still catching movies/series trickplay where reclaimable bytes are meaningful. 0 = off.
+        var minBytes = (long)Math.Max(0, Plugin.Instance!.Configuration.TrickplayMinSizeMb) * 1024L * 1024L;
+
         // The items list is already scoped to enabled libraries by ScanTask. Use it both as a scope
         // filter on the data-folder walk and as the source for the media-folder walk.
         var scoped = items.OfType<Video>()
@@ -119,7 +124,7 @@ public sealed class TrickplayOptimizeScanner : IScanner
         void TryAddIssue(string dir, Guid itemId, string displayName)
         {
             var (jpgCount, jpgBytes) = MeasureConvertibleJpgs(dir);
-            if (jpgCount == 0)
+            if (jpgCount == 0 || jpgBytes < minBytes)
             {
                 return;
             }
