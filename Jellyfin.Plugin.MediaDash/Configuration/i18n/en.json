@@ -50,7 +50,7 @@
   "restored": "Restored.",
   "restoreFailed": "Could not restore: {0}",
   "spaceSavedToDate": "Space saved to date: {0}",
-  "savedPerLibrary": "Saved per library",
+  "savedPerLibrary": "Reclaimed since install per library",
   "unassignedLibrary": "Unassigned",
   "dryRunBadge": "dry run",
   "saved": "Saved.",

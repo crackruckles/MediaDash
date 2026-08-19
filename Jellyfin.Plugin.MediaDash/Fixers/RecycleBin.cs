@@ -158,7 +158,18 @@ public sealed class RecycleBin
 
         if (Directory.Exists(path))
         {
-            Directory.Move(path, target);
+            try
+            {
+                Directory.Move(path, target);
+            }
+            catch (IOException)
+            {
+                // Cross-volume directory move (EXDEV) — Directory.Move can't span filesystems. Fall back
+                // to the same verified copy → rename → delete-source pattern the file path uses. Reported
+                // by users whose Jellyfin data (e.g. /var/lib/jellyfin/data/collections) sits on a
+                // different volume than the recycle bin.
+                Api.FileBrowserController.CrossDeviceMove(path, target, sourceIsDir: true);
+            }
         }
         else
         {

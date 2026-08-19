@@ -679,7 +679,6 @@
             #MediaDashConfigPage #mdSystem > .mdCard,
             #MediaDashConfigPage #mdDrives > .mdCard,
             #MediaDashConfigPage #mdLibraryBreakdown > .mdCard,
-            #MediaDashConfigPage #mdSavingsBars > .mdCard,
             #MediaDashConfigPage #mdHistoryChart > .mdCard {
                 position: relative;
                 overflow: hidden;
@@ -688,7 +687,6 @@
             #MediaDashConfigPage #mdSystem > .mdCard::before,
             #MediaDashConfigPage #mdDrives > .mdCard::before,
             #MediaDashConfigPage #mdLibraryBreakdown > .mdCard::before,
-            #MediaDashConfigPage #mdSavingsBars > .mdCard::before,
             #MediaDashConfigPage #mdHistoryChart > .mdCard::before {
                 content: ""; display: block;
                 position: absolute; left: 0; right: 0; top: 0; height: 4px;
@@ -696,7 +694,6 @@
             }
             #MediaDashConfigPage #mdSystem > .mdCard          { --md-section-accent: #22d3ee; }
             #MediaDashConfigPage #mdDrives > .mdCard          { --md-section-accent: #06b6d4; }
-            #MediaDashConfigPage #mdSavingsBars > .mdCard     { --md-section-accent: #3b82f6; }
             #MediaDashConfigPage #mdLibraryBreakdown > .mdCard { --md-section-accent: #06b6d4; }
             #MediaDashConfigPage #mdHistoryChart > .mdCard    { --md-section-accent: #10b981; }
 
@@ -3043,7 +3040,6 @@
                     <div id="mdDrives"></div>
                     <div id="mdHero"></div>
                     <div id="mdCards"></div>
-                    <div id="mdSavingsBars"></div>
                     <div id="mdLibraryBreakdown"></div>
                     <div id="mdEmpty" class="fieldDescription" style="margin-top:1em;"></div>
                 </div>
@@ -3223,6 +3219,10 @@
                                 <span class="material-icons mdSetHeadChevron">expand_more</span>
                             </h2>
                             <div id="mdLibraries"></div>
+                            <div style="margin-top:1em;display:flex;align-items:center;gap:.8em;flex-wrap:wrap;">
+                                <button is="emby-button" type="button" id="mdLibAccessTest" class="raised mdActionBtn" title="Probe each configured library folder for read + write access with the Jellyfin service user's identity. Catches ownership / ACL problems that would silently fail at fix time."><span class="material-icons">verified_user</span><span>Test read / write access</span></button>
+                                <div id="mdLibAccessSummary" class="fieldDescription" style="flex:1;min-width:16em;"></div>
+                            </div>
                         </section>
 
                         <section id="mdSet-safety" class="mdSetCard mdSetCard--safety mdSetCard--collapsible mdSetCard--full">
@@ -3295,6 +3295,10 @@
                                     <input id="mdBinWarnThreshold" type="range" min="0" max="500" step="1" />
                                     <div class="fieldDescription">Shows a banner on the dashboard when the recycle bin passes this size. Set to 0 to disable. Default: 10 GB.</div>
                                 </div>
+                            </div>
+                            <div style="margin-top:1em;display:flex;align-items:center;gap:.8em;flex-wrap:wrap;">
+                                <button is="emby-button" type="button" id="mdBinAccessTest" class="raised mdActionBtn" title="Probe the currently-configured recycle bin path for read + write access. Creates the folder if missing."><span class="material-icons">verified_user</span><span>Test read / write access</span></button>
+                                <div id="mdBinAccessResults" class="fieldDescription" style="flex:1;min-width:16em;"></div>
                             </div>
                         </section>
 
@@ -3416,7 +3420,7 @@
                 restoring: 'Restoring…',
                 restoreOverwritePrompt: 'A file already exists at that path (probably the newer version MediaDash wrote). Send the current file to the recycle bin and put this older copy back in its place? The current file stays recoverable.',
                 spaceSavedToDate: 'Space saved to date: {0}',
-                savedPerLibrary: 'Saved per library',
+                savedPerLibrary: 'Reclaimed since install per library',
                 unassignedLibrary: 'Unassigned',
                 dryRunBadge: 'dry run',
                 saved: 'Saved.',
@@ -4528,24 +4532,6 @@
                     drivesEl.innerHTML = '';
                 }
 
-                var withSavings = counts.filter(function (c) { return c.PotentialSavings > 0; });
-                var barsEl = view.querySelector('#mdSavingsBars');
-                if (withSavings.length > 0) {
-                    var maxSave = Math.max.apply(null, withSavings.map(function (c) { return c.PotentialSavings; }));
-                    barsEl.innerHTML = '<div class="mdCard mdFade"><h3 style="margin:.1em 0 .7em;">' + esc(STR.whereSavings) + '</h3>' +
-                        withSavings.map(function (c) {
-                            var t = STR.types[c.Type] || { title: c.Type, color: '#888' };
-                            var pct = Math.max(3, Math.round(c.PotentialSavings / maxSave * 100));
-                            return '<div class="mdBarRow mdGoIssues" data-type="' + c.Type + '" style="cursor:pointer;" title="Show these issues">' +
-                                '<div class="mdBarLabel">' + esc(t.title) + '</div>' +
-                                '<div class="mdBarTrack"><div class="mdBarFill" style="width:' + pct + '%;background:' + t.color + ';"></div></div>' +
-                                '<div class="mdBarValue">' + bytes(c.PotentialSavings) + '</div>' +
-                                '</div>';
-                        }).join('') + '</div>';
-                } else {
-                    barsEl.innerHTML = '';
-                }
-
                 view.querySelectorAll('.mdGoIssues').forEach(function (el) {
                     el.addEventListener('click', function () {
                         view.querySelector('#mdTypeFilter').value = el.getAttribute('data-type');
@@ -4944,7 +4930,7 @@
                 full.forEach(function (h) { if (!h.WasDryRun && h.Success) saved += h.BytesFreed; });
                 var summaryEl = view.querySelector('#mdHistorySummary');
                 if (saved > 0) {
-                    summaryEl.innerHTML = '<div class="mdHistSummaryLabel">Space saved to date</div>' +
+                    summaryEl.innerHTML = '<div class="mdHistSummaryLabel">Reclaimed since install</div>' +
                         '<div class="mdHistSummaryValue">' + esc(bytes(saved)) + '</div>';
                 } else {
                     summaryEl.innerHTML = '';
@@ -6163,14 +6149,21 @@
                     var el = view.querySelector('#mdLibraries');
                     var html = '';
                     var firstMovies = null, firstTv = null;
+                    // Show every library type the plugin can scan (movies, TV, music, audiobooks, books,
+                    // comics, mixed content). The old movies-and-TV-only filter dated from before v0.9
+                    // when scanners only understood video items — every scanner has since been widened.
                     folders.forEach(function (f) {
                         if (f.CollectionType === 'movies' && !firstMovies) firstMovies = (f.Locations || [])[0] || null;
                         if (f.CollectionType === 'tvshows' && !firstTv) firstTv = (f.Locations || [])[0] || null;
-                        if (f.CollectionType && f.CollectionType !== 'movies' && f.CollectionType !== 'tvshows') return;
                         var checked = (config.EnabledLibraries || []).indexOf(f.ItemId) >= 0 ? ' checked' : '';
-                        html += '<div class="checkboxContainer"><label class="emby-checkbox-label">' +
+                        var typeLabel = f.CollectionType ? ' <span style="opacity:.55;font-size:.85em;">(' + esc(f.CollectionType) + ')</span>' : '';
+                        // Inline access-result slot populated by the "Test read / write access" button.
+                        // Matched by library name so aggregate-by-name grouping stays trivial on the client.
+                        html += '<div class="checkboxContainer" style="display:flex;align-items:center;gap:.6em;"><label class="emby-checkbox-label" style="flex:1;">' +
                             '<input type="checkbox" is="emby-checkbox" class="mdLib" data-id="' + esc(f.ItemId) + '"' + checked + ' />' +
-                            '<span>' + esc(f.Name) + '</span></label></div>';
+                            '<span>' + esc(f.Name) + typeLabel + '</span></label>' +
+                            '<span class="mdLibAccessSlot" data-lib="' + esc(f.Name) + '" style="font-size:.85em;flex:none;"></span>' +
+                            '</div>';
                     });
                     el.innerHTML = html;
                     var mv = view.querySelector('#mdMoviesTarget');
@@ -7050,6 +7043,91 @@
                         resultsEl.innerHTML = '<div class="fieldDescription" style="color:#ef4444;">Access check failed to run. Check the Errors tab.</div>';
                     });
                 });
+
+                // Same probe as the wizard button but on the Settings → Libraries card so users can
+                // re-check without walking back through the wizard. Results render inline next to each
+                // library name (grouped by name — a library with multiple Locations aggregates to the
+                // worst per-Location outcome).
+                var libAccessBtn = view.querySelector('#mdLibAccessTest');
+                if (libAccessBtn) {
+                    libAccessBtn.addEventListener('click', function () {
+                        var btn = this;
+                        var summaryEl = view.querySelector('#mdLibAccessSummary');
+                        btn.disabled = true;
+                        summaryEl.innerHTML = '<span style="opacity:.7;">Probing each library folder…</span>';
+                        view.querySelectorAll('.mdLibAccessSlot').forEach(function (slot) {
+                            slot.innerHTML = '<span style="opacity:.55;">testing…</span>';
+                        });
+                        api('LibraryAccessCheck').then(function (results) {
+                            btn.disabled = false;
+                            if (!results.length) {
+                                summaryEl.innerHTML = '<span style="color:#f59e0b;">No libraries are configured yet — add one in Dashboard → Libraries first.</span>';
+                                return;
+                            }
+
+                            // Group by library name; a library with N Locations gets N result rows.
+                            var byLib = {};
+                            results.forEach(function (r) {
+                                if (!byLib[r.Name]) byLib[r.Name] = [];
+                                byLib[r.Name].push(r);
+                            });
+
+                            view.querySelectorAll('.mdLibAccessSlot').forEach(function (slot) {
+                                var libName = slot.getAttribute('data-lib');
+                                var group = byLib[libName];
+                                if (!group) { slot.innerHTML = ''; return; }
+                                var failures = group.filter(function (r) { return !r.CanRead || !r.CanWrite; });
+                                if (failures.length === 0) {
+                                    slot.innerHTML = '<span style="color:#22c55e;display:inline-flex;align-items:center;gap:.25em;" title="Jellyfin can read and write this library">' +
+                                        '<span class="material-icons" style="font-size:1.05em;">check_circle</span>readable + writable</span>';
+                                } else {
+                                    var first = failures[0];
+                                    var tipText = (first.Error || 'Access denied') + (failures.length > 1 ? ' (+' + (failures.length - 1) + ' more location' + (failures.length > 2 ? 's' : '') + ')' : '');
+                                    slot.innerHTML = '<span style="color:#ef4444;display:inline-flex;align-items:center;gap:.25em;" title="' + esc(tipText) + '">' +
+                                        '<span class="material-icons" style="font-size:1.05em;">error</span>' +
+                                        (failures.length === group.length ? 'no access' : failures.length + ' of ' + group.length + ' failed') +
+                                        '</span>';
+                                }
+                            });
+
+                            var totalFailed = results.filter(function (r) { return !r.CanRead || !r.CanWrite; }).length;
+                            summaryEl.innerHTML = totalFailed > 0
+                                ? '<span style="color:#ef4444;">' + totalFailed + ' of ' + results.length + ' locations not fully accessible — hover an ✗ for details.</span>'
+                                : '<span style="color:#22c55e;">All ' + results.length + ' locations readable and writable.</span>';
+                        }, function () {
+                            btn.disabled = false;
+                            summaryEl.innerHTML = '<span style="color:#ef4444;">Access check failed to run.</span>';
+                            view.querySelectorAll('.mdLibAccessSlot').forEach(function (slot) { slot.innerHTML = ''; });
+                        });
+                    });
+                }
+
+                // Recycle-bin probe — creates the folder if missing so a user who just changed the path
+                // can verify Jellyfin can read/write before their first fix run tries to move a file into it.
+                var binAccessBtn = view.querySelector('#mdBinAccessTest');
+                if (binAccessBtn) {
+                    binAccessBtn.addEventListener('click', function () {
+                        var btn = this;
+                        var resultsEl = view.querySelector('#mdBinAccessResults');
+                        btn.disabled = true;
+                        resultsEl.innerHTML = '<span style="opacity:.7;">Probing recycle bin path…</span>';
+                        api('RecycleBinAccessCheck').then(function (r) {
+                            btn.disabled = false;
+                            var ok = r.CanRead && r.CanWrite;
+                            var color = ok ? '#22c55e' : '#ef4444';
+                            var icon = ok ? 'check_circle' : 'error';
+                            resultsEl.innerHTML = '<div style="padding:.3em .5em;border-left:3px solid ' + color + ';background:rgba(255,255,255,.03);border-radius:4px;">' +
+                                '<span class="material-icons" style="color:' + color + ';font-size:1.05em;vertical-align:-3px;">' + icon + '</span> ' +
+                                '<strong>' + (ok ? 'Recycle bin is readable and writable' : 'Recycle bin access problem') + '</strong> ' +
+                                '<span style="font-family:monospace;opacity:.6;">' + esc(r.Path || '') + '</span>' +
+                                (ok ? '' : '<div class="fieldDescription" style="margin:.2em 0 0;color:#fca5a5;">' + esc(r.Error || 'Access denied') + '</div>') +
+                                '</div>';
+                        }, function () {
+                            btn.disabled = false;
+                            resultsEl.innerHTML = '<span style="color:#ef4444;">Access check failed to run.</span>';
+                        });
+                    });
+                }
             }
 
             // ---------- Common ----------
@@ -7357,15 +7435,36 @@
 
             function loadErrors() {
                 var listEl = view.querySelector('#mdErrorList');
-                listEl.innerHTML = '<div class="fieldDescription">Loading…</div>';
+                // Only show "Loading…" on the very first render — the periodic refresh() also calls
+                // loadErrors when the Errors tab is open, and a flash of "Loading…" every 3s makes
+                // the list feel like it's being wiped whenever a new error arrives.
+                if (!listEl.getAttribute('data-fingerprint')) {
+                    listEl.innerHTML = '<div class="fieldDescription">Loading…</div>';
+                }
+
                 api('Errors').then(function (errs) {
+                    // Fingerprint over source + creation timestamp + occurrence count so we skip
+                    // re-render when the response is identical to the last one. Prevents mdFade replays,
+                    // closes-on-refresh of user-expanded <details> blocks, and the "errors flash cleared"
+                    // perception when a new error arrives. AtUtc + Count uniquely identifies each
+                    // entry's state; on dedup Count bumps, on new entry AtUtc changes.
+                    var fingerprint = errs.map(function (e) {
+                        return (e.Source || '') + '|' + (e.AtUtc || '') + '|' + (e.Count || 1) + '|' + (e.LastAtUtc || '');
+                    }).join(',') || 'empty';
+
                     updateErrorBadge(errs.length);
                     if (!errs.length) {
-                        listEl.innerHTML = '<div class="mdCard mdFade" style="text-align:center;padding:2em;"><span class="material-icons" style="font-size:3em;color:#10b981;">check_circle</span><div style="margin-top:.4em;font-weight:600;">No errors recorded.</div><div class="fieldDescription">Nice — everything the plugin has tried has succeeded (or failed silently in a way we haven\'t plumbed yet).</div></div>';
+                        if (listEl.getAttribute('data-fingerprint') !== fingerprint) {
+                            listEl.setAttribute('data-fingerprint', fingerprint);
+                            listEl.innerHTML = '<div class="mdCard mdFade" style="text-align:center;padding:2em;"><span class="material-icons" style="font-size:3em;color:#10b981;">check_circle</span><div style="margin-top:.4em;font-weight:600;">No errors recorded.</div><div class="fieldDescription">Nice — everything the plugin has tried has succeeded (or failed silently in a way we haven\'t plumbed yet).</div></div>';
+                        }
+
                         return;
                     }
                     var totalOccurrences = errs.reduce(function (sum, e) { return sum + (e.Count || 1); }, 0);
                     updateErrorBadge(totalOccurrences);
+                    if (listEl.getAttribute('data-fingerprint') === fingerprint) return;
+                    listEl.setAttribute('data-fingerprint', fingerprint);
                     var html = errs.map(function (e, i) {
                         var meta = errorMeta(e.Source);
                         var countBadge = (e.Count || 1) > 1

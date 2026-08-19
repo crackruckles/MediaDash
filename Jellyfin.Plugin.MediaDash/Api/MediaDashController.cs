@@ -728,6 +728,57 @@ public class MediaDashController : ControllerBase
     }
 
     /// <summary>
+    /// Probes the currently-configured recycle bin location for read+write access. Creates the folder
+    /// if missing so a user setting up a fresh install can verify the path before their first fix.
+    /// </summary>
+    /// <returns>Path + CanRead / CanWrite / Error for the effective recycle bin root.</returns>
+    [HttpGet("RecycleBinAccessCheck")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<LibraryAccessResult> CheckRecycleBinAccess()
+    {
+        var effectiveRoot = _recycleBin.GetEffectiveRoot();
+        var configured = Plugin.Instance!.Configuration.RecycleBinPath;
+        var displayName = string.IsNullOrWhiteSpace(configured) ? "Recycle bin (default location)" : "Recycle bin";
+        var entry = new LibraryAccessResult { Name = displayName, Path = effectiveRoot };
+
+        try
+        {
+            System.IO.Directory.CreateDirectory(effectiveRoot);
+            _ = System.IO.Directory.EnumerateFileSystemEntries(effectiveRoot).GetEnumerator().MoveNext();
+            entry.CanRead = true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            entry.Error = "Jellyfin can't read '" + effectiveRoot + "'. Grant the Jellyfin user read access, or change the path in Settings → Recycle bin.";
+        }
+        catch (IOException ex)
+        {
+            entry.Error = "Cannot read '" + effectiveRoot + "': " + ex.Message;
+        }
+
+        if (entry.CanRead)
+        {
+            var probe = System.IO.Path.Combine(effectiveRoot, ".mediadash-access-probe-" + System.Guid.NewGuid().ToString("N", System.Globalization.CultureInfo.InvariantCulture));
+            try
+            {
+                System.IO.File.WriteAllBytes(probe, []);
+                System.IO.File.Delete(probe);
+                entry.CanWrite = true;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                entry.Error = "Jellyfin can't write to '" + effectiveRoot + "'. On Linux: sudo chown -R jellyfin:jellyfin '" + effectiveRoot + "' — or pick a different location in Settings → Recycle bin.";
+            }
+            catch (IOException ex)
+            {
+                entry.Error = "Cannot write to '" + effectiveRoot + "': " + ex.Message;
+            }
+        }
+
+        return Ok(entry);
+    }
+
+    /// <summary>
     /// Returns the distinct genres present on any BaseItem in the user's libraries. Sorted
     /// case-insensitively. Powers the Stale scanner's "Skip these genres" datalist — replaces the
     /// old freeform CSV text input with a picker that only offers genres the user's library
