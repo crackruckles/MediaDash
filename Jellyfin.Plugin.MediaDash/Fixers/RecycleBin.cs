@@ -4,7 +4,6 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using MediaBrowser.Common.Configuration;
-using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.MediaDash.Fixers;
@@ -21,8 +20,6 @@ public sealed class RecycleBin
     private static readonly string[] LinuxReservedRoots = ["/etc", "/bin", "/sbin", "/usr", "/boot", "/lib", "/lib64", "/proc", "/sys", "/dev", "/root"];
 
     private readonly string _defaultRoot;
-    private readonly string _pluginDataRoot;
-    private readonly ILibraryManager _libraryManager;
     private readonly ILogger<RecycleBin> _logger;
     private int _emptyingTotal;
     private int _emptyingDone;
@@ -33,13 +30,10 @@ public sealed class RecycleBin
     /// Initializes a new instance of the <see cref="RecycleBin"/> class.
     /// </summary>
     /// <param name="applicationPaths">Instance of the <see cref="IApplicationPaths"/> interface.</param>
-    /// <param name="libraryManager">Used to check whether a configured bin path sits inside a library root.</param>
     /// <param name="logger">The logger.</param>
-    public RecycleBin(IApplicationPaths applicationPaths, ILibraryManager libraryManager, ILogger<RecycleBin> logger)
+    public RecycleBin(IApplicationPaths applicationPaths, ILogger<RecycleBin> logger)
     {
-        _pluginDataRoot = Path.Combine(applicationPaths.DataPath, "mediadash");
-        _defaultRoot = Path.Combine(_pluginDataRoot, "recycle");
-        _libraryManager = libraryManager;
+        _defaultRoot = Path.Combine(applicationPaths.DataPath, "mediadash", "recycle");
         _logger = logger;
     }
 
@@ -56,49 +50,17 @@ public sealed class RecycleBin
             if (IsSystemReservedPath(configured))
             {
                 _logger.LogWarning("Configured RecycleBinPath '{Path}' sits under an OS-reserved root; falling back to the default location.", configured);
-                Api.Diagnostics.Record("RecycleBin.ReservedPath", "Configured recycle bin path '" + configured + "' sits under an OS-reserved root and was rejected. Falling back to the plugin's default location. Update Settings → Recycle bin to a path inside a library folder or on a data volume.");
+                Api.Diagnostics.Record("RecycleBin.ReservedPath", "Configured recycle bin path '" + configured + "' sits under an OS-reserved root and was rejected. Falling back to the plugin's default location. Update Settings → Recycle bin to a path on a data volume (a sibling of your library folder works best — moves become instant renames instead of cross-volume copies).");
                 return _defaultRoot;
             }
 
-            // Only accept paths under the plugin's own data folder OR inside a configured library
-            // root. Without this an admin (or a poisoned config-XML restore) could set the bin to
-            // /home/jellyfin/.ssh/ and every fixer disposal would deposit files there. The default
-            // fallback still exists so misconfiguration degrades to a working state.
-            if (!IsAcceptableBinLocation(configured))
-            {
-                _logger.LogWarning("Configured RecycleBinPath '{Path}' is not inside a library or the plugin data dir; falling back to the default.", configured);
-                Api.Diagnostics.Record("RecycleBin.NotLibraryAdjacent", "Configured recycle bin path '" + configured + "' isn't inside a Jellyfin library or the plugin's data folder. Falling back to the default location. Update Settings → Recycle bin to a path inside a library folder for cross-volume-free moves.");
-                return _defaultRoot;
-            }
-
+            // Everything else is accepted. Users typically put the bin as a sibling of their media
+            // (e.g. `/mnt/media/.mediadash-recycle` next to `/mnt/media/library-folder/`) so recycles
+            // are same-filesystem renames rather than cross-volume copies — that path is NOT under a
+            // library root but IS the recommended layout. The OS-reserved gate above is the only
+            // hard block; anything else the admin chooses is honoured.
             return configured;
         }
-    }
-
-    private bool IsAcceptableBinLocation(string configured)
-    {
-        try
-        {
-            var full = Path.GetFullPath(configured);
-            if (LibraryGuard.IsUnder(full, _pluginDataRoot))
-            {
-                return true;
-            }
-
-            foreach (var location in _libraryManager.GetVirtualFolders().SelectMany(f => f.Locations))
-            {
-                if (LibraryGuard.IsUnder(full, location))
-                {
-                    return true;
-                }
-            }
-        }
-        catch (Exception ex) when (ex is IOException or ArgumentException or NotSupportedException)
-        {
-            return false;
-        }
-
-        return false;
     }
 
     internal static bool IsSystemReservedPath(string path)

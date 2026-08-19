@@ -2506,8 +2506,8 @@
                         <!-- Scan/fix progress lives above the tab bar so the currently-open tab
                              below doesn't shift while a run is in progress. -->
                         <div id="mdScanState" class="fieldDescription" style="margin: 12px 0 0;"></div>
-                        <div id="mdProgressWrap" style="display:none;max-width:36em;margin:8px 0 0;">
-                            <div class="mdBarTrack" style="height:10px;"><div id="mdProgressFill" class="mdBarFill" style="width:3%;background:#00a4dc;"></div></div>
+                        <div id="mdProgressWrap" style="display:none;margin:8px 0 0;">
+                            <div class="mdBarTrack" style="height:10px;max-width:36em;"><div id="mdProgressFill" class="mdBarFill" style="width:3%;background:#00a4dc;"></div></div>
                             <div id="mdActivity" class="fieldDescription" style="margin-top:.3em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:monospace;font-size:.85em;"></div>
                         </div>
                         <!-- Tab bar populated by JS on init; the empty container lets it live inside the
@@ -4213,7 +4213,12 @@
             }
 
             function renderStatus(s, silent) {
-                updateTabBadge('#mdIssueBadge', s.OpenIssueTotal || 0);
+                // Prefer the client's own list length when it's been populated — the Status endpoint's
+                // OpenIssueTotal is computed from a summary query that can drift from what the Issues
+                // endpoint returns (e.g. when a summary row exists but the underlying issue has been
+                // filtered out during serialization). Falling back to server count for first paint.
+                var issueTotal = (typeof lastIssueList !== 'undefined' && lastIssueList) ? lastIssueList.length : (s.OpenIssueTotal || 0);
+                updateTabBadge('#mdIssueBadge', issueTotal);
                 updateTabBadge('#mdHistoryBadge', s.FailedHistoryTotal || 0);
                 // Detect a just-finished fix run — the server sets s.LastFixRun.FinishedAtUtc on completion.
                 // If the timestamp is new since the last poll and any fix failed, pop a dashboard alert.
@@ -4474,12 +4479,21 @@
                 var cards = view.querySelector('#mdCards');
                 cards.innerHTML = counts.map(function (c) {
                     var t = STR.types[c.Type] || { title: c.Type, hint: '', color: '#888', icon: 'info' };
+                    // Show reclaimable space as the big number so users see the "why" at a glance;
+                    // keep the raw count as a small subtitle for context. Types without savings info
+                    // (Stale, MissingSubtitles) fall back to just the count.
+                    var savings = c.PotentialSavings || 0;
+                    var bigNumber = savings > 0 ? bytes(savings) : String(c.Count);
+                    var subtitle = savings > 0
+                        ? c.Count + (c.Count === 1 ? ' file' : ' files')
+                        : (c.Count === 1 ? '1 item' : c.Count + ' items');
                     return '<div class="mdShortcut mdFade mdGoIssues" data-type="' + c.Type + '" style="--md-accent:' + t.color + ';" title="Show these issues">' +
                         '<div class="mdPanelAccent"></div>' +
                         '<div class="mdShortcutBody">' +
                             '<div class="mdShortcutText">' +
                                 '<div class="mdShortcutLabel">' + esc(t.title) + '</div>' +
-                                '<div class="mdShortcutCount">' + c.Count + '</div>' +
+                                '<div class="mdShortcutCount">' + esc(bigNumber) + '</div>' +
+                                '<div class="mdShortcutHint" style="opacity:.75;font-size:.85em;margin-bottom:.15em;">' + esc(subtitle) + '</div>' +
                                 '<div class="mdShortcutHint">' + esc(t.hint || '') + '</div>' +
                             '</div>' +
                             '<div class="mdShortcutDisc"><span class="material-icons">' + esc(t.icon) + '</span></div>' +
@@ -4537,6 +4551,10 @@
 
             function renderIssues(list) {
                 lastIssueList = list;
+                // Keep the tab badge in lock-step with the actual list length so it can't disagree
+                // with the "All: N" totals pill or the visible cards. Server's Status.OpenIssueTotal
+                // is only used as a first-paint fallback in renderStatus.
+                updateTabBadge('#mdIssueBadge', (list || []).length);
                 renderIssueTotals();
                 renderIssueLangFilter();
                 renderIssuesFiltered();
@@ -5021,7 +5039,11 @@
             // input #mdMode<Key>; the disposal select stays as #mdDisposal<Key>. All other field ids
             // are preserved so the existing loadSettings/saveSettings paths keep working unchanged.
 
-            var TASK_ORDER = ['Duplicate', 'Playability', 'Quality', 'HeavyTranscode', 'FailedTranscode', 'SubtitleLanguage', 'SubtitleFonts', 'AudioLanguage', 'Stale', 'Misplaced', 'Ungrouped', 'MissingSubtitles', 'MalwareRisk', 'LargeTrickplay', 'EmbeddedCoverArt', 'OrphanedDebris', 'CorruptNfo', 'CorruptArtwork'];
+            // SubtitleFonts is intentionally excluded — its controls are folded into the SubtitleLanguage
+            // card's body (font optimizer mode + force-font dropdown at lines ~5294-5315). Putting
+            // SubtitleFonts here would render a second empty "Subtitles" card since no key === 'SubtitleFonts'
+            // branch exists in buildTaskCard.
+            var TASK_ORDER = ['Duplicate', 'Playability', 'Quality', 'HeavyTranscode', 'FailedTranscode', 'SubtitleLanguage', 'AudioLanguage', 'Stale', 'Misplaced', 'Ungrouped', 'MissingSubtitles', 'MalwareRisk', 'LargeTrickplay', 'EmbeddedCoverArt', 'OrphanedDebris', 'CorruptNfo', 'CorruptArtwork'];
 
             // Ink used for the selected-accent segment. Derived by hand from the mock — near-black
             // shifted toward the accent's hue so the label reads without vibrating.
@@ -5528,15 +5550,24 @@
                 wireSetCardCollapse();
                 var collapseAll = view.querySelector('#mdTaskCollapseAll');
                 if (collapseAll) collapseAll.addEventListener('click', function () {
-                    var anyExpanded = false;
-                    TASK_ORDER.forEach(function (k) {
+                    // Count only cards that CAN be toggled — Off-mode tasks are force-collapsed by
+                    // applyCollapse regardless of setCollapseState, so they don't participate in the
+                    // Collapse-all / Expand-all state machine. This keeps the button truthful when a
+                    // user has some tasks set to Off (previously the label could read "Expand all"
+                    // even though clicking it wouldn't visibly expand anything).
+                    var togglableTasks = TASK_ORDER.filter(function (k) {
                         var card = view.querySelector('.mdTask[data-key="' + k + '"]');
-                        if (card && !card.classList.contains('mdTaskCollapsed') && !card.classList.contains('mdTaskOff')) anyExpanded = true;
+                        return card && !card.classList.contains('mdTaskOff');
+                    });
+                    var anyExpanded = false;
+                    togglableTasks.forEach(function (k) {
+                        var card = view.querySelector('.mdTask[data-key="' + k + '"]');
+                        if (card && !card.classList.contains('mdTaskCollapsed')) anyExpanded = true;
                     });
                     view.querySelectorAll('.mdSetCard--collapsible').forEach(function (card) {
                         if (!card.classList.contains('mdSetCardCollapsed')) anyExpanded = true;
                     });
-                    TASK_ORDER.forEach(function (k) { setCollapseState(k, anyExpanded); });
+                    togglableTasks.forEach(function (k) { setCollapseState(k, anyExpanded); });
                     TASK_ORDER.forEach(applyCollapse);
                     view.querySelectorAll('.mdSetCard--collapsible').forEach(function (card) {
                         setSetCardCollapsed(card, anyExpanded);
@@ -5569,14 +5600,27 @@
             function updateCollapseAllLabel() {
                 var btn = view.querySelector('#mdTaskCollapseAll');
                 if (!btn) return;
+                // Match the click-handler's togglable-only set so the label reflects what a click will
+                // actually do. Off-mode tasks are force-collapsed and can't be expanded — excluding them
+                // avoids the state where the label promises "Expand all" but nothing visible changes.
                 var anyExpanded = false;
+                var anyTogglable = false;
                 TASK_ORDER.forEach(function (k) {
                     var card = view.querySelector('.mdTask[data-key="' + k + '"]');
-                    if (card && !card.classList.contains('mdTaskCollapsed') && !card.classList.contains('mdTaskOff')) anyExpanded = true;
+                    if (!card || card.classList.contains('mdTaskOff')) return;
+                    anyTogglable = true;
+                    if (!card.classList.contains('mdTaskCollapsed')) anyExpanded = true;
                 });
                 view.querySelectorAll('.mdSetCard--collapsible').forEach(function (card) {
+                    anyTogglable = true;
                     if (!card.classList.contains('mdSetCardCollapsed')) anyExpanded = true;
                 });
+                if (!anyTogglable) {
+                    btn.style.display = 'none';
+                    return;
+                }
+
+                btn.style.display = '';
                 btn.textContent = anyExpanded ? 'Collapse all' : 'Expand all';
             }
 
@@ -7006,10 +7050,19 @@
                     if (!silent) Dashboard.hideLoadingMsg();
                 });
                 // Piggyback the error count on every refresh so the tab badge stays live without opening the tab.
-                api('Errors').then(function (errs) {
-                    var total = (errs || []).reduce(function (sum, e) { return sum + (e.Count || 1); }, 0);
-                    updateErrorBadge(total);
-                }, function () { });
+                // When the user is currently on the Errors tab, delegate to loadErrors so the badge + list
+                // update from the same fetch — otherwise a race with a still-in-flight refresh() fetch could
+                // set the badge to a stale count (e.g. 691) after the user just cleared errors and the list
+                // reads "No errors recorded".
+                var activeTab = view.querySelector('.mdTab.mdTabActive');
+                if (activeTab && activeTab.getAttribute('data-tab') === 'errors') {
+                    loadErrors();
+                } else {
+                    api('Errors').then(function (errs) {
+                        var total = (errs || []).reduce(function (sum, e) { return sum + (e.Count || 1); }, 0);
+                        updateErrorBadge(total);
+                    }, function () { });
+                }
                 // Recycle-bin size banner. 10 GB is arbitrary; the point is to nudge users before
                 // the bin silently eats a chunk of their library drive. Auto-purge still runs after
                 // the retention window, but a visible banner is a lot louder than a settings hint.
