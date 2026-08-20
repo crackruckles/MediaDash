@@ -50,14 +50,37 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     /// Gets or sets the summary of the most-recently-completed fix run. The dashboard compares
     /// <see cref="Api.FixRunSummary.FinishedAtUtc"/> to what it last saw and pops an alert whenever a fresh
     /// run finished with failures — otherwise a fast all-failed run just flashes the progress bar and vanishes.
+    /// Persisted via <see cref="Api.PluginState"/> so a mid-day restart doesn't lose the most recent run.
     /// </summary>
-    public static Api.FixRunSummary? LastFixRun { get; set; }
+    public static Api.FixRunSummary? LastFixRun
+    {
+        get => LastFixRunBacking;
+        set
+        {
+            LastFixRunBacking = value;
+            Api.PluginState.PersistLastFixRun(value);
+        }
+    }
+
+    /// <summary>Gets or sets the backing field for <see cref="LastFixRun"/> so PluginState.Attach can rehydrate without triggering another persist.</summary>
+    internal static Api.FixRunSummary? LastFixRunBacking { get; set; }
 
     /// <summary>
     /// Gets or sets the most recent redownload/restore warnings found by <see cref="Api.RedownloadDetector"/>.
-    /// Refreshed at the end of every scan.
+    /// Refreshed at the end of every scan. Persisted so the dashboard banner survives restarts.
     /// </summary>
-    public static System.Collections.Generic.IReadOnlyList<Api.RedownloadWarning> RedownloadWarnings { get; set; } = System.Array.Empty<Api.RedownloadWarning>();
+    public static System.Collections.Generic.IReadOnlyList<Api.RedownloadWarning> RedownloadWarnings
+    {
+        get => RedownloadWarningsBacking;
+        set
+        {
+            RedownloadWarningsBacking = value;
+            Api.PluginState.PersistRedownloadWarnings(value);
+        }
+    }
+
+    /// <summary>Gets or sets the backing field for <see cref="RedownloadWarnings"/> so PluginState.Attach can rehydrate without triggering another persist.</summary>
+    internal static System.Collections.Generic.IReadOnlyList<Api.RedownloadWarning> RedownloadWarningsBacking { get; set; } = System.Array.Empty<Api.RedownloadWarning>();
 
     /// <inheritdoc />
     public IEnumerable<PluginPageInfo> GetPages()

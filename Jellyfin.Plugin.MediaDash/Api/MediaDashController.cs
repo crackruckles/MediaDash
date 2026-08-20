@@ -1273,14 +1273,29 @@ public class MediaDashController : ControllerBase
 
     /// <summary>
     /// Gets recently-recorded plugin errors (system-stats sample failures, scanner/fixer exceptions).
-    /// Bounded to the last ~100 entries in memory; not persisted across Jellyfin restarts.
+    /// The default view returns the newest 100 from the in-memory ring buffer; pass full=true to
+    /// pull the full persisted table (up to 5000 rows) for the Errors tab's "Load older" button.
+    /// Persisted across Jellyfin restarts and plugin updates as of 1.0.5.
     /// </summary>
+    /// <param name="full">When true, reads directly from the persisted diagnostics table.</param>
     /// <returns>The entries, newest first.</returns>
     [HttpGet("Errors")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public ActionResult<IReadOnlyList<DiagnosticEntry>> GetErrors()
+    public ActionResult<IReadOnlyList<DiagnosticEntry>> GetErrors([FromQuery] bool full = false)
     {
-        return Ok(Diagnostics.Recent());
+        return Ok(full ? Diagnostics.RecentAll() : Diagnostics.Recent());
+    }
+
+    /// <summary>
+    /// Total number of persisted diagnostic entries. Cheap COUNT(*) so the Errors tab can decide
+    /// whether to show the "Load older" button without transferring the full payload.
+    /// </summary>
+    /// <returns>Persisted row count.</returns>
+    [HttpGet("Errors/Count")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<object> GetErrorsCount()
+    {
+        return Ok(new { Total = Diagnostics.PersistedCount() });
     }
 
     /// <summary>

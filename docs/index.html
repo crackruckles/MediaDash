@@ -614,10 +614,18 @@
                         <div class="impact-row"><span class="material-icons">hourglass_bottom</span>    <span class="impact-row-label">Stale files retired</span>           <span class="impact-row-lifetime" data-impact="stale_lifetime">—</span>           <span class="impact-row-month zero" data-impact="stale_month">0</span></div>
                         <div class="impact-row"><span class="material-icons">image_not_supported</span> <span class="impact-row-label">Corrupt artwork repaired</span>      <span class="impact-row-lifetime" data-impact="corrupt_artwork_lifetime">—</span> <span class="impact-row-month zero" data-impact="corrupt_artwork_month">0</span></div>
                         <div class="impact-row"><span class="material-icons">gpp_bad</span>             <span class="impact-row-label">Suspicious files quarantined</span>  <span class="impact-row-lifetime" data-impact="suspicious_lifetime">—</span>      <span class="impact-row-month zero" data-impact="suspicious_month">0</span></div>
+                        <div class="impact-row"><span class="material-icons">folder_special</span>      <span class="impact-row-label">Ungrouped media grouped</span>       <span class="impact-row-lifetime" data-impact="ungrouped_lifetime">—</span>       <span class="impact-row-month zero" data-impact="ungrouped_month">0</span></div>
+                        <div class="impact-row"><span class="material-icons">image</span>               <span class="impact-row-label">Trickplay thumbnails re-encoded</span> <span class="impact-row-lifetime" data-impact="large_trickplay_lifetime">—</span> <span class="impact-row-month zero" data-impact="large_trickplay_month">0</span></div>
+                        <div class="impact-row"><span class="material-icons">text_fields</span>         <span class="impact-row-label">Subtitle fonts stripped</span>       <span class="impact-row-lifetime" data-impact="subtitle_fonts_lifetime">—</span>  <span class="impact-row-month zero" data-impact="subtitle_fonts_month">0</span></div>
+                        <div class="impact-row"><span class="material-icons">folder_delete</span>       <span class="impact-row-label">Orphaned debris removed</span>       <span class="impact-row-lifetime" data-impact="orphaned_debris_lifetime">—</span>  <span class="impact-row-month zero" data-impact="orphaned_debris_month">0</span></div>
+                        <div class="impact-row"><span class="material-icons">description</span>         <span class="impact-row-label">Corrupt NFO deleted</span>           <span class="impact-row-lifetime" data-impact="corrupt_nfo_lifetime">—</span>     <span class="impact-row-month zero" data-impact="corrupt_nfo_month">0</span></div>
+                        <div class="impact-row"><span class="material-icons">local_fire_department</span> <span class="impact-row-label">Heavy transcodes pre-encoded</span> <span class="impact-row-lifetime" data-impact="heavy_transcode_lifetime">—</span> <span class="impact-row-month zero" data-impact="heavy_transcode_month">0</span></div>
+                        <div class="impact-row"><span class="material-icons">error_outline</span>       <span class="impact-row-label">Failed transcodes recovered</span>   <span class="impact-row-lifetime" data-impact="failed_transcode_lifetime">—</span> <span class="impact-row-month zero" data-impact="failed_transcode_month">0</span></div>
+                        <div class="impact-row"><span class="material-icons">album</span>               <span class="impact-row-label">Embedded cover art consolidated</span> <span class="impact-row-lifetime" data-impact="embedded_cover_art_lifetime">—</span> <span class="impact-row-month zero" data-impact="embedded_cover_art_month">0</span></div>
                     </div>
                 </div>
 
-                <p class="impact-note">Opt-in only. No paths, no filenames, no usernames — see <a href="https://github.com/crackruckles/MediaDash/blob/main/docs/PRIVACY.md">what's collected</a>.</p>
+                <p class="impact-note">On by default; untick in Settings → Safety to opt out. No paths, no filenames, no usernames — see <a href="https://github.com/crackruckles/MediaDash/blob/main/docs/PRIVACY.md">what's collected</a>.</p>
             </div>
         </section>
 
@@ -655,7 +663,7 @@
                     </details>
                     <details class="faq-item">
                         <summary>What data does it collect?</summary>
-                        <div class="faq-body">Opt-in anonymous stats: per-month fix counts, total bytes freed, plugin/Jellyfin version and a random install UUID. No paths, no filenames, no usernames. Untick in Settings → Safety to opt out. Full list in <a href="https://github.com/crackruckles/MediaDash/blob/main/docs/PRIVACY.md">docs/PRIVACY.md</a>.</div>
+                        <div class="faq-body">Anonymous community stats (on by default): per-month fix counts across every scanner, total bytes freed, plugin/Jellyfin version and a random install UUID. No paths, no filenames, no usernames. Untick in Settings → Safety to opt out. Full list in <a href="https://github.com/crackruckles/MediaDash/blob/main/docs/PRIVACY.md">docs/PRIVACY.md</a>.</div>
                     </details>
                 </div>
             </div>
@@ -693,7 +701,7 @@
         (function () {
             var SUPA = 'https://mcgpyjtcqyrffydpfdrd.supabase.co/rest/v1/';
             var KEY  = 'sb_publishable_dstMpg4VGn2tSS_DEhsdZg_n9jwnFXk';
-            var TYPES = ['duplicate','playability','quality','subtitle','audio','misplaced','missing_subs','stale','corrupt_artwork','suspicious'];
+            var TYPES = ['duplicate','playability','quality','subtitle','audio','misplaced','missing_subs','stale','corrupt_artwork','suspicious','ungrouped','large_trickplay','subtitle_fonts','orphaned_debris','corrupt_nfo','heavy_transcode','failed_transcode','embedded_cover_art'];
 
             function fmtBytes(n) {
                 n = Number(n) || 0;

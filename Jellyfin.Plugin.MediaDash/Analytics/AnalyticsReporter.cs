@@ -17,10 +17,9 @@ namespace Jellyfin.Plugin.MediaDash.Analytics;
 /// Opt-in only. Fully swallows failures so a network hiccup never blocks a fix run.
 ///
 /// What's sent: an anonymous install UUID, plugin + Jellyfin version strings, the current month,
-/// per-type success counts (duplicate, playability, quality, subtitle, audio, misplaced,
-/// missing-subs, stale, corrupt-artwork, suspicious/malware) and total bytes freed. No paths, no
-/// filenames, no usernames, no IP-derived data. The backend clamps each field monotonically so
-/// stale numbers can never reduce the totals.
+/// per-type success counts (every scanner MediaDash ships — see the payload build below) and
+/// total bytes freed. No paths, no filenames, no usernames, no IP-derived data. The backend
+/// clamps each field monotonically so stale numbers can never reduce the totals.
 /// </summary>
 public sealed class AnalyticsReporter
 {
@@ -96,6 +95,13 @@ public sealed class AnalyticsReporter
                 ["p_corrupt_artwork"] = Count(aggregate, IssueType.CorruptArtwork),
                 ["p_suspicious"] = Count(aggregate, IssueType.MalwareRisk),
                 ["p_ungrouped"] = Count(aggregate, IssueType.Ungrouped),
+                ["p_large_trickplay"] = Count(aggregate, IssueType.LargeTrickplay),
+                ["p_subtitle_fonts"] = Count(aggregate, IssueType.SubtitleFonts),
+                ["p_orphaned_debris"] = Count(aggregate, IssueType.OrphanedDebris),
+                ["p_corrupt_nfo"] = Count(aggregate, IssueType.CorruptNfo),
+                ["p_heavy_transcode"] = Count(aggregate, IssueType.HeavyTranscode),
+                ["p_failed_transcode"] = Count(aggregate, IssueType.FailedTranscode),
+                ["p_embedded_cover_art"] = Count(aggregate, IssueType.EmbeddedCoverArt),
                 ["p_bytes_freed"] = aggregate.BytesFreed
             };
 

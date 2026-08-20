@@ -1,6 +1,6 @@
 # Privacy
 
-MediaDash runs entirely on your Jellyfin server. **No data leaves your server unless you opt in to community stats**, and that toggle is off by default.
+MediaDash runs entirely on your Jellyfin server. **No data leaves your server unless the community-stats toggle is on.** New installs opt in by default; untick it in the first-run wizard or in **Settings → Safety** to opt out at any time.
 
 ## What runs where
 
@@ -12,9 +12,9 @@ MediaDash runs entirely on your Jellyfin server. **No data leaves your server un
 
 Subtitle downloads use the providers you already configured in Jellyfin (e.g. OpenSubtitles). MediaDash doesn't ship its own subtitle service.
 
-## Community stats (opt-in)
+## Community stats (opt-out)
 
-If you turn on **"Share anonymous stats with the community board"** — either during the first-run wizard or in **Settings → Safety** — the plugin sends one HTTP POST after every fix run to a small Supabase backend that aggregates numbers across all opted-in installs. The aggregated totals appear on the README of this repo, refreshed on the 1st of every month.
+The **"Share anonymous stats with the community board"** toggle is on by default (the first-run wizard shows it ticked, and it's also in **Settings → Safety**). While on, the plugin sends one HTTP POST after every fix run to a small Supabase backend that aggregates numbers across all opted-in installs. Untick to opt out — no further stats are sent. The aggregated totals appear on the README of this repo, refreshed on the 1st of every month.
 
 ### Exactly what's sent
 
@@ -36,6 +36,14 @@ Every field. Nothing else:
 | `stale_fixed` | `2` | Count of stale files retired this month (untouched past the stale threshold). |
 | `corrupt_artwork_fixed` | `6` | Count of corrupt / truncated poster / backdrop / thumb files repaired this month. |
 | `suspicious_fixed` | `0` | Count of suspicious files (executables / scripts inside media folders — potential malware) quarantined this month. |
+| `ungrouped_fixed` | `8` | Count of loose files nested under per-title parent folders this month. |
+| `large_trickplay_fixed` | `540` | Count of scrub-bar preview thumbnails re-encoded from JPG to WebP this month. |
+| `subtitle_fonts_fixed` | `3` | Count of `.ass` sidecars stripped of unreferenced embedded fonts this month. |
+| `orphaned_debris_fixed` | `17` | Count of orphaned subtitle / trickplay / metadata folders removed this month. |
+| `corrupt_nfo_fixed` | `2` | Count of malformed `.nfo` sidecars deleted this month. |
+| `heavy_transcode_fixed` | `9` | Count of files pre-encoded to a compatible codec so future plays direct-play. |
+| `failed_transcode_fixed` | `1` | Count of files re-encoded after a failed live transcode attempt. |
+| `embedded_cover_art_fixed` | `230` | Count of music / audiobook tracks whose embedded cover was consolidated into a shared folder image. |
 | `bytes_freed` | `12345678900` | Sum of bytes freed by all successful fixes this month. |
 
 ### What's NEVER sent
@@ -58,7 +66,7 @@ Every field. Nothing else:
 
 ### Opting out
 
-**Settings → Safety → Share anonymous stats with the community board.** Untick and save. From that point:
+Community stats are on by default for new installs. To opt out, untick **Settings → Safety → Share anonymous stats with the community board** (also available on the last step of the first-run wizard) and save. From that point:
 
 - No further stats are sent.
 - Your `install_id` is cleared from the plugin config on your server.

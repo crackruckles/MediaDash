@@ -94,10 +94,37 @@ public sealed class MediaDashDb
                 success INTEGER NOT NULL DEFAULT 1,
                 acknowledged INTEGER NOT NULL DEFAULT 0
             );
+
+            CREATE TABLE IF NOT EXISTS diagnostics (
+                source TEXT NOT NULL,
+                message_hash INTEGER NOT NULL,
+                message TEXT NOT NULL,
+                count INTEGER NOT NULL DEFAULT 1,
+                at_utc INTEGER NOT NULL,
+                last_at_utc INTEGER NOT NULL,
+                PRIMARY KEY (source, message_hash)
+            );
+            CREATE INDEX IF NOT EXISTS idx_diagnostics_last_at_utc ON diagnostics(last_at_utc);
+
+            CREATE TABLE IF NOT EXISTS plugin_state (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
             """;
         cmd.ExecuteNonQuery();
 
         MigrateSchema(connection);
+
+        // Wire the persistent diagnostics buffer to this DB. Previously the buffer was in-memory
+        // only; recorded errors vanished on every plugin reload / update. Attach reloads persisted
+        // rows into the buffer and installs the DB reference so future Record calls write through.
+        Api.Diagnostics.Attach(this);
+
+        // Same treatment for Plugin.LastFixRun + Plugin.RedownloadWarnings — both were static
+        // fields that dropped on reload, so a mid-day restart lost the fix-completion popup and
+        // the redownload-warning banner until the next scan. PluginState.Attach rehydrates them
+        // from the plugin_state table; the property setters on Plugin write back through.
+        Api.PluginState.Attach(this);
     }
 
     // Each step below is idempotent by design (DELETE on empty table is a no-op; column probes precede
@@ -906,6 +933,143 @@ public sealed class MediaDashDb
         using var cmd = connection.CreateCommand();
         cmd.CommandText = "UPDATE history SET restored = 1 WHERE id = @id";
         cmd.Parameters.AddWithValue("@id", historyId);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Persists a diagnostic entry to the diagnostics table with source+hash uniqueness. If the row
+    /// exists (same source + message hash), count is incremented and last_at_utc is bumped —
+    /// mirrors the in-memory ring buffer's dedup semantics but survives plugin reloads / updates.
+    /// After write, the table is truncated to the newest <paramref name="maxRows"/> entries so it
+    /// can't grow unbounded across long-running installs.
+    /// </summary>
+    /// <param name="source">Short source label.</param>
+    /// <param name="messageHash">Hash of the pre-truncation message; used as dedup key.</param>
+    /// <param name="message">Truncated (≤ 800 char) message stored for the Errors tab display.</param>
+    /// <param name="atUtc">When this dedup group first fired.</param>
+    /// <param name="lastAtUtc">When the current occurrence fired.</param>
+    /// <param name="maxRows">Ring-buffer size the writer caps at (default 100).</param>
+    public void SaveDiagnostic(string source, int messageHash, string message, DateTime atUtc, DateTime lastAtUtc, int maxRows = 100)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = @"
+            INSERT INTO diagnostics (source, message_hash, message, count, at_utc, last_at_utc)
+            VALUES (@source, @hash, @msg, 1, @at, @last)
+            ON CONFLICT(source, message_hash) DO UPDATE SET
+                count = count + 1,
+                message = excluded.message,
+                last_at_utc = excluded.last_at_utc";
+        cmd.Parameters.AddWithValue("@source", source);
+        cmd.Parameters.AddWithValue("@hash", messageHash);
+        cmd.Parameters.AddWithValue("@msg", message);
+        cmd.Parameters.AddWithValue("@at", atUtc.Ticks);
+        cmd.Parameters.AddWithValue("@last", lastAtUtc.Ticks);
+        cmd.ExecuteNonQuery();
+
+        // Trim to newest maxRows. Same policy the in-memory LinkedList applied.
+        using var trim = connection.CreateCommand();
+        trim.CommandText = @"
+            DELETE FROM diagnostics
+             WHERE rowid NOT IN (
+                 SELECT rowid FROM diagnostics ORDER BY last_at_utc DESC LIMIT @max
+             )";
+        trim.Parameters.AddWithValue("@max", maxRows);
+        trim.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Returns the persisted diagnostic entries, newest first. Populates the in-memory ring buffer
+    /// on plugin startup so errors survive plugin updates / Jellyfin restarts.
+    /// </summary>
+    /// <param name="limit">Maximum entries to return.</param>
+    /// <returns>Newest diagnostic entries first.</returns>
+    public IReadOnlyList<(string Source, int MessageHash, string Message, int Count, DateTime AtUtc, DateTime LastAtUtc)> LoadDiagnostics(int limit = 100)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT source, message_hash, message, count, at_utc, last_at_utc FROM diagnostics ORDER BY last_at_utc DESC LIMIT @limit";
+        cmd.Parameters.AddWithValue("@limit", limit);
+        var rows = new List<(string, int, string, int, DateTime, DateTime)>();
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            rows.Add((
+                reader.GetString(0),
+                reader.GetInt32(1),
+                reader.GetString(2),
+                reader.GetInt32(3),
+                new DateTime(reader.GetInt64(4), DateTimeKind.Utc),
+                new DateTime(reader.GetInt64(5), DateTimeKind.Utc)));
+        }
+
+        return rows;
+    }
+
+    /// <summary>
+    /// Returns the total row count in the diagnostics table. Cheaper than <see cref="LoadDiagnostics"/>
+    /// when the Errors tab just needs to know whether a "Load older" button should appear.
+    /// </summary>
+    /// <returns>Total persisted diagnostic entries.</returns>
+    public int CountDiagnostics()
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM diagnostics";
+        var raw = cmd.ExecuteScalar();
+        return raw is long l ? (int)l : 0;
+    }
+
+    /// <summary>
+    /// Reads a small string value from the singleton <c>plugin_state</c> key/value table. Returns
+    /// null when the row is missing. Used to persist ephemeral state (LastFixRun,
+    /// RedownloadWarnings) across plugin reloads.
+    /// </summary>
+    /// <param name="key">The state key.</param>
+    /// <returns>The stored value, or null.</returns>
+    public string? GetState(string key)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT value FROM plugin_state WHERE key = @key";
+        cmd.Parameters.AddWithValue("@key", key);
+        var raw = cmd.ExecuteScalar();
+        return raw is string s ? s : null;
+    }
+
+    /// <summary>
+    /// Upserts a small string value into the singleton <c>plugin_state</c> key/value table.
+    /// Pass null to delete the row.
+    /// </summary>
+    /// <param name="key">The state key.</param>
+    /// <param name="value">The value to store; null clears the row.</param>
+    public void SetState(string key, string? value)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        if (value is null)
+        {
+            cmd.CommandText = "DELETE FROM plugin_state WHERE key = @key";
+            cmd.Parameters.AddWithValue("@key", key);
+        }
+        else
+        {
+            cmd.CommandText = "INSERT INTO plugin_state (key, value) VALUES (@key, @value) ON CONFLICT(key) DO UPDATE SET value = excluded.value";
+            cmd.Parameters.AddWithValue("@key", key);
+            cmd.Parameters.AddWithValue("@value", value);
+        }
+
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Wipes the diagnostics table. Used by the Errors → Clear button and by Reset.
+    /// </summary>
+    public void ClearDiagnostics()
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "DELETE FROM diagnostics";
         cmd.ExecuteNonQuery();
     }
 

@@ -66,7 +66,7 @@ Every fix type runs independently: **Off · Detect only · Ask me first · Autom
 ## Community impact
 
 <!-- STATS:START -->
-_Refreshes on the 1st of each month from opt-in installs. See [docs/PRIVACY.md](docs/PRIVACY.md) for exactly what's collected._
+_Refreshes on the 1st of each month from installs with community stats enabled (on by default; untick in Settings → Safety to opt out). See [docs/PRIVACY.md](docs/PRIVACY.md) for exactly what's collected._
 
 | | Lifetime | This month |
 |---|---:|---:|
@@ -78,6 +78,17 @@ _Refreshes on the 1st of each month from opt-in installs. See [docs/PRIVACY.md](
 | Unwanted audio stripped | 144 | 0 |
 | Misplaced files moved | 0 | 0 |
 | Missing subtitles downloaded | 0 | 0 |
+| Stale files retired | 0 | 0 |
+| Corrupt artwork repaired | 0 | 0 |
+| Suspicious files quarantined | 0 | 0 |
+| Ungrouped media grouped | 0 | 0 |
+| Trickplay thumbnails re-encoded | 0 | 0 |
+| Subtitle fonts stripped | 0 | 0 |
+| Orphaned debris removed | 0 | 0 |
+| Corrupt NFO deleted | 0 | 0 |
+| Heavy transcodes pre-encoded | 0 | 0 |
+| Failed transcodes recovered | 0 | 0 |
+| Embedded cover art consolidated | 0 | 0 |
 | **Reporting installs** | 21 lifetime | 6 this month |
 <!-- STATS:END -->
 

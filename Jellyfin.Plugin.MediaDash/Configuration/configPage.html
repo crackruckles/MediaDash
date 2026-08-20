@@ -1262,12 +1262,19 @@
                 font: 700 12.5px Figtree, sans-serif; color: var(--md-label);
             }
 
-            /* Restyled inputs & selects on Settings. */
+            /* Restyled inputs & selects on Settings (and inside the first-run wizard, so its
+               emby-selects match the mdChipInput height — otherwise language pickers sit taller
+               than the selects beside them). */
             #MediaDashConfigPage #mdTab-settings input[type="text"],
             #MediaDashConfigPage #mdTab-settings input[type="number"],
             #MediaDashConfigPage #mdTab-settings input[type="time"],
             #MediaDashConfigPage #mdTab-settings input[type="search"],
-            #MediaDashConfigPage #mdTab-settings select {
+            #MediaDashConfigPage #mdTab-settings select,
+            #MediaDashConfigPage #mdFirstRun input[type="text"],
+            #MediaDashConfigPage #mdFirstRun input[type="number"],
+            #MediaDashConfigPage #mdFirstRun input[type="time"],
+            #MediaDashConfigPage #mdFirstRun input[type="search"],
+            #MediaDashConfigPage #mdFirstRun select {
                 background: var(--md-inner) !important;
                 border: 1px solid transparent !important;
                 border-radius: 12px !important;
@@ -1294,7 +1301,12 @@
             #MediaDashConfigPage #mdTab-settings input[type="number"]:focus,
             #MediaDashConfigPage #mdTab-settings input[type="time"]:focus,
             #MediaDashConfigPage #mdTab-settings input[type="search"]:focus,
-            #MediaDashConfigPage #mdTab-settings select:focus {
+            #MediaDashConfigPage #mdTab-settings select:focus,
+            #MediaDashConfigPage #mdFirstRun input[type="text"]:focus,
+            #MediaDashConfigPage #mdFirstRun input[type="number"]:focus,
+            #MediaDashConfigPage #mdFirstRun input[type="time"]:focus,
+            #MediaDashConfigPage #mdFirstRun input[type="search"]:focus,
+            #MediaDashConfigPage #mdFirstRun select:focus {
                 border-color: var(--md-accent, var(--md-primary)) !important;
                 outline: none;
             }
@@ -2606,7 +2618,7 @@
                             <p class="mdWizIntro">Only the libraries ticked here are scanned. Untick a library and MediaDash won't touch any file inside it. Leave everything ticked to include all your movie and TV libraries.</p>
                             <div id="mdWizLibraries" style="margin:.4em 0 .8em;"></div>
                             <div style="margin:.6em 0 .3em;">
-                                <button is="emby-button" type="button" id="mdWizCheckAccess" class="raised" title="Reads and writes a tiny probe file inside each ticked library folder to confirm Jellyfin has the permissions it needs. Nothing is left behind." style="font-size:85%;"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;">verified_user</span> <span>Check library access</span></button>
+                                <button is="emby-button" type="button" id="mdWizCheckAccess" class="mdActionBtn" title="Reads and writes a tiny probe file inside each ticked library folder to confirm Jellyfin has the permissions it needs. Nothing is left behind."><span class="material-icons">verified_user</span><span>Check library access</span></button>
                                 <span class="fieldDescription">Confirms Jellyfin can read AND write the ticked libraries. Fixes fail silently if the underlying files aren't writable by the user Jellyfin runs as.</span>
                             </div>
                             <div id="mdWizAccessResults" style="display:none;margin:.4em 0 .8em;"></div>
@@ -2698,17 +2710,19 @@
                                 </label>
                                 <div class="fieldDescription">Much faster, slightly larger files. Uses Jellyfin's configured accelerator (NVENC / QSV / AMF / VideoToolbox); falls back to software per-file if it fails.</div>
                             </div>
-                            <div class="selectContainer" id="mdWizGpuIndexRow" style="max-width:26em;margin-top:.4em;">
-                                <label class="selectLabel" for="mdWizGpuIndex">Preferred GPU</label>
-                                <select is="emby-select" id="mdWizGpuIndex" class="emby-select-withcolor emby-select"></select>
-                                <div class="fieldDescription">Pick the card re-encodes should target when your server has more than one (typical: iGPU + dGPU). "Auto" follows Jellyfin's Playback → Hardware acceleration setting. Only NVENC / AMF honour this override; QSV / VideoToolbox fall back to Jellyfin's device.</div>
-                            </div>
-                            <div class="checkboxContainer checkboxContainer-withDescription">
-                                <label class="emby-checkbox-label">
-                                    <input id="mdWizSkipHdr" type="checkbox" is="emby-checkbox" />
-                                    <span>Skip HDR files (recommended)</span>
-                                </label>
-                                <div class="fieldDescription">Re-encoding HDR without proper color-space handling destroys metadata. Leave on unless you know you want to touch HDR content.</div>
+                            <div style="display:flex;gap:22px 30px;flex-wrap:wrap;align-items:flex-start;margin-top:.4em;">
+                                <div class="selectContainer" id="mdWizGpuIndexRow" style="flex:1 1 22em;max-width:26em;margin:0;">
+                                    <label class="selectLabel" for="mdWizGpuIndex">Preferred GPU</label>
+                                    <select is="emby-select" id="mdWizGpuIndex" class="emby-select-withcolor emby-select"></select>
+                                    <div class="fieldDescription">Pick the card re-encodes should target when your server has more than one (typical: iGPU + dGPU). "Auto" follows Jellyfin's Playback → Hardware acceleration setting. Only NVENC / AMF honour this override; QSV / VideoToolbox fall back to Jellyfin's device.</div>
+                                </div>
+                                <div class="checkboxContainer checkboxContainer-withDescription" style="flex:1 1 22em;margin:0;">
+                                    <label class="emby-checkbox-label">
+                                        <input id="mdWizSkipHdr" type="checkbox" is="emby-checkbox" />
+                                        <span>Skip HDR files (recommended)</span>
+                                    </label>
+                                    <div class="fieldDescription">Re-encoding HDR without proper color-space handling destroys metadata. Leave on unless you know you want to touch HDR content.</div>
+                                </div>
                             </div>
                         </div>
 
@@ -2944,9 +2958,9 @@
 
                         <div class="mdWizStep" data-step="15">
                             <h3><span class="material-icons" style="color:#a78bfa;">analytics</span>Community stats (optional)</h3>
-                            <p class="mdWizIntro">MediaDash can send anonymous aggregate stats to a community board so everyone can see how much storage the plugin is reclaiming across all users. <b>Off by default</b> — tick the box below if you'd like your reclaim total to count, either is fine for the plugin.</p>
+                            <p class="mdWizIntro">MediaDash can send anonymous aggregate stats to a community board so everyone can see how much storage the plugin is reclaiming across all users. Tick the box below to opt in — either is fine for the plugin.</p>
                             <div class="fieldDescription" style="margin:.4em 0 .8em;padding:.6em .8em;border-left:3px solid #a78bfa;background:rgba(167,139,250,.06);border-radius:4px;">
-                                <b>What's sent, per fix run:</b> a random UUID we generate for this install (no username, no server name), your plugin version, your Jellyfin version, the current month, and cumulative counts of the fixes MediaDash has completed this month per issue type plus the total bytes freed.<br>
+                                <b>What's sent, per fix run:</b> a random UUID we generate for this install (no username, no server name), your plugin version, your Jellyfin version, the current month, and cumulative counts of the fixes MediaDash has completed this month for every scanner (duplicates, broken files, oversized encodes, unwanted subtitles / audio, missing subtitles, misplaced files, stale content, corrupt artwork, suspicious executables, ungrouped media, large trickplay, subtitle fonts, orphaned debris, corrupt NFO, heavy / failed transcodes, embedded cover art) plus the total bytes freed.<br>
                                 <b>What's never sent:</b> file paths, filenames, library names, IP addresses, media titles, or anything that identifies you or your media.<br>
                                 Change your mind any time in Settings → Safety. See <a href="https://github.com/crackruckles/MediaDash/blob/main/docs/PRIVACY.md" target="_blank" rel="noopener">docs/PRIVACY.md</a> for the full list and the DB schema.
                             </div>
@@ -7077,6 +7091,9 @@
                     // Everything is reachable from Settings — this is the "I know what I'm doing" exit.
                     ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
                         c.FirstRunDone = true;
+                        // Analytics defaults on; if the user skips before we've minted an install id,
+                        // mint one now so the "on by default" pledge actually contributes stats.
+                        applyAnalyticsToggle(c, !!c.AnalyticsEnabled);
                         ApiClient.updatePluginConfiguration(PLUGIN_ID, c).then(function (result) {
                             Dashboard.processPluginConfigurationUpdateResult(result);
                             view.querySelector('#mdFirstRun').style.display = 'none';
@@ -7516,6 +7533,10 @@
                 return { prefix: source, title: source || 'Unknown', icon: 'error', hint: null };
             }
 
+            // When the user clicks "Load older", subsequent renders pull the full persisted table
+            // instead of the small in-memory buffer. Sticky for the tab session; Clear resets it.
+            var errorsShowFull = false;
+
             function loadErrors() {
                 var listEl = view.querySelector('#mdErrorList');
                 // Only show "Loading…" on the very first render — the periodic refresh() also calls
@@ -7525,17 +7546,33 @@
                     listEl.innerHTML = '<div class="fieldDescription">Loading…</div>';
                 }
 
-                api('Errors').then(function (errs) {
+                Promise.all([
+                    api('Errors' + (errorsShowFull ? '?full=true' : '')),
+                    api('Errors/Count').catch(function () { return { Total: 0 }; })
+                ]).then(function (r) {
+                    var errs = r[0] || [];
+                    var persistedTotal = (r[1] && r[1].Total) || errs.length;
+                    processErrorsResponse(errs, persistedTotal);
+                });
+            }
+
+            function processErrorsResponse(errs, persistedTotal) {
+                var listEl = view.querySelector('#mdErrorList');
+                (function () {
                     // Fingerprint over source + creation timestamp + occurrence count so we skip
                     // re-render when the response is identical to the last one. Prevents mdFade replays,
                     // closes-on-refresh of user-expanded <details> blocks, and the "errors flash cleared"
                     // perception when a new error arrives. AtUtc + Count uniquely identifies each
                     // entry's state; on dedup Count bumps, on new entry AtUtc changes.
-                    var fingerprint = errs.map(function (e) {
+                    // Fingerprint includes persistedTotal + showFull so a state transition (Load older
+                    // → shows 500; new error trips the count → 501) still triggers a re-render.
+                    var fingerprint = (errorsShowFull ? 'full:' : 'buf:') + persistedTotal + '|' + errs.map(function (e) {
                         return (e.Source || '') + '|' + (e.AtUtc || '') + '|' + (e.Count || 1) + '|' + (e.LastAtUtc || '');
-                    }).join(',') || 'empty';
+                    }).join(',');
 
-                    updateErrorBadge(errs.length);
+                    // Badge tracks total persisted count, not just the visible slice, so the tab
+                    // signals accurately whether the user has unseen errors offscreen.
+                    updateErrorBadge(persistedTotal);
                     if (!errs.length) {
                         if (listEl.getAttribute('data-fingerprint') !== fingerprint) {
                             listEl.setAttribute('data-fingerprint', fingerprint);
@@ -7544,10 +7581,22 @@
 
                         return;
                     }
-                    var totalOccurrences = errs.reduce(function (sum, e) { return sum + (e.Count || 1); }, 0);
-                    updateErrorBadge(totalOccurrences);
                     if (listEl.getAttribute('data-fingerprint') === fingerprint) return;
                     listEl.setAttribute('data-fingerprint', fingerprint);
+                    var loadOlderRow = '';
+                    if (!errorsShowFull && persistedTotal > errs.length) {
+                        // Older entries live on disk but weren't loaded — offer to fetch them all.
+                        loadOlderRow = '<div style="text-align:center;margin:.6em 0;">' +
+                            '<button is="emby-button" type="button" id="mdErrorsLoadOlder" class="raised mdActionBtn" title="Read the full persisted diagnostics table (up to 5000 rows). Useful when you have more errors than fit in the fast in-memory cache.">' +
+                            '<span class="material-icons">unfold_more</span>' +
+                            '<span>Load older errors (' + (persistedTotal - errs.length) + ' more)</span>' +
+                            '</button></div>';
+                    } else if (errorsShowFull && persistedTotal > 100) {
+                        loadOlderRow = '<div style="text-align:center;margin:.6em 0;">' +
+                            '<span class="fieldDescription">Showing all ' + persistedTotal + ' persisted errors.</span>' +
+                            '</div>';
+                    }
+
                     var html = errs.map(function (e, i) {
                         var meta = errorMeta(e.Source);
                         var countBadge = (e.Count || 1) > 1
@@ -7571,8 +7620,16 @@
                             '</details>' +
                             '</div>';
                     }).join('');
-                    listEl.innerHTML = html;
-                });
+                    listEl.innerHTML = html + loadOlderRow;
+                    var loadOlderBtn = view.querySelector('#mdErrorsLoadOlder');
+                    if (loadOlderBtn) {
+                        loadOlderBtn.addEventListener('click', function () {
+                            errorsShowFull = true;
+                            listEl.removeAttribute('data-fingerprint');
+                            loadErrors();
+                        });
+                    }
+                })();
             }
 
             function updateErrorBadge(count) { updateTabBadge('#mdErrorBadge', count); }
@@ -8426,6 +8483,7 @@
 
                     view.querySelector('#mdErrorsRefresh').addEventListener('click', loadErrors);
                     view.querySelector('#mdErrorsClear').addEventListener('click', function () {
+                        errorsShowFull = false;
                         post('Errors/Clear').then(loadErrors);
                     });
                     view.querySelector('#mdErrorsCopy').addEventListener('click', copyDiagnostics);

@@ -71,6 +71,14 @@ jobs:
           | Stale files retired | {n(lifetime['stale_fixed'])} | {n(current['stale_fixed'])} |
           | Corrupt artwork repaired | {n(lifetime['corrupt_artwork_fixed'])} | {n(current['corrupt_artwork_fixed'])} |
           | Suspicious files quarantined | {n(lifetime['suspicious_fixed'])} | {n(current['suspicious_fixed'])} |
+          | Ungrouped media grouped | {n(lifetime['ungrouped_fixed'])} | {n(current['ungrouped_fixed'])} |
+          | Trickplay thumbnails re-encoded | {n(lifetime['large_trickplay_fixed'])} | {n(current['large_trickplay_fixed'])} |
+          | Subtitle fonts stripped | {n(lifetime['subtitle_fonts_fixed'])} | {n(current['subtitle_fonts_fixed'])} |
+          | Orphaned debris removed | {n(lifetime['orphaned_debris_fixed'])} | {n(current['orphaned_debris_fixed'])} |
+          | Corrupt NFO deleted | {n(lifetime['corrupt_nfo_fixed'])} | {n(current['corrupt_nfo_fixed'])} |
+          | Heavy transcodes pre-encoded | {n(lifetime['heavy_transcode_fixed'])} | {n(current['heavy_transcode_fixed'])} |
+          | Failed transcodes recovered | {n(lifetime['failed_transcode_fixed'])} | {n(current['failed_transcode_fixed'])} |
+          | Embedded cover art consolidated | {n(lifetime['embedded_cover_art_fixed'])} | {n(current['embedded_cover_art_fixed'])} |
           | **Reporting installs** | {n(lifetime['lifetime_installs'])} lifetime | {n(current['monthly_active_installs'])} this month |"""
 
           # Strip leading whitespace introduced by the heredoc indent — the pipe table would render broken otherwise.
