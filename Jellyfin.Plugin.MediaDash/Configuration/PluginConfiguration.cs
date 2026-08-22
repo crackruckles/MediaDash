@@ -48,10 +48,9 @@ public class PluginConfiguration : BasePluginConfiguration
         RecycleBinWarnThresholdGb = 10;
         PauseDuringPlayback = true;
         FirstRunDone = false;
-        // On by default — the wizard opt-in path pre-ticks the box; users who skip the wizard also
-        // report anonymous stats until they untick in Settings → Safety. AnalyticsInstallId stays
-        // empty here so AnalyticsReporter no-ops until the UI mints one via applyAnalyticsToggle.
-        AnalyticsEnabled = true;
+        // Community reporting requires affirmative consent in the wizard or Settings → Safety.
+        // The install UUID is minted only when the user enables the toggle.
+        AnalyticsEnabled = false;
         AnalyticsInstallId = string.Empty;
         EnabledLibraries = [];
         MisplacedFixMode = FixMode.DetectOnly;
@@ -187,7 +186,7 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>
     /// Gets or sets a value indicating whether MediaDash reports aggregated, anonymous per-run statistics
     /// (per-scanner success counts + bytes freed, plus plugin and Jellyfin versions) to the community stats board.
-    /// On by default; the first-run wizard exposes the toggle and Settings → Safety lets users opt out later.
+    /// Off by default; the first-run wizard and Settings → Safety let users opt in explicitly.
     /// No paths, no filenames, no usernames — only counts, byte totals, and version strings are sent.
     /// </summary>
     public bool AnalyticsEnabled { get; set; }

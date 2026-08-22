@@ -240,20 +240,23 @@ public sealed class RecycleBin
         long size = 0;
         // IgnoreInaccessible so one unreadable subfolder doesn't abort the whole size scan mid-walk.
         var enumOpts = new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = true };
-        foreach (var file in Directory.EnumerateFiles(Root, "*", enumOpts))
+        foreach (var batch in Directory.GetDirectories(Root).Where(IsMediaDashBatchDirectory))
         {
-            count++;
-            try
+            foreach (var file in Directory.EnumerateFiles(batch, "*", enumOpts))
             {
-                size += new FileInfo(file).Length;
-            }
-            catch (IOException ex)
-            {
-                Api.Diagnostics.Record("RecycleBin.SizeScan", "Could not stat recycled file '" + file + "': " + ex.Message + ". Total-size total will be short by one entry.");
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                Api.Diagnostics.Record("RecycleBin.SizeScan", "Access denied stat'ing recycled file '" + file + "': " + ex.Message + ". Total-size total will be short by one entry.");
+                count++;
+                try
+                {
+                    size += new FileInfo(file).Length;
+                }
+                catch (IOException ex)
+                {
+                    Api.Diagnostics.Record("RecycleBin.SizeScan", "Could not stat recycled file '" + file + "': " + ex.Message + ". Total-size total will be short by one entry.");
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    Api.Diagnostics.Record("RecycleBin.SizeScan", "Access denied stat'ing recycled file '" + file + "': " + ex.Message + ". Total-size total will be short by one entry.");
+                }
             }
         }
 
@@ -273,7 +276,7 @@ public sealed class RecycleBin
             return result;
         }
 
-        foreach (var dir in Directory.GetDirectories(Root).OrderByDescending(d => d, StringComparer.Ordinal))
+        foreach (var dir in Directory.GetDirectories(Root).Where(IsMediaDashBatchDirectory).OrderByDescending(d => d, StringComparer.Ordinal))
         {
             foreach (var file in Directory.EnumerateFiles(dir))
             {
@@ -416,7 +419,7 @@ public sealed class RecycleBin
 
         try
         {
-            var dirs = Directory.GetDirectories(Root);
+            var dirs = Directory.GetDirectories(Root).Where(IsMediaDashBatchDirectory).ToArray();
             System.Threading.Volatile.Write(ref _emptyingTotal, dirs.Length);
             System.Threading.Volatile.Write(ref _emptyingDone, 0);
             foreach (var dir in dirs)
@@ -462,7 +465,7 @@ public sealed class RecycleBin
         }
 
         var cutoff = DateTime.UtcNow.AddDays(-retentionDays);
-        foreach (var dir in Directory.GetDirectories(Root))
+        foreach (var dir in Directory.GetDirectories(Root).Where(IsMediaDashBatchDirectory))
         {
             try
             {
@@ -499,6 +502,32 @@ public sealed class RecycleBin
             CultureInfo.InvariantCulture,
             System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal,
             out var parsed) ? parsed : null;
+    }
+
+    /// <summary>
+    /// Returns whether a directory name matches the exact timestamp + GUID format created by
+    /// <see cref="MoveToBin"/>. Cleanup operations must ignore every other child of a configured
+    /// recycle root so a broad or mistaken custom path can never make unrelated folders purgeable.
+    /// </summary>
+    /// <param name="path">A directory path or leaf name.</param>
+    /// <returns>True only for a MediaDash-owned recycle batch name.</returns>
+    internal static bool IsMediaDashBatchDirectory(string path)
+    {
+        var name = Path.GetFileName(Path.TrimEndingDirectorySeparator(path));
+        if (string.IsNullOrEmpty(name) || name.Length != 27 || name[18] != '-' || TryParseRecycleTimestamp(name) is null)
+        {
+            return false;
+        }
+
+        for (var i = 19; i < name.Length; i++)
+        {
+            if (!Uri.IsHexDigit(name[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static void MoveAcrossVolumes(string source, string target)

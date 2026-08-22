@@ -12,9 +12,9 @@ MediaDash runs entirely on your Jellyfin server. **No data leaves your server un
 
 Subtitle downloads use the providers you already configured in Jellyfin (e.g. OpenSubtitles). MediaDash doesn't ship its own subtitle service.
 
-## Community stats (opt-out)
+## Community stats (opt-in)
 
-The **"Share anonymous stats with the community board"** toggle is on by default (the first-run wizard shows it ticked, and it's also in **Settings → Safety**). While on, the plugin sends one HTTP POST after every fix run to a small Supabase backend that aggregates numbers across all opted-in installs. Untick to opt out — no further stats are sent. The aggregated totals appear on the README of this repo, refreshed on the 1st of every month.
+The **"Share anonymous stats with the community board"** toggle is off by default. If you explicitly enable it in the first-run wizard or **Settings → Safety**, the plugin sends one HTTP POST after every fix run to a small Supabase backend that aggregates numbers across opted-in installs. Untick it again to stop further reports. The aggregated totals appear on the README of this repo, refreshed on the 1st of every month.
 
 ### Exactly what's sent
 
@@ -51,7 +51,7 @@ Every field. Nothing else:
 - ❌ File paths, filenames, or folder names
 - ❌ Media titles, show names, movie names
 - ❌ Library names or Jellyfin server names
-- ❌ Usernames, email addresses, IP addresses (writes happen from your server, so the IP is your server's; nothing correlates it to `install_id` at rest)
+- ❌ Usernames, email addresses, or IP addresses in the payload (the service necessarily receives ordinary network connection metadata such as the source IP)
 - ❌ System info beyond the plugin + Jellyfin version — no OS name, no CPU/GPU, no MAC address, no disk paths
 - ❌ Dry-run counts (they don't affect real files, so they'd inflate the totals misleadingly)
 - ❌ Failure counts or error messages
@@ -66,7 +66,7 @@ Every field. Nothing else:
 
 ### Opting out
 
-Community stats are on by default for new installs. To opt out, untick **Settings → Safety → Share anonymous stats with the community board** (also available on the last step of the first-run wizard) and save. From that point:
+Community stats are off by default for new installs. To opt in, tick **Settings → Safety → Share anonymous stats with the community board** (also available in the first-run wizard) and save. To opt out again, untick it and save. From that point:
 
 - No further stats are sent.
 - Your `install_id` is cleared from the plugin config on your server.
