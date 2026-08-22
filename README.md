@@ -102,6 +102,8 @@ _Refreshes on the 1st of each month from installs that explicitly enable communi
 
 For safe deployment, library directories must not be writable by untrusted local users or unrelated containers. MediaDash rejects paths outside configured libraries and refuses existing symlinks/junctions, but portable pathname checks cannot make destructive filesystem operations race-free when another process can rename library directories concurrently.
 
+On upgrade, legacy batches in a custom recycle-bin root are adopted only when MediaDash's fix history references an item inside them. Any other timestamp-shaped folder is left untouched and reported in Errors; after verifying that MediaDash created it, an administrator can adopt it by creating an empty `.mediadash-owned-v1` file inside that batch folder.
+
 <div align="center">
 <img src="docs/history.png" width="850" alt="History with space-saved graph and restore"/>
 </div>
