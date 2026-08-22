@@ -60,7 +60,7 @@ public sealed class AnalyticsReporter
         try
         {
             var config = Plugin.Instance?.Configuration;
-            if (config is null || !config.AnalyticsEnabled)
+            if (config is null || !config.AnalyticsEnabled || config.AnalyticsConsentVersion < 1)
             {
                 return;
             }
