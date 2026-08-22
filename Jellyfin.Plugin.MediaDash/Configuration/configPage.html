@@ -2966,7 +2966,7 @@
                             </div>
                             <div class="checkboxContainer checkboxContainer-withDescription">
                                 <label class="emby-checkbox-label">
-                                    <input id="mdWizAnalytics" type="checkbox" is="emby-checkbox" checked />
+                                    <input id="mdWizAnalytics" type="checkbox" is="emby-checkbox" />
                                     <span>Yes, share anonymous stats to help the community</span>
                                 </label>
                                 <div class="fieldDescription">Aggregated numbers show up on the MediaDash GitHub page, refreshed monthly. Great for seeing collective impact.</div>
@@ -6855,9 +6855,8 @@
                 // should present the recommended 365 even if a previous session or test run wrote something
                 // shorter — the wizard is where users get the "sane defaults" pitch.
                 view.querySelector('#mdWizStaleThreshold').value = (staleOn && c.StaleThresholdDays > 0) ? c.StaleThresholdDays : 365;
-                // Pre-tick on first run so the community counts include this install by default;
-                // once FirstRunDone we respect whatever the user last saved.
-                view.querySelector('#mdWizAnalytics').checked = c.FirstRunDone ? !!c.AnalyticsEnabled : true;
+                // Analytics is affirmative opt-in on first run and respects the saved choice later.
+                view.querySelector('#mdWizAnalytics').checked = !!c.AnalyticsEnabled;
                 view.querySelector('#mdWizCoverStrip').checked = c.EmbeddedCoverStripFromAudio !== false;
             }
 
@@ -6979,6 +6978,7 @@
             // Both wizard and settings paths funnel through here.
             function applyAnalyticsToggle(c, enabled) {
                 c.AnalyticsEnabled = !!enabled;
+                c.AnalyticsConsentVersion = 1;
                 if (enabled && !c.AnalyticsInstallId) {
                     c.AnalyticsInstallId = newUuid();
                 }
@@ -7091,9 +7091,6 @@
                     // Everything is reachable from Settings — this is the "I know what I'm doing" exit.
                     ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
                         c.FirstRunDone = true;
-                        // Analytics defaults on; if the user skips before we've minted an install id,
-                        // mint one now so the "on by default" pledge actually contributes stats.
-                        applyAnalyticsToggle(c, !!c.AnalyticsEnabled);
                         ApiClient.updatePluginConfiguration(PLUGIN_ID, c).then(function (result) {
                             Dashboard.processPluginConfigurationUpdateResult(result);
                             view.querySelector('#mdFirstRun').style.display = 'none';

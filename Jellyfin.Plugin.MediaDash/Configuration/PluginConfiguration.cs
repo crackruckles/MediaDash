@@ -48,10 +48,9 @@ public class PluginConfiguration : BasePluginConfiguration
         RecycleBinWarnThresholdGb = 10;
         PauseDuringPlayback = true;
         FirstRunDone = false;
-        // On by default — the wizard opt-in path pre-ticks the box; users who skip the wizard also
-        // report anonymous stats until they untick in Settings → Safety. AnalyticsInstallId stays
-        // empty here so AnalyticsReporter no-ops until the UI mints one via applyAnalyticsToggle.
-        AnalyticsEnabled = true;
+        // Community reporting requires affirmative consent in the wizard or Settings → Safety.
+        // The install UUID is minted only when the user enables the toggle.
+        AnalyticsEnabled = false;
         AnalyticsInstallId = string.Empty;
         EnabledLibraries = [];
         MisplacedFixMode = FixMode.DetectOnly;
@@ -187,7 +186,7 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>
     /// Gets or sets a value indicating whether MediaDash reports aggregated, anonymous per-run statistics
     /// (per-scanner success counts + bytes freed, plus plugin and Jellyfin versions) to the community stats board.
-    /// On by default; the first-run wizard exposes the toggle and Settings → Safety lets users opt out later.
+    /// Off by default; the first-run wizard and Settings → Safety let users opt in explicitly.
     /// No paths, no filenames, no usernames — only counts, byte totals, and version strings are sent.
     /// </summary>
     public bool AnalyticsEnabled { get; set; }
@@ -198,6 +197,12 @@ public class PluginConfiguration : BasePluginConfiguration
     /// config file; the only thing derived from it is the row key on the analytics DB.
     /// </summary>
     public string AnalyticsInstallId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the consent schema version. Version 1 is written only by the new affirmative
+    /// opt-in UI; a missing/zero value identifies configuration created by the legacy default-on UI.
+    /// </summary>
+    public int AnalyticsConsentVersion { get; set; }
 
     /// <summary>
     /// Gets or sets the maximum wanted video height in pixels (e.g. 1080). Files taller than this are flagged as oversized.
@@ -542,6 +547,24 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets the filename the fixer writes into each folder. Jellyfin recognises
     /// <c>cover.jpg</c> / <c>folder.jpg</c> equally; <c>cover.jpg</c> is the modern default.</summary>
     public string EmbeddedCoverFilename { get; set; } = "cover.jpg";
+
+    /// <summary>
+    /// Migrates the legacy default-on analytics state. Older releases could persist enabled=true
+    /// without an install ID even though the user had never opted in; that state must remain off.
+    /// </summary>
+    /// <returns>True when the configuration was changed.</returns>
+    internal bool NormalizeAnalyticsConsent()
+    {
+        if (AnalyticsConsentVersion >= 1)
+        {
+            return false;
+        }
+
+        AnalyticsEnabled = false;
+        AnalyticsInstallId = string.Empty;
+        AnalyticsConsentVersion = 1;
+        return true;
+    }
 
     /// <summary>
     /// Gets the fix mode for an issue type.
