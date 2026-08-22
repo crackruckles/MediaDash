@@ -199,6 +199,23 @@ public class PluginConfiguration : BasePluginConfiguration
     public string AnalyticsInstallId { get; set; } = string.Empty;
 
     /// <summary>
+    /// Migrates the legacy default-on analytics state. Older releases could persist enabled=true
+    /// without an install ID even though the user had never opted in; that state must remain off.
+    /// </summary>
+    /// <returns>True when the configuration was changed.</returns>
+    internal bool NormalizeAnalyticsConsent()
+    {
+        if (!AnalyticsEnabled || System.Guid.TryParse(AnalyticsInstallId, out _))
+        {
+            return false;
+        }
+
+        AnalyticsEnabled = false;
+        AnalyticsInstallId = string.Empty;
+        return true;
+    }
+
+    /// <summary>
     /// Gets or sets the maximum wanted video height in pixels (e.g. 1080). Files taller than this are flagged as oversized.
     /// </summary>
     public int MaxResolutionHeight { get; set; }
