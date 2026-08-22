@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using Jellyfin.Plugin.MediaDash.Data;
 using MediaBrowser.Common.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -34,10 +35,12 @@ public sealed class RecycleBin
     /// </summary>
     /// <param name="applicationPaths">Instance of the <see cref="IApplicationPaths"/> interface.</param>
     /// <param name="logger">The logger.</param>
-    public RecycleBin(IApplicationPaths applicationPaths, ILogger<RecycleBin> logger)
+    /// <param name="db">The plugin database containing authoritative recycle history.</param>
+    public RecycleBin(IApplicationPaths applicationPaths, ILogger<RecycleBin> logger, MediaDashDb db)
     {
         _defaultRoot = Path.Combine(applicationPaths.DataPath, "mediadash", "recycle");
         _logger = logger;
+        AdoptLegacyCustomBatches(db);
     }
 
     private string Root
@@ -575,7 +578,84 @@ public sealed class RecycleBin
         }
     }
 
+    /// <summary>
+    /// Adds an ownership marker to an unmarked custom-root batch only when a successful history row
+    /// points at an item directly inside that batch.
+    /// </summary>
+    /// <param name="recyclePath">Recycle path from plugin history.</param>
+    /// <param name="customRoot">Configured custom recycle root.</param>
+    /// <returns>True when the path is an adopted or already-marked direct child batch.</returns>
+    internal static bool TryAdoptLegacyBatch(string recyclePath, string customRoot)
+    {
+        try
+        {
+            if (!File.Exists(recyclePath) && !Directory.Exists(recyclePath))
+            {
+                return false;
+            }
+
+            var batch = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(recyclePath)));
+            if (batch is null || !IsMediaDashBatchName(batch))
+            {
+                return false;
+            }
+
+            var parent = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(batch));
+            if (parent is null || !PathsEqual(parent, customRoot))
+            {
+                return false;
+            }
+
+            var marker = Path.Combine(batch, OwnershipMarkerFileName);
+            if (!File.Exists(marker))
+            {
+                File.WriteAllText(marker, "1\n");
+            }
+
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
     private bool IsOwnedBatchDirectory(string path) => IsOwnedBatchDirectory(path, _defaultRoot);
+
+    private void AdoptLegacyCustomBatches(MediaDashDb db)
+    {
+        var root = Root;
+        if (PathsEqual(root, _defaultRoot) || !Directory.Exists(root))
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (var recyclePath in db.GetRecyclePaths())
+            {
+                if (TryAdoptLegacyBatch(recyclePath, root))
+                {
+                    _logger.LogInformation("Verified legacy recycle batch referenced by history for {RecyclePath}", recyclePath);
+                }
+            }
+
+            foreach (var candidate in Directory.GetDirectories(root).Where(IsMediaDashBatchName))
+            {
+                if (!File.Exists(Path.Combine(candidate, OwnershipMarkerFileName)))
+                {
+                    Api.Diagnostics.Record(
+                        "RecycleBin.LegacyBatchNeedsReview",
+                        "Legacy-looking recycle batch '" + candidate + "' was not referenced by MediaDash history and will not be listed or deleted. After verifying MediaDash created it, create an empty '" + OwnershipMarkerFileName + "' file inside that batch to adopt it; otherwise move it out of the configured recycle root.");
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "Could not inspect custom recycle root {Root} for legacy batches", root);
+            Api.Diagnostics.Record("RecycleBin.LegacyMigrationFailed", "Could not inspect custom recycle root '" + root + "' for legacy batches: " + ex.Message);
+        }
+    }
 
     private static bool PathsEqual(string first, string second)
     {
