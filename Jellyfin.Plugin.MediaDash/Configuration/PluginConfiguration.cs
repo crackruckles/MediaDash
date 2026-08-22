@@ -199,6 +199,12 @@ public class PluginConfiguration : BasePluginConfiguration
     public string AnalyticsInstallId { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the consent schema version. Version 1 is written only by the new affirmative
+    /// opt-in UI; a missing/zero value identifies configuration created by the legacy default-on UI.
+    /// </summary>
+    public int AnalyticsConsentVersion { get; set; }
+
+    /// <summary>
     /// Gets or sets the maximum wanted video height in pixels (e.g. 1080). Files taller than this are flagged as oversized.
     /// </summary>
     public int MaxResolutionHeight { get; set; }
@@ -549,13 +555,14 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <returns>True when the configuration was changed.</returns>
     internal bool NormalizeAnalyticsConsent()
     {
-        if (!AnalyticsEnabled || System.Guid.TryParse(AnalyticsInstallId, out _))
+        if (AnalyticsConsentVersion >= 1)
         {
             return false;
         }
 
         AnalyticsEnabled = false;
         AnalyticsInstallId = string.Empty;
+        AnalyticsConsentVersion = 1;
         return true;
     }
 
