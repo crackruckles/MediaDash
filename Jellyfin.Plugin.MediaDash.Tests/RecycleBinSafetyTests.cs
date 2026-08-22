@@ -64,6 +64,31 @@ public class RecycleBinSafetyTests
         Assert.False(RecycleBin.IsOwnedBatchDirectory(batch, directories.DefaultRoot));
     }
 
+    [Fact]
+    public void HistoryReferencedLegacyBatchInCustomRootIsAdopted()
+    {
+        using var directories = new TemporaryDirectories();
+        var batch = directories.CreateBatch(directories.CustomRoot);
+        var recycledFile = Path.Combine(batch, "movie.mkv");
+        File.WriteAllText(recycledFile, "media");
+
+        Assert.True(RecycleBin.TryAdoptLegacyBatch(recycledFile, directories.CustomRoot));
+        Assert.True(File.Exists(Path.Combine(batch, RecycleBin.OwnershipMarkerFileName)));
+    }
+
+    [Fact]
+    public void HistoryPathNestedBelowAnUnrelatedFolderIsNotAdopted()
+    {
+        using var directories = new TemporaryDirectories();
+        var unrelated = Directory.CreateDirectory(Path.Combine(directories.CustomRoot, "unrelated")).FullName;
+        var batch = directories.CreateBatch(unrelated);
+        var recycledFile = Path.Combine(batch, "movie.mkv");
+        File.WriteAllText(recycledFile, "media");
+
+        Assert.False(RecycleBin.TryAdoptLegacyBatch(recycledFile, directories.CustomRoot));
+        Assert.False(File.Exists(Path.Combine(batch, RecycleBin.OwnershipMarkerFileName)));
+    }
+
     private sealed class TemporaryDirectories : IDisposable
     {
         private readonly string _root = Path.Combine(Path.GetTempPath(), "mediadash-tests-" + Guid.NewGuid().ToString("N"));
