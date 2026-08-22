@@ -490,14 +490,14 @@ public sealed class RecycleBin
 
     private static DateTime? TryParseRecycleTimestamp(string folderName)
     {
-        // Folder names are yyyyMMdd-HHmmss-fff-<8charGuid>. The first 18 chars are the timestamp.
-        if (folderName.Length < 18)
+        // Folder names are yyyyMMdd-HHmmss-fff-<8charGuid>. The first 19 chars are the timestamp.
+        if (folderName.Length < 19)
         {
             return null;
         }
 
         return DateTime.TryParseExact(
-            folderName[..18],
+            folderName[..19],
             "yyyyMMdd-HHmmss-fff",
             CultureInfo.InvariantCulture,
             System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal,
@@ -514,12 +514,12 @@ public sealed class RecycleBin
     internal static bool IsMediaDashBatchDirectory(string path)
     {
         var name = Path.GetFileName(Path.TrimEndingDirectorySeparator(path));
-        if (string.IsNullOrEmpty(name) || name.Length != 27 || name[18] != '-' || TryParseRecycleTimestamp(name) is null)
+        if (string.IsNullOrEmpty(name) || name.Length != 28 || name[19] != '-' || TryParseRecycleTimestamp(name) is null)
         {
             return false;
         }
 
-        for (var i = 19; i < name.Length; i++)
+        for (var i = 20; i < name.Length; i++)
         {
             if (!Uri.IsHexDigit(name[i]))
             {
