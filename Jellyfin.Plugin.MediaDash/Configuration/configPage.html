@@ -3615,7 +3615,7 @@
                     ['kor', 'Korean'], ['ara', 'Arabic'], ['hin', 'Hindi'], ['pol', 'Polish'], ['swe', 'Swedish'],
                     ['nor', 'Norwegian'], ['dan', 'Danish'], ['fin', 'Finnish'], ['tur', 'Turkish'], ['ces', 'Czech'],
                     ['ell', 'Greek'], ['heb', 'Hebrew'], ['tha', 'Thai'], ['vie', 'Vietnamese'], ['ukr', 'Ukrainian'],
-                    ['hun', 'Hungarian'], ['ron', 'Romanian'], ['fas', 'Persian (Farsi)']
+                    ['hun', 'Hungarian'], ['ron', 'Romanian'], ['fas', 'Persian (Farsi)'], ['bul', 'Bulgarian']
                 ]
             };
 
@@ -6043,7 +6043,7 @@
             var _langNamesCulturesLen = 0;
             function langNameMap() {
                 // Rebuild if cultures arrived after the first call — STR.languages alone only covers
-                // ~27 codes, but the datalist offers every Jellyfin culture. Chip commit compares
+                // ~28 codes, but the datalist offers every Jellyfin culture. Chip commit compares
                 // against this map, so anything outside it (e.g. "afr") gets silently rejected.
                 var culturesLen = (mdCulturesCache || []).length;
                 if (_langNames && culturesLen === _langNamesCulturesLen) return _langNames;
@@ -6615,7 +6615,7 @@
             var mdLangCache = null;
             var mdCulturesCache = null;
             function populateLanguageDatalist() {
-                // Core language shortlist only — the picker offers the same 27 codes that STR.languages
+                // Core language shortlist only — the picker offers the same 28 codes that STR.languages
                 // knows how to commit as chips. Larger lists (Jellyfin's full culture set) let users
                 // pick codes the chip input silently rejects.
                 var list = view.querySelector('#mdLangList');
