@@ -45,6 +45,13 @@ public static class LanguageHelper
         }
 
         var lang = language.Trim().ToLowerInvariant();
+
+        var regionSeparator = lang.IndexOfAny(['-', '_']);
+        if (regionSeparator >= 0)
+        {
+            lang = lang[..regionSeparator];
+        }
+
         // ISO 639-1 (2-letter) → 639-2/T (3-letter) via CultureInfo. Without this, an "en"-tagged track
         // never matches an allowed list of ["eng"] and gets flagged for removal — including the file's
         // only English audio track when Spanish also exists ("last audio" invariant wouldn't save it).
