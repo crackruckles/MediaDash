@@ -132,10 +132,15 @@ public sealed class TrickplayOptimizeScannerTests
     public void ShouldWalkMediaFolder_TrueWhenSettingOff_ButProbeFindsLegacy()
     {
         // Setting says data-folder, but one item still has an old media-folder sibling. Must walk.
-        var expectedSibling = Path.Combine(@"D:\lib", "b.trickplay");
+        var expectedSibling = Path.Combine("D:", "lib", "b.trickplay");
         var walk = TrickplayOptimizeScanner.ShouldWalkMediaFolder(
             saveTrickplayWithMedia: false,
-            sampleVideoPaths: new[] { @"D:\lib\a.mkv", @"D:\lib\b.mkv", @"D:\lib\c.mkv" },
+            sampleVideoPaths: new[]
+            {
+                Path.Combine("D:", "lib", "a.mkv"),
+                Path.Combine("D:", "lib", "b.mkv"),
+                Path.Combine("D:", "lib", "c.mkv")
+            },
             dirExists: p => string.Equals(p, expectedSibling, StringComparison.OrdinalIgnoreCase));
         Assert.True(walk);
     }
