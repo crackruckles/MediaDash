@@ -40,6 +40,7 @@ public sealed class SystemStats
 
     private static (long Idle, long Kernel, long User)? _lastWinCpu;
     private static (long Total, long Idle)? _lastLinuxCpu;
+    private static (long UsageMicros, DateTime SampleAt)? _lastCgroupCpu;
 
     private static List<GpuInfo>? _cachedNvidiaGpus;
     private static DateTime _lastGpuSample = DateTime.MinValue;
@@ -155,8 +156,12 @@ public sealed class SystemStats
                 }
                 else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
                 {
-                    stats.SystemCpuPercent = SampleLinuxCpuPercent();
-                    var mem = SampleLinuxMemory();
+                    // GitHub #12 (feedback): container users saw HOST memory and CPU numbers because
+                    // /proc/meminfo and /proc/stat inside a Docker container reflect the host, not
+                    // the cgroup. Prefer cgroup v2 → v1 sources when a limit is actually set; fall
+                    // back to /proc when the container is unbounded (host view IS the truth in that case).
+                    stats.SystemCpuPercent = SampleCgroupCpuPercent() ?? SampleLinuxCpuPercent();
+                    var mem = SampleCgroupMemory() ?? SampleLinuxMemory();
                     if (mem is not null)
                     {
                         stats.SystemRamUsedBytes = mem.Value.Used;
@@ -411,6 +416,215 @@ public sealed class SystemStats
             Diagnostics.Record("SystemStats.Linux", ex.Message);
             return null;
         }
+    }
+
+    // cgroup v2 leaf (unified hierarchy): /sys/fs/cgroup/{memory,cpu}.*
+    // cgroup v1: /sys/fs/cgroup/memory/memory.{limit,usage}_in_bytes + /sys/fs/cgroup/cpu*/cpu.cfs_*.
+    // Docker/Kubernetes/containerd expose whichever the host kernel runs. We probe v2 first because
+    // every recent kernel defaults to it; v1 is the fallback for older hosts still on cgroups v1.
+    //
+    // Convention across both helpers: return null when the container has NO explicit limit — the
+    // caller then falls through to /proc/meminfo or /proc/stat, which show the host's honest total
+    // (that IS the correct answer when unbounded). We only override the /proc view when a real
+    // constraint exists.
+
+    [SupportedOSPlatform("linux")]
+    private static (long Used, long Total)? SampleCgroupMemory()
+    {
+        // Cheap early-out on hosts where the sysfs cgroup tree doesn't exist (macOS/WSL1/etc.).
+        if (!Directory.Exists("/sys/fs/cgroup"))
+        {
+            return null;
+        }
+
+        try
+        {
+            // v2 unified hierarchy: single memory.max / memory.current files at the group root.
+            if (TryReadCgroupBytes("/sys/fs/cgroup/memory.max") is long v2Max
+                && TryReadCgroupBytes("/sys/fs/cgroup/memory.current") is long v2Used)
+            {
+                return (Math.Min(v2Used, v2Max), v2Max);
+            }
+
+            // v1: split hierarchy under memory/ controller. limit_in_bytes on an unlimited group
+            // reports LONG_MAX-ish (9223372036854771712 on x86_64), which we treat as "no limit".
+            if (TryReadCgroupBytes("/sys/fs/cgroup/memory/memory.limit_in_bytes") is long v1Max
+                && TryReadCgroupBytes("/sys/fs/cgroup/memory/memory.usage_in_bytes") is long v1Used)
+            {
+                return (Math.Min(v1Used, v1Max), v1Max);
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+
+        return null;
+    }
+
+    [SupportedOSPlatform("linux")]
+    private static double? SampleCgroupCpuPercent()
+    {
+        if (!Directory.Exists("/sys/fs/cgroup"))
+        {
+            return null;
+        }
+
+        try
+        {
+            // cgroup v2: cpu.max = "<quota> <period>" or "max <period>" for unbounded.
+            // Report percent-of-quota so a 200% container using both allocated cores reads 100%.
+            var v2Quota = TryReadCgroupCpuQuotaMicros("/sys/fs/cgroup/cpu.max");
+            if (v2Quota is not null)
+            {
+                return SampleCgroupCpuUsagePercent("/sys/fs/cgroup/cpu.stat", v2Quota.Value, isV2: true);
+            }
+
+            // cgroup v1: cpu.cfs_quota_us == -1 means unlimited.
+            var v1QuotaMicros = TryReadCgroupInt("/sys/fs/cgroup/cpu/cpu.cfs_quota_us");
+            var v1PeriodMicros = TryReadCgroupInt("/sys/fs/cgroup/cpu/cpu.cfs_period_us");
+            if (v1QuotaMicros is long q && q > 0 && v1PeriodMicros is long p && p > 0)
+            {
+                return SampleCgroupCpuUsagePercent("/sys/fs/cgroup/cpuacct/cpuacct.usage", (q, p), isV2: false);
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+
+        return null;
+    }
+
+    private static (long Quota, long Period)? TryReadCgroupCpuQuotaMicros(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        var raw = File.ReadAllText(path).Trim();
+        var parts = raw.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length != 2)
+        {
+            return null;
+        }
+
+        // "max <period>" = unlimited — bail so the caller falls through to /proc.
+        if (string.Equals(parts[0], "max", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (!long.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var quota)
+            || !long.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var period)
+            || quota <= 0 || period <= 0)
+        {
+            return null;
+        }
+
+        return (quota, period);
+    }
+
+    // Rolling delta between polls. State kept in _lastCgroupCpu (declared alongside _lastLinuxCpu below).
+    private static double? SampleCgroupCpuUsagePercent(string usagePath, (long Quota, long Period) qp, bool isV2)
+    {
+        long usageMicros;
+        if (isV2)
+        {
+            // cpu.stat format is line-oriented: "usage_usec <n>\nuser_usec <n>\n..."
+            if (!File.Exists(usagePath))
+            {
+                return null;
+            }
+
+            usageMicros = 0;
+            foreach (var line in File.ReadLines(usagePath))
+            {
+                if (line.StartsWith("usage_usec ", StringComparison.Ordinal))
+                {
+                    long.TryParse(line.AsSpan("usage_usec ".Length), NumberStyles.Integer, CultureInfo.InvariantCulture, out usageMicros);
+                    break;
+                }
+            }
+
+            if (usageMicros <= 0)
+            {
+                return null;
+            }
+        }
+        else
+        {
+            // cgroup v1 cpuacct.usage is nanoseconds — convert to micros to match v2.
+            var raw = TryReadCgroupInt(usagePath);
+            if (raw is null || raw.Value <= 0)
+            {
+                return null;
+            }
+
+            usageMicros = raw.Value / 1000;
+        }
+
+        var now = DateTime.UtcNow;
+        if (_lastCgroupCpu is null)
+        {
+            _lastCgroupCpu = (usageMicros, now);
+            return null;
+        }
+
+        var prev = _lastCgroupCpu.Value;
+        _lastCgroupCpu = (usageMicros, now);
+
+        var wallMicros = (long)(now - prev.SampleAt).TotalMicroseconds;
+        if (wallMicros <= 0)
+        {
+            return null;
+        }
+
+        var usedMicros = usageMicros - prev.UsageMicros;
+        if (usedMicros < 0)
+        {
+            return null;
+        }
+
+        // quota / period = allowed cores. usedMicros / wallMicros = actual cores. Ratio × 100 = %.
+        var allowedCores = (double)qp.Quota / qp.Period;
+        if (allowedCores <= 0)
+        {
+            return null;
+        }
+
+        var usedCores = (double)usedMicros / wallMicros;
+        return Math.Clamp(usedCores / allowedCores * 100.0, 0, 100);
+    }
+
+    private static long? TryReadCgroupBytes(string path) => TryReadCgroupInt(path);
+
+    private static long? TryReadCgroupInt(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        var raw = File.ReadAllText(path).Trim();
+        if (string.Equals(raw, "max", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        // v1 memory.limit_in_bytes on an unlimited group is a huge sentinel just below LONG_MAX
+        // rounded to the page size. Treat anything within a couple of pages of LONG_MAX as unlimited.
+        if (!long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) || v <= 0)
+        {
+            return null;
+        }
+
+        return v >= long.MaxValue - 8192 ? null : v;
     }
 
     private static long ParseMeminfoLine(string line)

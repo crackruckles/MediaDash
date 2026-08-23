@@ -47,16 +47,19 @@ public sealed partial class DuplicateScanner : IScanner
     };
 
     private readonly FfprobeService _ffprobe;
+    private readonly FileHasher _hasher;
     private readonly ILogger<DuplicateScanner> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DuplicateScanner"/> class.
     /// </summary>
     /// <param name="ffprobe">The probe service, used to rank copies by quality.</param>
+    /// <param name="hasher">SHA-256 hasher for Tier-0 byte-identical confirmation. Only invoked within a formed group of same-size candidates.</param>
     /// <param name="logger">The logger.</param>
-    public DuplicateScanner(FfprobeService ffprobe, ILogger<DuplicateScanner> logger)
+    public DuplicateScanner(FfprobeService ffprobe, FileHasher hasher, ILogger<DuplicateScanner> logger)
     {
         _ffprobe = ffprobe;
+        _hasher = hasher;
         _logger = logger;
     }
 
@@ -72,34 +75,42 @@ public sealed partial class DuplicateScanner : IScanner
         foreach (var item in items)
         {
             var key = GetGroupKey(item);
-            if (key is null)
+            if (key is null || string.IsNullOrEmpty(item.Path))
             {
                 continue;
             }
 
-            foreach (var path in MediaFileHelper.GetFilePaths(item))
+            // Only the item's primary path. MediaFileHelper.GetFilePaths also yields every
+            // LocalAlternateVersions[] path — those are user-declared merged versions (or a
+            // scraper auto-merged them), i.e. intentional by definition. Feeding them here made
+            // DuplicateScanner flag them against each other and pick a "keeper" for each merged
+            // Movie/Episode item, which is exactly the "all episodes of Firefly / Doctor Who
+            // Classic / Six Million Dollar Man look like duplicates of one keeper" symptom in the
+            // 2026-08-21 field report (A4). True cross-item duplicates (two distinct Jellyfin
+            // items whose paths happen to collide, or two items that scraped to the same
+            // provider ID) still surface via the group key.
+            var path = item.Path;
+            if (IsSidecarPath(path))
             {
-                // Jellyfin sidecars (theme.mp3, themevideo.*, files inside extras/trailers/behind
-                // the scenes/etc folders) share a filename across every show or movie folder and
-                // would otherwise pile up as false-positive duplicates. Skip them at group-build
-                // time so nothing about them reaches SplitByEdition or RankGroupAsync.
-                // Doc: https://jellyfin.org/docs/general/server/media/movies/#extras
-                if (IsSidecarPath(path))
-                {
-                    continue;
-                }
-
-                if (!groups.TryGetValue(key, out var list))
-                {
-                    list = [];
-                    groups[key] = list;
-                }
-
-                list.Add((item, path));
+                continue;
             }
+
+            if (!groups.TryGetValue(key, out var list))
+            {
+                list = [];
+                groups[key] = list;
+            }
+
+            list.Add((item, path));
         }
 
-        var duplicateGroups = groups.Where(g => g.Value.Select(v => v.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1).ToList();
+        // Same-item collapse: a group whose entries all share one BaseItem.Id is not a duplication
+        // finding — the user's library has one item there. Belt-and-braces alongside the
+        // "only primary path" change above.
+        var duplicateGroups = groups
+            .Where(g => g.Value.Select(v => v.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
+            .Where(g => g.Value.Select(v => v.Item.Id).Distinct().Count() > 1)
+            .ToList();
 
         // Skip groups where any copy is younger than DuplicateMinAgeDays — Jellyfin's metadata scrape hasn't
         // stabilised yet, so a fresh import can transiently look like a duplicate of itself before provider IDs
@@ -398,9 +409,40 @@ public sealed partial class DuplicateScanner : IScanner
 
         var ranked = Rank(candidates, Config.KeeperPolicyOrder, Config.CodecPreferenceOrder);
         var keeper = ranked[0];
+        var tier = DuplicateSignals.TierForKey(groupKey);
         var issues = new List<Issue>();
         foreach (var loser in ranked.Skip(1))
         {
+            // Exact byte-match check is opt-in and only worth doing when sizes match — different
+            // sizes cannot be byte-identical, and hashing them wastes IO. FileHasher caches by
+            // (path, size, mtime) so a re-scan pays no disk cost on unchanged files.
+            var hashesMatch = false;
+            if (Config.DuplicateExactHashEnabled && keeper.Size == loser.Size && keeper.Size > 0)
+            {
+                var keeperHash = await _hasher.HashAsync(keeper.Path, cancellationToken).ConfigureAwait(false);
+                var loserHash = await _hasher.HashAsync(loser.Path, cancellationToken).ConfigureAwait(false);
+                hashesMatch = keeperHash is not null && loserHash is not null
+                    && string.Equals(keeperHash, loserHash, StringComparison.Ordinal);
+            }
+
+            var sameDirectoryDistinctStems = SameDirectoryDistinctStems(keeper.Path, loser.Path);
+            var (confidence, vetoed, signals) = ScorePair(keeper, loser, tier, sameDirectoryDistinctStems, hashesMatch, Config);
+            if (vetoed)
+            {
+                _logger.LogDebug("Duplicate pair vetoed for '{Loser}' vs keeper '{Keeper}' (groupKey {GroupKey}, tier {Tier})", loser.Path, keeper.Path, groupKey, tier);
+                continue;
+            }
+
+            var detailsJson = JsonSerializer.Serialize(new
+            {
+                groupKey,
+                keeperPath = keeper.Path,
+                keeper = new { keeper.Resolution, keeper.Codec, keeper.Size, keeper.Bitrate },
+                thisCopy = new { loser.Resolution, loser.Codec, loser.Size, loser.Bitrate },
+                confidence,
+                signals
+            });
+
             issues.Add(new Issue
             {
                 Type = IssueType.Duplicate,
@@ -409,22 +451,121 @@ public sealed partial class DuplicateScanner : IScanner
                 Status = IssueStatus.Detected,
                 DetectedAtUtc = DateTime.UtcNow,
                 SizeSavings = loser.Size,
+                Confidence = confidence,
                 SuggestedFix = string.Format(
                     CultureInfo.InvariantCulture,
-                    "Safe to delete — a better copy exists ({0}, {1}).",
+                    "Safe to delete — a better copy exists ({0}, {1}, confidence {2:F2}).",
                     keeper.Resolution,
-                    keeper.Codec.ToUpperInvariant()),
-                DetailsJson = JsonSerializer.Serialize(new
-                {
-                    groupKey,
-                    keeperPath = keeper.Path,
-                    keeper = new { keeper.Resolution, keeper.Codec, keeper.Size, keeper.Bitrate },
-                    thisCopy = new { loser.Resolution, loser.Codec, loser.Size, loser.Bitrate }
-                })
+                    keeper.Codec.ToUpperInvariant(),
+                    confidence),
+                DetailsJson = detailsJson
             });
         }
 
         return issues;
+    }
+
+    /// <summary>
+    /// Scores a keeper↔loser candidate pair per the duplicate confidence ladder. Pure/deterministic —
+    /// all IO (hash comparison, filesystem stems) is done by the caller and passed in.
+    /// See docs/field-reports (2026-08-22 duplicate rework spec §2, §4).
+    /// </summary>
+    /// <param name="keeper">The candidate the ranker chose to keep.</param>
+    /// <param name="loser">The candidate under evaluation.</param>
+    /// <param name="tier">Tier derived from the group key (via <see cref="DuplicateSignals.TierForKey"/>).</param>
+    /// <param name="sameDirectoryDistinctStems">True when both files sit in the same folder with different filename stems — the #3 shape of intentional distinct files sharing a bad metadata slot.</param>
+    /// <param name="hashesMatch">True when caller already confirmed byte-identical (same size + same SHA-256).</param>
+    /// <param name="cfg">Plugin config providing the veto thresholds.</param>
+    /// <returns>Confidence in [0,1], whether the pair was vetoed (skip emission entirely), and a signals dict for DetailsJson.</returns>
+    internal static (double Confidence, bool Vetoed, IReadOnlyDictionary<string, object?> Signals) ScorePair(
+        Candidate keeper,
+        Candidate loser,
+        ConfidenceTier tier,
+        bool sameDirectoryDistinctStems,
+        bool hashesMatch,
+        Configuration.PluginConfiguration cfg)
+    {
+        var jaccard = DuplicateSignals.TitleTokenJaccard(
+            System.IO.Path.GetFileName(keeper.Path),
+            System.IO.Path.GetFileName(loser.Path));
+        var runtimeDelta = DuplicateSignals.RuntimeDeltaFraction(keeper.Item?.RunTimeTicks, loser.Item?.RunTimeTicks);
+
+        var signals = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["tier"] = tier.ToString(),
+            ["titleJaccard"] = double.IsNaN(jaccard) ? null : jaccard,
+            ["runtimeDelta"] = runtimeDelta,
+            ["sameDirectoryDistinctStems"] = sameDirectoryDistinctStems,
+            ["hashesMatch"] = hashesMatch
+        };
+
+        // Tier 0: byte-identical wins outright — no veto path can override.
+        if (hashesMatch)
+        {
+            signals["appliedTier"] = ConfidenceTier.Exact.ToString();
+            return (1.0, Vetoed: false, signals);
+        }
+
+        // Vetoes apply to Tier 1 (Identified) and Tier 2 (Heuristic). Title-token veto is
+        // skipped when the signal is NaN — the caller literally cannot judge it, so we fall
+        // back to the runtime veto alone. Do NOT collapse NaN to 0.0 here (would veto
+        // everything unnamed after noise-stripping).
+        if (!double.IsNaN(jaccard) && jaccard < cfg.DuplicateTitleJaccardVeto)
+        {
+            signals["vetoReason"] = "titleJaccardBelowThreshold";
+            return (0.0, Vetoed: true, signals);
+        }
+
+        if (runtimeDelta is double delta && delta > (cfg.DuplicateRuntimeVetoPct / 100.0))
+        {
+            signals["vetoReason"] = "runtimeDeltaExceedsThreshold";
+            return (0.0, Vetoed: true, signals);
+        }
+
+        var confidence = tier == ConfidenceTier.Identified ? 0.90 : 0.70;
+
+        // Soft adjustments only for the Heuristic tier — Identified matches already carry
+        // provider-ID evidence and don't need to be inflated further.
+        if (tier == ConfidenceTier.Heuristic)
+        {
+            if (!double.IsNaN(jaccard) && jaccard >= 0.80)
+            {
+                confidence += 0.15;
+            }
+
+            if (runtimeDelta is double d && d <= 0.05)
+            {
+                confidence += 0.10;
+            }
+
+            if (sameDirectoryDistinctStems)
+            {
+                confidence -= 0.25;
+            }
+        }
+
+        confidence = Math.Clamp(confidence, 0.0, 1.0);
+        signals["appliedTier"] = tier.ToString();
+        return (confidence, Vetoed: false, signals);
+    }
+
+    private static bool SameDirectoryDistinctStems(string keeperPath, string loserPath)
+    {
+        var kDir = Path.GetDirectoryName(keeperPath);
+        var lDir = Path.GetDirectoryName(loserPath);
+        if (string.IsNullOrEmpty(kDir) || string.IsNullOrEmpty(lDir))
+        {
+            return false;
+        }
+
+        if (!string.Equals(kDir, lDir, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var kStem = Path.GetFileNameWithoutExtension(keeperPath);
+        var lStem = Path.GetFileNameWithoutExtension(loserPath);
+        return !string.Equals(kStem, lStem, StringComparison.OrdinalIgnoreCase);
     }
 
     internal static List<Candidate> Rank(List<Candidate> candidates, string[] keeperPolicyOrder, string[] codecOrder)

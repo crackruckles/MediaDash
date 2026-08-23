@@ -54,6 +54,9 @@ public abstract class ProbingScannerBase : IScanner
             return issues;
         }
 
+        // Uses the concrete scanner's type name (DuplicateScanner, PlayabilityScanner, …) so the
+        // Overview activity line shows *what* is running, not just a file path.
+        var label = GetType().Name;
         try
         {
             for (var i = 0; i < items.Count; i++)
@@ -62,6 +65,15 @@ public abstract class ProbingScannerBase : IScanner
                 var item = items[i];
                 foreach (var path in MediaFileHelper.GetFilePaths(item))
                 {
+                    // Skip files an earlier scanner in this run already flagged for deletion
+                    // (Duplicate losers, MalwareRisk executables, orphaned debris). No point spending
+                    // ffprobe + thorough-decode time on a file the fix queue is about to delete.
+                    if (Plugin.IsDoomed(path))
+                    {
+                        continue;
+                    }
+
+                    Plugin.CurrentActivityLabel = label;
                     Plugin.CurrentActivity = path;
                     try
                     {
@@ -98,6 +110,7 @@ public abstract class ProbingScannerBase : IScanner
         finally
         {
             Plugin.CurrentActivity = null;
+            Plugin.CurrentActivityLabel = null;
         }
 
         return issues;

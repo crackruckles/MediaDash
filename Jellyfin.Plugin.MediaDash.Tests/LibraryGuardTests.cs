@@ -34,6 +34,24 @@ public class LibraryGuardTests
     }
 
     [Fact]
+    public void WindowsDriveRootMatchesAnySubpath()
+    {
+        // 2026-08-23 regression: Path.TrimEndingDirectorySeparator("C:\\") preserves the trailing
+        // slash on .NET 5+ (drive roots aren't stripped because "C:" alone isn't a valid rooted
+        // path). The old boundary check then read fullPath[fullRoot.Length] and expected a
+        // separator, but that position was already PAST the separator. SMART/library-drive
+        // detection on Windows silently returned false for every subpath of C:\\.
+        if (!System.OperatingSystem.IsWindows())
+        {
+            return; // Path semantics differ on Linux/macOS; the drive-root case is Windows-specific.
+        }
+
+        Assert.True(LibraryGuard.IsUnder(@"C:\Users\me\file.txt", @"C:\"));
+        Assert.True(LibraryGuard.IsUnder(@"C:\", @"C:\"));
+        Assert.False(LibraryGuard.IsUnder(@"D:\Users\me\file.txt", @"C:\"));
+    }
+
+    [Fact]
     public void PathTraversalAttemptIsRejected()
     {
         // File browser: user posts a path with ".." to escape the library. GetFullPath must be called first

@@ -65,6 +65,13 @@ public static class SmartHealthProbe
                 var result = ProbeBlocking(driveRoot);
                 Cache[driveRoot] = new CacheEntry(result, DateTime.UtcNow);
             }
+            catch (Exception ex)
+            {
+                // Fire-and-forget: no caller observes the exception. Surface via Diagnostics so a
+                // repeated crash (unexpected exception, not a normal Unknown result) is visible
+                // instead of the Overview silently sitting on "Checking SMART status…" forever.
+                Diagnostics.Record("SmartHealth.ProbeCrashed", "SMART probe crashed for " + driveRoot + ": " + ex.Message + ". Overview will retry after the next TTL.");
+            }
             finally
             {
                 InFlight.TryRemove(driveRoot, out _);
@@ -253,17 +260,26 @@ public static class SmartHealthProbe
                     }
                 }
 
+                var isPermissionDenied = firstMessage.Contains("Permission denied", StringComparison.OrdinalIgnoreCase);
                 var hint = firstMessage;
-                if (firstMessage.Contains("Permission denied", StringComparison.OrdinalIgnoreCase))
+                if (isPermissionDenied)
                 {
-                    hint = "smartctl needs CAP_SYS_RAWIO to read SMART on " + device + ". On Linux with the jellyfin-server package: `sudo setcap 'cap_sys_rawio+ep' $(which smartctl)`. Docker: run the container with `--cap-add=SYS_RAWIO --device=" + device + "`.";
+                    hint = "smartctl needs CAP_SYS_RAWIO to read SMART on " + device + ". On Linux with the jellyfin-server package: `sudo setcap 'cap_sys_rawio+ep' $(which smartctl)`. Docker: run the container with `--cap-add=SYS_RAWIO --device=" + device + "` (the --device flag is required — a mount alone does not expose the block device inside the container).";
                 }
                 else if (string.IsNullOrEmpty(firstMessage))
                 {
                     hint = "smartctl exited " + exit.GetInt32() + " on " + device + " without a diagnostic message.";
                 }
 
-                Diagnostics.Record("SmartHealth", "smartctl exit_status=" + exit.GetInt32() + " on " + device + ": " + (firstMessage.Length > 0 ? firstMessage : "(no message)"));
+                // Permission-denied is an expected outcome for unprivileged Jellyfin; the Overview
+                // Storage-health card already surfaces the setcap/--cap-add hint via the returned
+                // SmartHealthResult. Recording it to the persistent Errors tab as well is duplicate
+                // noise for a host-level config issue the plugin can't itself fix.
+                if (!isPermissionDenied)
+                {
+                    Diagnostics.Record("SmartHealth", "smartctl exit_status=" + exit.GetInt32() + " on " + device + ": " + (firstMessage.Length > 0 ? firstMessage : "(no message)"));
+                }
+
                 return new SmartHealthResult(SmartHealth.Unknown, hint);
             }
 
@@ -413,6 +429,25 @@ public static class SmartHealthProbe
             return trimmed.Length >= 2 && trimmed[1] == ':' ? trimmed[..2] : trimmed;
         }
 
+        var raw = ResolveDeviceViaDf(driveRoot);
+        if (raw is null)
+        {
+            return null;
+        }
+
+        // df returns the PARTITION or virtual device (/dev/sda1, /dev/nvme0n1p1, /dev/mapper/vg0-x,
+        // /dev/dm-0, /dev/md0). smartctl mostly wants the underlying disk. Walk up with lsblk to the
+        // physical parent — /dev/sda1 → /dev/sda, /dev/nvme0n1p1 → /dev/nvme0n1, /dev/dm-0 → the
+        // first PV disk. Where lsblk can't resolve (multi-PV LVM, MD, ZFS pool) we return null and
+        // the caller surfaces "SMART not supported on virtual device" with a hint.
+        // GitHub #6 + #12-SMART: users on other plugins see SMART because those plugins do this
+        // walk-up. Passing /dev/sdb1 to smartctl on some drivers returns "This device is a
+        // partition of the disk /dev/sdb" with a non-zero exit → we used to report Unknown forever.
+        return ResolveParentDisk(raw) ?? raw;
+    }
+
+    private static string? ResolveDeviceViaDf(string driveRoot)
+    {
         try
         {
             // Use ArgumentList so spaces / special chars in the mount path don't tokenize into two
@@ -432,20 +467,20 @@ public static class SmartHealthProbe
                 return null;
             }
 
-            foreach (var raw in p.StandardOutput.ReadToEnd().Split('\n'))
+            foreach (var line in p.StandardOutput.ReadToEnd().Split('\n'))
             {
-                var line = raw.Trim();
-                if (line.Length == 0 || line.Equals("Filesystem", StringComparison.OrdinalIgnoreCase))
+                var trimmed = line.Trim();
+                if (trimmed.Length == 0 || trimmed.Equals("Filesystem", StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
 
-                if (line.StartsWith("/dev/", StringComparison.Ordinal))
+                if (trimmed.StartsWith("/dev/", StringComparison.Ordinal))
                 {
                     // Trim to the first whitespace-delimited token — some filesystem drivers produce
-                    // trailing text on the source column (e.g. "/dev/sda1 extra"), which would otherwise
-                    // flow into the smartctl arg list. Compounds Finding #1's argument-injection risk.
-                    var device = line.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
+                    // trailing text on the source column ("/dev/sda1 extra") which would otherwise
+                    // flow into the smartctl arg list.
+                    var device = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
                     device = device.Split('\t', StringSplitOptions.RemoveEmptyEntries)[0];
                     return device;
                 }
@@ -454,6 +489,87 @@ public static class SmartHealthProbe
         catch (System.ComponentModel.Win32Exception)
         {
             // df not available on this host — no auto-mapping possible.
+        }
+        catch (IOException)
+        {
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Walks a partition or device-mapper node up to its parent physical disk via <c>lsblk</c>.
+    /// Internal for tests. Returns <c>null</c> when lsblk isn't available, when the input is already
+    /// a top-level disk (PKNAME empty), or when the resolution chain hits a virtual pool device
+    /// that smartctl can't check (multi-device MD/dm/ZFS).
+    /// </summary>
+    /// <param name="devicePath">Absolute device path like <c>/dev/sda1</c>.</param>
+    /// <returns>The parent disk path (e.g. <c>/dev/sda</c>), or null when unresolvable.</returns>
+    internal static string? ResolveParentDisk(string devicePath)
+    {
+        if (string.IsNullOrEmpty(devicePath) || !devicePath.StartsWith("/dev/", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        // Walk up at most three levels so we don't loop forever on a pathological config.
+        // Typical chain: partition → disk (1 hop). LVM on a partition: dm-0 → sda1 → sda (2 hops).
+        var current = devicePath;
+        for (var i = 0; i < 3; i++)
+        {
+            var pkname = InvokeLsblkPkname(current);
+            if (string.IsNullOrEmpty(pkname))
+            {
+                // Empty PKNAME means this device IS the top-level disk. Return it as-is.
+                return i == 0 ? null : current;
+            }
+
+            current = "/dev/" + pkname;
+        }
+
+        return current;
+    }
+
+    private static string? InvokeLsblkPkname(string devicePath)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("lsblk")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            psi.ArgumentList.Add("-no");
+            psi.ArgumentList.Add("PKNAME");
+            psi.ArgumentList.Add(devicePath);
+            using var p = Process.Start(psi);
+            if (p is null || !p.WaitForExit(1500))
+            {
+                return null;
+            }
+
+            if (p.ExitCode != 0)
+            {
+                return null;
+            }
+
+            // lsblk prints one line per level — for a partition on a plain disk it's a single
+            // "sda\n". For a partition that has children (rare — bind-mounts, holders) it may
+            // print multiple. First non-blank line is the immediate parent.
+            foreach (var raw in p.StandardOutput.ReadToEnd().Split('\n'))
+            {
+                var trimmed = raw.Trim();
+                if (trimmed.Length > 0)
+                {
+                    return trimmed;
+                }
+            }
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // lsblk not installed — fall through, caller uses df result verbatim.
         }
         catch (IOException)
         {

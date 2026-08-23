@@ -1,352 +1,351 @@
 {
-  "tagline": "Держит вашу библиотеку компактной и воспроизводимой — находит дубликаты, сломанные файлы, чрезмерно большие кодировки и нежелательные языковые дорожки, а затем безопасно их исправляет.",
-  "scanIdle": "Последнее сканирование: {0}",
-  "scanNever": "Сканирование ещё не выполнялось. Нажмите \"Сканировать сейчас\", чтобы проверить свои библиотеки.",
-  "scanRunning": "Сканирование библиотек… {0}%",
-  "scanStarting": "Запуск сканирования…",
-  "scanDone": "Сканирование завершено — найдено {0} открытых проблем.",
-  "scanNowLabel": "Сканировать сейчас",
-  "stopScanLabel": "Остановить сканирование",
-  "fixRunning": "Применение исправлений… {0}%",
-  "fixStarting": "Запуск исправлений…",
-  "fixNowLabel": "Выполнить исправления сейчас",
-  "stopFixLabel": "Остановить исправления",
-  "fixDone": "Прогон исправлений завершён — подробности в Истории.",
-  "fixNothingToDo": "Пока нечего исправлять — одобрите проблемы на вкладке Проблемы или переключите тип на \"Исправлять автоматически\" в Настройках и нажмите снова.",
-  "dryRunOn": "Одобренные исправления только имитируются и записываются в Историю. Когда план вас устроит, выключите тестовый режим, чтобы MediaDash вносил реальные изменения.",
-  "diskContext": "{0} свободно из {1} на дисках библиотеки",
-  "driveStorage": "Хранилище диска библиотеки",
-  "driveUsed": "{0} использовано из {1}",
-  "driveFree": "{0} свободно",
-  "systemStats": "Производительность системы",
-  "statCpu": "ЦП",
-  "statRam": "Память",
-  "statGpu": "ГП",
-  "statCpuHint": "По всей системе на {0} ядрах",
-  "statRamHint": "{0} использовано из {1}",
-  "statGpuHint": "через {0}",
-  "statGpuMissing": "Счётчик ГП недоступен на этом хосте",
-  "statUnavailable": "Н/Д на {0}",
-  "statUnknown": "—",
-  "statPlatform": "Хост: {0}",
-  "totalSavings": "Место, которое можно освободить",
-  "whereSavings": "Где скрыта экономия",
-  "issuesByType": "Найденные проблемы",
-  "noIssues": "Проблем не найдено — ваша библиотека в порядке. Новые сканирования выполняются автоматически каждую ночь.",
-  "noHistory": "Пока ничего не исправлено. Исправления появляются здесь после прогона, с кнопкой Восстановить для всего восстанавливаемого.",
-  "allTypes": "Все типы проблем",
-  "showingOf": "Показаны первые {0} из {1} проблем. Используйте фильтр выше, чтобы сузить список.",
-  "approve": "Одобрить",
-  "approveHint": "Ставит это исправление в очередь на следующий прогон.",
-  "dismiss": "Отклонить",
-  "dismissHint": "Скрывает эту проблему навсегда; будущие сканирования не будут её сообщать.",
-  "approveAll": "Одобрить все {0} показанные",
-  "approveAllTypes": "Одобрить все {0} проблемы (все типы)",
-  "approveAllNote": "Одобряет все проблемы из текущего списка — каждая будет исправлена при следующем прогоне.",
-  "approved": "Одобрено — будет обработано при следующем прогоне.",
-  "dismissed": "Отклонено.",
-  "restore": "Восстановить",
-  "restoreHint": "Возвращает файл ровно туда, где он был.",
-  "restored": "Восстановлено.",
-  "restoreFailed": "Не удалось восстановить: {0}",
-  "spaceSavedToDate": "Сэкономленное место на сегодня: {0}",
-  "dryRunBadge": "тестовый",
-  "saved": "Сохранено.",
-  "confirmAuto": "Автоматический режим будет менять файлы каждую ночь без запросов. Удалённые файлы попадают в корзину (если не задано постоянное удаление). Продолжить?",
-  "confirmPermanent": "Постоянное удаление означает, что удалённые файлы НЕЛЬЗЯ будет восстановить. Уверены?",
-  "confirmEmptyBin": "Удалить навсегда всё в корзине? Восстановление этих файлов будет невозможно.",
-  "confirmReset": "Очистить все обнаруженные проблемы и кэши сондирования/декодирования? История исправлений и корзина сохраняются. Файлы медиа не затрагиваются.",
-  "resetDone": "Данные сканирования очищены — нажмите \"Сканировать сейчас\", чтобы начать заново.",
-  "resetBusy": "Сброс сейчас невозможен: выполняется сканирование или исправление. Подождите завершения и попробуйте снова.",
-  "binHolding": "Сейчас содержит {0} файл(ов) ({1}).",
-  "binEmpty": "Корзина пуста.",
-  "binViewHide": "Скрыть содержимое",
-  "binViewShow": "Показать содержимое",
-  "binRestoreHint": "Чтобы вернуть файл, используйте кнопку Восстановить на вкладке История.",
-  "modeOff": "Выкл — даже не сканировать",
-  "modeDetect": "Только обнаруживать — просто показать",
-  "modeManual": "Сначала спрашивать",
-  "modeAuto": "Исправлять автоматически",
-  "disposalRecycle": "Корзина (можно восстановить)",
-  "disposalPermanent": "Удалить навсегда",
-  "unitMbps": "{0} Мбит/с",
-  "unitPercent": "{0}%",
-  "unitDays": "{0} дней",
-  "types": {
-    "Duplicate": {
-      "title": "Дубликаты",
-      "hint": "Один и тот же фильм или эпизод существует более одного раза.",
-      "action": "Удалить эту копию",
-      "actionHint": "Ставит удаление этой копии в очередь на следующий прогон; лучшая копия остаётся.",
-      "approveAll": "Удалить все {0} показанные дубликаты",
-      "doRecycle": "Удалить худшую копию — восстановима из корзины",
-      "doPermanent": "Удалить худшую копию — навсегда"
+    "tagline": "Держит вашу библиотеку компактной и воспроизводимой — находит дубликаты, сломанные файлы, чрезмерно большие кодировки и нежелательные языковые дорожки, а затем безопасно их исправляет.",
+    "scanIdle": "Последнее сканирование: {0}",
+    "scanNever": "Сканирование ещё не выполнялось. Нажмите \"Сканировать сейчас\", чтобы проверить свои библиотеки.",
+    "scanRunning": "Сканирование библиотек… {0}%",
+    "scanStarting": "Запуск сканирования…",
+    "scanDone": "Сканирование завершено — найдено {0} открытых проблем.",
+    "scanNowLabel": "Сканировать сейчас",
+    "stopScanLabel": "Остановить сканирование",
+    "fixRunning": "Применение исправлений… {0}%",
+    "fixStarting": "Запуск исправлений…",
+    "fixNowLabel": "Выполнить исправления сейчас",
+    "stopFixLabel": "Остановить исправления",
+    "fixDone": "Прогон исправлений завершён — подробности в Истории.",
+    "fixNothingToDo": "Пока нечего исправлять — одобрите проблемы на вкладке Проблемы или переключите тип на \"Исправлять автоматически\" в Настройках и нажмите снова.",
+    "dryRunOn": "Одобренные исправления только имитируются и записываются в Историю. Когда план вас устроит, выключите тестовый режим, чтобы MediaDash вносил реальные изменения.",
+    "diskContext": "{0} свободно из {1} на дисках библиотеки",
+    "driveStorage": "Хранилище диска библиотеки",
+    "driveUsed": "{0} использовано из {1}",
+    "driveFree": "{0} свободно",
+    "systemStats": "Производительность системы",
+    "statCpu": "ЦП",
+    "statRam": "Память",
+    "statGpu": "ГП",
+    "statCpuHint": "По всей системе на {0} ядрах",
+    "statRamHint": "{0} использовано из {1}",
+    "statGpuHint": "через {0}",
+    "statGpuMissing": "Счётчик ГП недоступен на этом хосте",
+    "statUnavailable": "Н/Д на {0}",
+    "statUnknown": "—",
+    "statPlatform": "Хост: {0}",
+    "totalSavings": "Место, которое можно освободить",
+    "whereSavings": "Где скрыта экономия",
+    "issuesByType": "Найденные проблемы",
+    "noIssues": "Проблем не найдено — ваша библиотека в порядке. Новые сканирования выполняются автоматически каждую ночь.",
+    "noHistory": "Пока ничего не исправлено. Исправления появляются здесь после прогона, с кнопкой Восстановить для всего восстанавливаемого.",
+    "allTypes": "Все типы проблем",
+    "showingOf": "Показаны первые {0} из {1} проблем. Используйте фильтр выше, чтобы сузить список.",
+    "approve": "Одобрить",
+    "approveHint": "Ставит это исправление в очередь на следующий прогон.",
+    "dismiss": "Отклонить",
+    "dismissHint": "Скрывает эту проблему навсегда; будущие сканирования не будут её сообщать.",
+    "approveAll": "Одобрить все {0} показанные",
+    "approveAllTypes": "Одобрить все {0} проблемы (все типы)",
+    "approveAllNote": "Одобряет все проблемы из текущего списка — каждая будет исправлена при следующем прогоне.",
+    "approved": "Одобрено — будет обработано при следующем прогоне.",
+    "dismissed": "Отклонено.",
+    "restore": "Восстановить",
+    "restoreHint": "Возвращает файл ровно туда, где он был.",
+    "restored": "Восстановлено.",
+    "restoreFailed": "Не удалось восстановить: {0}",
+    "spaceSavedToDate": "Сэкономленное место на сегодня: {0}",
+    "dryRunBadge": "тестовый",
+    "saved": "Сохранено.",
+    "confirmAuto": "Автоматический режим будет менять файлы каждую ночь без запросов. Удалённые файлы попадают в корзину (если не задано постоянное удаление). Продолжить?",
+    "confirmPermanent": "Постоянное удаление означает, что удалённые файлы НЕЛЬЗЯ будет восстановить. Уверены?",
+    "confirmEmptyBin": "Удалить навсегда всё в корзине? Восстановление этих файлов будет невозможно.",
+    "confirmReset": "Очистить все обнаруженные проблемы и кэши сондирования/декодирования? История исправлений и корзина сохраняются. Файлы медиа не затрагиваются.",
+    "resetDone": "Данные сканирования очищены — нажмите \"Сканировать сейчас\", чтобы начать заново.",
+    "resetBusy": "Сброс сейчас невозможен: выполняется сканирование или исправление. Подождите завершения и попробуйте снова.",
+    "binHolding": "Сейчас содержит {0} файл(ов) ({1}).",
+    "binEmpty": "Корзина пуста.",
+    "binViewHide": "Скрыть содержимое",
+    "binViewShow": "Показать содержимое",
+    "binRestoreHint": "Чтобы вернуть файл, используйте кнопку Восстановить на вкладке История.",
+    "modeOff": "Выкл — даже не сканировать",
+    "modeDetect": "Только обнаруживать — просто показать",
+    "modeManual": "Сначала спрашивать",
+    "modeAuto": "Исправлять автоматически",
+    "disposalRecycle": "Корзина (можно восстановить)",
+    "disposalPermanent": "Удалить навсегда",
+    "unitMbps": "{0} Мбит/с",
+    "unitPercent": "{0}%",
+    "unitDays": "{0} дней",
+    "types": {
+        "Duplicate": {
+            "title": "Дубликаты",
+            "hint": "Один и тот же фильм или эпизод существует более одного раза.",
+            "action": "Удалить эту копию",
+            "actionHint": "Ставит удаление этой копии в очередь на следующий прогон; лучшая копия остаётся.",
+            "approveAll": "Удалить все {0} показанные дубликаты",
+            "doRecycle": "Удалить худшую копию — восстановима из корзины",
+            "doPermanent": "Удалить худшую копию — навсегда"
+        },
+        "Playability": {
+            "title": "Файлы, которые не воспроизводятся",
+            "hint": "Эти файлы сломаны или нечитаемы.",
+            "action": "Удалить файл",
+            "actionHint": "Ставит удаление в очередь на следующий прогон (перепроверяется как сломанный перед удалением).",
+            "approveAll": "Удалить все {0} показанные сломанные файлы",
+            "doRecycle": "Удалить сломанный файл — восстановим из корзины",
+            "doPermanent": "Удалить сломанный файл — навсегда"
+        },
+        "Quality": {
+            "title": "Файлы, тратящие место",
+            "hint": "Больше выбранного порога качества.",
+            "action": "Перекодировать",
+            "actionHint": "Ставит перекодирование до порога качества в очередь на следующий прогон; оригинал идёт в корзину.",
+            "approveAll": "Перекодировать все {0} показанные файлы",
+            "doRecycle": "Перекодировать до порога — оригинал в корзине",
+            "doPermanent": "Перекодировать до порога — оригинал удалён навсегда"
+        },
+        "SubtitleLanguage": {
+            "title": "Нежелательные субтитры",
+            "hint": "Субтитры на языках, которые вы не сохраняете.",
+            "action": "Удалить субтитры",
+            "actionHint": "Ставит удаление нежелательных дорожек субтитров в очередь на следующий прогон.",
+            "approveAll": "Очистить все {0} показанные файлы",
+            "doRecycle": "Удалить нежелательные субтитры — оригинал в корзине",
+            "doPermanent": "Удалить нежелательные субтитры — оригинал удалён навсегда"
+        },
+        "AudioLanguage": {
+            "title": "Нежелательный звук",
+            "hint": "Аудиодорожки на языках, которые вы не сохраняете.",
+            "action": "Удалить аудиодорожки",
+            "actionHint": "Ставит удаление нежелательных аудиодорожек в очередь на следующий прогон.",
+            "approveAll": "Очистить все {0} показанные файлы",
+            "doRecycle": "Удалить нежелательный звук — оригинал в корзине",
+            "doPermanent": "Удалить нежелательный звук — оригинал удалён навсегда"
+        },
+        "Misplaced": {
+            "title": "Неправильно размещённые файлы",
+            "hint": "Фильм в папке TV или эпизод TV в папке Фильмы.",
+            "action": "Переместить в правильную папку",
+            "actionHint": "Перемещает файл в целевую папку, настроенную в Настройки → Библиотеки.",
+            "approveAll": "Переместить все {0} показанные неправильные файлы"
+        },
+        "MissingSubtitles": {
+            "title": "Отсутствующие субтитры",
+            "hint": "Нет субтитров ни на одном из ваших сохранённых языков.",
+            "action": "Скачать субтитры",
+            "actionHint": "Скачивает один через настроенных в Jellyfin поставщиков субтитров (OpenSubtitles и т.д.).",
+            "approveAll": "Скачать субтитры для всех {0} показанных"
+        },
+        "Stale": {
+            "title": "Устаревший контент",
+            "hint": "Никто не воспроизводил его давно.",
+            "action": "Просмотреть",
+            "actionHint": "Пока только обнаружение — MediaDash показывает список, вы решаете удалить или оставить.",
+            "approveAll": "Просмотреть все {0} показанных устаревших"
+        },
+        "MalwareRisk": {
+            "title": "Подозрительные исполняемые файлы",
+            "hint": "Программы или скрипты в медиапапке — почти всегда вредоносное ПО из пиратских релизов.",
+            "action": "Удалить этот файл",
+            "actionHint": "Ставит удаление в очередь на следующий запуск исправлений; файл попадает в корзину, если не переключить на окончательное удаление.",
+            "approveAll": "Удалить все показанные {0} подозрительных файлов",
+            "doRecycle": "Удалить исполняемый файл — можно восстановить из корзины",
+            "doPermanent": "Удалить исполняемый файл — окончательно"
+        },
+        "HeavyTranscode": {
+            "title": "Heavy transcodes",
+            "hint": "Files that keep transcoding on the fly instead of direct-playing.",
+            "action": "Re-encode to compatible codec",
+            "actionHint": "Queues a one-off re-encode with the plugin's own settings so future plays become direct-play.",
+            "approveAll": "Re-encode all {0} heavy-transcode files shown",
+            "doRecycle": "Re-encode; keep the original in the recycle bin",
+            "doPermanent": "Re-encode; permanently delete the original"
+        },
+        "FailedTranscode": {
+            "title": "Failed transcodes",
+            "hint": "Recent transcode attempts failed (non-zero ffmpeg exit or a 'Conversion failed' tail).",
+            "action": "Retry with plugin settings",
+            "actionHint": "Runs a targeted re-encode with MediaDash's settings; often succeeds where the on-the-fly attempt didn't.",
+            "approveAll": "Retry all {0} failed-transcode files shown",
+            "doRecycle": "Retry; keep the original in the recycle bin",
+            "doPermanent": "Retry; permanently delete the original"
+        },
+        "OrphanedDebris": {
+            "title": "Orphaned debris",
+            "hint": "Empty folders, orphan subtitles, orphan trickplay folders and orphan metadata whose parent no longer exists.",
+            "action": "Delete orphan",
+            "actionHint": "Re-verifies at fix time that the parent still doesn't exist; refuses if a companion has reappeared.",
+            "approveAll": "Delete all {0} orphaned items shown"
+        },
+        "LargeTrickplay": {
+            "title": "Large trickplay images",
+            "hint": "Trickplay sprite thumbnails still stored as raw JPG — reclaimable by re-encoding as WebP.",
+            "action": "Optimize trickplay images",
+            "actionHint": "Re-encodes each sprite as WebP renamed .jpg so the client still fetches them; no client-side change.",
+            "approveAll": "Optimize all {0} trickplay folders shown"
+        },
+        "EmbeddedCoverArt": {
+            "title": "Embedded cover art",
+            "hint": "Music or audiobook folders with per-file embedded covers but no folder-level cover.jpg.",
+            "action": "Extract shared folder cover",
+            "actionHint": "Writes cover.jpg once and (optionally) strips the redundant per-file copies.",
+            "approveAll": "Extract shared covers for all {0} folders shown"
+        },
+        "CorruptArtwork": {
+            "title": "Corrupt artwork",
+            "hint": "Poster / backdrop / thumb files inside Jellyfin's metadata folder that are zero-byte, truncated, or fail to decode.",
+            "action": "Delete corrupt artwork",
+            "actionHint": "Removes the broken image; Jellyfin's next library scan re-fetches from providers.",
+            "approveAll": "Delete all {0} corrupt artwork files shown"
+        }
     },
-    "Playability": {
-      "title": "Файлы, которые не воспроизводятся",
-      "hint": "Эти файлы сломаны или нечитаемы.",
-      "action": "Удалить файл",
-      "actionHint": "Ставит удаление в очередь на следующий прогон (перепроверяется как сломанный перед удалением).",
-      "approveAll": "Удалить все {0} показанные сломанные файлы",
-      "doRecycle": "Удалить сломанный файл — восстановим из корзины",
-      "doPermanent": "Удалить сломанный файл — навсегда"
+    "languages": [
+        [
+            "eng",
+            "Английский"
+        ],
+        [
+            "spa",
+            "Испанский"
+        ],
+        [
+            "fra",
+            "Французский"
+        ],
+        [
+            "deu",
+            "Немецкий"
+        ],
+        [
+            "ita",
+            "Итальянский"
+        ],
+        [
+            "por",
+            "Португальский"
+        ],
+        [
+            "nld",
+            "Нидерландский"
+        ],
+        [
+            "rus",
+            "Русский"
+        ],
+        [
+            "jpn",
+            "Японский"
+        ],
+        [
+            "zho",
+            "Китайский"
+        ],
+        [
+            "kor",
+            "Корейский"
+        ],
+        [
+            "ara",
+            "Арабский"
+        ],
+        [
+            "hin",
+            "Хинди"
+        ],
+        [
+            "pol",
+            "Польский"
+        ],
+        [
+            "swe",
+            "Шведский"
+        ],
+        [
+            "nor",
+            "Норвежский"
+        ],
+        [
+            "dan",
+            "Датский"
+        ],
+        [
+            "fin",
+            "Финский"
+        ],
+        [
+            "tur",
+            "Турецкий"
+        ],
+        [
+            "ces",
+            "Чешский"
+        ],
+        [
+            "ell",
+            "Греческий"
+        ],
+        [
+            "heb",
+            "Иврит"
+        ],
+        [
+            "tha",
+            "Тайский"
+        ],
+        [
+            "vie",
+            "Вьетнамский"
+        ],
+        [
+            "ukr",
+            "Украинский"
+        ],
+        [
+            "hun",
+            "Венгерский"
+        ],
+        [
+            "ron",
+            "Румынский"
+        ]
+    ],
+    "wizSteps": [
+        "Шаг 1 из 9 — Приветствие",
+        "Шаг 2 из 9 — Библиотеки",
+        "Шаг 3 из 9 — Дубликаты",
+        "Шаг 4 из 9 — Сломанные файлы",
+        "Шаг 5 из 9 — Большие файлы",
+        "Шаг 6 из 9 — Языки",
+        "Шаг 7 из 9 — Сортировщик медиа",
+        "Шаг 8 из 9 — Безопасность",
+        "Шаг 9 из 9 — Готово"
+    ],
+    "wizFinish": "Завершить настройку",
+    "wizContinue": "Продолжить",
+    "html": {
+        "tab.overview": "Обзор",
+        "tab.issues": "Проблемы",
+        "tab.history": "История",
+        "tab.files": "Файлы",
+        "tab.errors": "Ошибки",
+        "tab.settings": "Настройки",
+        "settings.nav.safety": "Безопасность",
+        "settings.nav.languages": "Языки",
+        "settings.nav.fix": "Что исправлять",
+        "settings.nav.quality": "Качество",
+        "settings.nav.libraries": "Библиотеки",
+        "settings.nav.advanced": "Дополнительно",
+        "settings.nav.bin": "Корзина",
+        "settings.nav.maintenance": "Обслуживание",
+        "settings.safety.title": "Безопасность",
+        "settings.safety.subtitle": "Защитные меры, делающие каждое сканирование и исправление обратимыми.",
+        "settings.safety.dryRun": "Тестовый режим",
+        "settings.safety.dryRunHint": "Включено (по умолчанию): прогоны исправлений только логируют, что бы они сделали — ничего не меняется. Выключите, когда план в Истории вас устроит.",
+        "settings.safety.idle": "Запускать только, когда сервер простаивает",
+        "settings.safety.idleHint": "Включено (по умолчанию): запланированные сканирования и исправления ждут, пока никто не смотрит и Jellyfin не использовался 15 минут. Кнопки \"Сканировать сейчас\" и \"Выполнить исправления сейчас\" всегда запускаются немедленно. Это отменяет запланированное время ниже — если сервер занят при срабатывании, прогон пропускается.",
+        "task.scan.name": "Сканировать библиотеки на проблемы",
+        "task.scan.description": "Ищет дубликаты, невоспроизводимые файлы, чрезмерно большие кодировки, нежелательные языковые дорожки, неправильно размещённые файлы и видео без субтитров.",
+        "task.fix.name": "Применить одобренные исправления",
+        "task.fix.description": "Применяет одобренные и автоматические исправления: удаляет дубликаты, перекодирует большие файлы, убирает нежелательные дорожки.",
+        "tab.recyclebin": "Recycle bin",
+        "settings.safety.analytics": "Share anonymous stats with the community board"
     },
-    "Quality": {
-      "title": "Файлы, тратящие место",
-      "hint": "Больше выбранного порога качества.",
-      "action": "Перекодировать",
-      "actionHint": "Ставит перекодирование до порога качества в очередь на следующий прогон; оригинал идёт в корзину.",
-      "approveAll": "Перекодировать все {0} показанные файлы",
-      "doRecycle": "Перекодировать до порога — оригинал в корзине",
-      "doPermanent": "Перекодировать до порога — оригинал удалён навсегда"
-    },
-    "SubtitleLanguage": {
-      "title": "Нежелательные субтитры",
-      "hint": "Субтитры на языках, которые вы не сохраняете.",
-      "action": "Удалить субтитры",
-      "actionHint": "Ставит удаление нежелательных дорожек субтитров в очередь на следующий прогон.",
-      "approveAll": "Очистить все {0} показанные файлы",
-      "doRecycle": "Удалить нежелательные субтитры — оригинал в корзине",
-      "doPermanent": "Удалить нежелательные субтитры — оригинал удалён навсегда"
-    },
-    "AudioLanguage": {
-      "title": "Нежелательный звук",
-      "hint": "Аудиодорожки на языках, которые вы не сохраняете.",
-      "action": "Удалить аудиодорожки",
-      "actionHint": "Ставит удаление нежелательных аудиодорожек в очередь на следующий прогон.",
-      "approveAll": "Очистить все {0} показанные файлы",
-      "doRecycle": "Удалить нежелательный звук — оригинал в корзине",
-      "doPermanent": "Удалить нежелательный звук — оригинал удалён навсегда"
-    },
-    "Misplaced": {
-      "title": "Неправильно размещённые файлы",
-      "hint": "Фильм в папке TV или эпизод TV в папке Фильмы.",
-      "action": "Переместить в правильную папку",
-      "actionHint": "Перемещает файл в целевую папку, настроенную в Настройки → Библиотеки.",
-      "approveAll": "Переместить все {0} показанные неправильные файлы"
-    },
-    "MissingSubtitles": {
-      "title": "Отсутствующие субтитры",
-      "hint": "Нет субтитров ни на одном из ваших сохранённых языков.",
-      "action": "Скачать субтитры",
-      "actionHint": "Скачивает один через настроенных в Jellyfin поставщиков субтитров (OpenSubtitles и т.д.).",
-      "approveAll": "Скачать субтитры для всех {0} показанных"
-    },
-    "Stale": {
-      "title": "Устаревший контент",
-      "hint": "Никто не воспроизводил его давно.",
-      "action": "Просмотреть",
-      "actionHint": "Пока только обнаружение — MediaDash показывает список, вы решаете удалить или оставить.",
-      "approveAll": "Просмотреть все {0} показанных устаревших"
-    },
-    "MalwareRisk": {
-      "title": "Подозрительные исполняемые файлы",
-      "hint": "Программы или скрипты в медиапапке — почти всегда вредоносное ПО из пиратских релизов.",
-      "action": "Удалить этот файл",
-      "actionHint": "Ставит удаление в очередь на следующий запуск исправлений; файл попадает в корзину, если не переключить на окончательное удаление.",
-      "approveAll": "Удалить все показанные {0} подозрительных файлов",
-      "doRecycle": "Удалить исполняемый файл — можно восстановить из корзины",
-      "doPermanent": "Удалить исполняемый файл — окончательно"
-    },
-    "HeavyTranscode": {
-      "title": "Heavy transcodes",
-      "hint": "Files that keep transcoding on the fly instead of direct-playing.",
-      "action": "Re-encode to compatible codec",
-      "actionHint": "Queues a one-off re-encode with the plugin's own settings so future plays become direct-play.",
-      "approveAll": "Re-encode all {0} heavy-transcode files shown",
-      "doRecycle": "Re-encode; keep the original in the recycle bin",
-      "doPermanent": "Re-encode; permanently delete the original"
-    },
-    "FailedTranscode": {
-      "title": "Failed transcodes",
-      "hint": "Recent transcode attempts failed (non-zero ffmpeg exit or a 'Conversion failed' tail).",
-      "action": "Retry with plugin settings",
-      "actionHint": "Runs a targeted re-encode with MediaDash's settings; often succeeds where the on-the-fly attempt didn't.",
-      "approveAll": "Retry all {0} failed-transcode files shown",
-      "doRecycle": "Retry; keep the original in the recycle bin",
-      "doPermanent": "Retry; permanently delete the original"
-    },
-    "OrphanedDebris": {
-      "title": "Orphaned debris",
-      "hint": "Empty folders, orphan subtitles, orphan trickplay folders and orphan metadata whose parent no longer exists.",
-      "action": "Delete orphan",
-      "actionHint": "Re-verifies at fix time that the parent still doesn't exist; refuses if a companion has reappeared.",
-      "approveAll": "Delete all {0} orphaned items shown"
-    },
-    "LargeTrickplay": {
-      "title": "Large trickplay images",
-      "hint": "Trickplay sprite thumbnails still stored as raw JPG — reclaimable by re-encoding as WebP.",
-      "action": "Optimize trickplay images",
-      "actionHint": "Re-encodes each sprite as WebP renamed .jpg so the client still fetches them; no client-side change.",
-      "approveAll": "Optimize all {0} trickplay folders shown"
-    },
-    "EmbeddedCoverArt": {
-      "title": "Embedded cover art",
-      "hint": "Music or audiobook folders with per-file embedded covers but no folder-level cover.jpg.",
-      "action": "Extract shared folder cover",
-      "actionHint": "Writes cover.jpg once and (optionally) strips the redundant per-file copies.",
-      "approveAll": "Extract shared covers for all {0} folders shown"
-    },
-    "CorruptArtwork": {
-      "title": "Corrupt artwork",
-      "hint": "Poster / backdrop / thumb files inside Jellyfin's metadata folder that are zero-byte, truncated, or fail to decode.",
-      "action": "Delete corrupt artwork",
-      "actionHint": "Removes the broken image; Jellyfin's next library scan re-fetches from providers.",
-      "approveAll": "Delete all {0} corrupt artwork files shown"
-    }
-  },
-  "languages": [
-    [
-      "eng",
-      "Английский"
-    ],
-    [
-      "spa",
-      "Испанский"
-    ],
-    [
-      "fra",
-      "Французский"
-    ],
-    [
-      "deu",
-      "Немецкий"
-    ],
-    [
-      "ita",
-      "Итальянский"
-    ],
-    [
-      "por",
-      "Португальский"
-    ],
-    [
-      "nld",
-      "Нидерландский"
-    ],
-    [
-      "rus",
-      "Русский"
-    ],
-    [
-      "jpn",
-      "Японский"
-    ],
-    [
-      "zho",
-      "Китайский"
-    ],
-    [
-      "kor",
-      "Корейский"
-    ],
-    [
-      "ara",
-      "Арабский"
-    ],
-    [
-      "hin",
-      "Хинди"
-    ],
-    [
-      "pol",
-      "Польский"
-    ],
-    [
-      "swe",
-      "Шведский"
-    ],
-    [
-      "nor",
-      "Норвежский"
-    ],
-    [
-      "dan",
-      "Датский"
-    ],
-    [
-      "fin",
-      "Финский"
-    ],
-    [
-      "tur",
-      "Турецкий"
-    ],
-    [
-      "ces",
-      "Чешский"
-    ],
-    [
-      "ell",
-      "Греческий"
-    ],
-    [
-      "heb",
-      "Иврит"
-    ],
-    [
-      "tha",
-      "Тайский"
-    ],
-    [
-      "vie",
-      "Вьетнамский"
-    ],
-    [
-      "ukr",
-      "Украинский"
-    ],
-    [
-      "hun",
-      "Венгерский"
-    ],
-    [
-      "ron",
-      "Румынский"
-    ]
-  ],
-  "wizSteps": [
-    "Шаг 1 из 9 — Приветствие",
-    "Шаг 2 из 9 — Библиотеки",
-    "Шаг 3 из 9 — Дубликаты",
-    "Шаг 4 из 9 — Сломанные файлы",
-    "Шаг 5 из 9 — Большие файлы",
-    "Шаг 6 из 9 — Языки",
-    "Шаг 7 из 9 — Сортировщик медиа",
-    "Шаг 8 из 9 — Безопасность",
-    "Шаг 9 из 9 — Готово"
-  ],
-  "wizFinish": "Завершить настройку",
-  "wizContinue": "Продолжить",
-  "html": {
-    "tab.overview": "Обзор",
-    "tab.issues": "Проблемы",
-    "tab.history": "История",
-    "tab.files": "Файлы",
-    "tab.errors": "Ошибки",
-    "tab.settings": "Настройки",
-    "settings.nav.safety": "Безопасность",
-    "settings.nav.languages": "Языки",
-    "settings.nav.fix": "Что исправлять",
-    "settings.nav.quality": "Качество",
-    "settings.nav.libraries": "Библиотеки",
-    "settings.nav.advanced": "Дополнительно",
-    "settings.nav.bin": "Корзина",
-    "settings.nav.maintenance": "Обслуживание",
-    "settings.safety.title": "Безопасность",
-    "settings.safety.subtitle": "Защитные меры, делающие каждое сканирование и исправление обратимыми.",
-    "settings.safety.dryRun": "Тестовый режим",
-    "settings.safety.dryRunHint": "Включено (по умолчанию): прогоны исправлений только логируют, что бы они сделали — ничего не меняется. Выключите, когда план в Истории вас устроит.",
-    "settings.safety.idle": "Запускать только, когда сервер простаивает",
-    "settings.safety.idleHint": "Включено (по умолчанию): запланированные сканирования и исправления ждут, пока никто не смотрит и Jellyfin не использовался 15 минут. Кнопки \"Сканировать сейчас\" и \"Выполнить исправления сейчас\" всегда запускаются немедленно. Это отменяет запланированное время ниже — если сервер занят при срабатывании, прогон пропускается.",
-    "task.scan.name": "Сканировать библиотеки на проблемы",
-    "task.scan.description": "Ищет дубликаты, невоспроизводимые файлы, чрезмерно большие кодировки, нежелательные языковые дорожки, неправильно размещённые файлы и видео без субтитров.",
-    "task.fix.name": "Применить одобренные исправления",
-    "task.fix.description": "Применяет одобренные и автоматические исправления: удаляет дубликаты, перекодирует большие файлы, убирает нежелательные дорожки.",
-    "tab.recyclebin": "Recycle bin",
-    "settings.safety.analytics": "Share anonymous stats with the community board",
-    "settings.safety.analyticsHint": "Off by default. Sends monthly aggregate counts and byte totals (no paths, filenames, or user identifiers) so we can show which fixes save the most disk on the community board."
-  },
-  "savedPerLibrary": "Экономия по библиотекам",
-  "unassignedLibrary": "Не назначено"
+    "savedPerLibrary": "Экономия по библиотекам",
+    "unassignedLibrary": "Не назначено"
 }

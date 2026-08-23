@@ -66,7 +66,7 @@ Every fix type runs independently: **Off · Detect only · Ask me first · Autom
 ## Community impact
 
 <!-- STATS:START -->
-_Refreshes on the 1st of each month from installs with community stats enabled (on by default; untick in Settings → Safety to opt out). See [docs/PRIVACY.md](docs/PRIVACY.md) for exactly what's collected._
+_Refreshes on the 1st of each month from installs with community stats enabled (on by default; untick in Settings → Safety to opt out). Reports use a **month-rotated anonymous ID** — no persistent install UUID is stored on disk or in the payload. See [docs/PRIVACY.md](docs/PRIVACY.md) for exactly what's collected._
 
 | | Lifetime | This month |
 |---|---:|---:|

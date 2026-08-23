@@ -17,7 +17,12 @@ trap cleanup EXIT
 echo "== build plugin =="
 dotnet publish "$ROOT/Jellyfin.Plugin.MediaDash/Jellyfin.Plugin.MediaDash.csproj" -c Release -o "$WORK/plugin"
 mkdir -p "$WORK/config/plugins/MediaDash" "$WORK/cache"
-cp "$WORK/plugin/Jellyfin.Plugin.MediaDash.dll" "$WORK/config/plugins/MediaDash/"
+# Copy the WHOLE publish output — main DLL + every NuGet sidecar (System.Management,
+# System.Diagnostics.PerformanceCounter, SharpCompress, etc.) + deps.json. Previously only the
+# main DLL was copied; anything referencing a sidecar type would FileNotFoundException at load,
+# and the failure mode looked identical to the plugin never scanning. Matches the release-zip
+# contents (see tools/release.ps1) so integration tests exercise what users actually install.
+cp "$WORK/plugin/"*.dll "$WORK/plugin/"*.json "$WORK/config/plugins/MediaDash/"
 
 echo "== fixtures =="
 bash "$ROOT/tools/make-fixtures.sh" "$WORK/media"

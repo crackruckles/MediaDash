@@ -21,25 +21,29 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     {
         serviceCollection.AddSingleton<MediaDashDb>();
         serviceCollection.AddSingleton<FfprobeService>();
+        serviceCollection.AddSingleton<FileHasher>();
         serviceCollection.AddSingleton<BookProbeService>();
         serviceCollection.AddSingleton<ComicProbeService>();
+        // Order per field report D1: cheap classifiers first (results populate Overview immediately),
+        // heaviest last (Playability's whole-file decode). Duplicate must come first so its
+        // "flagged for deletion" paths let downstream scanners skip doomed files without probing them.
         serviceCollection.AddSingleton<IScanner, DuplicateScanner>();
-        serviceCollection.AddSingleton<IScanner, PlayabilityScanner>();
-        serviceCollection.AddSingleton<IScanner, QualityScanner>();
-        serviceCollection.AddSingleton<IScanner, SubtitleLanguageScanner>();
-        serviceCollection.AddSingleton<IScanner, AudioLanguageScanner>();
+        serviceCollection.AddSingleton<IScanner, SuspiciousFileScanner>();
         serviceCollection.AddSingleton<IScanner, MediaSorterScanner>();
         serviceCollection.AddSingleton<IScanner, MediaGrouperScanner>();
-        serviceCollection.AddSingleton<IScanner, ArtworkScanner>();
-        serviceCollection.AddSingleton<IScanner, MissingSubtitleScanner>();
         serviceCollection.AddSingleton<IScanner, StaleContentScanner>();
-        serviceCollection.AddSingleton<IScanner, SuspiciousFileScanner>();
-        serviceCollection.AddSingleton<IScanner, TrickplayOptimizeScanner>();
+        serviceCollection.AddSingleton<IScanner, TranscodeLogScanner>();
+        serviceCollection.AddSingleton<IScanner, NfoScanner>();
+        serviceCollection.AddSingleton<IScanner, ArtworkScanner>();
         serviceCollection.AddSingleton<IScanner, SubtitleFontScanner>();
         serviceCollection.AddSingleton<IScanner, OrphanCleanupScanner>();
-        serviceCollection.AddSingleton<IScanner, NfoScanner>();
-        serviceCollection.AddSingleton<IScanner, TranscodeLogScanner>();
+        serviceCollection.AddSingleton<IScanner, TrickplayOptimizeScanner>();
+        serviceCollection.AddSingleton<IScanner, AudioLanguageScanner>();
+        serviceCollection.AddSingleton<IScanner, SubtitleLanguageScanner>();
+        serviceCollection.AddSingleton<IScanner, MissingSubtitleScanner>();
+        serviceCollection.AddSingleton<IScanner, QualityScanner>();
         serviceCollection.AddSingleton<IScanner, EmbeddedCoverArtScanner>();
+        serviceCollection.AddSingleton<IScanner, PlayabilityScanner>();
         serviceCollection.AddSingleton<LibraryGuard>();
         serviceCollection.AddSingleton<RecycleBin>();
         serviceCollection.AddSingleton<FfmpegExecutor>();

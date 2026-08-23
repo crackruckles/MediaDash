@@ -14,10 +14,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Jellyfin.Controller" Version="10.11.8">
+    <!-- Compile against the LOWEST 10.11.x package we claim to support (targetAbi=10.11.0.0 in
+         manifest.json). Any API added between 10.11.0 → 10.11.8 would MissingMethodException at
+         load on a 10.11.5 host and Jellyfin marks the plugin NotSupported (GitHub issue #8). If we
+         need something only newer 10.11.x exposes, bridge via reflection like Compat/SkiaSharpBridge. -->
+    <PackageReference Include="Jellyfin.Controller" Version="10.11.0">
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
-    <PackageReference Include="Jellyfin.Model" Version="10.11.8">
+    <PackageReference Include="Jellyfin.Model" Version="10.11.0">
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
     <!-- ponytail: compile-only reference; the server ships this exact assembly, bundling it would duplicate native sqlite binaries -->

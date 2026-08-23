@@ -22,7 +22,7 @@ Every field. Nothing else:
 
 | Field | Example | Purpose |
 |---|---|---|
-| `install_id` | `f9a7c2ee-…` (random UUID generated on your machine when you opt in) | Deduplicate your install's row per month. Not tied to any account — regenerated if you opt out and back in. |
+| `install_id` | `f9a7c2ee-…` (a **month-rotated hash** — see below) | Deduplicate your install's row per month. Rotates on the 1st of every month so nothing links reports across months. Not tied to any account. |
 | `plugin_version` | `0.8.0` | See adoption of new releases. |
 | `jellyfin_version` | `10.11.8` | See which Jellyfin versions the community is running. |
 | `month` | `2026-07-01` | Bucket for aggregation. |
@@ -46,11 +46,33 @@ Every field. Nothing else:
 | `embedded_cover_art_fixed` | `230` | Count of music / audiobook tracks whose embedded cover was consolidated into a shared folder image. |
 | `bytes_freed` | `12345678900` | Sum of bytes freed by all successful fixes this month. |
 
+### How `install_id` is derived (Time-Bounded Rotational Hash)
+
+Starting with plugin version **1.0.6**, MediaDash **no longer stores a persistent per-install UUID**. On every report the plugin computes:
+
+```
+install_id = SHA-256( "mediadash-analytics-tbrh-v1" | Jellyfin.SystemId | YYYY-MM )
+             → first 16 bytes → UUID-shaped string
+```
+
+- The **Jellyfin `SystemId`** is a per-install identifier Jellyfin already generates for its own use. It is **never sent** — only its SHA-256 with the current year-month is.
+- The **year-month** rotates the ID on the 1st of every month. A given install produces the same `install_id` for every report inside a month (so the backend can deduplicate to one row), but a **different** `install_id` starting on the 1st. The two months' rows can't be linked without knowing the SystemId, which nobody outside your server has.
+- The **plugin-scoped salt** (`"mediadash-analytics-tbrh-v1"`) prevents any other plugin that might also hash the same SystemId from correlating with our IDs.
+
+**Consequences for what we can learn from the data:**
+
+- ✅ Within-month deduplication (one row per install per month) — works.
+- ✅ Approximate distinct-install count each month — works.
+- ❌ Cross-month retention ("how many July installs are still active in August") — **no longer possible, by design**.
+
+Previous versions (≤ 1.0.5) stored a persistent `AnalyticsInstallId` UUID in the plugin config. On upgrade, that field is cleared and never read again; you don't have to do anything.
+
 ### What's NEVER sent
 
 - ❌ File paths, filenames, or folder names
 - ❌ Media titles, show names, movie names
 - ❌ Library names or Jellyfin server names
+- ❌ Your Jellyfin `SystemId` — only its salted, month-hashed derivative
 - ❌ Usernames, email addresses, IP addresses (writes happen from your server, so the IP is your server's; nothing correlates it to `install_id` at rest)
 - ❌ System info beyond the plugin + Jellyfin version — no OS name, no CPU/GPU, no MAC address, no disk paths
 - ❌ Dry-run counts (they don't affect real files, so they'd inflate the totals misleadingly)
@@ -69,10 +91,10 @@ Every field. Nothing else:
 Community stats are on by default for new installs. To opt out, untick **Settings → Safety → Share anonymous stats with the community board** (also available on the last step of the first-run wizard) and save. From that point:
 
 - No further stats are sent.
-- Your `install_id` is cleared from the plugin config on your server.
-- Rows previously submitted with your old `install_id` remain in the aggregated totals — they can't be reversed out without knowing the ID that was cleared, which is by design (aggregation is one-way).
+- Nothing needs to be cleared from your config — no persistent install ID is stored under 1.0.6+. Any legacy `AnalyticsInstallId` from a pre-1.0.6 config is wiped on opt-out for good measure.
+- Rows previously submitted with your `install_id` for the current month remain in that month's aggregated totals — they can't be reversed out without re-computing the hash for that month, which nobody outside your server can do (they'd need your Jellyfin `SystemId`). This is by design; aggregation is one-way.
 
-If you want your prior contribution deleted from the DB, open an issue with the install_id you had. Because that ID was never tied to any account, you're the only one who knows it.
+Because `install_id` rotates every month, you don't even need to prove ownership to "delete last month's row" — it's already unlinkable from anything you can produce this month. If you want to force-remove a specific month's contribution before the rotation, open an issue with the derived `install_id` you observed in that month's request payload; that's the only way anyone can identify it.
 
 ### Backend details (for the curious)
 

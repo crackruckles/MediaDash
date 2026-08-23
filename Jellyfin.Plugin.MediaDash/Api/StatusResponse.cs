@@ -96,12 +96,25 @@ public sealed class StatusResponse
     public string? CurrentActivity { get; set; }
 
     /// <summary>
+    /// Gets or sets the display label of the scanner or fixer that owns <see cref="CurrentActivity"/>
+    /// (e.g. "DuplicateScanner", "TrackFixer"). Rendered next to the path so users see *what* is running.
+    /// </summary>
+    public string? CurrentActivityLabel { get; set; }
+
+    /// <summary>
     /// Gets or sets a live resource snapshot for the Jellyfin process (CPU / RAM / GPU).
     /// </summary>
     public SystemStats? System { get; set; }
 
     /// <summary>Gets or sets the effective recycle bin path (either configured or default).</summary>
     public string? RecycleBinPath { get; set; }
+
+    /// <summary>
+    /// Gets or sets the effective plugin data directory (SQLite DB, probe cache, recycle bin root).
+    /// Shown on Overview so users can copy the path when troubleshooting DB-init failures on
+    /// Docker/rootless setups where the folder ownership is wrong.
+    /// </summary>
+    public string? DataDirectory { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the recycle bin lives on a different volume than any library folder.

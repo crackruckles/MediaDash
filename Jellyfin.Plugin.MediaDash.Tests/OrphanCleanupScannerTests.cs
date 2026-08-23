@@ -95,6 +95,42 @@ public sealed class OrphanCleanupScannerTests
     }
 
     [Fact]
+    public void DetectEmptyFolders_MusicLibrary_NotFlagged()
+    {
+        // 2026-08-23 regression (B5). A music library has zero VIDEO files by definition —
+        // previously every artist/album directory registered as "video-free" and the fixer wiped
+        // the whole library. Music extensions must count as media for the empty-folder pass.
+        using var scratch = new Scratch();
+        Directory.CreateDirectory(scratch.Sub("Artist/Album"));
+        File.WriteAllText(Path.Combine(scratch.Sub("Artist/Album"), "01 - Track.mp3"), string.Empty);
+        File.WriteAllText(Path.Combine(scratch.Sub("Artist/Album"), "02 - Track.flac"), string.Empty);
+
+        var issues = new List<Issue>();
+        OrphanCleanupScanner.DetectEmptyFolders(new[] { scratch.Root }, issues, CancellationToken.None);
+
+        Assert.Empty(issues);
+    }
+
+    [Fact]
+    public void DetectEmptyFolders_BooksAndComicsAndPictures_NotFlagged()
+    {
+        // Same class of bug for other non-video libraries. Any recognised media extension keeps
+        // the containing folder off the delete list.
+        using var scratch = new Scratch();
+        Directory.CreateDirectory(scratch.Sub("Books"));
+        File.WriteAllText(Path.Combine(scratch.Sub("Books"), "Dune.epub"), string.Empty);
+        Directory.CreateDirectory(scratch.Sub("Comics"));
+        File.WriteAllText(Path.Combine(scratch.Sub("Comics"), "Watchmen.cbz"), string.Empty);
+        Directory.CreateDirectory(scratch.Sub("Photos"));
+        File.WriteAllText(Path.Combine(scratch.Sub("Photos"), "IMG_0001.jpg"), string.Empty);
+
+        var issues = new List<Issue>();
+        OrphanCleanupScanner.DetectEmptyFolders(new[] { scratch.Root }, issues, CancellationToken.None);
+
+        Assert.Empty(issues);
+    }
+
+    [Fact]
     public void DetectEmptyFolders_TopmostVideoFreeIsPickedNotNestedLeaves()
     {
         using var scratch = new Scratch();

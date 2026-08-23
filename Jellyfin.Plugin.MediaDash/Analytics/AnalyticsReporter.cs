@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -16,10 +17,20 @@ namespace Jellyfin.Plugin.MediaDash.Analytics;
 /// Pushes month-to-date aggregated stats to the MediaDash community analytics board (Supabase).
 /// Opt-in only. Fully swallows failures so a network hiccup never blocks a fix run.
 ///
-/// What's sent: an anonymous install UUID, plugin + Jellyfin version strings, the current month,
-/// per-type success counts (every scanner MediaDash ships — see the payload build below) and
-/// total bytes freed. No paths, no filenames, no usernames, no IP-derived data. The backend
-/// clamps each field monotonically so stale numbers can never reduce the totals.
+/// What's sent: a **month-rotated** install identifier (see <see cref="ComputeMonthlyInstallId"/>),
+/// plugin + Jellyfin version strings, the current month, per-type success counts, and total bytes
+/// freed. No paths, no filenames, no usernames, no IP-derived data.
+///
+/// Privacy: the install ID is derived as
+/// <c>SHA256(plugin-scoped-salt || jellyfin-system-id || year-month)</c>, formatted as a UUIDv5-shaped
+/// string. That means (a) the same install produces the same ID for every report inside a month so
+/// the backend can still deduplicate to one row per install per month, and (b) the ID rotates on
+/// the first of every month, so nothing links reports across months back to a single install. The
+/// input to the hash is the Jellyfin SystemId — not stored anywhere else, not derivable from the
+/// payload, and never sent — which makes the resulting ID one-way anonymous under APP + GDPR
+/// (previously the ID was a persistent UUID minted on first opt-in, which is stronger linkability
+/// than APP tolerates for "aggregate community stats"). The backend clamps each field monotonically
+/// so stale numbers can never reduce the totals.
 /// </summary>
 public sealed class AnalyticsReporter
 {
@@ -28,6 +39,11 @@ public sealed class AnalyticsReporter
     // do. Documented at docs/PRIVACY.md.
     private const string BaseUrl = "https://mcgpyjtcqyrffydpfdrd.supabase.co";
     private const string AnonKey = "sb_publishable_dstMpg4VGn2tSS_DEhsdZg_n9jwnFXk";
+
+    // Plugin-scoped salt. Bump the "v1" suffix if the input construction ever changes so old backend
+    // rows can't accidentally be correlated with new ones. Not a secret — it's about domain
+    // separation from any other plugin that might hash the same SystemId, not about hiding the input.
+    private const string TbrhSalt = "mediadash-analytics-tbrh-v1";
 
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
 
@@ -65,14 +81,10 @@ public sealed class AnalyticsReporter
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(config.AnalyticsInstallId) || !Guid.TryParse(config.AnalyticsInstallId, out var installId))
-            {
-                return;
-            }
-
             var now = DateTime.UtcNow;
             var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
             var monthEnd = monthStart.AddMonths(1);
+            var installId = ComputeMonthlyInstallId(_appHost.SystemId, monthStart);
             var aggregate = _db.GetMonthAggregate(monthStart, monthEnd);
 
             var pluginVersion = Plugin.Instance?.Version?.ToString(3) ?? string.Empty;
@@ -131,4 +143,37 @@ public sealed class AnalyticsReporter
 
     private static int Count(MonthAggregate aggregate, IssueType type)
         => aggregate.ByType.TryGetValue(type, out var n) ? n : 0;
+
+    /// <summary>
+    /// Derives a month-rotated install ID from the Jellyfin SystemId and the month-of-report.
+    /// Same install → same ID inside a calendar month (backend dedup works); new month → fresh ID,
+    /// not linkable to the previous month's. Internal for direct unit testing.
+    /// </summary>
+    /// <param name="systemId">The Jellyfin server's SystemId, or null/empty when unavailable.</param>
+    /// <param name="monthStart">UTC first-of-month timestamp — provides the temporal rotation input.</param>
+    /// <returns>A UUIDv5-shaped Guid derived from the salted hash.</returns>
+    internal static Guid ComputeMonthlyInstallId(string? systemId, DateTime monthStart)
+    {
+        // Empty SystemId path: use a deterministic sentinel rather than a random Guid so a
+        // (rare) Jellyfin build without SystemId still gets stable within-month dedup and
+        // predictable rotation. All such installs will share this ID — acceptable for
+        // aggregate stats and clearly non-personal.
+        var input = TbrhSalt + "|" + (systemId ?? "no-system-id") + "|" + monthStart.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(input));
+
+        // RFC 4122 § 4.3: version 5 (name-based, SHA-1 in the spec — we use SHA-256 and take the
+        // first 16 bytes, a common defensible extension). Set the version and variant bits so
+        // downstream tools that validate the UUID shape don't reject it. `new Guid(byte[])` uses
+        // mixed-endian: the time-low/mid/hi_and_version fields (bytes 0-7) are read little-endian,
+        // so the version nibble in the .NET byte layout ends up in the HIGH nibble of byte 7, not
+        // byte 6 like in the big-endian RFC layout. Bytes 8-15 are read as-is, so the variant
+        // stays in byte 8. Getting these indexes wrong doesn't corrupt determinism — collision
+        // risk is unchanged — it just means the resulting Guid wouldn't advertise "v5" cleanly.
+        var bytes = new byte[16];
+        Array.Copy(hash, bytes, 16);
+        bytes[7] = (byte)((bytes[7] & 0x0F) | 0x50);
+        bytes[8] = (byte)((bytes[8] & 0x3F) | 0x80);
+
+        return new Guid(bytes);
+    }
 }

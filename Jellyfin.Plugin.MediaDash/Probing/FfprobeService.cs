@@ -99,11 +99,19 @@ public sealed class FfprobeService
             return cached.Length == 0 ? null : cached;
         }
 
+        // AVI's index-at-end layout plus its ancient stream framing make it a notorious source of
+        // benign "Truncating packet" warnings and lossy regional seeks — Jellyfin plays these files
+        // end-to-end just fine, but the thorough check was flagging them as unplayable (field
+        // report A8). For AVI, drop to a whole-file exit-code-only decode: no seeks, no regional
+        // time-shortfall heuristic, no stderr marker check (tolerantContainer=true below).
+        var isAvi = string.Equals(Path.GetExtension(path), ".avi", StringComparison.OrdinalIgnoreCase);
+
         string? error;
-        if (durationSeconds <= 0)
+        if (isAvi || durationSeconds <= 0)
         {
-            // ponytail: sentinel for whole-file decode (short clips where regional sampling collapses)
-            error = await RunFfmpegDecodeAsync(["-i", path, "-f", "null", "-"], expectedSeconds: 0, cancellationToken).ConfigureAwait(false);
+            // ponytail: sentinel for whole-file decode (short clips where regional sampling collapses).
+            // AVI always takes this branch too — see the isAvi comment above.
+            error = await RunFfmpegDecodeAsync(["-i", path, "-f", "null", "-"], expectedSeconds: 0, tolerantContainer: isAvi, cancellationToken).ConfigureAwait(false);
         }
         else
         {
@@ -111,18 +119,18 @@ public sealed class FfprobeService
             // falls significantly short of what we asked for, treat that as truncation regardless of any
             // stderr markers — ffmpeg sometimes hits EOF cleanly without emitting one.
             var startExpected = Math.Min(30.0, durationSeconds);
-            error = await RunFfmpegDecodeAsync(["-i", path, "-t", "30", "-f", "null", "-"], startExpected, cancellationToken).ConfigureAwait(false);
+            error = await RunFfmpegDecodeAsync(["-i", path, "-t", "30", "-f", "null", "-"], startExpected, tolerantContainer: false, cancellationToken).ConfigureAwait(false);
 
             if (string.IsNullOrWhiteSpace(error) && durationSeconds > 90)
             {
                 var middle = ((long)(durationSeconds / 2)).ToString(System.Globalization.CultureInfo.InvariantCulture);
-                error = await RunFfmpegDecodeAsync(["-ss", middle, "-i", path, "-t", "30", "-f", "null", "-"], 30.0, cancellationToken).ConfigureAwait(false);
+                error = await RunFfmpegDecodeAsync(["-ss", middle, "-i", path, "-t", "30", "-f", "null", "-"], 30.0, tolerantContainer: false, cancellationToken).ConfigureAwait(false);
             }
 
             if (string.IsNullOrWhiteSpace(error))
             {
                 var endExpected = Math.Min(30.0, durationSeconds);
-                error = await RunFfmpegDecodeAsync(["-sseof", "-30", "-i", path, "-f", "null", "-"], endExpected, cancellationToken).ConfigureAwait(false);
+                error = await RunFfmpegDecodeAsync(["-sseof", "-30", "-i", path, "-f", "null", "-"], endExpected, tolerantContainer: false, cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -131,7 +139,7 @@ public sealed class FfprobeService
         return result;
     }
 
-    private async Task<string?> RunFfmpegDecodeAsync(string[] args, double expectedSeconds, CancellationToken cancellationToken)
+    private async Task<string?> RunFfmpegDecodeAsync(string[] args, double expectedSeconds, bool tolerantContainer, CancellationToken cancellationToken)
     {
         var encoderPath = _mediaEncoder.EncoderPath;
         if (string.IsNullOrEmpty(encoderPath))
@@ -144,6 +152,12 @@ public sealed class FfprobeService
         process.StartInfo.UseShellExecute = false;
         process.StartInfo.CreateNoWindow = true;
         process.StartInfo.RedirectStandardError = true;
+        // -threads caps decode parallelism to the configured share of cores (default: half the host).
+        // Whole-file thorough decode used to saturate every core; on a 1–2 vCPU VM that starved the
+        // guest agent and hung SSH. Must come before -i / -sseof in the arg order (ffmpeg's -threads
+        // is a per-decoder input option — placing it here also applies to the null output encoder).
+        process.StartInfo.ArgumentList.Add("-threads");
+        process.StartInfo.ArgumentList.Add(ResolveScanThreads());
         // -xerror makes ffmpeg exit non-zero on real decode errors; anything on stderr without a non-zero exit
         // is a non-fatal warning (SEI noise, HEVC parser chatter, benign packet issues) and doesn't mean the file is broken.
         process.StartInfo.ArgumentList.Add("-xerror");
@@ -163,11 +177,16 @@ public sealed class FfprobeService
         try
         {
             process.Start();
+            TryLowerPriority(process);
             var stderrTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
             await process.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false);
             var stderr = await stderrTask.ConfigureAwait(false);
 
-            if (process.ExitCode != 0 || HasTruncationMarker(stderr))
+            // Tolerant containers (AVI) rely on exit code only — AVI's framing routinely triggers
+            // "Truncating packet" warnings on perfectly playable files, so treating that as an
+            // error was flagging every non-trivial AVI (field report A8).
+            var markerTriggered = !tolerantContainer && HasTruncationMarker(stderr);
+            if (process.ExitCode != 0 || markerTriggered)
             {
                 return string.IsNullOrWhiteSpace(stderr) ? "ffmpeg exited with an error" : stderr;
             }
@@ -278,6 +297,11 @@ public sealed class FfprobeService
         process.StartInfo.CreateNoWindow = true;
         process.StartInfo.RedirectStandardOutput = true;
         process.StartInfo.RedirectStandardError = true;
+        // ffprobe is cheap next to a decode, but for very complex containers it still forks worker
+        // threads (extradata parsers, HEVC/AV1 header decoders). Match the decode-side cap so scan
+        // CPU usage stays predictable regardless of which scanner is running.
+        process.StartInfo.ArgumentList.Add("-threads");
+        process.StartInfo.ArgumentList.Add(ResolveScanThreads());
         foreach (var arg in new[] { "-v", "error", "-print_format", "json", "-show_format", "-show_streams", "-show_error", path })
         {
             process.StartInfo.ArgumentList.Add(arg);
@@ -289,6 +313,7 @@ public sealed class FfprobeService
         try
         {
             process.Start();
+            TryLowerPriority(process);
             var stdoutTask = process.StandardOutput.ReadToEndAsync(timeoutCts.Token);
             var stderrTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
             await process.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false);
@@ -325,6 +350,37 @@ public sealed class FfprobeService
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "Could not kill timed-out ffprobe process");
+        }
+    }
+
+    // Resolves the -threads value from the configured cap. 0 = auto = half the host's logical
+    // processors (min 1); positive values are used verbatim. Called at each process launch so a
+    // runtime config change picks up on the next scanner without a restart.
+    private static string ResolveScanThreads()
+    {
+        var configured = Plugin.Instance?.Configuration?.ScanCpuThreads ?? 0;
+        var n = configured > 0 ? configured : Math.Max(1, Environment.ProcessorCount / 2);
+        return n.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    // Best-effort priority nudge. On Windows this is ProcessPriorityClass.BelowNormal; on Linux
+    // the runtime maps it to a nice bump. Swallowed exceptions cover the "process already exited"
+    // race (fast probes finish before we get here) and the rare host that refuses the change.
+    private static void TryLowerPriority(Process process)
+    {
+        if (!(Plugin.Instance?.Configuration?.ScanBelowNormalPriority ?? true))
+        {
+            return;
+        }
+
+        try
+        {
+            process.PriorityClass = ProcessPriorityClass.BelowNormal;
+        }
+        catch (Exception)
+        {
+            // Process may have exited, or the host may refuse the change (rootless container without
+            // CAP_SYS_NICE, some macOS sandboxes). Silent by design — this is a hint, not a contract.
         }
     }
 }

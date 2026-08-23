@@ -1,3 +1,4 @@
+using System;
 using MediaBrowser.Model.Plugins;
 
 // Arrays are required for XML-serialized plugin configuration.
@@ -49,10 +50,12 @@ public class PluginConfiguration : BasePluginConfiguration
         PauseDuringPlayback = true;
         FirstRunDone = false;
         // On by default — the wizard opt-in path pre-ticks the box; users who skip the wizard also
-        // report anonymous stats until they untick in Settings → Safety. AnalyticsInstallId stays
-        // empty here so AnalyticsReporter no-ops until the UI mints one via applyAnalyticsToggle.
+        // report anonymous stats until they untick in Settings → Safety. No install ID is stored:
+        // AnalyticsReporter derives a month-rotated hash of the Jellyfin SystemId at report time.
         AnalyticsEnabled = true;
+#pragma warning disable CS0618 // legacy field retained for pre-1.0.6 config XML compatibility only
         AnalyticsInstallId = string.Empty;
+#pragma warning restore CS0618
         EnabledLibraries = [];
         MisplacedFixMode = FixMode.DetectOnly;
         MoviesTargetPath = string.Empty;
@@ -98,6 +101,21 @@ public class PluginConfiguration : BasePluginConfiguration
         EmbeddedCoverFilename = "cover.jpg";
         UngroupedFixMode = FixMode.DetectOnly;
         CorruptArtworkFixMode = FixMode.DetectOnly;
+        // ponytail: 0 = auto = max(1, ProcessorCount/2). Leaves half the cores for Jellyfin/OS/other
+        // work; on a 1–2 vCPU host that resolves to 1 thread. Field report A1: default-threaded
+        // ffmpeg pinned every core on a Debian/Docker VM and locked up SSH.
+        ScanCpuThreads = 0;
+        ScanBelowNormalPriority = true;
+        // Empty = use FixTask's built-in D2 ordering. Populated with IssueType names via the
+        // Overview "Fix order" dialog when the user has customised the fix order.
+        FixerOrder = [];
+        // Duplicate confidence-ladder defaults (2026-08-22 rework). Chosen to keep the Futurama-
+        // style false positives out while still auto-fixing provider-ID-matched and byte-identical
+        // dupes. All tunable via Settings → Duplicates.
+        DuplicateAutoFixConfidence = 0.80;
+        DuplicateExactHashEnabled = true;
+        DuplicateTitleJaccardVeto = 0.40;
+        DuplicateRuntimeVetoPct = 15;
     }
 
     /// <summary>
@@ -193,10 +211,13 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool AnalyticsEnabled { get; set; }
 
     /// <summary>
-    /// Gets or sets the anonymous ID used to deduplicate this install's monthly rows on the analytics
-    /// backend. Populated on first opt-in with a fresh <see cref="System.Guid"/>. Never leaves this
-    /// config file; the only thing derived from it is the row key on the analytics DB.
+    /// Gets or sets the legacy per-install UUID; previously stored a persistent GUID used as the
+    /// analytics dedup key. Superseded by <c>AnalyticsReporter.ComputeMonthlyInstallId</c>
+    /// (Time-Bounded Rotational Hash of SystemId + year-month). The property is kept as a no-op
+    /// setter so upgrades from &lt;=1.0.5 config XML still deserialise; nothing reads it. Will be
+    /// removed in a future major release.
     /// </summary>
+    [Obsolete("Analytics dedup now uses a month-rotated hash of Jellyfin SystemId — no persistent ID is stored. Setter retained for XML deserialisation of pre-1.0.6 configs.")]
     public string AnalyticsInstallId { get; set; } = string.Empty;
 
     /// <summary>
@@ -294,9 +315,63 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool ThoroughPlayabilityCheck { get; set; }
 
     /// <summary>
+    /// Gets or sets the ffmpeg/ffprobe <c>-threads</c> cap applied to every scan-time probe/decode.
+    /// 0 means auto: <c>max(1, Environment.ProcessorCount / 2)</c> — leaves half the cores for
+    /// Jellyfin, the OS, and any playback. Explicit values &gt; 0 override the auto calculation.
+    /// Field report A1: unpinned ffmpeg saturated every core on a 1–2 vCPU Debian/Docker VM.
+    /// </summary>
+    public int ScanCpuThreads { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether MediaDash launches ffprobe/ffmpeg at below-normal
+    /// priority. On Windows that's <see cref="System.Diagnostics.ProcessPriorityClass.BelowNormal"/>;
+    /// on Linux it maps to a nice bump so the scheduler yields to interactive work first. On by
+    /// default — the small speed penalty on an idle host is worth the responsiveness on a busy one.
+    /// </summary>
+    public bool ScanBelowNormalPriority { get; set; }
+
+    /// <summary>
+    /// Gets or sets the user-defined fixer execution order (see the "Fix order" dialog on Overview).
+    /// Entries are <see cref="Data.IssueType"/> names, ordered highest-priority first. Empty means
+    /// use <see cref="ScheduledTasks.FixTask.FixerRank"/>'s built-in D2 ordering. Unknown or missing
+    /// types fall to the end via the default rank as a soft fallback.
+    /// </summary>
+    public string[] FixerOrder { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether different editions of the same movie are treated as duplicates of each other.
     /// </summary>
     public bool TreatEditionsAsDuplicates { get; set; }
+
+    /// <summary>
+    /// Gets or sets the minimum per-pair confidence (0..1) required before a Duplicate issue is
+    /// auto-queued under <see cref="FixMode.Automatic"/>. Below this threshold pairs remain
+    /// visible in the Issues tab for manual approval but are never auto-deleted. Exact byte-match
+    /// pairs (confidence 1.0) always clear the gate. See DuplicateScanner rework spec §2.
+    /// </summary>
+    public double DuplicateAutoFixConfidence { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the DuplicateScanner may SHA-256 candidates within
+    /// an already-formed group to confirm byte-identical (Tier 0) matches. Only invoked when
+    /// two candidates have exactly equal <see cref="System.IO.FileInfo.Length"/>. On by default.
+    /// </summary>
+    public bool DuplicateExactHashEnabled { get; set; }
+
+    /// <summary>
+    /// Gets or sets the minimum Jaccard similarity of filename title tokens for a pair to remain
+    /// a duplicate candidate. Below this the pair is vetoed and no issue is emitted. Applies only
+    /// to Tier 1 (Identified) and Tier 2 (Heuristic); Tier 0 hash matches override the veto.
+    /// Default 0.40 — kills the GitHub #3 Futurama-specials false positive.
+    /// </summary>
+    public double DuplicateTitleJaccardVeto { get; set; }
+
+    /// <summary>
+    /// Gets or sets the maximum relative runtime delta (percent) tolerated between two candidates.
+    /// If both runtimes are known and their delta exceeds this, the pair is vetoed. Only applied
+    /// to Tier 1 and Tier 2. Default 15%.
+    /// </summary>
+    public int DuplicateRuntimeVetoPct { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether fixes only log what they would do instead of changing files. Defaults to on for safety.

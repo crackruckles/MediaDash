@@ -47,7 +47,10 @@ public sealed class FixResult
     {
         Success = true,
         WasDryRun = true,
-        Message = "DRY RUN — would have: " + message,
+        // Field report A10: users read the old "DRY RUN — would have: moved X → Y" and their eye
+        // latched onto "moved" past-tense, believing the file actually moved. Lead with the fact
+        // that nothing changed so that framing sticks before the action verb arrives.
+        Message = "Preview only — no files were changed. Would have " + message,
         BytesFreed = bytesFreed
     };
 }

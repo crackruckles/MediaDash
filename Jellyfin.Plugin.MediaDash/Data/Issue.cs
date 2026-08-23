@@ -51,4 +51,12 @@ public sealed class Issue
     /// Gets or sets when the issue was detected (UTC).
     /// </summary>
     public DateTime DetectedAtUtc { get; set; }
+
+    /// <summary>
+    /// Gets or sets the confidence in <c>[0,1]</c> that this pair actually represents a duplicate
+    /// (see DuplicateScanner confidence ladder). <c>null</c> for non-Duplicate issue types and for
+    /// pre-migration rows. The auto-queue gate filters Duplicate rows below the configured
+    /// threshold; <c>null</c> is treated as "not gated" so non-Duplicate types still queue normally.
+    /// </summary>
+    public double? Confidence { get; set; }
 }

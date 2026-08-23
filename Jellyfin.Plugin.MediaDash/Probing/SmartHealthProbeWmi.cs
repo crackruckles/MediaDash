@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
@@ -179,10 +180,12 @@ public static class SmartHealthProbeWmi
         return result;
     }
 
-    // Windows exposes SMART interpretation via the static method
-    //   PS_StorageCmdlets::GetStorageReliabilityCounter(PhysicalDisk, [out] StorageReliabilityCounter)
-    // in root\Microsoft\Windows\Storage (this is what the Get-StorageReliabilityCounter PowerShell cmdlet
-    // wraps). We invoke that method on the ManagementClass and hand it the physical-disk instance.
+    // Windows exposes SMART attributes on the MSFT_StorageReliabilityCounter class, associated to
+    // each MSFT_PhysicalDisk. Previously we invoked PS_StorageCmdlets::GetStorageReliabilityCounter
+    // as a static method — that path was more fragile than the association traversal (was returning
+    // no data on a machine where the same call via Get-StorageReliabilityCounter cmdlet worked
+    // fine). GetRelated is the same mechanism Volume→Partition→Disk→PhysicalDisk uses upstream and
+    // is what surfaces the tiles on the Overview.
     private static void FillReliabilityCounters(System.Management.ManagementBaseObject pd, SmartHealthResult result)
     {
         if (pd is not System.Management.ManagementObject mo)
@@ -190,41 +193,243 @@ public static class SmartHealthProbeWmi
             return;
         }
 
+        // Two access paths in priority order — some Windows builds return an empty association from
+        // GetRelated while an explicit query works, and vice versa. Try associations first (cheap),
+        // then fall through to an explicit ASSOCIATORS OF WQL if nothing came back.
         try
         {
-            var scope = new System.Management.ManagementScope(@"\\.\root\Microsoft\Windows\Storage");
-            scope.Connect();
-            using var cmdletsClass = new System.Management.ManagementClass(
-                scope,
-                new System.Management.ManagementPath("PS_StorageCmdlets"),
-                null);
-            using var inParams = cmdletsClass.GetMethodParameters("GetStorageReliabilityCounter");
-            inParams["PhysicalDisk"] = mo;
-
-            using var outParams = cmdletsClass.InvokeMethod("GetStorageReliabilityCounter", inParams, null);
-            if (outParams?["StorageReliabilityCounter"] is not System.Management.ManagementBaseObject counter)
+            if (FillFromReliabilityCounter(mo.GetRelated("MSFT_StorageReliabilityCounter"), result))
             {
                 return;
             }
 
-            using (counter)
+            // Association enumeration returned nothing. Try the explicit associators query — some
+            // hosts don't publish the reverse-direction assoc from PhysicalDisk to Counter, but do
+            // via MSFT_PhysicalDiskToStorageReliabilityCounter directly.
+            if (mo.Path?.RelativePath is string relPath && !string.IsNullOrEmpty(relPath))
             {
+                var scope = mo.Scope ?? new System.Management.ManagementScope(@"\\.\root\Microsoft\Windows\Storage");
+                if (!scope.IsConnected)
+                {
+                    scope.Connect();
+                }
+
+                using var searcher = new System.Management.ManagementObjectSearcher(
+                    scope,
+                    new System.Management.RelatedObjectQuery(relPath, "MSFT_StorageReliabilityCounter"));
+                if (FillFromReliabilityCounter(searcher.Get(), result))
+                {
+                    return;
+                }
+            }
+
+            // Both System.Management (DCOM/classic WMI) paths returned empty. On some hosts —
+            // observed on Windows 11 with a Lexar NM790 — MSFT_StorageReliabilityCounter is only
+            // enumerable through the newer CIM/WSMan stack that PowerShell's Get-CimAssociatedInstance
+            // uses. Shell out as a last resort. It's Windows-only, gated to library/recycle drives,
+            // and only fires when both WMI paths already came back empty, so overhead is bounded.
+            if (FillFromPowerShell(result))
+            {
+                return;
+            }
+
+            Diagnostics.Record("SmartHealth.Wmi", "No MSFT_StorageReliabilityCounter association found for " + (result.ModelName ?? "physical disk") + " via any WMI or PowerShell path. Detail tiles will show 'no attributes reported'; the health pill is unaffected.");
+        }
+        catch (System.Management.ManagementException ex)
+        {
+            Diagnostics.Record("SmartHealth.Wmi", "MSFT_StorageReliabilityCounter lookup failed for " + (result.ModelName ?? "physical disk") + ": " + ex.Message + ". Stats will be blank.");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            // Some Windows hosts require elevation to read StorageReliabilityCounter even when the
+            // health pill is readable. Surface this specifically so users know to run Jellyfin
+            // elevated (or accept blank tiles) — the pill still shows honestly.
+            Diagnostics.Record("SmartHealth.Wmi", "Access denied reading MSFT_StorageReliabilityCounter for " + (result.ModelName ?? "physical disk") + ": " + ex.Message + ". Detail tiles will be blank; run Jellyfin as an administrator to expose them (the SMART pill still works).");
+        }
+        catch (COMException ex)
+        {
+            Diagnostics.Record("SmartHealth.Wmi", "MSFT_StorageReliabilityCounter COM error for " + (result.ModelName ?? "physical disk") + ": " + ex.Message + ".");
+        }
+    }
+
+    private static bool FillFromReliabilityCounter(System.Management.ManagementObjectCollection results, SmartHealthResult result)
+    {
+        foreach (var counterObj in results)
+        {
+            using (counterObj as IDisposable)
+            {
+                if (counterObj is not System.Management.ManagementBaseObject counter)
+                {
+                    continue;
+                }
+
                 result.TemperatureCelsius = TryInt(counter["Temperature"]);
                 result.TemperatureMaxCelsius = TryInt(counter["TemperatureMax"]);
                 result.WearPercent = TryInt(counter["Wear"]);
                 result.PowerOnHours = TryLong(counter["PowerOnHours"]);
                 result.ReadErrorsUncorrected = TryLong(counter["ReadErrorsUncorrected"]);
                 result.WriteErrorsUncorrected = TryLong(counter["WriteErrorsUncorrected"]);
+                return true;
             }
         }
-        catch (System.Management.ManagementException ex)
+
+        return false;
+    }
+
+    // Last-resort PowerShell shell-out. Matches by FriendlyName against the pre-populated
+    // result.ModelName. Cheap because it's gated behind both WMI paths returning empty AND
+    // fires at most once per (drive, cache-TTL=10min).
+    private static bool FillFromPowerShell(SmartHealthResult result)
+    {
+        if (string.IsNullOrEmpty(result.ModelName))
         {
-            Diagnostics.Record("SmartHealth.Wmi", "GetStorageReliabilityCounter failed for " + (result.ModelName ?? "physical disk") + ": " + ex.Message + ". Stats will be blank.");
+            return false;
         }
-        catch (COMException ex)
+
+        // Emit one row per PhysicalDisk with tab-separated fields. Empty fields become empty
+        // strings (Get-StorageReliabilityCounter returns null for unsupported attributes on a
+        // given drive — Lexar NM790 for example doesn't report PowerOnHours).
+        // -join keeps the payload single-line-per-drive so a simple line-split parser works.
+        const string script =
+            "$ErrorActionPreference='Stop';" +
+            "Get-PhysicalDisk | ForEach-Object {" +
+            "  $c = $_ | Get-StorageReliabilityCounter -ErrorAction SilentlyContinue;" +
+            "  ($_.FriendlyName,$c.Temperature,$c.TemperatureMax,$c.Wear,$c.PowerOnHours,$c.ReadErrorsUncorrected,$c.WriteErrorsUncorrected) -join [char]9" +
+            "}";
+
+        try
         {
-            Diagnostics.Record("SmartHealth.Wmi", "GetStorageReliabilityCounter COM error for " + (result.ModelName ?? "physical disk") + ": " + ex.Message + ".");
+            var psi = new ProcessStartInfo("powershell.exe")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            psi.ArgumentList.Add("-NoProfile");
+            psi.ArgumentList.Add("-NonInteractive");
+            psi.ArgumentList.Add("-ExecutionPolicy");
+            psi.ArgumentList.Add("Bypass");
+            psi.ArgumentList.Add("-Command");
+            psi.ArgumentList.Add(script);
+
+            using var p = Process.Start(psi);
+            if (p is null)
+            {
+                return false;
+            }
+
+            var stdoutTask = p.StandardOutput.ReadToEndAsync();
+            if (!p.WaitForExit(3000))
+            {
+                try
+                {
+                    p.Kill();
+                }
+                catch (InvalidOperationException)
+                {
+                }
+
+                return false;
+            }
+
+            var stdout = stdoutTask.GetAwaiter().GetResult();
+            var matched = false;
+            foreach (var line in stdout.Split('\n'))
+            {
+                var trimmed = line.Trim('\r');
+                if (trimmed.Length == 0)
+                {
+                    continue;
+                }
+
+                var parts = trimmed.Split('\t');
+                // PowerShell's -join drops trailing empty fields, so a drive that only reports
+                // Temperature/TemperatureMax/Wear (like the Lexar NM790) comes out with 4 fields
+                // instead of 7. Accept anything with a name + at least one value and fill
+                // per-position; missing indexes just stay null.
+                if (parts.Length < 2)
+                {
+                    continue;
+                }
+
+                // Trim each field individually — PowerShell can pad with spaces when a value is
+                // whitespace-sensitive, and stray leading spaces have caused the OrdinalIgnoreCase
+                // name match to silently miss. This also stabilises int.TryParse below.
+                for (var i = 0; i < parts.Length; i++)
+                {
+                    parts[i] = parts[i].Trim();
+                }
+
+                if (!string.Equals(parts[0], result.ModelName?.Trim(), StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                matched = true;
+
+                if (parts.Length > 1 && int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var t))
+                {
+                    result.TemperatureCelsius = t;
+                }
+
+                if (parts.Length > 2 && int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out var tm))
+                {
+                    result.TemperatureMaxCelsius = tm;
+                }
+
+                if (parts.Length > 3 && int.TryParse(parts[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out var w))
+                {
+                    result.WearPercent = w;
+                }
+
+                if (parts.Length > 4 && long.TryParse(parts[4], NumberStyles.Integer, CultureInfo.InvariantCulture, out var poh))
+                {
+                    result.PowerOnHours = poh;
+                }
+
+                if (parts.Length > 5 && long.TryParse(parts[5], NumberStyles.Integer, CultureInfo.InvariantCulture, out var re))
+                {
+                    result.ReadErrorsUncorrected = re;
+                }
+
+                if (parts.Length > 6 && long.TryParse(parts[6], NumberStyles.Integer, CultureInfo.InvariantCulture, out var we))
+                {
+                    result.WriteErrorsUncorrected = we;
+                }
+
+                // Consider it a hit if we got AT LEAST one field. Some drives report only a subset.
+                if (result.TemperatureCelsius.HasValue
+                    || result.WearPercent.HasValue
+                    || result.PowerOnHours.HasValue
+                    || result.ReadErrorsUncorrected.HasValue)
+                {
+                    return true;
+                }
+            }
+
+            // We got here with matched=false → PowerShell ran but no line matched the model name.
+            // Surface the (truncated) stdout so we can see WHAT PowerShell returned. Common cause:
+            // FriendlyName mismatch between the WMI ModelName we set and PowerShell's FriendlyName
+            // (e.g. trailing space, alternate spelling from a driver update).
+            if (!matched)
+            {
+                var preview = stdout.Length > 200 ? stdout[..200] + "…" : stdout;
+                preview = preview.Replace('\t', '|').Replace('\r', ' ').Replace('\n', ' ');
+                Diagnostics.Record(
+                    "SmartHealth.Wmi",
+                    "PowerShell counter fallback ran for '" + result.ModelName + "' but no output line's FriendlyName matched. Raw stdout (tabs shown as |): '" + preview + "'.");
+            }
         }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // powershell.exe not on PATH (unusual on Windows, but possible on stripped installs).
+        }
+        catch (System.IO.IOException)
+        {
+        }
+
+        return false;
     }
 
     // Older Windows or drives Storage Spaces doesn't enumerate — fall back to the ATA predict-fail bit

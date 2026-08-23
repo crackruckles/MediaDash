@@ -129,9 +129,25 @@ public sealed class FixTask : IScheduledTask
 
         foreach (var type in FixableTypes)
         {
+            // Duplicate: Automatic mode temporarily disabled server-side too. The UI now hides the
+            // Automatic segment for Duplicate, but a legacy config could still hold
+            // DuplicateFixMode=Automatic; skipping the auto-queue step here ensures a stray auto-
+            // delete can't slip through until the confidence-ladder rework is proven in the field.
+            // Manual approval from the Issues tab still queues normally (that path bypasses this
+            // whole loop).
+            if (type == Data.IssueType.Duplicate && config.GetFixMode(type) == FixMode.Automatic)
+            {
+                _logger.LogInformation("Duplicate is set to Automatic in config but auto-queue is disabled while the detection rework stabilises; issues remain Detected until manually approved.");
+                continue;
+            }
+
             if (config.GetFixMode(type) == FixMode.Automatic)
             {
-                var queued = _db.QueueDetectedIssues(type);
+                // Duplicate is the only confidence-gated type today. Below-threshold rows stay
+                // Detected so the user can still approve them manually from the Issues tab —
+                // manual approval is a stronger signal than the type's default mode.
+                double? gate = type == Data.IssueType.Duplicate ? config.DuplicateAutoFixConfidence : null;
+                var queued = _db.QueueDetectedIssues(type, gate);
                 if (queued > 0)
                 {
                     _logger.LogInformation("Auto-queued {Count} {Type} issues", queued, type);
@@ -144,13 +160,18 @@ public sealed class FixTask : IScheduledTask
         // type's default mode, so DetectOnly does NOT filter it back out — only Off does (the type is disabled
         // entirely). Previous versions silently dropped DetectOnly-queued items and left users staring at
         // "Run fixes now" doing nothing.
-        // Smallest files first so early re-encodes free disk space for the bigger ones behind them.
-        // Missing files sort to the front (size 0) so they fail fast rather than block the queue.
+        // Primary sort: fixer rank (see FixerRankOrder for the D2 hard constraints — Suspicious /
+        // Playability before content rewrites, Duplicate before Track/Transcode so we don't rebuild
+        // a file about to be deleted, MissingSubtitle before Transcode so subs land pre-encode,
+        // TrickplayOptimize last because BIF must match the final video).
+        // Tiebreaker: smallest files first so early re-encodes free disk space for the bigger ones
+        // behind them. Missing files sort to the front (size 0) so they fail fast.
         var allQueued = _db.GetIssues(status: IssueStatus.Queued).ToList();
         var offCount = allQueued.Count(i => config.GetFixMode(i.Type) == FixMode.Off);
         var queue = allQueued
             .Where(i => config.GetFixMode(i.Type) != FixMode.Off)
-            .OrderBy(GetFileSizeOrZero)
+            .OrderBy(i => FixerRank(i.Type))
+            .ThenBy(GetFileSizeOrZero)
             .ToList();
 
         _logger.LogInformation("MediaDash fix run: {Count} queued issues (dry-run: {DryRun})", queue.Count, config.DryRun);
@@ -234,6 +255,7 @@ public sealed class FixTask : IScheduledTask
             var itemIndex = i;
             var slot = 100.0 / queue.Count;
             progress.Report(itemIndex * slot);
+            Plugin.CurrentActivityLabel = fixer.GetType().Name;
             Plugin.CurrentActivity = issue.Path;
             // Synchronous IProgress: Progress<T> queues callbacks and can reorder reports, leading to a jittery bar.
             var itemProgress = new SynchronousProgress(fraction => progress.Report((itemIndex + Math.Clamp(fraction, 0, 1)) * slot));
@@ -339,26 +361,34 @@ public sealed class FixTask : IScheduledTask
             progress.Report((i + 1) * 100.0 / queue.Count);
         }
 
-        _recycleBin.Purge(config.RecycleBinRetentionDays);
+        // Both maintenance passes below physically delete files on disk (retention purge of the
+        // recycle bin, sweep of stale ffmpeg .mediadash.tmp/.mediadash.new leftovers). During a
+        // dry run we promise "no local file changes"; skipping them here keeps that promise
+        // absolute. They'll run on the next real fix pass — nothing is lost, just deferred.
+        if (!config.DryRun)
+        {
+            _recycleBin.Purge(config.RecycleBinRetentionDays);
 
-        // Orphan-sidecar sweep: at end of a fix run no encode is active, so any *.mediadash.tmp* /
-        // *.mediadash.new* file sitting in a library folder is a leftover from a hard-killed encode
-        // (SIGKILL, container restart, Jellyfin crash) where the fixer's finally couldn't clean up.
-        try
-        {
-            var orphans = _libraryGuard.SweepOrphanSidecars();
-            if (orphans.Count > 0)
+            // Orphan-sidecar sweep: at end of a fix run no encode is active, so any *.mediadash.tmp* /
+            // *.mediadash.new* file sitting in a library folder is a leftover from a hard-killed encode
+            // (SIGKILL, container restart, Jellyfin crash) where the fixer's finally couldn't clean up.
+            try
             {
-                var freed = orphans.Sum(o => o.Bytes);
-                _logger.LogInformation("Removed {Count} orphan MediaDash sidecar file(s), reclaimed {Bytes} bytes.", orphans.Count, freed);
+                var orphans = _libraryGuard.SweepOrphanSidecars();
+                if (orphans.Count > 0)
+                {
+                    var freed = orphans.Sum(o => o.Bytes);
+                    _logger.LogInformation("Removed {Count} orphan MediaDash sidecar file(s), reclaimed {Bytes} bytes.", orphans.Count, freed);
+                }
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Orphan-sidecar sweep failed; will retry next run.");
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Orphan-sidecar sweep failed; will retry next run.");
+            }
         }
 
         Plugin.CurrentActivity = null;
+        Plugin.CurrentActivityLabel = null;
 
         // Post the run summary so the dashboard can pop a single alert on completion instead of leaving the
         // user to click into Errors themselves and count messages.
@@ -469,6 +499,60 @@ public sealed class FixTask : IScheduledTask
             return 0;
         }
     }
+
+    // Field report D2 hard constraints, expressed as a fixed rank order. Lower runs first.
+    //   SuspiciousFile / Playability first: don't rewrite content we'd otherwise flag for removal.
+    //   Duplicate before Transcode/Track/SubtitleFont/EmbeddedCoverArt: don't rebuild a file about to be deleted.
+    //   OrphanCleanup before movers so sidecar sweeps run against pre-move state.
+    //   MissingSubtitle before Transcode: subs must land before an encode, else they're orphaned by rename.
+    //   Track (cheap remux) before Transcode (full re-encode).
+    //   TrickplayOptimize last: BIF file must match the FINAL video hash post-encode, or Jellyfin regenerates it.
+    // Anything unlisted falls after the ranked types (rank = int.MaxValue), preserving today's order there.
+    private static int FixerRank(Data.IssueType type)
+    {
+        // User override: if config.FixerOrder is set (via the Overview "Fix order" dialog), the
+        // user's ordering wins. Unlisted types fall to the end via DefaultFixerRank so a new fixer
+        // added in a future version doesn't disappear from the queue just because the user's
+        // saved order predates it.
+        var custom = Plugin.Instance?.Configuration?.FixerOrder;
+        if (custom is { Length: > 0 })
+        {
+            for (var i = 0; i < custom.Length; i++)
+            {
+                if (Enum.TryParse<Data.IssueType>(custom[i], ignoreCase: false, out var t) && t == type)
+                {
+                    return i;
+                }
+            }
+
+            return 1000 + DefaultFixerRank(type);
+        }
+
+        return DefaultFixerRank(type);
+    }
+
+    private static int DefaultFixerRank(Data.IssueType type) => type switch
+    {
+        Data.IssueType.MalwareRisk => 0,
+        Data.IssueType.Playability => 1,
+        Data.IssueType.Duplicate => 2,
+        Data.IssueType.OrphanedDebris => 3,
+        Data.IssueType.Misplaced => 4,
+        Data.IssueType.Ungrouped => 5,
+        Data.IssueType.MissingSubtitles => 6,
+        Data.IssueType.SubtitleLanguage => 7,
+        Data.IssueType.AudioLanguage => 8,
+        Data.IssueType.Quality => 9,
+        Data.IssueType.HeavyTranscode => 10,
+        Data.IssueType.FailedTranscode => 11,
+        Data.IssueType.SubtitleFonts => 12,
+        Data.IssueType.EmbeddedCoverArt => 13,
+        Data.IssueType.CorruptNfo => 14,
+        Data.IssueType.CorruptArtwork => 15,
+        Data.IssueType.Stale => 16,
+        Data.IssueType.LargeTrickplay => 17,
+        _ => int.MaxValue
+    };
 
     private sealed class SynchronousProgress : IProgress<double>
     {

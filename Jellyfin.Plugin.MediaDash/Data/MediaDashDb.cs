@@ -16,7 +16,8 @@ public sealed class MediaDashDb
     // Bump when a semantic change to the decode check would make old cache entries misleading.
     // v1: -xerror + exit-code-only in the decode check (2026-07-20) — previous stderr-noise-as-error entries invalidated.
     // v3: history.acknowledged column for redownload-warning acknowledgement (2026-08-17).
-    private const int SchemaVersion = 3;
+    // v4: issues.confidence column for the duplicate confidence ladder (2026-08-22).
+    private const int SchemaVersion = 4;
 
     private readonly string _connectionString;
 
@@ -37,8 +38,26 @@ public sealed class MediaDashDb
     {
         _connectionString = new SqliteConnectionStringBuilder { DataSource = dbPath }.ToString();
 
-        using var connection = Open();
-        using var cmd = connection.CreateCommand();
+        SqliteConnection connection;
+        try
+        {
+            connection = Open();
+        }
+        catch (Exception ex) when (ex is SqliteException or IOException or UnauthorizedAccessException)
+        {
+            // The DB open covers the whole first-run path (CreateDirectory / CACHEDIR.TAG failures
+            // funnel up here from EnsureDbPath, and SQLite's "unable to open" surfaces here too).
+            // Message names the path so the user knows what to chown/chmod; Diagnostics can't persist
+            // yet (DB isn't up), so the in-memory buffer holds it — if the plugin recovers and Attach
+            // runs later, Diagnostics.Attach reloads from disk and the in-memory row is still there.
+            var msg = "MediaDash could not open its SQLite database at '" + dbPath + "': " + ex.Message
+                + ". Check that the Jellyfin process user owns the folder and can write to it.";
+            Api.Diagnostics.Record("MediaDashDb.InitFailed", msg);
+            throw new InvalidOperationException(msg, ex);
+        }
+
+        using var db = connection;
+        using var cmd = db.CreateCommand();
         cmd.CommandText = """
             PRAGMA journal_mode = WAL;
 
@@ -51,7 +70,8 @@ public sealed class MediaDashDb
                 suggested_fix TEXT NOT NULL DEFAULT '',
                 size_savings INTEGER NOT NULL DEFAULT 0,
                 status INTEGER NOT NULL DEFAULT 0,
-                detected_at_utc INTEGER NOT NULL
+                detected_at_utc INTEGER NOT NULL,
+                confidence REAL NULL
             );
             CREATE INDEX IF NOT EXISTS idx_issues_type_status ON issues(type, status);
 
@@ -78,6 +98,14 @@ public sealed class MediaDashDb
                 probed_at_utc INTEGER NOT NULL,
                 ok INTEGER NOT NULL,
                 reason TEXT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS file_hashes (
+                path TEXT NOT NULL,
+                size INTEGER NOT NULL,
+                mtime INTEGER NOT NULL,
+                hash TEXT NOT NULL,
+                PRIMARY KEY (path, size, mtime)
             );
 
             CREATE TABLE IF NOT EXISTS history (
@@ -113,7 +141,7 @@ public sealed class MediaDashDb
             """;
         cmd.ExecuteNonQuery();
 
-        MigrateSchema(connection);
+        MigrateSchema(db);
 
         // Wire the persistent diagnostics buffer to this DB. Previously the buffer was in-memory
         // only; recorded errors vanished on every plugin reload / update. Attach reloads persisted
@@ -126,6 +154,14 @@ public sealed class MediaDashDb
         // from the plugin_state table; the property setters on Plugin write back through.
         Api.PluginState.Attach(this);
     }
+
+    /// <summary>
+    /// Gets the effective data directory holding the SQLite DB, probe cache and recycle bin, or
+    /// null when this instance was constructed against an explicit path (tests). Populated by
+    /// <see cref="EnsureDbPath"/> so the Overview tab can show what path the plugin is writing to
+    /// — critical for troubleshooting "why can't the DB init?" errors on Docker/rootless setups.
+    /// </summary>
+    public static string? DataDirectory { get; private set; }
 
     // Each step below is idempotent by design (DELETE on empty table is a no-op; column probes precede
     // any ALTER TABLE; back-fills use conditional WHERE). PRAGMA user_version is only advanced after
@@ -208,6 +244,34 @@ public sealed class MediaDashDb
             }
         }
 
+        if (current < 4)
+        {
+            // Add issues.confidence for the duplicate confidence ladder. Nullable so pre-migration
+            // rows (all non-Duplicate types + already-detected Duplicate rows) still queue normally
+            // — the auto-queue gate treats NULL as "not confidence-gated" (see QueueDetectedIssues).
+            var hasConfidence = false;
+            using (var probe = connection.CreateCommand())
+            {
+                probe.CommandText = "PRAGMA table_info(issues)";
+                using var pr = probe.ExecuteReader();
+                while (pr.Read())
+                {
+                    if (string.Equals(pr.GetString(1), "confidence", StringComparison.OrdinalIgnoreCase))
+                    {
+                        hasConfidence = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!hasConfidence)
+            {
+                using var addColumn = connection.CreateCommand();
+                addColumn.CommandText = "ALTER TABLE issues ADD COLUMN confidence REAL NULL";
+                addColumn.ExecuteNonQuery();
+            }
+        }
+
         using var setVersion = connection.CreateCommand();
 #pragma warning disable CA2100 // SchemaVersion is a compile-time constant, and PRAGMA does not accept bound parameters.
         setVersion.CommandText = $"PRAGMA user_version = {SchemaVersion}";
@@ -218,18 +282,30 @@ public sealed class MediaDashDb
     private static string EnsureDbPath(IApplicationPaths applicationPaths)
     {
         var dataDir = Path.Combine(applicationPaths.DataPath, "mediadash");
+        DataDirectory = dataDir;
         Directory.CreateDirectory(dataDir);
 
         // Mark the dir as cache-like so backup tools (rsync --exclude-caches, restic, borg, Time Machine
         // via .nobackup patterns) skip our SQLite + probe cache + recycle bin by default. Spec:
         // https://bford.info/cachedir/ — first line must be exactly the Signature: line with no BOM.
+        // Best-effort: if the tag write fails (read-only tmpfs, full disk), the plugin continues —
+        // don't block DB init on a non-critical backup-exclusion hint.
         var tagPath = Path.Combine(dataDir, "CACHEDIR.TAG");
         if (!File.Exists(tagPath))
         {
-            File.WriteAllText(
-                tagPath,
-                "Signature: 8a477f597d28d172789f06886806bc55\n# This file is a cache directory tag created by MediaDash.\n# For information about cache directory tags see https://bford.info/cachedir/\n",
-                new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            try
+            {
+                File.WriteAllText(
+                    tagPath,
+                    "Signature: 8a477f597d28d172789f06886806bc55\n# This file is a cache directory tag created by MediaDash.\n# For information about cache directory tags see https://bford.info/cachedir/\n",
+                    new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Api.Diagnostics.Record(
+                    "MediaDashDb.CachedirTag",
+                    "Could not write CACHEDIR.TAG at '" + tagPath + "': " + ex.Message + ". Backup tools that honour cache-directory tags won't auto-skip the MediaDash folder; the plugin itself continues normally.");
+            }
         }
 
         return Path.Combine(dataDir, "mediadash.db");
@@ -278,8 +354,8 @@ public sealed class MediaDashDb
             // Dismissed rows suppress re-detection (the user said "never show this again");
             // queued rows suppress duplicates. Fixed rows must NOT suppress — the same path can break again later.
             insert.CommandText = """
-                INSERT INTO issues (type, item_id, path, details, suggested_fix, size_savings, status, detected_at_utc)
-                SELECT @type, @itemId, @path, @details, @suggestedFix, @sizeSavings, @detected, @detectedAt
+                INSERT INTO issues (type, item_id, path, details, suggested_fix, size_savings, status, detected_at_utc, confidence)
+                SELECT @type, @itemId, @path, @details, @suggestedFix, @sizeSavings, @detected, @detectedAt, @confidence
                 WHERE NOT EXISTS (
                     SELECT 1 FROM issues WHERE type = @type AND path = @path AND status IN (@queued, @dismissed))
                 """;
@@ -293,6 +369,7 @@ public sealed class MediaDashDb
             var pSizeSavings = insert.Parameters.Add("@sizeSavings", SqliteType.Integer);
             insert.Parameters.AddWithValue("@detected", (int)IssueStatus.Detected);
             var pDetectedAt = insert.Parameters.Add("@detectedAt", SqliteType.Integer);
+            var pConfidence = insert.Parameters.Add("@confidence", SqliteType.Real);
 
             foreach (var issue in issues)
             {
@@ -303,6 +380,7 @@ public sealed class MediaDashDb
                 pSuggestedFix.Value = issue.SuggestedFix;
                 pSizeSavings.Value = issue.SizeSavings;
                 pDetectedAt.Value = issue.DetectedAtUtc.Ticks;
+                pConfidence.Value = issue.Confidence.HasValue ? issue.Confidence.Value : (object)DBNull.Value;
                 insert.ExecuteNonQuery();
             }
         }
@@ -320,7 +398,7 @@ public sealed class MediaDashDb
     {
         using var connection = Open();
         using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT id, type, item_id, path, details, suggested_fix, size_savings, status, detected_at_utc FROM issues"
+        cmd.CommandText = "SELECT id, type, item_id, path, details, suggested_fix, size_savings, status, detected_at_utc, confidence FROM issues"
             + " WHERE (@type IS NULL OR type = @type) AND (@status IS NULL OR status = @status) ORDER BY id DESC";
         cmd.Parameters.AddWithValue("@type", type is null ? DBNull.Value : (int)type);
         cmd.Parameters.AddWithValue("@status", status is null ? DBNull.Value : (int)status);
@@ -339,7 +417,8 @@ public sealed class MediaDashDb
                 SuggestedFix = reader.GetString(5),
                 SizeSavings = reader.GetInt64(6),
                 Status = (IssueStatus)reader.GetInt32(7),
-                DetectedAtUtc = new DateTime(reader.GetInt64(8), DateTimeKind.Utc)
+                DetectedAtUtc = new DateTime(reader.GetInt64(8), DateTimeKind.Utc),
+                Confidence = reader.IsDBNull(9) ? null : reader.GetDouble(9)
             });
         }
 
@@ -414,6 +493,48 @@ public sealed class MediaDashDb
         cmd.Parameters.AddWithValue("@mtime", mtimeUtcTicks);
         cmd.Parameters.AddWithValue("@probedAt", DateTime.UtcNow.Ticks);
         cmd.Parameters.AddWithValue("@json", json);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Looks up a cached full-file SHA-256 hash that is still valid for the file's current size
+    /// and mtime. Feeds the Tier-0 (byte-identical) branch of the duplicate confidence ladder.
+    /// </summary>
+    /// <param name="path">Full file path.</param>
+    /// <param name="size">Current file size in bytes.</param>
+    /// <param name="mtimeUtcTicks">Current last-write time in UTC ticks.</param>
+    /// <returns>The cached lowercase hex hash, or null when absent or stale.</returns>
+    public string? GetCachedHash(string path, long size, long mtimeUtcTicks)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT hash FROM file_hashes WHERE path = @path AND size = @size AND mtime = @mtime";
+        cmd.Parameters.AddWithValue("@path", path);
+        cmd.Parameters.AddWithValue("@size", size);
+        cmd.Parameters.AddWithValue("@mtime", mtimeUtcTicks);
+        return cmd.ExecuteScalar() as string;
+    }
+
+    /// <summary>
+    /// Stores a computed hash, replacing any previous entry for the same (path, size, mtime).
+    /// </summary>
+    /// <param name="path">Full file path.</param>
+    /// <param name="size">File size at hash time.</param>
+    /// <param name="mtimeUtcTicks">Last-write time at hash time.</param>
+    /// <param name="hash">Lowercase hex SHA-256.</param>
+    public void StoreHash(string path, long size, long mtimeUtcTicks, string hash)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO file_hashes (path, size, mtime, hash)
+            VALUES (@path, @size, @mtime, @hash)
+            ON CONFLICT(path, size, mtime) DO UPDATE SET hash = @hash
+            """;
+        cmd.Parameters.AddWithValue("@path", path);
+        cmd.Parameters.AddWithValue("@size", size);
+        cmd.Parameters.AddWithValue("@mtime", mtimeUtcTicks);
+        cmd.Parameters.AddWithValue("@hash", hash);
         cmd.ExecuteNonQuery();
     }
 
@@ -631,15 +752,28 @@ public sealed class MediaDashDb
     }
 
     /// <summary>
-    /// Moves all detected issues of a type into the queue (used by automatic mode).
+    /// Moves all detected issues of a type into the queue (used by automatic mode). When
+    /// <paramref name="minConfidence"/> is supplied, only rows with confidence at that value or
+    /// above (or NULL — non-Duplicate types + pre-migration rows) are promoted. NULL is treated
+    /// as "not gated" so non-Duplicate types still queue normally.
     /// </summary>
     /// <param name="type">The issue type.</param>
+    /// <param name="minConfidence">Optional minimum <c>Issue.Confidence</c> threshold. Only pass a non-null value for confidence-gated types (currently Duplicate).</param>
     /// <returns>The number of issues queued.</returns>
-    public int QueueDetectedIssues(IssueType type)
+    public int QueueDetectedIssues(IssueType type, double? minConfidence = null)
     {
         using var connection = Open();
         using var cmd = connection.CreateCommand();
-        cmd.CommandText = "UPDATE issues SET status = @queued WHERE type = @type AND status = @detected";
+        if (minConfidence is double gate)
+        {
+            cmd.CommandText = "UPDATE issues SET status = @queued WHERE type = @type AND status = @detected AND (confidence IS NULL OR confidence >= @gate)";
+            cmd.Parameters.AddWithValue("@gate", gate);
+        }
+        else
+        {
+            cmd.CommandText = "UPDATE issues SET status = @queued WHERE type = @type AND status = @detected";
+        }
+
         cmd.Parameters.AddWithValue("@queued", (int)IssueStatus.Queued);
         cmd.Parameters.AddWithValue("@type", (int)type);
         cmd.Parameters.AddWithValue("@detected", (int)IssueStatus.Detected);
@@ -655,7 +789,7 @@ public sealed class MediaDashDb
     {
         using var connection = Open();
         using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT id, type, item_id, path, details, suggested_fix, size_savings, status, detected_at_utc FROM issues WHERE id = @id";
+        cmd.CommandText = "SELECT id, type, item_id, path, details, suggested_fix, size_savings, status, detected_at_utc, confidence FROM issues WHERE id = @id";
         cmd.Parameters.AddWithValue("@id", issueId);
         using var reader = cmd.ExecuteReader();
         if (!reader.Read())
@@ -673,7 +807,8 @@ public sealed class MediaDashDb
             SuggestedFix = reader.GetString(5),
             SizeSavings = reader.GetInt64(6),
             Status = (IssueStatus)reader.GetInt32(7),
-            DetectedAtUtc = new DateTime(reader.GetInt64(8), DateTimeKind.Utc)
+            DetectedAtUtc = new DateTime(reader.GetInt64(8), DateTimeKind.Utc),
+            Confidence = reader.IsDBNull(9) ? null : reader.GetDouble(9)
         };
     }
 

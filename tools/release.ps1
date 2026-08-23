@@ -34,15 +34,49 @@ if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed" }
 $publishDir = "Jellyfin.Plugin.MediaDash/bin/Release/net9.0/publish"
 if (-not (Test-Path $publishDir)) { throw "publish output missing: $publishDir" }
 
-# Guardrail against the v0.7.0 breakage: dotnet publish quietly emitted only the main dll (missing
-# System.Diagnostics.PerformanceCounter.dll + siblings), the release script zipped what it saw, users
-# installed a plugin that FileNotFoundExceptioned at load ("NotSupported" in the plugin list). The
-# main assembly is Jellyfin.Plugin.MediaDash.dll — anything else at publish root is a copied NuGet
-# runtime dep. A publish with zero of those is broken; abort before we upload a half-release.
-$dependencyDlls = @(Get-ChildItem $publishDir -File -Filter '*.dll' | Where-Object { $_.Name -ne 'Jellyfin.Plugin.MediaDash.dll' })
-if ($dependencyDlls.Count -eq 0) {
-    throw "Publish output has no dependency DLLs beside the main assembly. CopyLocalLockFileAssemblies didn't run, or publish was incremental against a stale output. Delete Jellyfin.Plugin.MediaDash/bin and re-run."
+# Guardrail against the v0.7.0 / v0.9.9.1 / v1.0.6 sidecar breakages: dotnet publish sometimes emits
+# only the main dll (missing System.Diagnostics.PerformanceCounter.dll + siblings), the release script
+# zipped what it saw, users installed a plugin that FileNotFoundExceptioned at load ("NotSupported" in
+# the plugin list). Same failure mode surfaced 2026-08-23 when System.Management.dll was missing from
+# dev deploys, breaking Windows SMART.
+#
+# Fix: assert every PackageReference that DOESN'T carry <ExcludeAssets>runtime</ExcludeAssets> in the
+# csproj is present in publish/ as a .dll. Package refs marked ExcludeAssets=runtime (Jellyfin.Controller,
+# Jellyfin.Model, Microsoft.Data.Sqlite - provided by the host) are expected to NOT ship. This catches
+# the "dropped a package reference" and "incremental publish went stale" cases explicitly, not by count.
+$csprojPath = 'Jellyfin.Plugin.MediaDash/Jellyfin.Plugin.MediaDash.csproj'
+[xml]$csproj = Get-Content $csprojPath
+$requiredPackages = @()
+foreach ($ref in $csproj.SelectNodes('//PackageReference')) {
+    $name = $ref.GetAttribute('Include')
+    if (-not $name) { continue }
+    # PrivateAssets=All → analyzer packages, never shipped.
+    $private = $ref.GetAttribute('PrivateAssets')
+    if ($private -eq 'All') { continue }
+    # ExcludeAssets>runtime</ExcludeAssets> → provided by the host.
+    $excludeInline = $ref.GetAttribute('ExcludeAssets')
+    $excludeChild = $ref.ExcludeAssets
+    if ($excludeInline -match 'runtime' -or $excludeChild -match 'runtime') { continue }
+    $requiredPackages += $name
 }
+if ($requiredPackages.Count -eq 0) {
+    throw "csproj audit found no shippable PackageReference entries. That's not right - check $csprojPath."
+}
+
+$publishedDlls = @(Get-ChildItem $publishDir -File -Filter '*.dll' | ForEach-Object { $_.BaseName })
+$missing = @()
+foreach ($pkg in $requiredPackages) {
+    # Package name usually equals the assembly name (SharpCompress → SharpCompress.dll,
+    # System.Management → System.Management.dll). If a package ever ships an assembly under a
+    # different name we'll need to map explicitly; today it's 1:1.
+    if ($pkg -notin $publishedDlls) {
+        $missing += $pkg
+    }
+}
+if ($missing.Count -gt 0) {
+    throw "Publish output is missing DLLs for: $($missing -join ', '). Delete Jellyfin.Plugin.MediaDash/bin and re-run - the publish likely went incremental against a stale output, or a package reference was dropped from the csproj."
+}
+Write-Host "Sidecar check OK: $($requiredPackages.Count) shippable DLLs present."
 
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 New-Item -ItemType Directory -Path $stage | Out-Null

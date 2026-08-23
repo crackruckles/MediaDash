@@ -182,6 +182,18 @@ public sealed class LibraryGuard
             return false;
         }
 
+        // If fullRoot already ends with a separator (i.e. it's a Windows drive root like "C:\" — .NET's
+        // TrimEndingDirectorySeparator preserves that trailing slash because "C:" alone isn't a valid
+        // rooted path), any StartsWith match is inherently a boundary match. Skipping the boundary
+        // check here fixes SMART/library-drive detection on Windows: previously
+        // IsUnder("C:\\Users\\...", "C:\\") returned false because fullPath[3] was 'U' (from "Users"),
+        // not '\\', so FindDriveForPath returned null for every subpath of a drive root.
+        if (fullRoot.Length > 0
+            && (fullRoot[^1] == Path.DirectorySeparatorChar || fullRoot[^1] == Path.AltDirectorySeparatorChar))
+        {
+            return true;
+        }
+
         // "D:\Movies2\x" must not match root "D:\Movies".
         return fullPath.Length == fullRoot.Length || fullPath[fullRoot.Length] == Path.DirectorySeparatorChar || fullPath[fullRoot.Length] == Path.AltDirectorySeparatorChar;
     }
