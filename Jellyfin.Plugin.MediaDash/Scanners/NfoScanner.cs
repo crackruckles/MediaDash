@@ -175,7 +175,7 @@ public sealed class NfoScanner : IScanner
                 ConformanceLevel = ConformanceLevel.Fragment
             };
 
-            using var stream = File.OpenRead(path);
+            using var stream = MediaFileHelper.OpenSharedRead(path);
             using var reader = XmlReader.Create(stream, settings);
 
             while (reader.Read())

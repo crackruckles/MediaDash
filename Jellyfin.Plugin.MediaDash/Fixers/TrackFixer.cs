@@ -133,13 +133,14 @@ public sealed class TrackFixer : IFixer
             var swapCompleted = false;
             try
             {
-                var error = await _ffmpeg.RunAsync(args, RemuxTimeout, cancellationToken).ConfigureAwait(false);
+                // First pass suppresses the Ffmpeg.Timeout diagnostic: hitting the 30-min cap on a large
+                // Blu-ray remux is expected and the retry usually finishes it. Only the retry's failure
+                // (a genuine 5-hour miss) surfaces to the Errors tab. Track.RemuxRetry itself was removed —
+                // a happy-path recovery event was noise in Errors, not signal.
+                var error = await _ffmpeg.RunAsync(args, RemuxTimeout, cancellationToken, recordDiagnosticOnTimeout: false).ConfigureAwait(false);
                 if (error is not null && FfmpegExecutor.IsTimeoutError(error))
                 {
                     _logger.LogInformation("Track remux hit the {InitialTimeout} limit on '{Path}'; retrying with {RetryTimeout}.", RemuxTimeout, issue.Path, RemuxRetryTimeout);
-                    Api.Diagnostics.Record(
-                        "Track.RemuxRetry",
-                        "First remux pass on '" + issue.Path + "' hit the " + RemuxTimeout + " limit — retrying with an extended " + RemuxRetryTimeout + " window for large files on slow machines.");
                     error = await _ffmpeg.RunAsync(args, RemuxRetryTimeout, cancellationToken).ConfigureAwait(false);
                 }
 

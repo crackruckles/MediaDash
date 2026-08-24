@@ -51,13 +51,15 @@ public sealed class FfmpegExecutor
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <param name="progress">Optional 0..1 progress reporter, driven by ffmpeg's own <c>-progress pipe:2</c> output when <paramref name="totalDurationSeconds"/> is set.</param>
     /// <param name="totalDurationSeconds">The expected total duration of the output; used to convert ffmpeg's out_time_us into a fraction. Set to 0 to skip progress plumbing.</param>
+    /// <param name="recordDiagnosticOnTimeout">When false, a wall-clock timeout returns the error string but does NOT surface an Ffmpeg.Timeout to the Errors tab. Used by callers that retry with a longer window (TrackFixer): only the retry's failure should show up, otherwise every successful large-file remux leaves a stale "timeout" in the Errors tab.</param>
     /// <returns>The last portion of stderr on failure, or null on success.</returns>
     public async Task<string?> RunAsync(
         IReadOnlyList<string> args,
         TimeSpan timeout,
         CancellationToken cancellationToken,
         IProgress<double>? progress = null,
-        double totalDurationSeconds = 0)
+        double totalDurationSeconds = 0,
+        bool recordDiagnosticOnTimeout = true)
     {
         var encoderPath = _mediaEncoder.EncoderPath;
         if (string.IsNullOrEmpty(encoderPath))
@@ -148,9 +150,13 @@ public sealed class FfmpegExecutor
         {
             TryKill(process);
             var msg = TimeoutError(timeout);
-            Api.Diagnostics.Record(
-                "Ffmpeg.Timeout",
-                "ffmpeg exceeded the " + timeout + " limit" + FindInputHint(args) + " and was stopped. Larger files or slow disks may need a longer window — the track fixer already auto-retries once with a 5-hour cap.");
+            if (recordDiagnosticOnTimeout)
+            {
+                Api.Diagnostics.Record(
+                    "Ffmpeg.Timeout",
+                    "ffmpeg exceeded the " + timeout + " limit" + FindInputHint(args) + " and was stopped. Larger files or slow disks may need a longer window — the track fixer already auto-retries once with a 5-hour cap.");
+            }
+
             return msg;
         }
         catch (OperationCanceledException)

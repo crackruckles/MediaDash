@@ -350,7 +350,7 @@ public sealed class TrickplayOptimizeScanner : IScanner
         int read;
         try
         {
-            using var s = File.OpenRead(path);
+            using var s = MediaFileHelper.OpenSharedRead(path);
             read = s.Read(buf);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

@@ -80,7 +80,17 @@ public sealed class FileHasher
         string hash;
         try
         {
-            var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, useAsync: true);
+            // FileShare.ReadWrite | FileShare.Delete so a hasher mid-scan can't block a fixer that
+            // wants to move/rename/delete this file — that combination surfaced as ERROR_SHARING_VIOLATION
+            // on ~13 files per scan for a Windows user (no external holders, our own hasher was the cause).
+            var stream = new FileStream(path, new FileStreamOptions
+            {
+                Mode = FileMode.Open,
+                Access = FileAccess.Read,
+                Share = FileShare.ReadWrite | FileShare.Delete,
+                BufferSize = BufferSize,
+                Options = FileOptions.Asynchronous
+            });
             await using (stream.ConfigureAwait(false))
             {
                 var digest = await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false);

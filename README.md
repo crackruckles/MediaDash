@@ -35,6 +35,16 @@ Duplicates, broken files, oversized encodes, wrong-language tracks, misplaced fi
 
 Requires Jellyfin **10.11+** or **12.0+**. One binary covers both — the manifest advertises `targetAbi` for each host line, and the plugin bridges the `IUserManager` / `User` entity changes between 10.11 and 12.0 via reflection so the same install works everywhere.
 
+## Uninstall
+
+Jellyfin's "Uninstall" button removes the files but leaves the repository URL registered, so the **Update Plugins** scheduled task will silently reinstall MediaDash on its next tick. Remove both to uninstall for real:
+
+1. **Dashboard → Plugins → Repositories** — delete the row pointing at `raw.githubusercontent.com/crackruckles/MediaDash/main/manifest.json`.
+2. **Dashboard → Plugins → My Plugins → MediaDash → Uninstall**.
+3. Restart Jellyfin.
+
+Step 1 is the one everyone misses. Skip it and step 2 alone appears to work — the plugin folder is marked `deleteOnStartup`, the DLL unloads on next restart — but the still-registered repo tells Jellyfin's auto-updater the plugin is available, and it downloads a fresh copy on the next scheduled run. On Windows, the running Jellyfin process holds the DLL open during step 2, which is why the folder can't be removed until the restart in step 3 — that's expected, not a bug.
+
 ## What it does
 
 | | Finds | Fixes |

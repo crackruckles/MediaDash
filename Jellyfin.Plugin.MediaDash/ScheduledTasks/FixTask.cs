@@ -354,6 +354,80 @@ public sealed class FixTask : IScheduledTask
                     Success = false
                 });
             }
+            catch (System.IO.FileNotFoundException ex)
+            {
+                // The file went missing between the scan and this fix. Same treatment as message-based
+                // stale failures: mark Fixed so the 15-min retry stops chasing a ghost; next scan re-detects.
+                RecordFailure("File went missing between scan and fix");
+                _logger.LogInformation(ex, "File missing at fix time: {Path}", issue.Path);
+                Api.Diagnostics.Record("FixTask.FileMissing", issue.Path + ": " + ex.Message);
+                _db.AddHistory(new HistoryEntry
+                {
+                    IssueId = issue.Id,
+                    Type = issue.Type,
+                    Path = issue.Path,
+                    Action = "Fix skipped — the file went missing between scan and fix. Re-scan to refresh.",
+                    BytesFreed = 0,
+                    FixedAtUtc = DateTime.UtcNow,
+                    WasDryRun = false,
+                    Success = false
+                });
+                _db.UpdateIssueStatus(issue.Id, IssueStatus.Fixed);
+            }
+            catch (System.IO.DirectoryNotFoundException ex)
+            {
+                RecordFailure("File went missing between scan and fix");
+                _logger.LogInformation(ex, "Directory missing at fix time: {Path}", issue.Path);
+                Api.Diagnostics.Record("FixTask.FileMissing", issue.Path + ": " + ex.Message);
+                _db.AddHistory(new HistoryEntry
+                {
+                    IssueId = issue.Id,
+                    Type = issue.Type,
+                    Path = issue.Path,
+                    Action = "Fix skipped — the containing folder went missing between scan and fix. Re-scan to refresh.",
+                    BytesFreed = 0,
+                    FixedAtUtc = DateTime.UtcNow,
+                    WasDryRun = false,
+                    Success = false
+                });
+                _db.UpdateIssueStatus(issue.Id, IssueStatus.Fixed);
+            }
+            catch (System.IO.IOException ex) when (IsSharingViolation(ex))
+            {
+                // RunFixWithSharingRetryAsync already retried 3× over ~7.5s. If it still throws, whatever
+                // holds the file is long-lived — surface as a lock error, not a "disk error".
+                RecordFailure("File was held open by another process (likely Jellyfin trickplay / chapter thumbs / active playback)");
+                _logger.LogWarning(ex, "File held open after retries: {Path}", issue.Path);
+                Api.Diagnostics.Record("FixTask.FileLocked", issue.Path + ": still held open after 3 retries (~7.5s). " + ex.Message);
+                _db.AddHistory(new HistoryEntry
+                {
+                    IssueId = issue.Id,
+                    Type = issue.Type,
+                    Path = issue.Path,
+                    Action = "Fix failed — file was locked by another process even after retrying. " + ex.Message,
+                    BytesFreed = 0,
+                    FixedAtUtc = DateTime.UtcNow,
+                    WasDryRun = false,
+                    Success = false
+                });
+            }
+            catch (System.IO.IOException ex) when (IsDiskFull(ex))
+            {
+                RecordFailure("Not enough free disk space");
+                _logger.LogWarning(ex, "Disk full while fixing {Path}", issue.Path);
+                Api.Diagnostics.Record("FixTask.DiskFull", issue.Path + ": " + ex.Message);
+                _db.AddHistory(new HistoryEntry
+                {
+                    IssueId = issue.Id,
+                    Type = issue.Type,
+                    Path = issue.Path,
+                    Action = "Fix failed — the drive ran out of space mid-fix. Free some space and it'll retry on the next run.",
+                    BytesFreed = 0,
+                    FixedAtUtc = DateTime.UtcNow,
+                    WasDryRun = false,
+                    Success = false
+                });
+            }
             catch (System.IO.IOException ex)
             {
                 RecordFailure("I/O error");
@@ -478,6 +552,16 @@ public sealed class FixTask : IScheduledTask
         // manifests as IOException when another process holds an exclusive lock (rare but real on
         // networked filesystems like SMB and cifs), so include it too.
         return code == 32 || code == 33 || code == 16;
+    }
+
+    // Distinguishes real ENOSPC / ERROR_DISK_FULL from other IOExceptions so the Errors tab shows
+    // "drive full" only when it actually is. Users kept seeing "disk error" on files that were
+    // really sharing violations (post-retry exhaustion) or missing paths (Sonarr/Radarr moves).
+    internal static bool IsDiskFull(System.IO.IOException ex)
+    {
+        var code = ex.HResult & 0xFFFF;
+        // Windows: 112 ERROR_DISK_FULL, 39 ERROR_HANDLE_DISK_FULL. Linux: 28 ENOSPC.
+        return code == 112 || code == 39 || code == 28;
     }
 
     // Failures that mean "the underlying state moved between scan and fix". Retrying is guaranteed to

@@ -109,6 +109,31 @@ public sealed class ScanTask : IScheduledTask
                 .ToList();
         }
 
+        // NFS/SMB safety net: a hard-mounted network share whose server is offline will hang every
+        // syscall — File.Exists, FileInfo, ffprobe, all of it — indefinitely. Without this pre-flight,
+        // the scanners would fan out thousands of stats against the dead mount, exhaust the ThreadPool,
+        // and take the whole Jellyfin instance down (users report LXC restarts, GitHub issue class:
+        // "scan locks up Jellyfin"). Probe each library root once with a short timeout; drop items on
+        // any unreachable root so the scan finishes cleanly.
+        // ponytail: hard-coded 5s timeout, add a config knob if users report false positives on
+        // slow-but-reachable storage.
+        var unreachableRoots = await FindUnreachableRootsAsync(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
+        if (unreachableRoots.Count > 0)
+        {
+            var before = items.Count;
+            items = items.Where(i => !string.IsNullOrEmpty(i.Path)
+                && !unreachableRoots.Any(r => i.Path.StartsWith(r, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+            foreach (var root in unreachableRoots)
+            {
+                var msg = "Library folder '" + root.TrimEnd(System.IO.Path.DirectorySeparatorChar) + "' did not respond within 5s. Items under it were skipped this scan. If it's an NFS/SMB share, remount with soft,timeo=30,retrans=3 so a stalled server doesn't block Jellyfin.";
+                _logger.LogWarning("ScanTask skipping unreachable library root: {Root}", root);
+                Api.Diagnostics.Record("ScanTask.UnreachableRoot", msg);
+            }
+
+            _logger.LogInformation("Skipped {Skipped} item(s) under {Count} unreachable root(s).", before - items.Count, unreachableRoots.Count);
+        }
+
         var scannedPaths = scanIsScoped
             ? items.SelectMany(MediaFileHelper.GetFilePaths).ToList()
             : null;
@@ -185,6 +210,56 @@ public sealed class ScanTask : IScheduledTask
         }
 
         progress.Report(100);
+    }
+
+    // Enumerates every library root and races a Directory.Exists() call against a timeout.
+    // Returns any root whose syscall didn't return in time (i.e. mount is hung). The probe thread
+    // is orphaned if the syscall never returns — bounded to one leaked worker per unreachable root
+    // per scan, which is finite in practice (users don't have many broken mounts at once).
+    private async Task<List<string>> FindUnreachableRootsAsync(TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        var roots = _libraryManager.GetVirtualFolders()
+            .SelectMany(f => f.Locations)
+            .Where(l => !string.IsNullOrWhiteSpace(l))
+            .Select(l => System.IO.Path.TrimEndingDirectorySeparator(l) + System.IO.Path.DirectorySeparatorChar)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var unreachable = new List<string>();
+        foreach (var root in roots)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!await ProbeReachableAsync(root, timeout, cancellationToken).ConfigureAwait(false))
+            {
+                unreachable.Add(root);
+            }
+        }
+
+        return unreachable;
+    }
+
+    // True if Directory.Exists returned within timeout (regardless of its bool result — a legitimately
+    // missing root is a different problem the scanners already handle). False only means "syscall
+    // hung past deadline", which is the NFS-lockup signature.
+    internal static async Task<bool> ProbeReachableAsync(string root, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        var probe = Task.Run(() =>
+        {
+            try
+            {
+                System.IO.Directory.Exists(root);
+                return true;
+            }
+            catch
+            {
+                // Any thrown exception (unauthorized, invalid path, etc.) still means the syscall
+                // returned in time — pass; the scanners will surface the real problem downstream.
+                return true;
+            }
+        });
+
+        var winner = await Task.WhenAny(probe, Task.Delay(timeout, cancellationToken)).ConfigureAwait(false);
+        return winner == probe;
     }
 
     /// <inheritdoc />

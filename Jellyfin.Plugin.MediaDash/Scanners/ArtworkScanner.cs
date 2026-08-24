@@ -138,7 +138,7 @@ public sealed class ArtworkScanner : IScanner
 
         try
         {
-            using var stream = File.OpenRead(path);
+            using var stream = MediaFileHelper.OpenSharedRead(path);
             var bridge = SkiaSharpBridge.Instance;
             if (!bridge.IsAvailable)
             {

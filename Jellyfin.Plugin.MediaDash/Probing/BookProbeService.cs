@@ -112,7 +112,7 @@ public sealed class BookProbeService
     {
         try
         {
-            using var fs = File.OpenRead(path);
+            using var fs = Scanners.MediaFileHelper.OpenSharedRead(path);
             if (fs.Length < 8)
             {
                 return new BookProbeResult(false, "PDF too small");
@@ -152,7 +152,7 @@ public sealed class BookProbeService
     {
         try
         {
-            using var fs = File.OpenRead(path);
+            using var fs = Scanners.MediaFileHelper.OpenSharedRead(path);
             if (fs.Length < 78)
             {
                 return new BookProbeResult(false, "MOBI too small for PalmDoc header");
