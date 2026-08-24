@@ -1150,6 +1150,17 @@ public class MediaDashController : ControllerBase
             return BadRequest("That path is not an unowned MediaDash batch directly inside the configured recycle bin root.");
         }
 
+        // Purge the stale LegacyBatchNeedsReview diagnostic that pointed at this batch so the
+        // Errors card disappears on the next refresh — the condition is fixed. Match on the
+        // leaf (timestamp+GUID) rather than the full path so a Windows separator difference
+        // between the recorded message (Path.Combine → backslash) and the request (JSON body,
+        // often forward slashes) doesn't miss.
+        var batchLeaf = System.IO.Path.GetFileName(System.IO.Path.TrimEndingDirectorySeparator(request.Path));
+        if (!string.IsNullOrEmpty(batchLeaf))
+        {
+            Diagnostics.RemoveMatching("RecycleBin.LegacyBatchNeedsReview", batchLeaf);
+        }
+
         return NoContent();
     }
 

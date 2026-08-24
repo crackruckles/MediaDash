@@ -1230,6 +1230,24 @@ public sealed class MediaDashDb
         cmd.ExecuteNonQuery();
     }
 
+    /// <summary>
+    /// Deletes a specific diagnostic entry identified by <paramref name="source"/> and
+    /// <paramref name="messageHash"/>. Used when a one-click resolution (e.g. the Errors tab
+    /// "Merge into current bin" button) makes a diagnostic obsolete — keeping the row would
+    /// leave a stale flag on the Errors tab even though the underlying condition is fixed.
+    /// </summary>
+    /// <param name="source">Diagnostic source tag.</param>
+    /// <param name="messageHash">Hash of the pre-truncation message (see <see cref="Api.Diagnostics.Record"/>).</param>
+    public void DeleteDiagnostic(string source, int messageHash)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "DELETE FROM diagnostics WHERE source = $source AND message_hash = $hash";
+        cmd.Parameters.AddWithValue("$source", source);
+        cmd.Parameters.AddWithValue("$hash", messageHash);
+        cmd.ExecuteNonQuery();
+    }
+
     private SqliteConnection Open()
     {
         var connection = new SqliteConnection(_connectionString);

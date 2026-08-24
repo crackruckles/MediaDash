@@ -249,4 +249,59 @@ public static class Diagnostics
             }
         }
     }
+
+    /// <summary>
+    /// Removes every diagnostic entry — from the in-memory buffer AND the persisted table —
+    /// whose source matches <paramref name="source"/> AND whose message contains
+    /// <paramref name="messageSubstring"/>. Used when a one-click UI action (like the Errors
+    /// tab's "Merge into current bin" button) resolves the underlying condition and the
+    /// stale diagnostic should disappear on the next refresh instead of sitting there
+    /// misleading the user. Ordinal substring match; no regex.
+    /// </summary>
+    /// <param name="source">Exact source tag to match.</param>
+    /// <param name="messageSubstring">Substring the message must contain.</param>
+    public static void RemoveMatching(string source, string messageSubstring)
+    {
+        if (string.IsNullOrEmpty(source) || string.IsNullOrEmpty(messageSubstring))
+        {
+            return;
+        }
+
+        var doomed = new List<(string Source, int Hash)>();
+        lock (Lock)
+        {
+            var node = Entries.First;
+            while (node is not null)
+            {
+                var next = node.Next;
+                if (string.Equals(node.Value.Source, source, StringComparison.Ordinal)
+                    && node.Value.Message.Contains(messageSubstring, StringComparison.Ordinal))
+                {
+                    doomed.Add((node.Value.Source, node.Value.MessageHash));
+                    Entries.Remove(node);
+                }
+
+                node = next;
+            }
+        }
+
+        var db = _db;
+        if (db is null || doomed.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var (src, hash) in doomed)
+        {
+            try
+            {
+                db.DeleteDiagnostic(src, hash);
+            }
+            catch (Exception)
+            {
+                // Best-effort; the in-memory buffer is already updated so the /Errors response
+                // reflects the removal even if disk write fails. Next Record repopulates on demand.
+            }
+        }
+    }
 }
