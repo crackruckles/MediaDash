@@ -15,8 +15,11 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
 
-if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "Version must be X.Y.Z (got '$Version')" }
-$ver4  = "$Version.0"
+# Version schema: X.Y.Z for regular releases; X.Y.Z.W for hotfixes (locked 2026-08-07).
+if ($Version -notmatch '^\d+\.\d+\.\d+(\.\d+)?$') { throw "Version must be X.Y.Z or X.Y.Z.W (got '$Version')" }
+# AssemblyVersion accepts max 4 parts. Pad a 3-part release with .0 so the DLL FileVersion
+# lines up with manifest.json; leave a 4-part hotfix alone.
+$ver4  = if ($Version -match '^\d+\.\d+\.\d+$') { "$Version.0" } else { $Version }
 $tag   = "v$Version"
 $zip   = "mediadash_${Version}.zip"
 $stage = "_stage_v" + ($Version -replace '\.','')
@@ -94,7 +97,14 @@ Write-Host "Zip MD5: $md5"
 # ("," "(" ">" quotes...), and shell-safe changelogs aren't the point.
 $notesPath = Join-Path $env:TEMP "release-notes-$Version.txt"
 Set-Content -Path $notesPath -Value $Changelog -Encoding utf8
-& gh release create $tag $zip --title $tag --notes-file $notesPath
+# --target pins the tag to the exact local HEAD SHA. Previously gh created the tag
+# on the remote's default-branch head, which drifted when local commits weren't pushed
+# yet at release time — v1.0.7's tag landed on the PR#11 merge instead of the release
+# commit for exactly this reason. The pushed-commit assumption is documented in the
+# CONTRIBUTING notes: run this only after git push.
+$targetSha = (& git rev-parse HEAD).Trim()
+if (-not $targetSha) { throw "Could not resolve HEAD SHA" }
+& gh release create $tag $zip --title $tag --notes-file $notesPath --target $targetSha
 if ($LASTEXITCODE -ne 0) { throw "gh release create failed" }
 Remove-Item $notesPath -ErrorAction SilentlyContinue
 
