@@ -148,6 +148,11 @@ public sealed class MediaDashDb
         // rows into the buffer and installs the DB reference so future Record calls write through.
         Api.Diagnostics.Attach(this);
 
+        // Startup self-heal: obsolete diagnostics that the current build no longer emits get
+        // purged from disk here so upgrades don't leave the Errors tab full of stale flags for
+        // conditions the code has already fixed. See Diagnostics.PurgeObsolete for the list.
+        Api.Diagnostics.PurgeObsolete();
+
         // Same treatment for Plugin.LastFixRun + Plugin.RedownloadWarnings — both were static
         // fields that dropped on reload, so a mid-day restart lost the fix-completion popup and
         // the redownload-warning banner until the next scan. PluginState.Attach rehydrates them

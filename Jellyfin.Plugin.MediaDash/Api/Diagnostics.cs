@@ -251,6 +251,24 @@ public static class Diagnostics
     }
 
     /// <summary>
+    /// Startup-time cleanup for diagnostics the current build no longer emits but that
+    /// pre-upgrade users still have persisted in their <c>diagnostics</c> SQLite table.
+    /// Without this, upgrading from v1.0.6 to v1.0.7+ leaves the noisy SMART diagnostics
+    /// visible on the Errors tab even though the underlying spam was fixed in v1.0.7.
+    /// Called once, right after <see cref="Attach"/> installs the DB reference.
+    /// Every entry here is a message that v1.0.7's <c>SmartHealthProbeWmi.cs</c> stopped
+    /// recording:
+    ///   * "No MSFT_StorageReliabilityCounter association found for &lt;model&gt; via any WMI or PowerShell path…"
+    ///   * "PowerShell counter fallback ran for '&lt;model&gt;' but no output line's FriendlyName matched…"
+    /// Neither is actionable; both were benign UI-state reports that spammed the Errors tab.
+    /// </summary>
+    public static void PurgeObsolete()
+    {
+        RemoveMatching("SmartHealth.Wmi", "No MSFT_StorageReliabilityCounter association found");
+        RemoveMatching("SmartHealth.Wmi", "PowerShell counter fallback ran for");
+    }
+
+    /// <summary>
     /// Removes every diagnostic entry — from the in-memory buffer AND the persisted table —
     /// whose source matches <paramref name="source"/> AND whose message contains
     /// <paramref name="messageSubstring"/>. Used when a one-click UI action (like the Errors
