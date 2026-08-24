@@ -25,6 +25,7 @@ public sealed class RecycleBin
 
     private readonly string _defaultRoot;
     private readonly ILogger<RecycleBin> _logger;
+    private readonly Lazy<bool> _legacyAdopted;
     private int _emptyingTotal;
     private int _emptyingDone;
     private int _emptyingGate; // 0 = idle, 1 = running (CompareExchange gate)
@@ -40,7 +41,15 @@ public sealed class RecycleBin
     {
         _defaultRoot = Path.Combine(applicationPaths.DataPath, "mediadash", "recycle");
         _logger = logger;
-        AdoptLegacyCustomBatches(db);
+        // Deferred: plugin startup shouldn't block on a filesystem walk + marker writes when the
+        // recycle root sits on a slow or unavailable network share. The migration is idempotent
+        // and cheap on the default path (early-returns before any I/O), so paying it on the first
+        // real bin operation instead of in the constructor is transparent to callers.
+        _legacyAdopted = new Lazy<bool>(() =>
+        {
+            AdoptLegacyCustomBatches(db);
+            return true;
+        });
     }
 
     private string Root
@@ -120,6 +129,7 @@ public sealed class RecycleBin
     /// <returns>The item's location inside the bin.</returns>
     public string MoveToBin(string path)
     {
+        _ = _legacyAdopted.Value;
         // Timestamp alone collides when two files with the same basename are recycled inside the same
         // millisecond (e.g. concurrent Delete + fix run). Suffix with a short GUID so folder names stay
         // unique. ListContents sorts by folder-name descending, and the timestamp prefix still
@@ -129,7 +139,8 @@ public sealed class RecycleBin
             DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff", CultureInfo.InvariantCulture)
                 + "-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(folder);
-        File.WriteAllText(Path.Combine(folder, OwnershipMarkerFileName), "1\n");
+        // Presence is the signal; no reader consults the content.
+        File.Create(Path.Combine(folder, OwnershipMarkerFileName)).Dispose();
         // Trim trailing separator before GetFileName — otherwise a caller passing "/foo/bar/" reduces
         // target to `folder` itself, and Directory.Move(source, target) becomes "move to self" and throws.
         var basename = Path.GetFileName(Path.TrimEndingDirectorySeparator(path));
@@ -222,6 +233,7 @@ public sealed class RecycleBin
     /// <param name="originalPath">The original path to restore to.</param>
     public void Restore(string recyclePath, string originalPath)
     {
+        _ = _legacyAdopted.Value;
         if (File.Exists(originalPath))
         {
             throw new IOException($"Cannot restore: a file already exists at {originalPath}");
@@ -238,6 +250,7 @@ public sealed class RecycleBin
     /// <returns>File count and total size.</returns>
     public (int FileCount, long SizeBytes) GetContents()
     {
+        _ = _legacyAdopted.Value;
         if (!Directory.Exists(Root))
         {
             return (0, 0);
@@ -282,6 +295,7 @@ public sealed class RecycleBin
     /// <returns>File name, size and when it was recycled.</returns>
     public IReadOnlyList<(string FileName, string BinPath, long SizeBytes, DateTime RecycledAtUtc)> ListContents(int limit = 500)
     {
+        _ = _legacyAdopted.Value;
         var result = new List<(string, string, long, DateTime)>();
         if (!Directory.Exists(Root))
         {
@@ -419,6 +433,7 @@ public sealed class RecycleBin
     /// </summary>
     public void EmptyAll()
     {
+        _ = _legacyAdopted.Value;
         // Atomic single-runner gate — two concurrent POSTs racing the "already running" check on the
         // controller both saw IsRunning=false and could start twice; CompareExchange makes the second
         // arrival return early without touching state.
@@ -476,6 +491,7 @@ public sealed class RecycleBin
     /// <param name="retentionDays">Days to keep recycled files.</param>
     public void Purge(int retentionDays)
     {
+        _ = _legacyAdopted.Value;
         if (!Directory.Exists(Root))
         {
             return;
@@ -609,7 +625,7 @@ public sealed class RecycleBin
             var marker = Path.Combine(batch, OwnershipMarkerFileName);
             if (!File.Exists(marker))
             {
-                File.WriteAllText(marker, "1\n");
+                File.Create(marker).Dispose();
             }
 
             return true;
