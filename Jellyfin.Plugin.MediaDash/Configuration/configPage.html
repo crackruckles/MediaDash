@@ -8267,27 +8267,29 @@
                             : '';
                         // One-click adopt for legacy-batch diagnostics. The message embeds the path in
                         // single quotes: "Legacy-looking recycle batch '<path>' was not referenced …".
-                        var actionBlock = '';
+                        // Rendered inside the header's right-column so the button sits top-right
+                        // matching the tab-header action buttons (Retry all fixes, Refresh, Clear).
+                        var actionButton = '';
                         if (e.Source === 'RecycleBin.LegacyBatchNeedsReview') {
                             var pathMatch = (e.Message || '').match(/'([^']+)'/);
                             if (pathMatch) {
-                                actionBlock = '<div style="margin-top:.6em;">' +
-                                    '<button is="emby-button" type="button" class="raised mdErrorAdopt" data-batch="' + esc(pathMatch[1]) + '" title="Writes the ownership marker into this batch so it merges into the current recycle bin. After that the Recycle bin tab lists it and retention purges pick it up.">' +
+                                actionButton = '<button is="emby-button" type="button" class="raised button-submit mdErrorAdopt" data-batch="' + esc(pathMatch[1]) + '" style="font-size:80%;" title="Writes the ownership marker into this batch so it merges into the current recycle bin. After that the Recycle bin tab lists it and retention purges pick it up.">' +
                                     '<span class="material-icons" style="font-size:1.1em;vertical-align:-3px;margin-right:.3em;">merge</span>' +
                                     '<span>Merge into current bin</span>' +
-                                    '</button>' +
-                                    '<span class="fieldDescription mdErrorAdoptMsg" style="margin-left:.6em;"></span>' +
-                                    '</div>';
+                                    '</button>';
                             }
                         }
 
                         return '<div class="mdCard mdFade" style="margin:.5em 0;border-left:4px solid #ef4444;">' +
-                            '<div style="display:flex;justify-content:space-between;gap:1em;flex-wrap:wrap;align-items:center;">' +
-                            '<span style="font-weight:600;"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;color:#ef4444;margin-right:.3em;">' + meta.icon + '</span>' + esc(meta.title) + countBadge + '</span>' +
+                            '<div style="display:flex;justify-content:space-between;gap:1em;flex-wrap:wrap;align-items:flex-start;">' +
+                            '<span style="font-weight:600;flex:1;min-width:0;"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;color:#ef4444;margin-right:.3em;">' + meta.icon + '</span>' + esc(meta.title) + countBadge + '</span>' +
+                            '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:0 0 auto;">' +
                             '<span class="fieldDescription" style="font-size:.82em;">' + timeText + '</span>' +
+                            actionButton +
+                            '<span class="fieldDescription mdErrorAdoptMsg" style="font-size:.8em;"></span>' +
+                            '</div>' +
                             '</div>' +
                             hintBlock +
-                            actionBlock +
                             '<details style="margin-top:.5em;">' +
                             '<summary class="fieldDescription" style="cursor:pointer;font-size:.85em;user-select:none;">Technical detail (source: <code>' + esc(e.Source || 'unknown') + '</code>)</summary>' +
                             '<div style="margin-top:.4em;font-family:monospace;font-size:.85em;white-space:pre-wrap;word-break:break-word;opacity:.85;">' + esc(e.Message) + '</div>' +
