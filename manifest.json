@@ -9,6 +9,22 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "1.0.7.2",
+        "changelog": "Reliability hotfix: fixes the \"13 files locked, nothing holding them\" report class by switching every scanner/probe (ArtworkScanner, NfoScanner, TrickplayOptimizeScanner, BookProbeService, FileHasher) from File.OpenRead (default FileShare.Read blocks concurrent moves/deletes on Windows and shows up as ERROR_SHARING_VIOLATION 32) to a new MediaFileHelper.OpenSharedRead helper using FileShare.ReadWrite | Delete. Also splits FixTask\u0027s catch-all \"disk error\" into four accurate diagnostic keys — FixTask.FileMissing (marks issue Fixed so retry stops), FixTask.FileLocked (sharing violation post-retry), FixTask.DiskFull (real ENOSPC only, HResult 112/39/28), residual FixTask.IOError; every bucket gets a new Errors-tab entry with actionable copy. Adds a 5s per-library-root probe to ScanTask so a hard-mounted dead NFS/SMB share can\u0027t hang the ThreadPool and force LXC restarts — unreachable roots are skipped with a diagnostic pointing at soft,timeo=30,retrans=3 mount flags. Cleans up Ffmpeg.Timeout noise on Blu-ray remuxes: TrackFixer\u0027s 30-min first pass no longer surfaces to Errors (only the 5-hour retry\u0027s failure does), Track.RemuxRetry diagnostic removed as it fired on the happy path. New README Uninstall section explaining the remove-repo -\u003e uninstall -\u003e restart sequence so Jellyfin\u0027s Update Plugins task can\u0027t race the deleteOnStartup marker. Still one binary for both Jellyfin 10.11 and 12.0.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v1.0.7.2/mediadash_1.0.7.2.zip",
+        "checksum": "4318f788345b007c748273b0f39796af",
+        "timestamp": "2026-08-24T15:26:21Z"
+      },
+      {
+        "version": "1.0.7.2",
+        "changelog": "Reliability hotfix: fixes the \"13 files locked, nothing holding them\" report class by switching every scanner/probe (ArtworkScanner, NfoScanner, TrickplayOptimizeScanner, BookProbeService, FileHasher) from File.OpenRead (default FileShare.Read blocks concurrent moves/deletes on Windows and shows up as ERROR_SHARING_VIOLATION 32) to a new MediaFileHelper.OpenSharedRead helper using FileShare.ReadWrite | Delete. Also splits FixTask\u0027s catch-all \"disk error\" into four accurate diagnostic keys — FixTask.FileMissing (marks issue Fixed so retry stops), FixTask.FileLocked (sharing violation post-retry), FixTask.DiskFull (real ENOSPC only, HResult 112/39/28), residual FixTask.IOError; every bucket gets a new Errors-tab entry with actionable copy. Adds a 5s per-library-root probe to ScanTask so a hard-mounted dead NFS/SMB share can\u0027t hang the ThreadPool and force LXC restarts — unreachable roots are skipped with a diagnostic pointing at soft,timeo=30,retrans=3 mount flags. Cleans up Ffmpeg.Timeout noise on Blu-ray remuxes: TrackFixer\u0027s 30-min first pass no longer surfaces to Errors (only the 5-hour retry\u0027s failure does), Track.RemuxRetry diagnostic removed as it fired on the happy path. New README Uninstall section explaining the remove-repo -\u003e uninstall -\u003e restart sequence so Jellyfin\u0027s Update Plugins task can\u0027t race the deleteOnStartup marker. Still one binary for both Jellyfin 10.11 and 12.0.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v1.0.7.2/mediadash_1.0.7.2.zip",
+        "checksum": "4318f788345b007c748273b0f39796af",
+        "timestamp": "2026-08-24T15:26:21Z"
+      },
+      {
         "version": "1.0.7.1",
         "changelog": "Hotfix: startup purge of stale SmartHealth.Wmi diagnostics — upgraders from v1.0.6 kept seeing the benign \u0027No MSFT_StorageReliabilityCounter association found\u0027 and \u0027PowerShell counter fallback ran\u0027 rows even though v1.0.7\u0027s code stopped emitting them (the rows were persisted in the SQLite diagnostics table and reloaded on every boot). Post-v1.0.7 polish rolling in: file browser gains a read-only Recycle bin shortcut at the pseudo-root; every RecycleBin.LegacyBatchNeedsReview diagnostic on the Errors tab now carries a \u0027Merge into current bin\u0027 button that writes the ownership marker + purges the stale row so the card drops on the next refresh; new POST /MediaDash/RecycleBin/AdoptBatch endpoint backs it. tools/release.ps1 now accepts 4-part hotfix versions and pins gh release create --target to the local HEAD SHA — v1.0.7\u0027s tag landed on the PR #11 merge because release.ps1 was letting gh default to the remote\u0027s default-branch head. Still one binary for Jellyfin 10.11 and 12.0.",
         "targetAbi": "12.0.0.0",
@@ -299,6 +315,7 @@
     ]
   }
 ]
+
 
 
 
