@@ -9,6 +9,22 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "1.0.7.1",
+        "changelog": "Hotfix: startup purge of stale SmartHealth.Wmi diagnostics — upgraders from v1.0.6 kept seeing the benign \u0027No MSFT_StorageReliabilityCounter association found\u0027 and \u0027PowerShell counter fallback ran\u0027 rows even though v1.0.7\u0027s code stopped emitting them (the rows were persisted in the SQLite diagnostics table and reloaded on every boot). Post-v1.0.7 polish rolling in: file browser gains a read-only Recycle bin shortcut at the pseudo-root; every RecycleBin.LegacyBatchNeedsReview diagnostic on the Errors tab now carries a \u0027Merge into current bin\u0027 button that writes the ownership marker + purges the stale row so the card drops on the next refresh; new POST /MediaDash/RecycleBin/AdoptBatch endpoint backs it. tools/release.ps1 now accepts 4-part hotfix versions and pins gh release create --target to the local HEAD SHA — v1.0.7\u0027s tag landed on the PR #11 merge because release.ps1 was letting gh default to the remote\u0027s default-branch head. Still one binary for Jellyfin 10.11 and 12.0.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v1.0.7.1/mediadash_1.0.7.1.zip",
+        "checksum": "be33086eb66c93c59c7409454e114104",
+        "timestamp": "2026-08-24T14:25:04Z"
+      },
+      {
+        "version": "1.0.7.1",
+        "changelog": "Hotfix: startup purge of stale SmartHealth.Wmi diagnostics — upgraders from v1.0.6 kept seeing the benign \u0027No MSFT_StorageReliabilityCounter association found\u0027 and \u0027PowerShell counter fallback ran\u0027 rows even though v1.0.7\u0027s code stopped emitting them (the rows were persisted in the SQLite diagnostics table and reloaded on every boot). Post-v1.0.7 polish rolling in: file browser gains a read-only Recycle bin shortcut at the pseudo-root; every RecycleBin.LegacyBatchNeedsReview diagnostic on the Errors tab now carries a \u0027Merge into current bin\u0027 button that writes the ownership marker + purges the stale row so the card drops on the next refresh; new POST /MediaDash/RecycleBin/AdoptBatch endpoint backs it. tools/release.ps1 now accepts 4-part hotfix versions and pins gh release create --target to the local HEAD SHA — v1.0.7\u0027s tag landed on the PR #11 merge because release.ps1 was letting gh default to the remote\u0027s default-branch head. Still one binary for Jellyfin 10.11 and 12.0.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v1.0.7.1/mediadash_1.0.7.1.zip",
+        "checksum": "be33086eb66c93c59c7409454e114104",
+        "timestamp": "2026-08-24T14:25:04Z"
+      },
+      {
         "version": "1.0.7.0",
         "changelog": "Recycle-bin ownership marker + file-browser TOCTOU re-validation + timestamp width fix (from PR #11) + lazy legacy-adoption gate + zero-byte marker. New Settings: \u0027Pause fixes when the bin reaches N GB\u0027 size cap and \u0027Reset scheduled task\u0027 button (FixTaskSeeded flag makes ScheduleMigrator seed once instead of fighting the user on every restart). Hearing-impaired subtitle mode protects SDH/CC in the SubtitleLanguage scanner and treats HI as the required format for MissingSubtitles. SubtitleIgnoreRateLimit toggle routes provider searches through the manual-UI path. System Performance card show/hide preference. Canonical MediaFormats + SubtitleFormats extension sets. OrphanCleanupScanner rework with 186 new test lines. Windows SMART: per-model negative cache stops the ~1s PowerShell fallback re-spawning every 10 min for drives Windows won\u0027t populate; benign \u0027no reliability counter\u0027 diagnostics no longer spam Errors. UI polish: language chips 52-\u003e27 px, task-header pill matches sibling button height, hearing-impaired description trimmed. tools/deploy-local.ps1 auto-discovers plugin folder per ABI. i18n regenerated across 9 languages. Still one binary for Jellyfin 10.11 and 12.0.",
         "targetAbi": "12.0.0.0",
@@ -283,5 +299,6 @@
     ]
   }
 ]
+
 
 
