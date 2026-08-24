@@ -1,383 +1,273 @@
 {
-  "tagline": "Keeps your library lean and playable — finds duplicate copies, broken files, oversized encodes and unwanted language tracks, then fixes them safely.",
-  "scanIdle": "Last scan: {0}",
-  "scanNever": "No scan has run yet. Click \"Scan now\" to check your libraries.",
-  "scanRunning": "Scanning your libraries… {0}%",
-  "scanStarting": "Starting scan…",
-  "scanDone": "Scan finished — {0} open issue(s) found.",
-  "scanNowLabel": "Scan now",
-  "stopScanLabel": "Stop scanning",
-  "fixRunning": "Applying fixes… {0}%",
-  "fixStarting": "Starting fix run…",
-  "fixNowLabel": "Run fixes now",
-  "stopFixLabel": "Stop running fixes",
-  "fixDone": "Fix run finished — see History for what was done.",
-  "fixNothingToDo": "Nothing to fix yet — approve issues on the Issues tab, or switch a fix type to \"Fix automatically\" in Settings, then click again.",
-  "dryRunOn": "Approved fixes are only rehearsed and logged to History. When the plan looks right, turn off dry-run to let MediaDash make real changes.",
-  "diskContext": "{0} free of {1} on your library drives",
-  "driveStorage": "Library drive storage",
-  "driveUsed": "{0} used of {1}",
-  "driveFree": "{0} free",
-  "systemStats": "System performance",
-  "statCpu": "CPU",
-  "statRam": "Memory",
-  "statGpu": "GPU",
-  "statCpuHint": "System-wide across {0} cores",
-  "statRamHint": "{0} used of {1}",
-  "statGpuHint": "via {0}",
-  "statGpuMissing": "No GPU counter available on this host",
-  "statUnavailable": "N/A on {0}",
-  "statUnknown": "—",
-  "statPlatform": "Host: {0}",
-  "totalSavings": "Space you could reclaim",
-  "whereSavings": "Where the savings are",
-  "issuesByType": "Issues found",
-  "noIssues": "No issues found — your library is in good shape. New scans run automatically on schedule.",
-  "noHistory": "Nothing has been fixed yet. Fixes appear here after a fix run, with a Restore button for anything recoverable.",
-  "allTypes": "All issue types",
-  "showingOf": "Showing the first {0} of {1} issues. Use the filter above to narrow the list.",
-  "approve": "Approve",
-  "approveHint": "Queues this fix for the next fix run.",
-  "dismiss": "Ignore this",
-  "dismissHint": "Excludes this file from future scans of this issue type — it won’t be reported again.",
-  "approveAll": "Approve all {0} shown",
-  "approveAllTypes": "Approve all {0} issues (all types)",
-  "approveAllNote": "Approves every issue currently listed — each will be fixed on the next fix run.",
-  "approved": "Approved — will be handled by the next fix run.",
-  "dismissed": "Ignored — this file won’t be reported again.",
-  "restore": "Restore",
-  "restoreHint": "Puts the file back exactly where it was.",
-  "restored": "Restored.",
-  "restoreFailed": "Could not restore: {0}",
-  "spaceSavedToDate": "Space saved to date: {0}",
-  "savedPerLibrary": "Reclaimed since install per library",
-  "unassignedLibrary": "Unassigned",
-  "dryRunBadge": "dry run",
-  "saved": "Saved.",
-  "confirmAuto": "Automatic mode will change files whenever the server is idle, without asking. Removed files go to the recycle bin (unless set to permanent delete). Continue?",
-  "confirmPermanent": "Permanent delete means removed files CANNOT be recovered. Are you sure?",
-  "confirmEmptyBin": "Permanently delete everything in the recycle bin? Restore will no longer be possible for those files.",
-  "confirmReset": "Clear all detected issues and probe/decode caches? Fix history and the recycle bin are kept. No media files will be touched.",
-  "resetDone": "Scan data cleared — click \"Scan now\" to start fresh.",
-  "resetBusy": "Cannot reset right now: a scan or fix is running. Wait for it to finish, then try again.",
-  "binHolding": "Currently holding {0} file(s) ({1}).",
-  "binEmpty": "The recycle bin is empty.",
-  "binViewHide": "Hide contents",
-  "binViewShow": "View contents",
-  "binRestoreHint": "To put a file back, use the Restore button on the History tab.",
-  "modeOff": "Off — don't even scan",
-  "modeDetect": "Detect only — just show me",
-  "modeManual": "Ask me first",
-  "modeAuto": "Fix automatically",
-  "disposalRecycle": "Recycle bin (recoverable)",
-  "disposalPermanent": "Delete permanently",
-  "unitMbps": "{0} Mbps",
-  "unitPercent": "{0}%",
-  "unitDays": "{0} days",
-  "types": {
-    "Duplicate": {
-      "title": "Duplicate copies",
-      "hint": "The same movie or episode exists more than once.",
-      "action": "Delete this copy",
-      "actionHint": "Queues deletion of this copy for the next fix run; the better copy stays.",
-      "approveAll": "Delete all {0} duplicate copies shown",
-      "doRecycle": "Delete the worse copy — recoverable from the recycle bin",
-      "doPermanent": "Delete the worse copy — permanently"
-    },
-    "Playability": {
-      "title": "Files that won't play",
-      "hint": "These files are broken or unreadable.",
-      "action": "Remove file",
-      "actionHint": "Queues removal for the next fix run (re-checked as broken before anything is removed).",
-      "approveAll": "Remove all {0} broken files shown",
-      "doRecycle": "Remove the broken file — recoverable from the recycle bin",
-      "doPermanent": "Remove the broken file — permanently"
-    },
-    "Quality": {
-      "title": "Files wasting space",
-      "hint": "Bigger than your chosen quality ceiling.",
-      "action": "Re-encode",
-      "actionHint": "Queues a re-encode down to your quality ceiling for the next fix run; the original goes to the recycle bin.",
-      "approveAll": "Re-encode all {0} files shown",
-      "doRecycle": "Re-encode to the quality ceiling — original kept in recycle bin",
-      "doPermanent": "Re-encode to the quality ceiling — original deleted permanently"
-    },
-    "SubtitleLanguage": {
-      "title": "Subtitles",
-      "hint": "Strip unwanted-language subtitle tracks and (optionally) trim embedded fonts from .ass sidecars.",
-      "action": "Clean up subtitles",
-      "actionHint": "Queues removal of unwanted subtitle tracks (and font-optimize passes when enabled) for the next fix run.",
-      "approveAll": "Clean up all {0} files shown",
-      "doRecycle": "Remove unwanted subtitle tracks — original kept in recycle bin",
-      "doPermanent": "Remove unwanted subtitle tracks — original deleted permanently"
-    },
-    "SubtitleFonts": {
-      "title": "Subtitles",
-      "hint": "Embedded fonts in .ass sidecar subtitles that no style actually uses.",
-      "action": "Strip unused fonts",
-      "actionHint": "Rewrites the .ass file with only the fonts your styles reference. Contents-only edit — the file stays a valid subtitle.",
-      "approveAll": "Strip fonts from all {0} shown"
-    },
-    "CorruptNfo": {
-      "title": "Corrupt NFO files",
-      "hint": "Zero-byte, malformed, or unrecognised-root .nfo sidecars that stop Jellyfin from reading metadata.",
-      "action": "Delete corrupt NFO",
-      "actionHint": "Removes the broken .nfo file. Jellyfin's next library scan tries to build metadata from providers or embedded tags.",
-      "approveAll": "Delete all {0} corrupt NFOs shown",
-      "doRecycle": "Delete the NFO — recoverable from the recycle bin",
-      "doPermanent": "Delete the NFO — permanently"
-    },
-    "AudioLanguage": {
-      "title": "Unwanted audio",
-      "hint": "Audio tracks in languages you don't keep.",
-      "action": "Remove audio tracks",
-      "actionHint": "Queues removal of the unwanted audio tracks for the next fix run.",
-      "approveAll": "Clean up all {0} files shown",
-      "doRecycle": "Remove unwanted audio — original kept in recycle bin",
-      "doPermanent": "Remove unwanted audio — original deleted permanently"
-    },
-    "Misplaced": {
-      "title": "Misplaced files",
-      "hint": "A movie in the TV folder, or a TV episode in the Movies folder.",
-      "action": "Move to correct folder",
-      "actionHint": "Moves the file into the target folder configured in Settings → Libraries.",
-      "approveAll": "Move all {0} misplaced files shown"
-    },
-    "Ungrouped": {
-      "title": "Ungrouped media",
-      "hint": "Loose files or oddly-named folders that should sit under a per-title (or per-franchise) parent folder.",
-      "action": "Group under title folder",
-      "actionHint": "Moves the file or folder into a folder named after Jellyfin's identified title (franchise stem when siblings share it).",
-      "approveAll": "Group all {0} items shown"
-    },
-    "MissingSubtitles": {
-      "title": "Missing subtitles",
-      "hint": "No subtitle in any of your kept languages.",
-      "action": "Download subtitles",
-      "actionHint": "Downloads one via Jellyfin's configured subtitle providers (OpenSubtitles etc.).",
-      "approveAll": "Download subtitles for all {0} shown"
-    },
-    "Stale": {
-      "title": "Stale content",
-      "hint": "Nobody has played it in a long time.",
-      "action": "Review",
-      "actionHint": "Detect-only for now — MediaDash surfaces the list, you decide whether to delete or keep.",
-      "approveAll": "Review all {0} stale items shown"
-    },
-    "MalwareRisk": {
-      "title": "Suspicious executables",
-      "hint": "Programs or scripts sitting in a media folder — almost always malware from a pirated release.",
-      "action": "Delete this file",
-      "actionHint": "Queues deletion for the next fix run; the file goes to the recycle bin unless you switch it to permanent.",
-      "approveAll": "Delete all {0} suspicious files shown",
-      "doRecycle": "Delete the executable — recoverable from the recycle bin",
-      "doPermanent": "Delete the executable — permanently"
-    },
-    "HeavyTranscode": {
-      "title": "Heavy transcodes",
-      "hint": "Files that keep transcoding on the fly instead of direct-playing.",
-      "action": "Re-encode to compatible codec",
-      "actionHint": "Queues a one-off re-encode with the plugin's own settings so future plays become direct-play.",
-      "approveAll": "Re-encode all {0} heavy-transcode files shown",
-      "doRecycle": "Re-encode; keep the original in the recycle bin",
-      "doPermanent": "Re-encode; permanently delete the original"
-    },
-    "FailedTranscode": {
-      "title": "Failed transcodes",
-      "hint": "Recent transcode attempts failed (non-zero ffmpeg exit or a 'Conversion failed' tail).",
-      "action": "Retry with plugin settings",
-      "actionHint": "Runs a targeted re-encode with MediaDash's settings; often succeeds where the on-the-fly attempt didn't.",
-      "approveAll": "Retry all {0} failed-transcode files shown",
-      "doRecycle": "Retry; keep the original in the recycle bin",
-      "doPermanent": "Retry; permanently delete the original"
-    },
-    "OrphanedDebris": {
-      "title": "Orphaned debris",
-      "hint": "Empty folders, orphan subtitles, orphan trickplay folders and orphan metadata whose parent no longer exists.",
-      "action": "Delete orphan",
-      "actionHint": "Re-verifies at fix time that the parent still doesn't exist; refuses if a companion has reappeared.",
-      "approveAll": "Delete all {0} orphaned items shown"
-    },
-    "LargeTrickplay": {
-      "title": "Trickplay space savings",
-      "hint": "Scrub-bar preview thumbnails are still raw JPG — re-encoding to WebP typically halves the disk footprint.",
-      "action": "Re-encode as WebP",
-      "actionHint": "Runs the bundled jellyfin-ffmpeg with libwebp. The .jpg extension is kept so Jellyfin clients continue serving them exactly the same way.",
-      "approveAll": "Re-encode all {0} trickplay folders shown"
-    },
-    "EmbeddedCoverArt": {
-      "title": "Embedded cover art",
-      "hint": "Music or audiobook folders with per-file embedded covers but no folder-level cover.jpg.",
-      "action": "Extract shared folder cover",
-      "actionHint": "Writes cover.jpg once and (optionally) strips the redundant per-file copies.",
-      "approveAll": "Extract shared covers for all {0} folders shown"
-    },
-    "CorruptArtwork": {
-      "title": "Corrupt artwork",
-      "hint": "Poster / backdrop / thumb files inside Jellyfin's metadata folder that are zero-byte, truncated, or fail to decode.",
-      "action": "Delete corrupt artwork",
-      "actionHint": "Removes the broken image; Jellyfin's next library scan re-fetches from providers.",
-      "approveAll": "Delete all {0} corrupt artwork files shown"
-    }
-  },
-  "languages": [
-    [
-      "eng",
-      "English"
-    ],
-    [
-      "spa",
-      "Spanish"
-    ],
-    [
-      "fra",
-      "French"
-    ],
-    [
-      "deu",
-      "German"
-    ],
-    [
-      "ita",
-      "Italian"
-    ],
-    [
-      "por",
-      "Portuguese"
-    ],
-    [
-      "nld",
-      "Dutch"
-    ],
-    [
-      "rus",
-      "Russian"
-    ],
-    [
-      "jpn",
-      "Japanese"
-    ],
-    [
-      "zho",
-      "Chinese"
-    ],
-    [
-      "kor",
-      "Korean"
-    ],
-    [
-      "ara",
-      "Arabic"
-    ],
-    [
-      "hin",
-      "Hindi"
-    ],
-    [
-      "pol",
-      "Polish"
-    ],
-    [
-      "swe",
-      "Swedish"
-    ],
-    [
-      "nor",
-      "Norwegian"
-    ],
-    [
-      "dan",
-      "Danish"
-    ],
-    [
-      "fin",
-      "Finnish"
-    ],
-    [
-      "tur",
-      "Turkish"
-    ],
-    [
-      "ces",
-      "Czech"
-    ],
-    [
-      "ell",
-      "Greek"
-    ],
-    [
-      "heb",
-      "Hebrew"
-    ],
-    [
-      "tha",
-      "Thai"
-    ],
-    [
-      "vie",
-      "Vietnamese"
-    ],
-    [
-      "ukr",
-      "Ukrainian"
-    ],
-    [
-      "hun",
-      "Hungarian"
-    ],
-    [
-      "ron",
-      "Romanian"
-    ]
-  ],
-  "wizSteps": [
-    "Step 1 of 17 — Welcome",
-    "Step 2 of 17 — Libraries",
-    "Step 3 of 17 — Duplicates",
-    "Step 4 of 17 — Broken files",
-    "Step 5 of 17 — Oversized files",
-    "Step 6 of 17 — Transcode-heavy files",
-    "Step 7 of 17 — Trickplay thumbnails",
-    "Step 8 of 17 — Languages",
-    "Step 9 of 17 — Music & audiobook covers",
-    "Step 10 of 17 — Media sorter",
-    "Step 11 of 17 — Broken metadata sidecars",
-    "Step 12 of 17 — Suspicious executables",
-    "Step 13 of 17 — Housekeeping",
-    "Step 14 of 17 — Safety",
-    "Step 15 of 17 — Stale content",
-    "Step 16 of 17 — Community stats",
-    "Step 17 of 17 — All done"
-  ],
-  "wizFinish": "Finish setup",
-  "wizContinue": "Continue",
-  "html": {
-    "tab.overview": "Overview",
-    "tab.issues": "Issues",
-    "tab.history": "History",
-    "tab.files": "Files",
-    "tab.errors": "Errors",
-    "tab.settings": "Settings",
-    "settings.nav.safety": "Safety",
-    "settings.nav.languages": "Languages",
-    "settings.nav.fix": "What to fix",
-    "settings.nav.quality": "Quality",
-    "settings.nav.libraries": "Libraries",
-    "settings.nav.advanced": "Advanced",
-    "settings.nav.bin": "Recycle bin",
-    "settings.nav.maintenance": "Maintenance",
-    "settings.safety.title": "Safety",
-    "settings.safety.subtitle": "Guardrails that keep every scan and fix reversible.",
-    "settings.safety.dryRun": "Dry-run mode",
-    "settings.safety.dryRunHint": "On (default): fix runs only log what they would do — nothing is changed. Turn off once you're happy with the plan shown in History.",
-    "settings.safety.idle": "Only run when the server is idle",
-    "settings.safety.idleHint": "On (default): scheduled scans and fixes wait until nobody is watching anything and nobody has used Jellyfin for 15 minutes. The \"Scan now\" and \"Run fixes now\" buttons always run immediately. This overrides the scheduled time below — if the server is busy when the schedule fires, the run is skipped.",
-    "settings.safety.analytics": "Share anonymous stats with the community board",
-    "settings.safety.analyticsHint": "Sends per-month, per-scanner fix counts + total bytes freed + plugin/Jellyfin version, tagged with a month-rotated anonymous ID (SHA-256 of Jellyfin's SystemId + this year-month; changes on the 1st of every month, no persistent UUID stored on disk). On by default; untick here to opt out. No paths, no filenames, no usernames. See docs/PRIVACY.md.",
-    "task.scan.name": "Scan libraries for issues",
-    "task.scan.description": "Looks for duplicates, unplayable files, oversized encodes, unwanted language tracks, misplaced files and videos missing subtitles.",
-    "task.fix.name": "Apply approved fixes",
-    "task.fix.description": "Applies approved and automatic fixes: removes duplicates, re-encodes oversized files, strips unwanted tracks.",
-    "tab.recyclebin": "Recycle bin"
-  }
+    "tagline":  "Keeps your library lean and playable — finds duplicate copies, broken files, oversized encodes and unwanted language tracks, then fixes them safely.",
+    "scanIdle":  "Last scan: {0}",
+    "scanNever":  "No scan has run yet. Click \"Scan now\" to check your libraries.",
+    "scanRunning":  "Scanning your libraries… {0}%",
+    "scanStarting":  "Starting scan…",
+    "scanDone":  "Scan finished — {0} open issue(s) found.",
+    "scanNowLabel":  "Scan now",
+    "stopScanLabel":  "Stop scanning",
+    "fixRunning":  "Applying fixes… {0}%",
+    "fixStarting":  "Starting fix run…",
+    "fixNowLabel":  "Run fixes now",
+    "stopFixLabel":  "Stop running fixes",
+    "fixDone":  "Fix run finished — see History for what was done.",
+    "fixNothingToDo":  "Nothing to fix yet — approve issues on the Issues tab, or switch a fix type to \"Fix automatically\" in Settings, then click again.",
+    "dryRunOn":  "Approved fixes are only rehearsed and logged to History. When the plan looks right, turn off dry-run to let MediaDash make real changes.",
+    "diskContext":  "{0} free of {1} on your library drives",
+    "driveStorage":  "Library drive storage",
+    "driveUsed":  "{0} used of {1}",
+    "driveFree":  "{0} free",
+    "systemStats":  "System performance",
+    "statCpu":  "CPU",
+    "statRam":  "Memory",
+    "statGpu":  "GPU",
+    "statCpuHint":  "System-wide across {0} cores",
+    "statRamHint":  "{0} used of {1}",
+    "statGpuHint":  "via {0}",
+    "statGpuMissing":  "No GPU counter available on this host",
+    "statUnavailable":  "N/A on {0}",
+    "statUnknown":  "—",
+    "statPlatform":  "Host: {0}",
+    "totalSavings":  "Space you could reclaim",
+    "whereSavings":  "Where the savings are",
+    "issuesByType":  "Issues found",
+    "noIssues":  "No issues found — your library is in good shape. New scans run automatically on schedule.",
+    "noHistory":  "Nothing has been fixed yet. Fixes appear here after a fix run, with a Restore button for anything recoverable.",
+    "allTypes":  "All issue types",
+    "showingOf":  "Showing the first {0} of {1} issues. Use the filter above to narrow the list.",
+    "approve":  "Approve",
+    "approveHint":  "Queues this fix for the next fix run.",
+    "dismiss":  "Ignore this",
+    "dismissHint":  "Excludes this file from future scans of this issue type — it won’t be reported again.",
+    "approveAll":  "Approve all {0} shown",
+    "approveAllTypes":  "Approve all {0} issues (all types)",
+    "approveAllNote":  "Approves every issue currently listed — each will be fixed on the next fix run.",
+    "approved":  "Approved — will be handled by the next fix run.",
+    "dismissed":  "Ignored — this file won’t be reported again.",
+    "restore":  "Restore",
+    "restoreHint":  "Puts the file back exactly where it was.",
+    "restored":  "Restored.",
+    "restoreFailed":  "Could not restore: {0}",
+    "spaceSavedToDate":  "Space saved to date: {0}",
+    "savedPerLibrary":  "Reclaimed since install per library",
+    "unassignedLibrary":  "Unassigned",
+    "dryRunBadge":  "dry run",
+    "saved":  "Saved.",
+    "confirmAuto":  "Automatic mode will change files whenever the server is idle, without asking. Removed files go to the recycle bin (unless set to permanent delete). Continue?",
+    "confirmPermanent":  "Permanent delete means removed files CANNOT be recovered. Are you sure?",
+    "confirmEmptyBin":  "Permanently delete everything in the recycle bin? Restore will no longer be possible for those files.",
+    "confirmReset":  "Clear all detected issues and probe/decode caches? Fix history and the recycle bin are kept. No media files will be touched.",
+    "resetDone":  "Scan data cleared — click \"Scan now\" to start fresh.",
+    "resetBusy":  "Cannot reset right now: a scan or fix is running. Wait for it to finish, then try again.",
+    "binHolding":  "Currently holding {0} file(s) ({1}).",
+    "binEmpty":  "The recycle bin is empty.",
+    "binViewHide":  "Hide contents",
+    "binViewShow":  "View contents",
+    "binRestoreHint":  "To put a file back, use the Restore button on the History tab.",
+    "modeOff":  "Off — don\u0027t even scan",
+    "modeDetect":  "Detect only — just show me",
+    "modeManual":  "Ask me first",
+    "modeAuto":  "Fix automatically",
+    "disposalRecycle":  "Recycle bin (recoverable)",
+    "disposalPermanent":  "Delete permanently",
+    "unitMbps":  "{0} Mbps",
+    "unitPercent":  "{0}%",
+    "unitDays":  "{0} days",
+    "types":  {
+                  "Duplicate":  {
+                                    "title":  "Duplicate copies",
+                                    "hint":  "The same movie or episode exists more than once.",
+                                    "action":  "Delete this copy",
+                                    "actionHint":  "Queues deletion of this copy for the next fix run; the better copy stays.",
+                                    "approveAll":  "Delete all {0} duplicate copies shown",
+                                    "doRecycle":  "Delete the worse copy — recoverable from the recycle bin",
+                                    "doPermanent":  "Delete the worse copy — permanently"
+                                },
+                  "Playability":  {
+                                      "title":  "Files that won\u0027t play",
+                                      "hint":  "These files are broken or unreadable.",
+                                      "action":  "Remove file",
+                                      "actionHint":  "Queues removal for the next fix run (re-checked as broken before anything is removed).",
+                                      "approveAll":  "Remove all {0} broken files shown",
+                                      "doRecycle":  "Remove the broken file — recoverable from the recycle bin",
+                                      "doPermanent":  "Remove the broken file — permanently"
+                                  },
+                  "Quality":  {
+                                  "title":  "Files wasting space",
+                                  "hint":  "Bigger than your chosen quality ceiling.",
+                                  "action":  "Re-encode",
+                                  "actionHint":  "Queues a re-encode down to your quality ceiling for the next fix run; the original goes to the recycle bin.",
+                                  "approveAll":  "Re-encode all {0} files shown",
+                                  "doRecycle":  "Re-encode to the quality ceiling — original kept in recycle bin",
+                                  "doPermanent":  "Re-encode to the quality ceiling — original deleted permanently"
+                              },
+                  "SubtitleLanguage":  {
+                                           "title":  "Subtitles",
+                                           "hint":  "Strip unwanted-language subtitle tracks and (optionally) trim embedded fonts from .ass sidecars.",
+                                           "action":  "Clean up subtitles",
+                                           "actionHint":  "Queues removal of unwanted subtitle tracks (and font-optimize passes when enabled) for the next fix run.",
+                                           "approveAll":  "Clean up all {0} files shown",
+                                           "doRecycle":  "Remove unwanted subtitle tracks — original kept in recycle bin",
+                                           "doPermanent":  "Remove unwanted subtitle tracks — original deleted permanently"
+                                       },
+                  "SubtitleFonts":  {
+                                        "title":  "Subtitles",
+                                        "hint":  "Embedded fonts in .ass sidecar subtitles that no style actually uses.",
+                                        "action":  "Strip unused fonts",
+                                        "actionHint":  "Rewrites the .ass file with only the fonts your styles reference. Contents-only edit — the file stays a valid subtitle.",
+                                        "approveAll":  "Strip fonts from all {0} shown"
+                                    },
+                  "CorruptNfo":  {
+                                     "title":  "Corrupt NFO files",
+                                     "hint":  "Zero-byte, malformed, or unrecognised-root .nfo sidecars that stop Jellyfin from reading metadata.",
+                                     "action":  "Delete corrupt NFO",
+                                     "actionHint":  "Removes the broken .nfo file. Jellyfin\u0027s next library scan tries to build metadata from providers or embedded tags.",
+                                     "approveAll":  "Delete all {0} corrupt NFOs shown",
+                                     "doRecycle":  "Delete the NFO — recoverable from the recycle bin",
+                                     "doPermanent":  "Delete the NFO — permanently"
+                                 },
+                  "AudioLanguage":  {
+                                        "title":  "Unwanted audio",
+                                        "hint":  "Audio tracks in languages you don\u0027t keep.",
+                                        "action":  "Remove audio tracks",
+                                        "actionHint":  "Queues removal of the unwanted audio tracks for the next fix run.",
+                                        "approveAll":  "Clean up all {0} files shown",
+                                        "doRecycle":  "Remove unwanted audio — original kept in recycle bin",
+                                        "doPermanent":  "Remove unwanted audio — original deleted permanently"
+                                    },
+                  "Misplaced":  {
+                                    "title":  "Misplaced files",
+                                    "hint":  "A movie in the TV folder, or a TV episode in the Movies folder.",
+                                    "action":  "Move to correct folder",
+                                    "actionHint":  "Moves the file into the target folder configured in Settings → Libraries.",
+                                    "approveAll":  "Move all {0} misplaced files shown"
+                                },
+                  "Ungrouped":  {
+                                    "title":  "Ungrouped media",
+                                    "hint":  "Loose files or oddly-named folders that should sit under a per-title (or per-franchise) parent folder.",
+                                    "action":  "Group under title folder",
+                                    "actionHint":  "Moves the file or folder into a folder named after Jellyfin\u0027s identified title (franchise stem when siblings share it).",
+                                    "approveAll":  "Group all {0} items shown"
+                                },
+                  "MissingSubtitles":  {
+                                           "title":  "Missing subtitles",
+                                           "hint":  "No subtitle in any of your kept languages.",
+                                           "action":  "Download subtitles",
+                                           "actionHint":  "Downloads one via Jellyfin\u0027s configured subtitle providers (OpenSubtitles etc.).",
+                                           "approveAll":  "Download subtitles for all {0} shown"
+                                       },
+                  "Stale":  {
+                                "title":  "Stale content",
+                                "hint":  "Nobody has played it in a long time.",
+                                "action":  "Review",
+                                "actionHint":  "Detect-only for now — MediaDash surfaces the list, you decide whether to delete or keep.",
+                                "approveAll":  "Review all {0} stale items shown"
+                            },
+                  "MalwareRisk":  {
+                                      "title":  "Suspicious executables",
+                                      "hint":  "Programs or scripts sitting in a media folder — almost always malware from a pirated release.",
+                                      "action":  "Delete this file",
+                                      "actionHint":  "Queues deletion for the next fix run; the file goes to the recycle bin unless you switch it to permanent.",
+                                      "approveAll":  "Delete all {0} suspicious files shown",
+                                      "doRecycle":  "Delete the executable — recoverable from the recycle bin",
+                                      "doPermanent":  "Delete the executable — permanently"
+                                  },
+                  "HeavyTranscode":  {
+                                         "title":  "Heavy transcodes",
+                                         "hint":  "Files that keep transcoding on the fly instead of direct-playing.",
+                                         "action":  "Re-encode to compatible codec",
+                                         "actionHint":  "Queues a one-off re-encode with the plugin\u0027s own settings so future plays become direct-play.",
+                                         "approveAll":  "Re-encode all {0} heavy-transcode files shown",
+                                         "doRecycle":  "Re-encode; keep the original in the recycle bin",
+                                         "doPermanent":  "Re-encode; permanently delete the original"
+                                     },
+                  "FailedTranscode":  {
+                                          "title":  "Failed transcodes",
+                                          "hint":  "Recent transcode attempts failed (non-zero ffmpeg exit or a \u0027Conversion failed\u0027 tail).",
+                                          "action":  "Retry with plugin settings",
+                                          "actionHint":  "Runs a targeted re-encode with MediaDash\u0027s settings; often succeeds where the on-the-fly attempt didn\u0027t.",
+                                          "approveAll":  "Retry all {0} failed-transcode files shown",
+                                          "doRecycle":  "Retry; keep the original in the recycle bin",
+                                          "doPermanent":  "Retry; permanently delete the original"
+                                      },
+                  "OrphanedDebris":  {
+                                         "title":  "Orphaned debris",
+                                         "hint":  "Empty folders, orphan subtitles, orphan trickplay folders and orphan metadata whose parent no longer exists.",
+                                         "action":  "Delete orphan",
+                                         "actionHint":  "Re-verifies at fix time that the parent still doesn\u0027t exist; refuses if a companion has reappeared.",
+                                         "approveAll":  "Delete all {0} orphaned items shown"
+                                     },
+                  "LargeTrickplay":  {
+                                         "title":  "Trickplay space savings",
+                                         "hint":  "Scrub-bar preview thumbnails are still raw JPG — re-encoding to WebP typically halves the disk footprint.",
+                                         "action":  "Re-encode as WebP",
+                                         "actionHint":  "Runs the bundled jellyfin-ffmpeg with libwebp. The .jpg extension is kept so Jellyfin clients continue serving them exactly the same way.",
+                                         "approveAll":  "Re-encode all {0} trickplay folders shown"
+                                     },
+                  "EmbeddedCoverArt":  {
+                                           "title":  "Embedded cover art",
+                                           "hint":  "Music or audiobook folders with per-file embedded covers but no folder-level cover.jpg.",
+                                           "action":  "Extract shared folder cover",
+                                           "actionHint":  "Writes cover.jpg once and (optionally) strips the redundant per-file copies.",
+                                           "approveAll":  "Extract shared covers for all {0} folders shown"
+                                       },
+                  "CorruptArtwork":  {
+                                         "title":  "Corrupt artwork",
+                                         "hint":  "Poster / backdrop / thumb files inside Jellyfin\u0027s metadata folder that are zero-byte, truncated, or fail to decode.",
+                                         "action":  "Delete corrupt artwork",
+                                         "actionHint":  "Removes the broken image; Jellyfin\u0027s next library scan re-fetches from providers.",
+                                         "approveAll":  "Delete all {0} corrupt artwork files shown"
+                                     }
+              },
+    "wizSteps":  [
+                     "Step 1 of 17 — Welcome",
+                     "Step 2 of 17 — Libraries",
+                     "Step 3 of 17 — Duplicates",
+                     "Step 4 of 17 — Broken files",
+                     "Step 5 of 17 — Oversized files",
+                     "Step 6 of 17 — Transcode-heavy files",
+                     "Step 7 of 17 — Trickplay thumbnails",
+                     "Step 8 of 17 — Languages",
+                     "Step 9 of 17 — Music \u0026 audiobook covers",
+                     "Step 10 of 17 — Media sorter",
+                     "Step 11 of 17 — Broken metadata sidecars",
+                     "Step 12 of 17 — Suspicious executables",
+                     "Step 13 of 17 — Housekeeping",
+                     "Step 14 of 17 — Safety",
+                     "Step 15 of 17 — Stale content",
+                     "Step 16 of 17 — Community stats",
+                     "Step 17 of 17 — All done"
+                 ],
+    "wizFinish":  "Finish setup",
+    "wizContinue":  "Continue",
+    "html":  {
+                 "tab.overview":  "Overview",
+                 "tab.issues":  "Issues",
+                 "tab.history":  "History",
+                 "tab.files":  "Files",
+                 "tab.errors":  "Errors",
+                 "tab.settings":  "Settings",
+                 "settings.nav.safety":  "Safety",
+                 "settings.nav.languages":  "Languages",
+                 "settings.nav.fix":  "What to fix",
+                 "settings.nav.quality":  "Quality",
+                 "settings.nav.libraries":  "Libraries",
+                 "settings.nav.advanced":  "Advanced",
+                 "settings.nav.bin":  "Recycle bin",
+                 "settings.nav.maintenance":  "Maintenance",
+                 "settings.safety.title":  "Safety",
+                 "settings.safety.subtitle":  "Guardrails that keep every scan and fix reversible.",
+                 "settings.safety.dryRun":  "Dry-run mode",
+                 "settings.safety.dryRunHint":  "On (default): fix runs only log what they would do — nothing is changed. Turn off once you\u0027re happy with the plan shown in History.",
+                 "settings.safety.idle":  "Only run when the server is idle",
+                 "settings.safety.idleHint":  "On (default): scheduled scans and fixes wait until nobody is watching anything and nobody has used Jellyfin for 15 minutes. The \"Scan now\" and \"Run fixes now\" buttons always run immediately. This overrides the scheduled time below — if the server is busy when the schedule fires, the run is skipped.",
+                 "settings.safety.analytics":  "Share anonymous stats with the community board",
+                 "settings.safety.analyticsHint":  "Sends per-month, per-scanner fix counts + total bytes freed + plugin/Jellyfin version, tagged with a month-rotated anonymous ID (SHA-256 of Jellyfin\u0027s SystemId + this year-month; changes on the 1st of every month, no persistent UUID stored on disk). On by default; untick here to opt out. No paths, no filenames, no usernames. See docs/PRIVACY.md.",
+                 "task.scan.name":  "Scan libraries for issues",
+                 "task.scan.description":  "Looks for duplicates, unplayable files, oversized encodes, unwanted language tracks, misplaced files and videos missing subtitles.",
+                 "task.fix.name":  "Apply approved fixes",
+                 "task.fix.description":  "Applies approved and automatic fixes: removes duplicates, re-encodes oversized files, strips unwanted tracks.",
+                 "tab.recyclebin":  "Recycle bin"
+             }
 }

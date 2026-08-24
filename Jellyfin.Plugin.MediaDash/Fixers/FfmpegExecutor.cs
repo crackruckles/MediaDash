@@ -102,6 +102,7 @@ public sealed class FfmpegExecutor
         try
         {
             process.Start();
+            TryLowerPriority(process);
             var stderrTail = new StringBuilder();
             string? line;
             while ((line = await process.StandardError.ReadLineAsync(timeoutCts.Token).ConfigureAwait(false)) is not null)
@@ -217,6 +218,28 @@ public sealed class FfmpegExecutor
         }
 
         return false;
+    }
+
+    // ffmpeg-encoding fixers (Transcode, Track, TrickplayOptimize, EmbeddedCoverArt) are the CPU-heavy
+    // side of the plugin. Mirrors FfprobeService.TryLowerPriority so a busy transcode yields to
+    // playback / other interactive work. Honours ScanBelowNormalPriority — the config docstring
+    // already promises "ffprobe/ffmpeg", this closes the fixer-side gap without a new setting.
+    private static void TryLowerPriority(Process process)
+    {
+        if (!(Plugin.Instance?.Configuration?.ScanBelowNormalPriority ?? true))
+        {
+            return;
+        }
+
+        try
+        {
+            process.PriorityClass = ProcessPriorityClass.BelowNormal;
+        }
+        catch (Exception)
+        {
+            // Process may have exited, or the host may refuse the change (rootless container without
+            // CAP_SYS_NICE, some macOS sandboxes). Silent by design — this is a hint, not a contract.
+        }
     }
 
     private void TryKill(Process process)

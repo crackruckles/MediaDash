@@ -124,13 +124,19 @@ public sealed class FfprobeService
             if (string.IsNullOrWhiteSpace(error) && durationSeconds > 90)
             {
                 var middle = ((long)(durationSeconds / 2)).ToString(System.Globalization.CultureInfo.InvariantCulture);
-                error = await RunFfmpegDecodeAsync(["-ss", middle, "-i", path, "-t", "30", "-f", "null", "-"], 30.0, tolerantContainer: false, cancellationToken).ConfigureAwait(false);
+                // expectedSeconds=0 disables the decoded-time shortfall check for this segment. -ss seeks
+                // land on the nearest keyframe, so on sparse-keyframe MKVs / anime rips ffmpeg legitimately
+                // decodes <90% of the requested 30s window and the shortfall heuristic false-positives on
+                // files that play fine in Jellyfin. Exit code + truncation-marker still catch real breakage.
+                // ponytail: drop this heuristic for seeks; the start-segment shortfall check remains the truth.
+                error = await RunFfmpegDecodeAsync(["-ss", middle, "-i", path, "-t", "30", "-f", "null", "-"], expectedSeconds: 0, tolerantContainer: false, cancellationToken).ConfigureAwait(false);
             }
 
             if (string.IsNullOrWhiteSpace(error))
             {
-                var endExpected = Math.Min(30.0, durationSeconds);
-                error = await RunFfmpegDecodeAsync(["-sseof", "-30", "-i", path, "-f", "null", "-"], endExpected, tolerantContainer: false, cancellationToken).ConfigureAwait(false);
+                // Same reasoning as the middle segment — -sseof seeks are keyframe-anchored, so the
+                // decoded-time shortfall check false-positives here too.
+                error = await RunFfmpegDecodeAsync(["-sseof", "-30", "-i", path, "-f", "null", "-"], expectedSeconds: 0, tolerantContainer: false, cancellationToken).ConfigureAwait(false);
             }
         }
 

@@ -56,6 +56,18 @@ public sealed class FfprobeStreamInfo
     [JsonPropertyName("tags")]
     public IReadOnlyDictionary<string, string>? Tags { get; set; }
 
+    /// <summary>
+    /// Gets or sets ffprobe's disposition map (default, forced, hearing_impaired, ...). Each value is 0 or 1.
+    /// </summary>
+    [JsonPropertyName("disposition")]
+    public IReadOnlyDictionary<string, int>? Disposition { get; set; }
+
+    /// <summary>
+    /// Gets a value indicating whether the stream is flagged as hearing-impaired (SDH / CC) by the container.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsHearingImpaired => Disposition is not null && Disposition.TryGetValue("hearing_impaired", out var v) && v != 0;
+
     /// <summary>Gets or sets the color primaries (e.g., "bt709" for SDR, "bt2020" for HDR).</summary>
     [JsonPropertyName("color_primaries")]
     public string? ColorPrimaries { get; set; }

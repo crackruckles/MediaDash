@@ -109,15 +109,19 @@ public sealed class ScanTask : IScheduledTask
                 .ToList();
         }
 
-        _logger.LogInformation("MediaDash scan starting: {ItemCount} items, {ScannerCount} scanners", items.Count, _scanners.Count());
-
         var scannedPaths = scanIsScoped
             ? items.SelectMany(MediaFileHelper.GetFilePaths).ToList()
             : null;
         // Reset the doomed-file set at scan start so the previous run's flags don't leak in.
         Plugin.ClearDoomed();
 
-        var scanners = _scanners.ToList();
+        // Honour FixMode.Off: the enum's own docstring is "The scanner does not run for this fix type."
+        // Without this filter every registered scanner ran on every scheduled scan regardless of the
+        // user's settings — field reports of PlayabilityScanner / AudioLanguageScanner chewing CPU
+        // while the user had only EmbeddedCoverArt enabled trace to here.
+        var config = Plugin.Instance!.Configuration;
+        var scanners = _scanners.Where(s => config.GetFixMode(s.Type) != Configuration.FixMode.Off).ToList();
+        _logger.LogInformation("MediaDash scan starting: {ItemCount} items, {ScannerCount} scanners ({SkippedCount} skipped as Off)", items.Count, scanners.Count, _scanners.Count() - scanners.Count);
         try
         {
             for (var i = 0; i < scanners.Count; i++)

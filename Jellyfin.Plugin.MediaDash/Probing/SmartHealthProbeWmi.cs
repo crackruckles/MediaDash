@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -17,6 +18,13 @@ namespace Jellyfin.Plugin.MediaDash.Probing;
 [SupportedOSPlatform("windows")]
 public static class SmartHealthProbeWmi
 {
+    // Per-model negative cache: once we've confirmed Windows won't populate MSFT_StorageReliabilityCounter
+    // for a given FriendlyName (common for many NVMe drives), skip the ~1s PowerShell fallback on every
+    // subsequent 10-min refresh. Health pill via MSFT_PhysicalDisk still works either way.
+    // ponytail: process-lifetime cache; a Jellyfin restart re-probes if the driver/firmware changed.
+    private static readonly ConcurrentDictionary<string, byte> NoReliabilityCounter =
+        new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// Returns SMART health for the physical disk hosting <paramref name="driveRoot"/> as reported by
     /// Windows' own Storage subsystem. Returns null when WMI is unavailable or the drive can't be
@@ -228,12 +236,10 @@ public static class SmartHealthProbeWmi
             // enumerable through the newer CIM/WSMan stack that PowerShell's Get-CimAssociatedInstance
             // uses. Shell out as a last resort. It's Windows-only, gated to library/recycle drives,
             // and only fires when both WMI paths already came back empty, so overhead is bounded.
-            if (FillFromPowerShell(result))
-            {
-                return;
-            }
-
-            Diagnostics.Record("SmartHealth.Wmi", "No MSFT_StorageReliabilityCounter association found for " + (result.ModelName ?? "physical disk") + " via any WMI or PowerShell path. Detail tiles will show 'no attributes reported'; the health pill is unaffected.");
+            // Empty result here is benign: many NVMe drives don't publish reliability counters at all.
+            // Detail tiles surface "no attributes reported" in the UI; no need to duplicate that as an
+            // Errors-tab entry every 10 minutes.
+            FillFromPowerShell(result);
         }
         catch (System.Management.ManagementException ex)
         {
@@ -286,6 +292,12 @@ public static class SmartHealthProbeWmi
             return false;
         }
 
+        // Already confirmed unpopulated for this model on a prior probe — skip the ~1s spawn.
+        if (NoReliabilityCounter.ContainsKey(result.ModelName))
+        {
+            return false;
+        }
+
         // Emit one row per PhysicalDisk with tab-separated fields. Empty fields become empty
         // strings (Get-StorageReliabilityCounter returns null for unsupported attributes on a
         // given drive — Lexar NM790 for example doesn't report PowerOnHours).
@@ -334,7 +346,6 @@ public static class SmartHealthProbeWmi
             }
 
             var stdout = stdoutTask.GetAwaiter().GetResult();
-            var matched = false;
             foreach (var line in stdout.Split('\n'))
             {
                 var trimmed = line.Trim('\r');
@@ -365,8 +376,6 @@ public static class SmartHealthProbeWmi
                 {
                     continue;
                 }
-
-                matched = true;
 
                 if (parts.Length > 1 && int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var t))
                 {
@@ -407,19 +416,6 @@ public static class SmartHealthProbeWmi
                     return true;
                 }
             }
-
-            // We got here with matched=false → PowerShell ran but no line matched the model name.
-            // Surface the (truncated) stdout so we can see WHAT PowerShell returned. Common cause:
-            // FriendlyName mismatch between the WMI ModelName we set and PowerShell's FriendlyName
-            // (e.g. trailing space, alternate spelling from a driver update).
-            if (!matched)
-            {
-                var preview = stdout.Length > 200 ? stdout[..200] + "…" : stdout;
-                preview = preview.Replace('\t', '|').Replace('\r', ' ').Replace('\n', ' ');
-                Diagnostics.Record(
-                    "SmartHealth.Wmi",
-                    "PowerShell counter fallback ran for '" + result.ModelName + "' but no output line's FriendlyName matched. Raw stdout (tabs shown as |): '" + preview + "'.");
-            }
         }
         catch (System.ComponentModel.Win32Exception)
         {
@@ -427,6 +423,14 @@ public static class SmartHealthProbeWmi
         }
         catch (System.IO.IOException)
         {
+        }
+
+        // Every path (no output, name mismatch, empty fields, missing powershell) landed here.
+        // Cache so the next 10-min refresh skips the spawn entirely. ModelName was non-null at entry
+        // (guarded above), but nullable-flow forgets that across the try block.
+        if (!string.IsNullOrEmpty(result.ModelName))
+        {
+            NoReliabilityCounter.TryAdd(result.ModelName, 0);
         }
 
         return false;

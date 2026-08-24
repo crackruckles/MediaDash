@@ -57,6 +57,10 @@ public sealed partial class MediaGrouperScanner : IScanner
     {
         var moviesRoot = NormalizeDir(Config.MoviesTargetPath);
         var tvRoot = NormalizeDir(Config.TvTargetPath);
+        // When an Anime target is configured, MediaSorterScanner routes anime-tagged Movies/Episodes
+        // there. The grouper knows only Movies vs Episodes → if it doesn't opt out, it re-classifies
+        // an anime Episode sitting in /anime/ as "TV missing its series folder" and undoes the sort.
+        var animeConfigured = !string.IsNullOrWhiteSpace(Config.AnimeTargetPath);
 
         if (moviesRoot is null && tvRoot is null)
         {
@@ -76,7 +80,12 @@ public sealed partial class MediaGrouperScanner : IScanner
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                if (item is Episode episode && tvRoot is not null)
+                // Anime-tagged items belong under AnimeTargetPath — leave them to MediaSorterScanner.
+                if (animeConfigured && MediaSorterScanner.HasAnimeGenre(item))
+                {
+                    // fall through to progress bookkeeping
+                }
+                else if (item is Episode episode && tvRoot is not null)
                 {
                     var tvIssue = BuildTvIssue(episode, tvRoot);
                     if (tvIssue is not null && seenSources.Add(tvIssue.Path))

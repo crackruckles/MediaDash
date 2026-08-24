@@ -52,6 +52,192 @@ public sealed class OrphanCleanupScannerTests
         Assert.False(OrphanCleanupScanner.HasCompanionVideo(sub));
     }
 
+    // Field report: SDH / forced / multi-token sidecars were being flagged as orphans and deleted.
+    // The old token-stripping logic only removed ONE trailing dot-token with a ≤5-char cap, so
+    // Foo.en.sdh.srt never reduced past Foo.en and Foo.forced.srt was never stripped at all
+    // (forced = 6 chars). Prefix matching handles arbitrary trailing metadata tokens.
+    [Theory]
+    [InlineData("Foo.en.sdh.srt")]
+    [InlineData("Foo.en.hi.srt")]
+    [InlineData("Foo.en.cc.srt")]
+    [InlineData("Foo.forced.srt")]
+    [InlineData("Foo.en.forced.srt")]
+    [InlineData("Foo.default.srt")]
+    [InlineData("Foo.foreign.srt")]
+    [InlineData("Foo.sign.srt")]
+    [InlineData("Foo.commentary.srt")]
+    [InlineData("Foo.eng.SDH.srt")]
+    [InlineData("Foo.en.sdh.forced.srt")]
+    public void HasCompanionVideo_TrueForSubtitleFlavourTokens(string sidecarName)
+    {
+        using var scratch = new Scratch();
+        File.WriteAllText(scratch.Sub("Foo.mkv"), string.Empty);
+        var sub = scratch.Sub(sidecarName);
+        File.WriteAllText(sub, string.Empty);
+        Assert.True(OrphanCleanupScanner.HasCompanionVideo(sub));
+    }
+
+    [Fact]
+    public void HasCompanionVideo_FalseWhenVideoIsMerelyPrefixSubstringWithoutDotSeparator()
+    {
+        // Foobar.en.srt must NOT be treated as a companion of Foo.mkv — the video base "Foo" is a
+        // substring but not a dotted prefix. Prevents deleting a real orphan just because an unrelated
+        // shorter-named video sits nearby.
+        using var scratch = new Scratch();
+        File.WriteAllText(scratch.Sub("Foo.mkv"), string.Empty);
+        var sub = scratch.Sub("Foobar.en.srt");
+        File.WriteAllText(sub, string.Empty);
+        Assert.False(OrphanCleanupScanner.HasCompanionVideo(sub));
+    }
+
+    // Every extension in SubtitleFormats.Extensions must be recognised by the orphan pass — if we
+    // don't recognise it, a real orphan of that format won't be swept AND (worse) an existing sidecar
+    // whose extension we don't know is never checked for a companion, so it stays. The list below
+    // must match SubtitleFormats.Extensions exactly; add a case when a new format lands there.
+    [Theory]
+    [InlineData(".srt")]
+    [InlineData(".ass")]
+    [InlineData(".ssa")]
+    [InlineData(".vtt")]
+    [InlineData(".sub")]
+    [InlineData(".idx")]
+    [InlineData(".sup")]
+    [InlineData(".smi")]
+    [InlineData(".sami")]
+    [InlineData(".mks")]
+    public void SubtitleExtensions_ContainsFormat(string ext)
+    {
+        Assert.Contains(ext, OrphanCleanupScanner.SubtitleExtensions);
+    }
+
+    // Spot-check formerly-missing Jellyfin video extensions now covered via MediaFormats.Video.
+    // Previously .iso, .strm, .wtv, .rm, .asf, .m2t, .mxf, .mk3d were not in VideoExtensions —
+    // an .en.srt next to an .iso rip was flagged as an orphan and deleted.
+    [Theory]
+    [InlineData(".iso")]
+    [InlineData(".strm")]
+    [InlineData(".wtv")]
+    [InlineData(".rm")]
+    [InlineData(".asf")]
+    [InlineData(".m2t")]
+    [InlineData(".mxf")]
+    [InlineData(".mk3d")]
+    [InlineData(".xvid")]
+    [InlineData(".dvr-ms")]
+    public void VideoExtensions_CoversFullJellyfinList(string ext)
+    {
+        Assert.Contains(ext, OrphanCleanupScanner.VideoExtensions);
+    }
+
+    // MediaExtensions is the "user media" union for the empty-folder pass. Confirm audio and photo
+    // libraries won't collapse to "empty" — previously Jellyfin's audio list beyond the 13 curated
+    // codes went unrecognised, meaning a folder with only .aiff / .opus-in-.oga / .dsf / etc could
+    // still be flagged.
+    [Theory]
+    [InlineData(".mp3")]
+    [InlineData(".flac")]
+    [InlineData(".opus")]
+    [InlineData(".oga")]
+    [InlineData(".aiff")]
+    [InlineData(".dsf")]
+    [InlineData(".ape")]
+    [InlineData(".epub")]
+    [InlineData(".cbz")]
+    [InlineData(".heic")]
+    [InlineData(".mkv")]
+    public void MediaExtensions_CoversAllMediaKinds(string ext)
+    {
+        Assert.Contains(ext, OrphanCleanupScanner.MediaExtensions);
+    }
+
+    // ProbingScannerBase skips these — ffmpeg can't decode disc images, stub files or split-archive
+    // markers as an ordinary stream, so probing them yields only diagnostic noise. Critically, this
+    // also prevents PlayabilityScanner from flagging an .iso rip as "unplayable" and the fixer from
+    // recycling it. Every entry below must remain in NonProbable AND in Video — the file is
+    // Jellyfin-classified as video (so orphan pairing still works) but not sent to ffmpeg.
+    [Theory]
+    [InlineData(".iso")]
+    [InlineData(".img")]
+    [InlineData(".nrg")]
+    [InlineData(".ifo")]
+    [InlineData(".strm")]
+    [InlineData(".disc")]
+    [InlineData(".001")]
+    [InlineData(".bin")]
+    public void NonProbable_ExtensionsAreListed(string ext)
+    {
+        Assert.Contains(ext, MediaFormats.NonProbable);
+    }
+
+    [Theory]
+    [InlineData(".iso")]
+    [InlineData(".strm")]
+    [InlineData(".ifo")]
+    public void NonProbable_AlsoAppearsInVideoSoOrphanPairingStillWorks(string ext)
+    {
+        // A subtitle sitting next to Movie.iso must still find its companion — the orphan pass runs
+        // on the filesystem, not through ffmpeg, so these formats are correctly classed as video
+        // for pairing purposes while being blocked from probing.
+        Assert.Contains(ext, MediaFormats.Video);
+    }
+
+    [Fact]
+    public void HasCompanionVideo_TrueForSubtitleInSubtitlesSubfolder()
+    {
+        // The Season01/Subtitles/ layout still resolves upward, and the prefix rule applies there too.
+        using var scratch = new Scratch();
+        var seasonDir = scratch.Sub("Season 01");
+        Directory.CreateDirectory(seasonDir);
+        File.WriteAllText(Path.Combine(seasonDir, "Foo.mkv"), string.Empty);
+        var subsDir = Path.Combine(seasonDir, "Subtitles");
+        Directory.CreateDirectory(subsDir);
+        var sub = Path.Combine(subsDir, "Foo.en.sdh.srt");
+        File.WriteAllText(sub, string.Empty);
+        Assert.True(OrphanCleanupScanner.HasCompanionVideo(sub));
+    }
+
+    // Extended container-folder recognition — any variant a real library uses. Whitelist covers
+    // localized names (Spanish/French/German/Italian/Russian/Chinese/Japanese/Korean), and the
+    // prefix rule catches "Subs-EN", "Subtitles (SDH)", "CaptionsForced", etc.
+    [Theory]
+    [InlineData("Subtitle")]
+    [InlineData("Caption")]
+    [InlineData("CC")]
+    [InlineData("SRT")]
+    [InlineData("Subs-EN")]
+    [InlineData("Subtitles (SDH)")]
+    [InlineData("CaptionsForced")]
+    [InlineData("subtitulos")]
+    [InlineData("Legendas")]
+    [InlineData("Sous-titres")]
+    [InlineData("Untertitel")]
+    [InlineData("sottotitoli")]
+    [InlineData("字幕")]
+    public void HasCompanionVideo_TrueForBroadenedSubfolderNames(string folderName)
+    {
+        using var scratch = new Scratch();
+        File.WriteAllText(scratch.Sub("Foo.mkv"), string.Empty);
+        var subsDir = scratch.Sub(folderName);
+        Directory.CreateDirectory(subsDir);
+        var sub = Path.Combine(subsDir, "Foo.en.srt");
+        File.WriteAllText(sub, string.Empty);
+        Assert.True(OrphanCleanupScanner.HasCompanionVideo(sub));
+    }
+
+    [Fact]
+    public void HasCompanionVideo_FalseForUnrelatedSubfolder()
+    {
+        // A folder that neither matches the whitelist nor starts with "sub" / "caption" still
+        // shouldn't walk upward — otherwise an adjacent Extras/ or Bonus/ folder would false-pair.
+        using var scratch = new Scratch();
+        File.WriteAllText(scratch.Sub("Foo.mkv"), string.Empty);
+        var otherDir = scratch.Sub("Extras");
+        Directory.CreateDirectory(otherDir);
+        var sub = Path.Combine(otherDir, "Foo.en.srt");
+        File.WriteAllText(sub, string.Empty);
+        Assert.False(OrphanCleanupScanner.HasCompanionVideo(sub));
+    }
+
     // ---------- HasCompanionVideoForTrickplay ----------
 
     [Fact]

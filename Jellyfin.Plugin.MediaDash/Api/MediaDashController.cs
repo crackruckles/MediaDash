@@ -213,7 +213,14 @@ public class MediaDashController : ControllerBase
             CurrentActivity = Plugin.CurrentActivity,
             CurrentActivityLabel = Plugin.CurrentActivityLabel,
             DataDirectory = Data.MediaDashDb.DataDirectory,
-            System = SystemStats.Sample(),
+            // When the user has hidden the System Performance card, skip sampling entirely — no WMI
+            // perf counter, no /proc read, no PDH GPU walk, no nvidia-smi spawn. Empty payload lets
+            // the client render its placeholder chip without a special-case. Doubled-up polling was
+            // the field report: users running Task Manager / btop / Grafana alongside MediaDash
+            // didn't want the plugin re-sampling the same counters every 3 seconds.
+            System = Plugin.Instance!.Configuration.ShowSystemPerformance
+                ? SystemStats.Sample()
+                : new SystemStats { SystemStatsAvailable = false },
             RecycleBinPath = _recycleBin.GetEffectiveRoot(),
             RecycleBinCrossVolume = ComputeRecycleBinCrossVolume(drives),
             LastFixRun = Plugin.LastFixRun,

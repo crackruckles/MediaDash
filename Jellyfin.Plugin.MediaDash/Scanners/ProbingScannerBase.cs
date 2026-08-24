@@ -73,6 +73,16 @@ public abstract class ProbingScannerBase : IScanner
                         continue;
                     }
 
+                    // Disc images (.iso/.img/.nrg), Jellyfin stub files (.strm/.disc), DVD descriptors
+                    // (.ifo), split-archive markers (.001) and ambiguous raw payloads (.bin) can't be
+                    // opened as ordinary streams by ffmpeg — Jellyfin plays them via specialised
+                    // demuxers or companion paths. Probing them directly produces a diagnostic on
+                    // every scan and never yields an issue, so silently skip.
+                    if (MediaFormats.NonProbable.Contains(System.IO.Path.GetExtension(path)))
+                    {
+                        continue;
+                    }
+
                     Plugin.CurrentActivityLabel = label;
                     Plugin.CurrentActivity = path;
                     try

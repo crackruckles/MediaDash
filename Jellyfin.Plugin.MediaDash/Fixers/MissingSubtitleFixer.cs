@@ -88,7 +88,11 @@ public sealed class MissingSubtitleFixer : IFixer
             RemoteSubtitleInfo[] hits;
             try
             {
-                hits = await _subtitleManager.SearchSubtitles(video, normalized, isPerfectMatch: null, isAutomated: true, cancellationToken).ConfigureAwait(false);
+                // isAutomated=false matches Jellyfin's manual "Search subtitles" UI: OpenSubtitles.com
+                // returns full episode results instead of the trimmed set its automated path emits to
+                // preserve free-tier quota. Users who want to respect that throttling can flip the
+                // "Ignore rate limiting" setting off; otherwise the ~⅔ episode miss rate returns.
+                hits = await _subtitleManager.SearchSubtitles(video, normalized, isPerfectMatch: null, isAutomated: !config.SubtitleIgnoreRateLimit, cancellationToken).ConfigureAwait(false);
             }
             catch (InvalidOperationException ex)
             {
@@ -115,7 +119,11 @@ public sealed class MissingSubtitleFixer : IFixer
                 continue;
             }
 
-            var pick = hits[0];
+            // Hearing-impaired mode: prefer an SDH/CC hit. Fall back to the first non-HI result if no
+            // provider surfaced an HI variant, so the fix still lands a subtitle rather than skipping.
+            var pick = config.SubtitleHearingImpairedMode
+                ? (hits.FirstOrDefault(h => h.HearingImpaired == true) ?? hits[0])
+                : hits[0];
             var actionText = string.Format(
                 CultureInfo.InvariantCulture,
                 "downloaded {0} subtitle for {1} from {2}",

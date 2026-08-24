@@ -23,9 +23,12 @@ public sealed class EmbeddedCoverArtFixer : IFixer
 {
     private static readonly TimeSpan CommandTimeout = TimeSpan.FromMinutes(5);
 
+    // Kept in sync with EmbeddedCoverArtScanner.AudioExtensions — the scanner and fixer must agree
+    // on which files the pass can touch, otherwise the scanner flags a folder and the fixer refuses.
     private static readonly HashSet<string> AudioExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".mp3", ".flac", ".m4a", ".m4b", ".aac", ".opus", ".ogg", ".oga", ".wav", ".wma"
+        ".mp3", ".flac", ".m4a", ".m4b", ".aac", ".opus", ".ogg", ".oga", ".wav", ".wma",
+        ".aiff", ".aif", ".aifc", ".ape", ".dsf", ".dff", ".mka", ".wv", ".mpc", ".mp2"
     };
 
     private readonly FfprobeService _ffprobe;

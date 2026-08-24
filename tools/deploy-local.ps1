@@ -26,7 +26,9 @@ Set-Location (Split-Path $PSScriptRoot -Parent)
 
 $src = 'Jellyfin.Plugin.MediaDash/bin/Release/net9.0'
 $abis = @('v10','v12')
-$pluginFolder = 'MediaDash_0.9.0.0'
+# Auto-discover the MediaDash plugin folder per ABI. Previously hardcoded to
+# MediaDash_0.9.0.0, which quietly stopped matching v12 once its folder was
+# renamed to a real version — v12 got silently skipped on every deploy.
 
 if (-not $SkipBuild) {
     Write-Host '== building ==' -ForegroundColor Cyan
@@ -52,9 +54,11 @@ Get-Process -Name jellyfin -ErrorAction SilentlyContinue | Stop-Process -Force -
 Start-Sleep -Milliseconds 300
 
 foreach ($abi in $abis) {
-    $dst = Join-Path $env:LOCALAPPDATA "jellyfin-$abi/plugins/$pluginFolder"
-    if (-not (Test-Path $dst)) {
-        Write-Warning "Skipping $abi - target folder does not exist: $dst"
+    $pluginsRoot = Join-Path $env:LOCALAPPDATA "jellyfin-$abi/plugins"
+    $dst = Get-ChildItem $pluginsRoot -Directory -Filter 'MediaDash_*' -ErrorAction SilentlyContinue |
+           Select-Object -First 1 -ExpandProperty FullName
+    if (-not $dst) {
+        Write-Warning "Skipping $abi - no MediaDash_* folder in $pluginsRoot"
         continue
     }
 

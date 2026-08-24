@@ -17,16 +17,16 @@ namespace Jellyfin.Plugin.MediaDash.Fixers;
 /// </summary>
 public sealed class MediaSorterFixer : IFixer
 {
+    // Non-subtitle sidecars kept alongside a video (metadata + artwork). Subtitle formats come from
+    // the canonical Scanners.SubtitleFormats set — add-once-there-adds-everywhere.
+    private static readonly string[] NonSubtitleSidecarExtensions =
+        [".nfo", ".jpg", ".jpeg", ".png", ".webp", ".tbn", ".bif"];
+
     // Extensions Jellyfin recognises as external subtitle / metadata / artwork sidecars beside a
     // video file. Matching an unrelated file with a coincidentally-similar name (e.g. someone's
     // "video.txt" note) would be worse than leaving a real sidecar behind, so we whitelist.
     private static readonly System.Collections.Generic.HashSet<string> SidecarExtensions
-        = new(StringComparer.OrdinalIgnoreCase)
-        {
-            ".srt", ".ass", ".ssa", ".vtt", ".sub", ".idx", ".sup", ".smi",
-            ".nfo",
-            ".jpg", ".jpeg", ".png", ".webp", ".tbn", ".bif"
-        };
+        = BuildSidecarExtensions();
 
     private readonly LibraryGuard _guard;
     private readonly ILibraryMonitor _libraryMonitor;
@@ -307,5 +307,12 @@ public sealed class MediaSorterFixer : IFixer
         {
             // Best effort — SweepOrphanSidecars will get it next time.
         }
+    }
+
+    private static System.Collections.Generic.HashSet<string> BuildSidecarExtensions()
+    {
+        var set = new System.Collections.Generic.HashSet<string>(Scanners.SubtitleFormats.Extensions, StringComparer.OrdinalIgnoreCase);
+        set.UnionWith(NonSubtitleSidecarExtensions);
+        return set;
     }
 }

@@ -46,18 +46,21 @@ public sealed class MissingSubtitleScanner : ProbingScannerBase
         }
 
         var wanted = Config.AllowedSubtitleLanguages;
+        var requireHi = Config.SubtitleHearingImpairedMode;
 
         // Embedded subtitle streams — trust the ffprobe result, same source as SubtitleLanguageScanner.
         var haveEmbedded = probe?.Streams?.Any(s =>
             string.Equals(s.CodecType, "subtitle", StringComparison.OrdinalIgnoreCase)
-            && HasAnyMatch(s.Language, wanted)) ?? false;
+            && HasAnyMatch(s.Language, wanted)
+            && (!requireHi || s.IsHearingImpaired)) ?? false;
 
         // External sidecar files (.en.srt, .fra.ass, etc.) — Jellyfin indexes these with a parsed language.
         var haveExternal = string.Equals(item.Path, path, StringComparison.Ordinal)
             && item.GetMediaStreams().Any(s =>
                 s.Type == MediaStreamType.Subtitle
                 && s.IsExternal
-                && HasAnyMatch(s.Language, wanted));
+                && HasAnyMatch(s.Language, wanted)
+                && (!requireHi || s.IsHearingImpaired));
 
         if (haveEmbedded || haveExternal)
         {

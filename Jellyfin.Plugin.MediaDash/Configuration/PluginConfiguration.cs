@@ -69,6 +69,9 @@ public class PluginConfiguration : BasePluginConfiguration
         MediaSortSource = MediaSortSource.JellyfinMetadata;
         RenameAfterTranscode = false;
         MissingSubtitlesFixMode = FixMode.DetectOnly;
+        SubtitleIgnoreRateLimit = true;
+        SubtitleHearingImpairedMode = false;
+        ShowSystemPerformance = true;
         AnimeTargetPath = string.Empty;
         StaleFixMode = FixMode.Off;
         StaleThresholdDays = 365;
@@ -457,6 +460,37 @@ public class PluginConfiguration : BasePluginConfiguration
     /// a matching subtitle from the admin-configured providers; requires at least one provider set up in Jellyfin.
     /// </summary>
     public FixMode MissingSubtitlesFixMode { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the missing-subtitle fixer bypasses provider-side rate-limit
+    /// filtering. When true (default), searches run with <c>isAutomated=false</c>, matching Jellyfin's manual
+    /// "Search subtitles" UI — OpenSubtitles.com returns full episode hit lists rather than the trimmed set
+    /// its automated path emits to preserve free-tier quota. When false, MediaDash marks the search as
+    /// automated and yields the more conservative result set. See <see cref="Fixers.MissingSubtitleFixer"/>.
+    /// </summary>
+    public bool SubtitleIgnoreRateLimit { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the plugin treats SDH/CC subtitles as the required
+    /// format for hearing-impaired users. When on:
+    ///   - <see cref="Scanners.SubtitleLanguageScanner"/> never removes a subtitle marked
+    ///     hearing-impaired (embedded ffprobe <c>disposition.hearing_impaired</c> flag or Jellyfin's
+    ///     <see cref="MediaBrowser.Model.Entities.MediaStream.IsHearingImpaired"/> for sidecars),
+    ///     even when the language is outside <see cref="AllowedSubtitleLanguages"/>.
+    ///   - <see cref="Scanners.MissingSubtitleScanner"/> only counts a language as satisfied when a
+    ///     hearing-impaired subtitle in that language is present.
+    ///   - <see cref="Fixers.MissingSubtitleFixer"/> prefers provider hits flagged
+    ///     <c>HearingImpaired=true</c> when downloading.
+    /// </summary>
+    public bool SubtitleHearingImpairedMode { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the Overview tab's System Performance card is visible.
+    /// User toggle via right-click / long-press on the card. When false, the card is replaced with a
+    /// compact placeholder that carries the same context menu to bring it back. Purely a UI preference —
+    /// no server-side collection changes.
+    /// </summary>
+    public bool ShowSystemPerformance { get; set; }
 
     /// <summary>
     /// Gets or sets the destination folder anime lands in when the media sorter runs. Empty disables anime

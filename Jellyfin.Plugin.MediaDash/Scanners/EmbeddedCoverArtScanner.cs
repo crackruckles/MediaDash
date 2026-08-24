@@ -21,9 +21,15 @@ namespace Jellyfin.Plugin.MediaDash.Scanners;
 /// </summary>
 public sealed class EmbeddedCoverArtScanner : IScanner
 {
+    // Audio formats that reliably carry embedded cover art through ffmpeg. Superset of the older
+    // 10-format list, now covering AIFF/APE/DSF/Matroska-audio too. Kept curated (not
+    // MediaFormats.Audio) because module trackers, chiptune, cue sheets, playlists, and DRM
+    // audiobook formats either have no cover-art concept or need dedicated tooling — a shared
+    // "cover.jpg" extraction pass would run and produce nothing useful.
     private static readonly HashSet<string> AudioExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".mp3", ".flac", ".m4a", ".m4b", ".aac", ".opus", ".ogg", ".oga", ".wav", ".wma"
+        ".mp3", ".flac", ".m4a", ".m4b", ".aac", ".opus", ".ogg", ".oga", ".wav", ".wma",
+        ".aiff", ".aif", ".aifc", ".ape", ".dsf", ".dff", ".mka", ".wv", ".mpc", ".mp2"
     };
 
     // Jellyfin considers any of these as folder-level artwork; skip folders that already have one.

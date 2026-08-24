@@ -36,10 +36,12 @@ public sealed class SubtitleLanguageScanner : ProbingScannerBase
     protected override Task<Issue?> EvaluateAsync(BaseItem item, string path, FfprobeData? probe, CancellationToken cancellationToken)
     {
         var allowed = Config.AllowedSubtitleLanguages;
+        var protectHi = Config.SubtitleHearingImpairedMode;
 
         var embedded = probe?.Streams?
             .Where(s => string.Equals(s.CodecType, "subtitle", StringComparison.OrdinalIgnoreCase)
-                && !LanguageHelper.IsAllowed(s.Language, allowed))
+                && !LanguageHelper.IsAllowed(s.Language, allowed)
+                && !(protectHi && s.IsHearingImpaired))
             .ToList() ?? [];
 
         // External subtitle files are indexed by Jellyfin with language parsed from the filename.
@@ -51,7 +53,8 @@ public sealed class SubtitleLanguageScanner : ProbingScannerBase
             ? item.GetMediaStreams()
                 .Where(s => s.Type == MediaStreamType.Subtitle && s.IsExternal && !string.IsNullOrEmpty(s.Path)
                     && !string.Equals(s.Path, path, StringComparison.OrdinalIgnoreCase)
-                    && !LanguageHelper.IsAllowed(s.Language, allowed))
+                    && !LanguageHelper.IsAllowed(s.Language, allowed)
+                    && !(protectHi && s.IsHearingImpaired))
                 .Select(s => new { s.Path, Language = LanguageHelper.Normalize(s.Language) })
                 .ToList()
             : [];

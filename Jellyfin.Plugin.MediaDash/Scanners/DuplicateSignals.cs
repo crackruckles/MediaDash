@@ -52,21 +52,18 @@ internal static partial class DuplicateSignals
         "proper", "repack", "internal", "limited"
     };
 
-    // Curated whitelist of media/subtitle/book/comic extensions this plugin cares about. Anything
+    // Whitelist of media / subtitle / book / comic extensions this plugin cares about. Anything
     // else (a "-GROUP" suffix that just happens to sit after a dot) is left in the stem so its
-    // tokens still contribute to the Jaccard calculation.
-    private static readonly HashSet<string> KnownExtensions = new(StringComparer.OrdinalIgnoreCase)
+    // tokens still contribute to the Jaccard calculation. Built from the canonical MediaFormats
+    // and SubtitleFormats sets so an extension added there flows through automatically.
+    private static readonly HashSet<string> KnownExtensions = BuildKnownExtensions();
+
+    private static HashSet<string> BuildKnownExtensions()
     {
-        // Video
-        ".mkv", ".mp4", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".mpg", ".mpeg",
-        ".ts", ".m2ts", ".vob", ".3gp", ".ogv", ".mts", ".divx", ".rmvb", ".iso",
-        // Audio
-        ".mp3", ".flac", ".aac", ".opus", ".ogg", ".m4a", ".m4b", ".wav", ".ape", ".wma", ".alac",
-        // Subtitles (mostly for callers that pass a subtitle stem in — cheap safety)
-        ".srt", ".ass", ".ssa", ".vtt", ".sub", ".idx", ".sup",
-        // Books / comics
-        ".epub", ".mobi", ".azw", ".azw3", ".pdf", ".cbz", ".cbr", ".cb7"
-    };
+        var set = new HashSet<string>(MediaFormats.All, StringComparer.OrdinalIgnoreCase);
+        set.UnionWith(SubtitleFormats.Extensions);
+        return set;
+    }
 
     /// <summary>
     /// Computes Jaccard similarity between the title tokens of two filenames (extensions dropped,

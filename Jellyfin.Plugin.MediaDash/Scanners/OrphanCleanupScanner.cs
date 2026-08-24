@@ -36,43 +36,53 @@ public sealed class OrphanCleanupScanner : IScanner
     /// <summary>Sentinel for orphan Jellyfin metadata folder findings.</summary>
     internal const string KindOrphanMetadata = "OrphanMetadata";
 
-    internal static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".mkv", ".mp4", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v",
-        ".mpg", ".mpeg", ".ts", ".m2ts", ".vob", ".3gp", ".ogv", ".mts", ".divx", ".rmvb"
-    };
+    /// <summary>
+    /// Video extensions the orphan pass considers when pairing subtitles / trickplay folders to a
+    /// companion video. Aliased to <see cref="MediaFormats.Video"/> — mirrors Jellyfin's own
+    /// <c>NamingOptions.VideoFileExtensions</c> so any format Jellyfin indexes is recognised here.
+    /// </summary>
+    internal static readonly HashSet<string> VideoExtensions = MediaFormats.Video;
 
-    // Every extension that counts as "user media" for the empty-folder pass. Field report:
-    // a music-only library (or books-only, audiobooks-only, comics-only, pictures-only) has zero
-    // files matching VideoExtensions in ANY sub-directory, so every artist/album folder used to be
-    // flagged as an "empty folder" and the fixer deleted the entire library. Add the missing kinds
-    // so a folder is only "empty" when it holds nothing MediaDash recognises as content.
-    internal static readonly HashSet<string> MediaExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        // Video
-        ".mkv", ".mp4", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v",
-        ".mpg", ".mpeg", ".ts", ".m2ts", ".vob", ".3gp", ".ogv", ".mts", ".divx", ".rmvb", ".iso",
-        // Audio (music, audiobooks)
-        ".mp3", ".flac", ".aac", ".opus", ".ogg", ".m4a", ".m4b", ".wav", ".ape", ".wma", ".alac", ".dsf", ".dff",
-        // Books
-        ".epub", ".mobi", ".azw", ".azw3", ".pdf", ".djvu",
-        // Comics
-        ".cbz", ".cbr", ".cb7",
-        // Pictures (photo libraries)
-        ".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".gif", ".bmp", ".tif", ".tiff", ".raw", ".nef", ".cr2", ".arw", ".dng"
-    };
+    /// <summary>
+    /// Every extension the empty-folder pass counts as "user media". Union of Video + Audio + Books
+    /// + Comics + Pictures. Field report: a music-only library (or books-only, audiobooks-only,
+    /// comics-only, pictures-only) has zero files matching VideoExtensions in any sub-directory, so
+    /// every artist/album folder used to be flagged as an "empty folder" and the fixer deleted the
+    /// entire library. Adding non-video kinds keeps a folder from being classed as "empty" when it
+    /// still holds Jellyfin-recognised content.
+    /// </summary>
+    internal static readonly HashSet<string> MediaExtensions = MediaFormats.All;
 
-    internal static readonly HashSet<string> SubtitleExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".srt", ".ass", ".ssa", ".vtt", ".sub", ".idx", ".sup"
-    };
+    /// <summary>
+    /// Extensions the orphan-cleanup pass recognises as subtitle sidecars. Aliased to the canonical
+    /// <see cref="SubtitleFormats.Extensions"/> so a format added there is automatically visible here.
+    /// </summary>
+    internal static readonly HashSet<string> SubtitleExtensions = SubtitleFormats.Extensions;
 
     // Folder names Jellyfin (and users) commonly use to keep subtitle sidecars beside — but not
     // inside — a video's folder. Only these names trigger the parent-lookup in HasCompanionVideo,
     // so a completely-unrelated adjacent folder still gets treated as an orphan.
+    // Explicit whitelist of subtitle-container folder names (case-insensitive), incl. common
+    // non-English variants. Used together with IsSubtitleContainerFolder's prefix rule so a
+    // folder like "Subs-EN" or "Subtitles (SDH)" also qualifies without needing every variant
+    // enumerated. Kept intentionally trim — walking up from an arbitrary adjacent folder would
+    // false-pair a subtitle with an unrelated sibling video.
     internal static readonly HashSet<string> SubtitleContainerFolders = new(StringComparer.OrdinalIgnoreCase)
     {
-        "subtitles", "subs", "sub", "captions"
+        // English
+        "subtitles", "subtitle", "subs", "sub", "captions", "caption", "cc", "srt",
+        // Spanish / Portuguese
+        "subtitulos", "legendas",
+        // French
+        "sous-titres", "sous titres",
+        // German
+        "untertitel",
+        // Italian
+        "sottotitoli",
+        // Russian / Ukrainian
+        "субтитры", "субтитри",
+        // Chinese / Japanese / Korean
+        "字幕", "자막"
     };
 
     private const string TrickplaySuffix = ".trickplay";
@@ -335,8 +345,11 @@ public sealed class OrphanCleanupScanner : IScanner
     /// <summary>
     /// Returns true when a video file exists in the same directory as <paramref name="subtitlePath"/>
     /// (or in the immediate parent, for the common <c>Season 01/Subtitles/</c> layout) whose basename
-    /// matches the subtitle's basename. Handles multi-dot naming like <c>Foo.en.srt</c> pairing with
-    /// <c>Foo.mkv</c>. Exposed internal for direct unit-testing.
+    /// is a prefix of the subtitle's basename. This handles arbitrary trailing metadata tokens Jellyfin
+    /// recognises — language (<c>.en</c>), hearing-impaired variants (<c>.sdh</c>, <c>.hi</c>, <c>.cc</c>),
+    /// modifiers (<c>.forced</c>, <c>.default</c>, <c>.foreign</c>, <c>.sign</c>, <c>.commentary</c>) and
+    /// any combination of them (<c>Foo.en.sdh.srt</c>, <c>Foo.forced.srt</c>, …) without maintaining a
+    /// closed list of flavour tokens. Exposed internal for direct unit-testing.
     /// </summary>
     /// <param name="subtitlePath">Full path to a subtitle file.</param>
     /// <returns>True when a paired video exists.</returns>
@@ -354,30 +367,20 @@ public sealed class OrphanCleanupScanner : IScanner
             return false;
         }
 
-        // Reduce "Foo.en" → "Foo" by stripping any trailing .xx / .xxx language token so a video named
-        // Foo.mkv still counts as the companion for Foo.en.srt.
-        var candidates = new List<string> { subBase };
-        var lastDot = subBase.LastIndexOf('.');
-        if (lastDot > 0 && subBase.Length - lastDot - 1 <= 5)
-        {
-            candidates.Add(subBase[..lastDot]);
-        }
-
-        if (HasNamedVideoIn(dir, candidates))
+        if (HasCompanionVideoIn(dir, subBase))
         {
             return true;
         }
 
         // Field report B4: some libraries keep subtitles in a Subtitles/ (or Subs/) subfolder next to
         // the season's video files. Look one level up so the parent-dir video still counts as the
-        // companion. Name matching prevents pairing an unrelated video: "ep02.srt" inside a Subtitles/
-        // folder won't match "ep01.mkv" in the parent. Only walk up when the immediate folder is a
-        // known subtitle-container name; anything else could be an unrelated adjacent folder.
+        // companion. Only walk up when the immediate folder is a known subtitle-container name;
+        // anything else could be an unrelated adjacent folder.
         var subFolderName = Path.GetFileName(Path.TrimEndingDirectorySeparator(dir));
-        if (SubtitleContainerFolders.Contains(subFolderName))
+        if (IsSubtitleContainerFolder(subFolderName))
         {
             var parent = Path.GetDirectoryName(dir);
-            if (!string.IsNullOrEmpty(parent) && Directory.Exists(parent) && HasNamedVideoIn(parent, candidates))
+            if (!string.IsNullOrEmpty(parent) && Directory.Exists(parent) && HasCompanionVideoIn(parent, subBase))
             {
                 return true;
             }
@@ -386,7 +389,32 @@ public sealed class OrphanCleanupScanner : IScanner
         return false;
     }
 
-    private static bool HasNamedVideoIn(string dir, List<string> candidateBases)
+    // True when a directory name plausibly means "this holds subtitles" — whitelist match or a
+    // name that starts with "sub" / "caption". Catches Subs-EN, Subtitles (SDH), CaptionsForced,
+    // etc. without an exhaustive list. False positives ("Subaru", "SubmarineDocs") would need to
+    // also sit next to unrelated video files to matter, which is vanishingly rare in a real media
+    // library, so the prefix rule is a net win vs. missed real subtitle folders.
+    internal static bool IsSubtitleContainerFolder(string folderName)
+    {
+        if (string.IsNullOrEmpty(folderName))
+        {
+            return false;
+        }
+
+        if (SubtitleContainerFolders.Contains(folderName))
+        {
+            return true;
+        }
+
+        return folderName.StartsWith("sub", StringComparison.OrdinalIgnoreCase)
+            || folderName.StartsWith("caption", StringComparison.OrdinalIgnoreCase);
+    }
+
+    // A subtitle is a companion when a sibling video's basename either equals the sidecar basename
+    // (Foo.mkv + Foo.srt) or is a dotted prefix of it (Foo.mkv + Foo.en.sdh.srt, Foo.mkv + Foo.forced.srt).
+    // Prefix requires a following "." so Foo.mkv doesn't accidentally match Foobar.srt. False negatives
+    // (weird custom naming) are fine — this pass deletes files, so under-flagging is the safe direction.
+    private static bool HasCompanionVideoIn(string dir, string subBase)
     {
         IEnumerable<string> siblings;
         try
@@ -406,12 +434,21 @@ public sealed class OrphanCleanupScanner : IScanner
             }
 
             var vidBase = Path.GetFileNameWithoutExtension(s);
-            for (var i = 0; i < candidateBases.Count; i++)
+            if (string.IsNullOrEmpty(vidBase))
             {
-                if (string.Equals(vidBase, candidateBases[i], StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
+                continue;
+            }
+
+            if (string.Equals(vidBase, subBase, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (subBase.Length > vidBase.Length + 1
+                && subBase[vidBase.Length] == '.'
+                && subBase.AsSpan(0, vidBase.Length).Equals(vidBase.AsSpan(), StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
             }
         }
 

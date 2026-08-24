@@ -294,6 +294,181 @@
                 background: var(--md-dest-hover) !important;
             }
 
+            /* Fix-order dialog + any future plugin-native modal. Uses the plugin's own tokens so it
+               tracks light/dark theme automatically, unlike the raw hex the dialog previously used. */
+            .mdModalScrim {
+                display: none; position: fixed; inset: 0; z-index: 9999;
+                align-items: center; justify-content: center;
+                background: rgba(0, 0, 0, .55);
+                backdrop-filter: blur(2px);
+            }
+            .mdModalCard {
+                background: var(--md-panel);
+                color: var(--md-ink);
+                border: 1px solid var(--md-border-card);
+                border-radius: 14px;
+                box-shadow: var(--md-shadow-modal);
+                max-width: 34em; width: 92vw; max-height: 82vh;
+                display: flex; flex-direction: column;
+                font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            }
+            .mdModalHeader {
+                padding: 16px 20px 10px;
+                border-bottom: 1px solid var(--md-border-inner);
+            }
+            .mdModalTitle {
+                font: 700 18px Figtree, sans-serif; letter-spacing: -.015em;
+                color: var(--md-ink);
+            }
+            .mdModalHint {
+                margin-top: 4px;
+                font: 500 13px Figtree, sans-serif;
+                color: var(--md-meta);
+            }
+            .mdModalBody {
+                flex: 1; overflow-y: auto;
+                padding: 8px 12px;
+            }
+            .mdModalWarn {
+                padding: 8px 20px;
+                color: #fbbf24;
+                font: 500 12.5px Figtree, sans-serif;
+                border-top: 1px solid var(--md-border-inner);
+            }
+            .mdModalFooter {
+                padding: 12px 16px;
+                border-top: 1px solid var(--md-border-inner);
+                display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;
+                align-items: center;
+            }
+            /* High-specificity anchors: Jellyfin's emby-button JS can apply inline styles at
+               initialisation that beat plain class-level !important. Selecting through the
+               footer + id guarantees enough specificity to win regardless. */
+            #MediaDashConfigPage .mdModalFooter button.mdActionBtn {
+                height: 44px !important;
+                padding: 0 20px !important;
+                border-radius: 999px !important;
+                min-height: 0 !important;
+                background: var(--md-neutral) !important;
+                color: var(--md-ink) !important;
+                border: 1px solid var(--md-border-btn) !important;
+                text-transform: none !important;
+                font: 600 14.5px Figtree, sans-serif !important;
+                display: inline-flex !important;
+                align-items: center;
+                gap: 8px;
+                cursor: pointer;
+            }
+            #MediaDashConfigPage .mdModalFooter button.mdActionBtn:not(:disabled):hover {
+                background: var(--md-neutral-hover) !important;
+            }
+            #MediaDashConfigPage .mdModalFooter button.mdActionBtn.mdActionFix {
+                background: var(--md-primary) !important;
+                color: var(--md-primary-ink) !important;
+                border: none !important;
+                font-weight: 700 !important;
+            }
+            #MediaDashConfigPage .mdModalFooter button.mdActionBtn.mdActionFix:not(:disabled):hover {
+                background: var(--md-primary-hover) !important;
+            }
+            /* Reorder row + up/down icon buttons — small, flat, plugin-themed. */
+            #MediaDashConfigPage .mdOrderRow {
+                display: flex; align-items: center; gap: 10px;
+                padding: 8px 6px;
+                border-bottom: 1px solid var(--md-border-row);
+            }
+            #MediaDashConfigPage .mdOrderRow:last-child { border-bottom: 0; }
+            #MediaDashConfigPage .mdOrderNum {
+                width: 22px; text-align: right;
+                font: 600 12.5px 'IBM Plex Mono', monospace;
+                color: var(--md-meta);
+            }
+            #MediaDashConfigPage .mdOrderIcon { font-size: 20px; }
+            #MediaDashConfigPage .mdOrderLabel {
+                flex: 1;
+                font: 500 14px Figtree, sans-serif;
+                color: var(--md-ink);
+            }
+            #MediaDashConfigPage .mdIconBtn {
+                width: 32px; height: 32px;
+                display: inline-flex; align-items: center; justify-content: center;
+                background: var(--md-neutral) !important;
+                color: var(--md-ink) !important;
+                border: 1px solid var(--md-border-btn) !important;
+                border-radius: 8px !important;
+                padding: 0 !important;
+                cursor: pointer;
+                transition: background .14s ease, opacity .14s ease;
+            }
+            #MediaDashConfigPage .mdIconBtn:not(:disabled):hover {
+                background: var(--md-neutral-hover) !important;
+            }
+            #MediaDashConfigPage .mdIconBtn:disabled {
+                opacity: .35; cursor: not-allowed;
+            }
+            #MediaDashConfigPage .mdIconBtn .material-icons { font-size: 18px; }
+
+            /* Plugin-themed context menu popover. Used by the System Performance card enable/disable
+               menu; reusable for any future right-click / long-press affordance. */
+            .mdCtxMenu {
+                display: none;
+                position: fixed;
+                z-index: 9999;
+                background: var(--md-panel);
+                color: var(--md-ink);
+                border: 1px solid var(--md-border-card);
+                border-radius: 10px;
+                box-shadow: var(--md-shadow-popover);
+                padding: 6px 0;
+                min-width: 15em;
+                font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                font-size: 13.5px;
+                overflow: hidden;
+            }
+            #MediaDashConfigPage .mdCtxItem {
+                display: flex; align-items: center; gap: 10px;
+                padding: 9px 14px;
+                cursor: pointer;
+                color: var(--md-ink);
+                white-space: nowrap;
+                transition: background .12s ease;
+            }
+            #MediaDashConfigPage .mdCtxItem:hover {
+                background: var(--md-panel-hover);
+            }
+            #MediaDashConfigPage .mdCtxItem .material-icons {
+                font-size: 18px;
+                color: var(--md-meta);
+            }
+
+            /* Compact placeholder shown when the user hides the System Performance card. Same rounded
+               pill vibe as the plugin's neutral buttons so it reads as "collapsed", not "broken". */
+            #MediaDashConfigPage .mdSysHiddenChip {
+                display: flex; align-items: center; gap: 10px;
+                background: var(--md-panel);
+                border: 1px solid var(--md-border-card);
+                border-radius: 12px;
+                padding: 10px 16px;
+                font: 500 13px Figtree, sans-serif;
+                color: var(--md-meta);
+                cursor: pointer;
+                transition: background .14s ease, color .14s ease;
+            }
+            #MediaDashConfigPage .mdSysHiddenChip:hover {
+                background: var(--md-panel-hover);
+                color: var(--md-ink);
+            }
+            #MediaDashConfigPage .mdSysHiddenChip .material-icons {
+                font-size: 18px;
+                color: var(--md-meta);
+            }
+            #MediaDashConfigPage .mdSysHiddenChip .mdSysHiddenLabel { flex: 1; }
+            #MediaDashConfigPage .mdSysHiddenChip .mdSysHiddenHint {
+                font: 500 11.5px 'IBM Plex Mono', monospace;
+                color: var(--md-meta);
+                opacity: .8;
+            }
+
             /* ── Tab bar ─────────────────────────────────────────────────
                Pills with 10px 10px 0 0 radius so they sit visually connected to the page
                background below. The active tab's fill is the page colour (not header-band). */
@@ -1403,13 +1578,15 @@
             }
             #MediaDashConfigPage .mdTaskHeadPills { display: flex; gap: 8px; align-items: center; }
             #MediaDashConfigPage .mdTaskPill {
-                padding: 8px 14px; border-radius: 999px;
+                /* Height matches sibling .mdJumpCollapse so the count + Collapse-all row aligns.
+                   border-box so the 1px border doesn't inflate render height past 46. */
+                box-sizing: border-box;
+                height: 46px; padding: 0 14px; border-radius: 999px;
                 background: var(--md-panel);
                 border: 1px solid var(--md-border-btn);
                 color: var(--md-body);
                 font: 600 12.5px Figtree, sans-serif;
                 cursor: pointer;
-                min-height: 40px;
                 display: inline-flex; align-items: center; gap: 6px;
             }
             #MediaDashConfigPage .mdTaskPill:hover {
@@ -1602,6 +1779,10 @@
                 cursor: pointer; padding: 0; margin: 0;
                 display: inline-flex; align-items: center;
                 color: inherit; opacity: .7;
+                /* The Settings-scoped `button { min-height: 40px }` rule at line ~1490
+                   has higher specificity (two ids); !important is the least invasive
+                   way to keep the close × from inflating the chip to 52px. */
+                min-height: 0 !important; line-height: 1;
             }
             #MediaDashConfigPage .mdChip button:hover { opacity: 1; }
             #MediaDashConfigPage .mdChip button .material-icons { font-size: 15px; }
@@ -1613,6 +1794,13 @@
                 padding: 4px 0; outline: none;
             }
             #MediaDashConfigPage .mdChipInputText::placeholder { color: var(--md-meta); }
+
+            /* Language-preset row. Buttons reuse .mdJumpCollapse for pill height + panel styling so the
+               row lines up with the Collapse-all button on the settings page. */
+            #MediaDashConfigPage .mdLangPresets {
+                display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+                margin-top: 8px;
+            }
 
             /* Library-path shortcut buttons. */
             #MediaDashConfigPage .mdLibShortcuts {
@@ -2533,19 +2721,19 @@
                             </div>
                             <!-- Fixer-order dialog. Field report E1: reorder fix types (phases), not individual files.
                                  Populated at open time from the configured order (or the default when empty). -->
-                            <div id="mdFixOrderDialog" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,.55);align-items:center;justify-content:center;">
-                                <div style="background:var(--md-elev-3,#1e293b);border:1px solid rgba(255,255,255,.14);border-radius:12px;box-shadow:0 12px 48px rgba(0,0,0,.5);max-width:34em;width:92vw;max-height:82vh;display:flex;flex-direction:column;">
-                                    <div style="padding:1em 1.2em .6em;border-bottom:1px solid rgba(255,255,255,.08);">
-                                        <div style="font-size:1.1em;font-weight:600;">Fix order</div>
-                                        <div class="fieldDescription" style="margin-top:.2em;">Higher rows run first. Files inside each phase still go smallest first.</div>
+                            <div id="mdFixOrderDialog" class="mdModalScrim">
+                                <div class="mdModalCard">
+                                    <div class="mdModalHeader">
+                                        <div class="mdModalTitle">Fix order</div>
+                                        <div class="mdModalHint">Higher rows run first. Files inside each phase still go smallest first.</div>
                                     </div>
-                                    <div id="mdFixOrderList" style="flex:1;overflow-y:auto;padding:.5em .8em;"></div>
-                                    <div id="mdFixOrderWarn" class="fieldDescription" style="display:none;padding:.3em 1.2em .3em;color:#fbbf24;font-size:.85em;"></div>
-                                    <div style="padding:.7em 1em;border-top:1px solid rgba(255,255,255,.08);display:flex;gap:.5em;justify-content:flex-end;flex-wrap:wrap;">
-                                        <button is="emby-button" type="button" id="mdFixOrderReset" class="raised" style="font-size:80%;" title="Restore MediaDash's built-in default order.">Reset to default</button>
+                                    <div id="mdFixOrderList" class="mdModalBody"></div>
+                                    <div id="mdFixOrderWarn" class="mdModalWarn" style="display:none;"></div>
+                                    <div class="mdModalFooter">
+                                        <button type="button" id="mdFixOrderReset" class="mdActionBtn" title="Restore MediaDash's built-in default order."><span class="material-icons">restart_alt</span><span>Reset to default</span></button>
                                         <span style="flex:1;"></span>
-                                        <button is="emby-button" type="button" id="mdFixOrderCancel" class="raised" style="font-size:80%;">Cancel</button>
-                                        <button is="emby-button" type="button" id="mdFixOrderSave" class="raised button-submit" style="font-size:80%;">Save order</button>
+                                        <button type="button" id="mdFixOrderCancel" class="mdActionBtn"><span>Cancel</span></button>
+                                        <button type="button" id="mdFixOrderSave" class="mdActionBtn mdActionFix"><span class="material-icons">save</span><span>Save order</span></button>
                                     </div>
                                 </div>
                             </div>
@@ -3089,6 +3277,7 @@
                         </div>
                     </div>
                     <div id="mdSystem"></div>
+                    <div id="mdSysCtxMenu" class="mdCtxMenu"></div>
                     <div id="mdDrives"></div>
                     <div id="mdHero"></div>
                     <div id="mdCards"></div>
@@ -3618,13 +3807,59 @@
                         action: 'Delete corrupt artwork', actionHint: 'Removes the broken image; Jellyfin\'s next library scan re-fetches from providers.', approveAll: 'Delete all {0} corrupt artwork files shown'
                     }
                 },
+                // Sorted alphabetically by display name so both the <datalist> picker and the chip
+                // renderer offer languages in a predictable order — appending new codes at the end
+                // used to leave them hidden below the "P" fold in the popup. Locked to a curated
+                // major-European + major-Asian set (29 + 15 = 44 codes); ISO 639-2/T terminological
+                // form (deu / fra / zho / …), which LanguageHelper.Normalize also maps from the
+                // bibliographic aliases (ger / fre / chi) and 2-letter tags on the C# side.
                 languages: [
-                    ['eng', 'English'], ['spa', 'Spanish'], ['fra', 'French'], ['deu', 'German'], ['ita', 'Italian'],
-                    ['por', 'Portuguese'], ['nld', 'Dutch'], ['rus', 'Russian'], ['jpn', 'Japanese'], ['zho', 'Chinese'],
-                    ['kor', 'Korean'], ['ara', 'Arabic'], ['hin', 'Hindi'], ['pol', 'Polish'], ['swe', 'Swedish'],
-                    ['nor', 'Norwegian'], ['dan', 'Danish'], ['fin', 'Finnish'], ['tur', 'Turkish'], ['ces', 'Czech'],
-                    ['ell', 'Greek'], ['heb', 'Hebrew'], ['tha', 'Thai'], ['vie', 'Vietnamese'], ['ukr', 'Ukrainian'],
-                    ['hun', 'Hungarian'], ['ron', 'Romanian'], ['fas', 'Persian (Farsi)']
+                    ['sqi', 'Albanian'],
+                    ['ara', 'Arabic'],
+                    ['ben', 'Bengali'],
+                    ['bul', 'Bulgarian'],
+                    ['zho', 'Chinese (Mandarin)'],
+                    ['hrv', 'Croatian'],
+                    ['ces', 'Czech'],
+                    ['dan', 'Danish'],
+                    ['nld', 'Dutch'],
+                    ['eng', 'English'],
+                    ['est', 'Estonian'],
+                    ['fil', 'Filipino'],
+                    ['fin', 'Finnish'],
+                    ['fra', 'French'],
+                    ['deu', 'German'],
+                    ['ell', 'Greek'],
+                    ['heb', 'Hebrew'],
+                    ['hin', 'Hindi'],
+                    ['hun', 'Hungarian'],
+                    ['isl', 'Icelandic'],
+                    ['ind', 'Indonesian'],
+                    ['ita', 'Italian'],
+                    ['jpn', 'Japanese'],
+                    ['kor', 'Korean'],
+                    ['lav', 'Latvian'],
+                    ['lit', 'Lithuanian'],
+                    ['msa', 'Malay'],
+                    ['nor', 'Norwegian'],
+                    ['fas', 'Persian (Farsi)'],
+                    ['pol', 'Polish'],
+                    ['por', 'Portuguese'],
+                    ['pan', 'Punjabi'],
+                    ['ron', 'Romanian'],
+                    ['rus', 'Russian'],
+                    ['srp', 'Serbian'],
+                    ['slk', 'Slovak'],
+                    ['slv', 'Slovenian'],
+                    ['spa', 'Spanish'],
+                    ['swe', 'Swedish'],
+                    ['tam', 'Tamil'],
+                    ['tha', 'Thai'],
+                    ['tur', 'Turkish'],
+                    ['ukr', 'Ukrainian'],
+                    ['urd', 'Urdu'],
+                    ['vie', 'Vietnamese'],
+                    ['cym', 'Welsh']
                 ]
             };
 
@@ -3868,12 +4103,15 @@
             // Coarse media-type category derived from extension. Used by the issues context menu
             // "ignore all <category> issues" option so the user can silence a whole medium without
             // needing per-file selection.
+            // Mirrors the canonical server-side MediaFormats / SubtitleFormats sets so an "ignore all
+            // <category>" click on the Issues tab classifies every Jellyfin-recognised extension into
+            // the right bucket. If a server-side set grows, add the new codes here too.
             var MEDIA_EXT_CATS = {
-                video: ['.mkv', '.mp4', '.avi', '.mov', '.m4v', '.wmv', '.flv', '.webm', '.mpg', '.mpeg', '.ts', '.m2ts', '.vob', '.strm'],
-                audio: ['.mp3', '.flac', '.m4a', '.wav', '.ogg', '.opus', '.aac', '.wma', '.aif', '.aiff'],
-                image: ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff'],
-                subtitle: ['.srt', '.ass', '.ssa', '.sub', '.vtt', '.idx'],
-                book: ['.epub', '.cbz', '.cbr', '.cb7', '.pdf', '.mobi', '.azw', '.azw3']
+                video: ['.001', '.3g2', '.3gp', '.amv', '.asf', '.asx', '.avi', '.bin', '.bivx', '.divx', '.dv', '.dvr-ms', '.f4v', '.fli', '.flv', '.ifo', '.img', '.iso', '.m2t', '.m2ts', '.m2v', '.m4v', '.mkv', '.mk3d', '.mov', '.mp4', '.mpe', '.mpeg', '.mpg', '.mts', '.mxf', '.nrg', '.nsv', '.nuv', '.ogm', '.ogv', '.pva', '.qt', '.rec', '.rm', '.rmvb', '.strm', '.svq3', '.tp', '.ts', '.ty', '.viv', '.vob', '.vp3', '.webm', '.wmv', '.wtv', '.xvid'],
+                audio: ['.669', '.aa', '.aac', '.aax', '.ac3', '.act', '.adp', '.adplug', '.adx', '.afc', '.amf', '.aif', '.aifc', '.aiff', '.alac', '.amr', '.ape', '.ast', '.au', '.awb', '.cda', '.cue', '.dmf', '.dsf', '.dsm', '.dsp', '.dts', '.dvf', '.eac3', '.ec3', '.far', '.flac', '.gdm', '.gsm', '.gym', '.hps', '.imf', '.it', '.m15', '.m4a', '.m4b', '.mac', '.med', '.mka', '.mmf', '.mod', '.mogg', '.mp2', '.mp3', '.mpa', '.mpc', '.mpp', '.mp+', '.msv', '.nmf', '.nsf', '.oga', '.ogg', '.okt', '.opus', '.pls', '.ra', '.rf64', '.s3m', '.sfx', '.shn', '.sid', '.stm', '.ult', '.uni', '.vox', '.wav', '.wma', '.wv', '.xm', '.xsp', '.ymf'],
+                image: ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif', '.gif', '.bmp', '.tif', '.tiff', '.raw', '.nef', '.cr2', '.arw', '.dng'],
+                subtitle: ['.srt', '.ass', '.ssa', '.vtt', '.sub', '.idx', '.sup', '.smi', '.sami', '.mks'],
+                book: ['.epub', '.mobi', '.azw', '.azw3', '.pdf', '.djvu', '.cbz', '.cbr', '.cb7']
             };
             function fileExtOf(path) {
                 var m = String(path || '').match(/\.[^.\\/]+$/);
@@ -4208,9 +4446,27 @@
                     '</div>';
             }
 
+            // User preference — the System Performance card can be hidden via its right-click /
+            // long-press menu. Cached so we survive the async config fetch that populates it, and
+            // referenced by both the renderer and the toggle. Persisted to plugin config.
+            var mdSysPerfHidden = false;
+            var mdSysPerfLast = null;
+
             function renderSystemStats(sys) {
                 var el = view.querySelector('#mdSystem');
-                if (!sys) { el.innerHTML = ''; return; }
+                if (!sys) { el.innerHTML = ''; mdSysPerfLast = null; return; }
+                mdSysPerfLast = sys;
+
+                if (mdSysPerfHidden) {
+                    if (!el.querySelector('.mdSysHiddenChip')) {
+                        el.innerHTML = '<div class="mdSysHiddenChip" title="Right-click (or long-press) to show system performance again.">' +
+                            '<span class="material-icons">speed</span>' +
+                            '<span class="mdSysHiddenLabel">' + esc(STR.systemStats) + '</span>' +
+                            '<span class="mdSysHiddenHint">hidden</span>' +
+                            '</div>';
+                    }
+                    return;
+                }
 
                 var gpus = sys.Gpus || [];
                 var expectedGpuCells = Math.max(1, gpus.length);
@@ -4223,6 +4479,46 @@
                 }
 
                 updateSystemStatsInPlace(sys, gpus);
+            }
+
+            function showSysPerfCtxMenu(x, y) {
+                var menu = view.querySelector('#mdSysCtxMenu');
+                var label = mdSysPerfHidden ? 'Show system performance' : 'Hide system performance';
+                var icon = mdSysPerfHidden ? 'visibility' : 'visibility_off';
+                menu.innerHTML = '<div class="mdCtxItem" data-act="toggle">' +
+                    '<span class="material-icons">' + icon + '</span>' +
+                    '<span>' + label + '</span></div>';
+                menu.style.display = 'block';
+                menu.style.left = '0px';
+                menu.style.top = '0px';
+                var rect = menu.getBoundingClientRect();
+                var px = Math.min(x, window.innerWidth - rect.width - 8);
+                var py = Math.min(y, window.innerHeight - rect.height - 8);
+                menu.style.left = Math.max(4, px) + 'px';
+                menu.style.top = Math.max(4, py) + 'px';
+
+                menu.querySelector('[data-act="toggle"]').addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    closeSysPerfCtxMenu();
+                    toggleSysPerfHidden();
+                });
+            }
+            function closeSysPerfCtxMenu() {
+                var menu = view.querySelector('#mdSysCtxMenu');
+                if (menu) menu.style.display = 'none';
+            }
+            function toggleSysPerfHidden() {
+                mdSysPerfHidden = !mdSysPerfHidden;
+                // Clear the container so the renderer rebuilds fresh (chip → card or card → chip).
+                var el = view.querySelector('#mdSystem');
+                if (el) el.innerHTML = '';
+                if (mdSysPerfLast) renderSystemStats(mdSysPerfLast);
+                // Persist. Read-modify-write matches the pattern used by the fix-order dialog so
+                // we don't clobber unrelated fields.
+                ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
+                    c.ShowSystemPerformance = !mdSysPerfHidden;
+                    ApiClient.updatePluginConfiguration(PLUGIN_ID, c);
+                });
             }
 
             function buildSystemStatsHtml(sys, gpus) {
@@ -4343,7 +4639,7 @@
             }
 
             function closeFixOrderDialog() {
-                view.querySelector('#mdFixOrderDialog').style.display = 'none';
+                view.querySelector('#mdFixOrderDialog').style.display = '';
             }
 
             function renderFixOrderList(order) {
@@ -4354,22 +4650,21 @@
                     var meta = STR.types && STR.types[t];
                     var title = meta && meta.title ? meta.title : t;
                     var icon = meta && meta.icon ? meta.icon : 'build';
-                    var color = meta && meta.color ? meta.color : '#94a3b8';
+                    var color = meta && meta.color ? meta.color : 'var(--md-meta)';
                     var upDisabled = i === 0 ? ' disabled' : '';
                     var downDisabled = i === order.length - 1 ? ' disabled' : '';
-                    html += '<div class="mdFixOrderRow" data-type="' + t + '" style="display:flex;align-items:center;gap:.5em;padding:.4em .3em;border-bottom:1px solid rgba(255,255,255,.06);">'
-                        + '<span style="width:1.6em;text-align:right;opacity:.6;font-variant-numeric:tabular-nums;">' + (i + 1) + '.</span>'
-                        + '<span class="material-icons" style="color:' + color + ';font-size:1.2em;">' + icon + '</span>'
-                        + '<span style="flex:1;">' + title + '</span>'
-                        + '<button type="button" class="raised mdFixOrderUp" style="padding:.3em .5em;font-size:80%;"' + upDisabled + ' title="Move up"><span class="material-icons" style="font-size:1em;">arrow_upward</span></button>'
-                        + '<button type="button" class="raised mdFixOrderDown" style="padding:.3em .5em;font-size:80%;"' + downDisabled + ' title="Move down"><span class="material-icons" style="font-size:1em;">arrow_downward</span></button>'
+                    html += '<div class="mdOrderRow" data-type="' + t + '">'
+                        + '<span class="mdOrderNum">' + (i + 1) + '</span>'
+                        + '<span class="material-icons mdOrderIcon" style="color:' + color + ';">' + icon + '</span>'
+                        + '<span class="mdOrderLabel">' + title + '</span>'
+                        + '<button type="button" class="mdIconBtn mdFixOrderUp"' + upDisabled + ' title="Move up"><span class="material-icons">arrow_upward</span></button>'
+                        + '<button type="button" class="mdIconBtn mdFixOrderDown"' + downDisabled + ' title="Move down"><span class="material-icons">arrow_downward</span></button>'
                         + '</div>';
                 }
                 listEl.innerHTML = html;
-                listEl.querySelectorAll('.mdFixOrderUp').forEach(function (btn, idx) {
-                    // idx is off because disabled rows still yield NodeList entries — read the row's type.
+                listEl.querySelectorAll('.mdFixOrderUp').forEach(function (btn) {
                     btn.addEventListener('click', function () {
-                        var row = btn.closest('.mdFixOrderRow');
+                        var row = btn.closest('.mdOrderRow');
                         var pos = order.indexOf(row.getAttribute('data-type'));
                         if (pos > 0) {
                             var tmp = order[pos - 1]; order[pos - 1] = order[pos]; order[pos] = tmp;
@@ -4379,7 +4674,7 @@
                 });
                 listEl.querySelectorAll('.mdFixOrderDown').forEach(function (btn) {
                     btn.addEventListener('click', function () {
-                        var row = btn.closest('.mdFixOrderRow');
+                        var row = btn.closest('.mdOrderRow');
                         var pos = order.indexOf(row.getAttribute('data-type'));
                         if (pos > -1 && pos < order.length - 1) {
                             var tmp = order[pos + 1]; order[pos + 1] = order[pos]; order[pos] = tmp;
@@ -5454,6 +5749,12 @@
                 return '<div class="mdLibShortcuts" data-target="' + targetId + '" data-types="' + types + '"></div>';
             }
 
+            function langPresetsHtml(id) {
+                return '<div class="mdLangPresets" data-target="' + id + '">' +
+                    '<button type="button" class="mdJumpCollapse mdLangPresetBtn" data-preset="clear" title="Remove every language chip from this input.">Clear</button>' +
+                '</div>';
+            }
+
             function langChipInputHtml(id) {
                 // list="mdLangList" wires the input to the shared <datalist> populated from
                 // /Localization/Cultures at settings-load — turns the freeform typebox into a native
@@ -5462,7 +5763,8 @@
                     '<span class="mdChipInputRender"></span>' +
                     '<input type="text" class="mdChipInputText" list="mdLangList" placeholder="Type or pick a language…" />' +
                     '<input type="hidden" id="' + id + '" value="" />' +
-                    '</div>';
+                    '</div>' +
+                    langPresetsHtml(id);
             }
 
             function taskBody(key) {
@@ -5651,6 +5953,13 @@
                         '</div>' +
                         disposalField('SubtitleLanguage', 'Cleaned-up originals go to') +
                         '</div>' +
+                        '<label class="mdInsetRow--stack" style="cursor:pointer;margin-top:.8em;" title="Turn on if you (or a viewer) rely on SDH / closed captions. When on: subtitle tracks flagged hearing-impaired are never removed even if their language is outside the keep list, and the missing-subtitle fixer prefers HI/SDH variants when downloading.">' +
+                            '<span class="mdInsetRowMain">' +
+                                '<input id="mdSubHearingImpaired" type="checkbox" class="mdInsetCheck" />' +
+                                '<span style="font-size:13px;font-weight:600;">Hearing-impaired mode (protect &amp; prefer SDH / CC subtitles)</span>' +
+                            '</span>' +
+                            '<span class="mdFieldHint mdInsetRowHint">Applies to both this task and the Missing Subtitles downloader.</span>' +
+                        '</label>' +
                         '<div class="mdSecHead" style="border-color:#8b5cf6;background:rgba(139,92,246,.08);margin-top:1.4em;">' +
                             '<span class="material-icons">font_download</span><span>Also optimize .ass sidecar subtitles</span>' +
                         '</div>' +
@@ -5736,7 +6045,14 @@
                 }
                 if (key === 'MissingSubtitles') {
                     return '<div class="mdFieldHint">Uses the subtitle languages set in <a href="#mdSet-task-SubtitleLanguage" style="color:rgba(230,237,243,.85);text-decoration:underline;">Subtitles</a>. Downloads go through Jellyfin\'s configured subtitle providers.</div>' +
-                        '<div class="mdFieldHint" id="mdProviderHint" style="display:none;"></div>';
+                        '<div class="mdFieldHint" id="mdProviderHint" style="display:none;"></div>' +
+                        '<label class="mdInsetRow--stack" style="cursor:pointer;" title="Applies to any subtitle provider that respects Jellyfin\'s automated-search hint (currently OpenSubtitles.com; most other providers ignore it and behave the same either way). When on, MediaDash searches as if a human clicked \"Search subtitles\" in Jellyfin\'s UI, unlocking the full result set. Turn off to respect provider throttling and accept fewer hits.">' +
+                            '<span class="mdInsetRowMain">' +
+                                '<input id="mdSubIgnoreRate" type="checkbox" class="mdInsetCheck" />' +
+                                '<span style="font-size:13px;font-weight:600;">Ignore rate limiting</span>' +
+                            '</span>' +
+                            '<span class="mdFieldHint mdInsetRowHint">Applies to any provider that honours Jellyfin\'s automated-search flag — today that\'s effectively OpenSubtitles.com; others (Addic7ed, Podnapisi, legacy OpenSubtitles.org, etc.) ignore the flag. Recommended on: without it OpenSubtitles.com trims about two-thirds of episode hits to preserve free-tier quota.</span>' +
+                        '</label>';
                 }
                 if (key === 'MalwareRisk') {
                     return '<div class="mdFieldGrid mdFieldGrid-2">' +
@@ -5793,7 +6109,7 @@
                             '</label>' +
                             '<label class="emby-checkbox-label" style="display:flex;align-items:center;gap:.6em;margin:.35em 0;">' +
                                 '<input id="mdOrphanSubs" type="checkbox" is="emby-checkbox" />' +
-                                '<span>Subtitle sidecars (.srt/.ass/.ssa/.vtt/.sub/.idx/.sup) whose companion video is missing</span>' +
+                                '<span>Subtitle sidecars (.srt / .ass / .ssa / .vtt / .sub / .idx / .sup / .smi / .sami / .mks) whose companion video is missing</span>' +
                             '</label>' +
                             '<label class="emby-checkbox-label" style="display:flex;align-items:center;gap:.6em;margin:.35em 0;">' +
                                 '<input id="mdOrphanTrickplay" type="checkbox" is="emby-checkbox" />' +
@@ -5890,6 +6206,7 @@
                     });
                 });
                 view.querySelectorAll('.mdChipInput').forEach(wireChipInput);
+                wireLangPresets();
                 wireSetCardCollapse();
                 var collapseAll = view.querySelector('#mdTaskCollapseAll');
                 if (collapseAll) collapseAll.addEventListener('click', function () {
@@ -6304,9 +6621,15 @@
                 var input = chipEl.querySelector('.mdChipInputText');
                 function currentCodes() { return (hidden.value || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean); }
                 function redraw() {
-                    var codes = currentCodes();
+                    // Render chips sorted alphabetically by display name (falling back to raw code
+                    // for unknown entries) — insertion order is meaningless to the user and made a
+                    // list of 40+ languages hard to scan for a specific one.
+                    var names = langNameMap();
+                    var codes = currentCodes().slice().sort(function (a, b) {
+                        return (names[a] || a).localeCompare(names[b] || b, undefined, { sensitivity: 'base' });
+                    });
                     render.innerHTML = codes.map(function (c) {
-                        return '<span class="mdChip" data-code="' + esc(c) + '">' + esc(langNameMap()[c] || c) +
+                        return '<span class="mdChip" data-code="' + esc(c) + '">' + esc(names[c] || c) +
                             '<button type="button" tabindex="-1" aria-label="Remove"><span class="material-icons">close</span></button></span>';
                     }).join('');
                     render.querySelectorAll('.mdChip button').forEach(function (b) {
@@ -6357,6 +6680,31 @@
                 input.addEventListener('blur', function () { commitCurrent(); });
                 chipEl._redraw = redraw;
                 redraw();
+            }
+
+            // Idempotent: safe to re-run when the settings tab re-renders. Uses a page-scoped delegated
+            // listener so wizard buttons rendered before any task-card init still work, and dynamically
+            // rendered task cards pick it up automatically.
+            var _langPresetsBound = false;
+            function wireLangPresets() {
+                if (_langPresetsBound) return;
+                _langPresetsBound = true;
+                view.addEventListener('click', function (e) {
+                    var btn = e.target.closest && e.target.closest('.mdLangPresetBtn');
+                    if (!btn) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var row = btn.closest('.mdLangPresets');
+                    if (!row) return;
+                    var targetId = row.getAttribute('data-target');
+                    var chip = view.querySelector('.mdChipInput[data-chip-input="' + targetId + '"]');
+                    var hidden = view.querySelector('#' + targetId);
+                    if (!chip || !hidden) return;
+                    if (btn.getAttribute('data-preset') !== 'clear') return;
+                    hidden.value = '';
+                    if (chip._redraw) chip._redraw();
+                    notifyLangChange();
+                });
             }
 
             function notifyLangChange() {
@@ -6720,6 +7068,8 @@
                     view.querySelector('#mdBinWarnThreshold').value = (c.RecycleBinWarnThresholdGb != null ? c.RecycleBinWarnThresholdGb : 10);
                     view.querySelector('#mdBinPauseAt').value = (c.RecycleBinPauseFixesAtGb != null ? c.RecycleBinPauseFixesAtGb : 0);
                     view.querySelector('#mdThorough').checked = c.ThoroughPlayabilityCheck;
+                    view.querySelector('#mdSubIgnoreRate').checked = c.SubtitleIgnoreRateLimit !== false;
+                    view.querySelector('#mdSubHearingImpaired').checked = !!c.SubtitleHearingImpairedMode;
                     view.querySelector('#mdEditions').checked = c.TreatEditionsAsDuplicates;
                     view.querySelector('#mdDuplicateMinAge').value = c.DuplicateMinAgeDays == null ? 7 : c.DuplicateMinAgeDays;
                     // Confidence ladder controls (§7). Defaults mirror PluginConfiguration ctor.
@@ -6852,6 +7202,8 @@
                     var pauseGb = parseInt(view.querySelector('#mdBinPauseAt').value, 10);
                     c.RecycleBinPauseFixesAtGb = isNaN(pauseGb) ? 0 : Math.max(0, pauseGb);
                     c.ThoroughPlayabilityCheck = view.querySelector('#mdThorough').checked;
+                    c.SubtitleIgnoreRateLimit = view.querySelector('#mdSubIgnoreRate').checked;
+                    c.SubtitleHearingImpairedMode = view.querySelector('#mdSubHearingImpaired').checked;
                     c.TreatEditionsAsDuplicates = view.querySelector('#mdEditions').checked;
                     c.EnabledLibraries = Array.prototype.map.call(view.querySelectorAll('.mdLib:checked'), function (cb) {
                         return cb.getAttribute('data-id');
@@ -7119,10 +7471,20 @@
                 view.querySelector('#mdWizSubLangs').value = (c.AllowedSubtitleLanguages || []).join(', ');
                 // Wire (idempotent) + repaint each wizard chip input so the datalist picker sits between
                 // chips instead of the user having to type comma-separated codes into one flat text field.
+                // Also inject the +European / +Asian preset row on demand — the wizard's inline HTML
+                // doesn't get the row from langChipInputHtml, and the delegated click listener still
+                // handles it once the DOM node exists.
                 ['mdWizAudioLangs', 'mdWizSubLangs'].forEach(function (id) {
                     var chip = view.querySelector('.mdChipInput[data-chip-input="' + id + '"]');
-                    if (chip) { wireChipInput(chip); if (chip._redraw) chip._redraw(); }
+                    if (chip) {
+                        wireChipInput(chip);
+                        if (chip._redraw) chip._redraw();
+                        var next = chip.nextElementSibling;
+                        var alreadyHasPresets = next && next.classList && next.classList.contains('mdLangPresets');
+                        if (!alreadyHasPresets) chip.insertAdjacentHTML('afterend', langPresetsHtml(id));
+                    }
                 });
+                wireLangPresets();
                 view.querySelector('#mdWizMoviesTarget').value = c.MoviesTargetPath || '';
                 view.querySelector('#mdWizTvTarget').value = c.TvTargetPath || '';
                 view.querySelector('#mdWizAnimeTarget').value = c.AnimeTargetPath || '';
@@ -7805,7 +8167,7 @@
             // Order matters: first matching prefix wins.
             var ERROR_META = [
                 { prefix: 'FixTask.PermissionDenied', title: 'Fix run — permission denied', icon: 'block', hint: 'Jellyfin cannot write to a library folder or the recycle bin. Check the folder owner + ACLs match the user running Jellyfin.' },
-                { prefix: 'FixTask.IOError', title: 'Fix run — disk error', icon: 'sd_card_alert', hint: 'A file was locked, missing, or the drive filled up mid-fix. Check free space and that no other process has the file open.' },
+                { prefix: 'FixTask.IOError', title: 'Fix run — disk error', icon: 'sd_card_alert', hint: 'A file was still open when MediaDash tried to touch it. Common causes: Jellyfin trickplay / chapter-thumb / cover-art extraction, an active playback session, or a background tool (Sonarr, Radarr, sync app). MediaDash already retried three times over ~7s — if you keep seeing this on the same file, whichever process is holding it is long-lived. Also check drive free space.' },
                 { prefix: 'FixTask', title: 'Fix run failed', icon: 'build', hint: 'The fix pipeline threw an unexpected error. Retry from the Errors tab; if it happens again, use "Report an issue".' },
                 { prefix: 'Ffprobe.Timeout', title: 'ffprobe timed out', icon: 'hourglass_empty', hint: 'A file took over 2 minutes to probe and was skipped. Usually a huge file on slow storage or a container ffprobe cannot parse.' },
                 { prefix: 'Ffprobe.RunFailed', title: 'ffprobe could not run', icon: 'terminal', hint: 'The Jellyfin server has no working ffprobe. Every scan that inspects files is blocked. Check Dashboard > Playback > Transcoding.' },
@@ -8884,12 +9246,77 @@
                             msg.textContent = (xhr && xhr.status === 409) ? STR.resetBusy : ('Reset failed (' + (xhr && xhr.status) + ')');
                         });
                     });
+
+                    view.querySelector('#mdResetSchedule').addEventListener('click', function () {
+                        var btn = this;
+                        var msg = view.querySelector('#mdResetScheduleMsg');
+                        btn.disabled = true;
+                        var reenable = function () { btn.disabled = false; };
+                        post('Schedule/Apply').then(function () {
+                            msg.textContent = 'Scheduled task restored. It will next fire on the standard 15-minute interval.';
+                            reenable();
+                        }, function (xhr) {
+                            msg.textContent = 'Could not restore the scheduled task (' + (xhr && xhr.status) + '). Check Dashboard → Scheduled Tasks for a MediaDash entry called "Apply approved fixes".';
+                            reenable();
+                        });
+                    });
                 }
 
                 refresh();
                 // Render the library breakdown once on init since Overview is the default tab. From
                 // then on it only re-renders when the user re-opens the Overview tab (see showTab).
                 renderLibraryBreakdown();
+
+                // Load the System Performance visibility preference once, in parallel with refresh().
+                // If the user has it hidden, the first refresh tick will paint the full card, then
+                // this resolves ~10-100ms later and re-renders as the compact chip. Acceptable flash;
+                // avoids blocking Overview on a config round-trip.
+                ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
+                    if (c && c.ShowSystemPerformance === false) {
+                        mdSysPerfHidden = true;
+                        var el = view.querySelector('#mdSystem');
+                        if (el) el.innerHTML = '';
+                        if (mdSysPerfLast) renderSystemStats(mdSysPerfLast);
+                    }
+                });
+
+                // Right-click / long-press on the System Performance container toggles visibility.
+                // Container-level (not card-level) so the placeholder chip inherits the same menu —
+                // otherwise a hidden card has no way to come back.
+                var sysEl = view.querySelector('#mdSystem');
+                sysEl.addEventListener('contextmenu', function (e) {
+                    // Only when the click is actually on our content (card or chip), not empty space
+                    // above it if the container is stretched.
+                    if (!e.target.closest('.mdCard, .mdSysHiddenChip')) return;
+                    e.preventDefault();
+                    showSysPerfCtxMenu(e.clientX, e.clientY);
+                });
+                (function () {
+                    var timer = null;
+                    var fired = false;
+                    sysEl.addEventListener('touchstart', function (e) {
+                        if (!e.target.closest('.mdCard, .mdSysHiddenChip')) return;
+                        fired = false;
+                        var touch = e.touches[0];
+                        var x = touch ? touch.clientX : 0;
+                        var y = touch ? touch.clientY : 0;
+                        timer = setTimeout(function () {
+                            fired = true;
+                            showSysPerfCtxMenu(x, y);
+                        }, 550);
+                    }, { passive: true });
+                    var cancel = function () { if (timer) { clearTimeout(timer); timer = null; } };
+                    sysEl.addEventListener('touchend', function (e) {
+                        cancel();
+                        if (fired) { e.preventDefault(); }
+                    });
+                    sysEl.addEventListener('touchmove', cancel, { passive: true });
+                    sysEl.addEventListener('touchcancel', cancel);
+                })();
+                // Global dismissal — click elsewhere, press Escape, or scroll to close.
+                document.addEventListener('click', function () { closeSysPerfCtxMenu(); });
+                document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') closeSysPerfCtxMenu(); });
+                window.addEventListener('scroll', function () { closeSysPerfCtxMenu(); }, true);
             }
 
             document.querySelector('#MediaDashConfigPage').addEventListener('pagehide', function () {

@@ -296,7 +296,7 @@ public sealed class FixTask : IScheduledTask
             attempted++;
             try
             {
-                var result = await fixer.FixAsync(issue, itemProgress, cancellationToken).ConfigureAwait(false);
+                var result = await RunFixWithSharingRetryAsync(fixer, issue, itemProgress, cancellationToken).ConfigureAwait(false);
                 _db.AddHistory(new HistoryEntry
                 {
                     IssueId = issue.Id,
@@ -447,6 +447,39 @@ public sealed class FixTask : IScheduledTask
         progress.Report(100);
     }
 
+    // Windows sharing/lock violations (HRESULTs 0x80070020, 0x80070021) show up when Jellyfin's own
+    // subsystems still hold a read handle on a library file we're about to move/delete — trickplay
+    // generation, chapter thumbnails, cover-art extraction, an active playback session, or a
+    // sibling MediaDash scanner's ffprobe whose child process handle the OS hasn't finalised yet.
+    // Almost always clears within a second or two. Delete / Move / rename are all idempotent on
+    // failure (source still there, target absent), so re-running the fixer's FixAsync is safe.
+    // ponytail: three tries with progressive backoff. If it still fails, the file really is held
+    // by something long-lived (a running transcode) — surface the IOException as before.
+    private static async Task<FixResult> RunFixWithSharingRetryAsync(IFixer fixer, Issue issue, IProgress<double> progress, CancellationToken cancellationToken)
+    {
+        int[] delaysMs = [500, 2000, 5000];
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                return await fixer.FixAsync(issue, progress, cancellationToken).ConfigureAwait(false);
+            }
+            catch (System.IO.IOException ex) when (attempt < delaysMs.Length && IsSharingViolation(ex))
+            {
+                await Task.Delay(delaysMs[attempt], cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private static bool IsSharingViolation(System.IO.IOException ex)
+    {
+        var code = ex.HResult & 0xFFFF;
+        // 32 = ERROR_SHARING_VIOLATION, 33 = ERROR_LOCK_VIOLATION (Windows). Linux EBUSY (16) also
+        // manifests as IOException when another process holds an exclusive lock (rare but real on
+        // networked filesystems like SMB and cifs), so include it too.
+        return code == 32 || code == 33 || code == 16;
+    }
+
     // Failures that mean "the underlying state moved between scan and fix". Retrying is guaranteed to
     // hit the same wall until a fresh scan re-detects (or doesn't). Exposed internal for direct testing.
     internal static bool IsStaleFailure(string message)
@@ -482,6 +515,12 @@ public sealed class FixTask : IScheduledTask
             || message.Contains("filled up mid-move", StringComparison.OrdinalIgnoreCase))
         {
             return "Not enough free disk space";
+        }
+
+        if (message.Contains("being used by another process", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("Resource busy", StringComparison.OrdinalIgnoreCase))
+        {
+            return "File was held open by another process (likely Jellyfin trickplay / chapter thumbs / active playback)";
         }
 
         if (message.Contains("no longer exists", StringComparison.OrdinalIgnoreCase))
