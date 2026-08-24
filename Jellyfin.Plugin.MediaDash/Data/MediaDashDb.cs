@@ -874,6 +874,28 @@ public sealed class MediaDashDb
     }
 
     /// <summary>
+    /// Gets every distinct recycle path recorded by non-dry-run history. These paths
+    /// are authoritative evidence for adopting pre-marker batches after an upgrade.
+    /// </summary>
+    /// <returns>Recorded recycle paths.</returns>
+    public IReadOnlyList<string> GetRecyclePaths()
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT DISTINCT recycle_path FROM history"
+            + " WHERE recycle_path IS NOT NULL AND recycle_path <> '' AND dry_run = 0";
+
+        var result = new List<string>();
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            result.Add(reader.GetString(0));
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// Marks a history row as acknowledged so the redownload-warning banner stops flagging it.
     /// No-op when the row does not exist.
     /// </summary>

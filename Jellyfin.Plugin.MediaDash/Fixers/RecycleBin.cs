@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using Jellyfin.Plugin.MediaDash.Data;
 using MediaBrowser.Common.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -13,6 +14,9 @@ namespace Jellyfin.Plugin.MediaDash.Fixers;
 /// </summary>
 public sealed class RecycleBin
 {
+    /// <summary>Marker written into every newly-created MediaDash recycle batch.</summary>
+    internal const string OwnershipMarkerFileName = ".mediadash-owned-v1";
+
     // OS-reserved roots the recycle bin must not sit under — an admin who accidentally (or
     // maliciously) sets RecycleBinPath = "/etc" would otherwise land recycled files at
     // /etc/<timestamp>/<original-name>. Refusing these here is defense in depth; the setting is
@@ -31,10 +35,12 @@ public sealed class RecycleBin
     /// </summary>
     /// <param name="applicationPaths">Instance of the <see cref="IApplicationPaths"/> interface.</param>
     /// <param name="logger">The logger.</param>
-    public RecycleBin(IApplicationPaths applicationPaths, ILogger<RecycleBin> logger)
+    /// <param name="db">The plugin database containing authoritative recycle history.</param>
+    public RecycleBin(IApplicationPaths applicationPaths, ILogger<RecycleBin> logger, MediaDashDb db)
     {
         _defaultRoot = Path.Combine(applicationPaths.DataPath, "mediadash", "recycle");
         _logger = logger;
+        AdoptLegacyCustomBatches(db);
     }
 
     private string Root
@@ -123,6 +129,7 @@ public sealed class RecycleBin
             DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff", CultureInfo.InvariantCulture)
                 + "-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, OwnershipMarkerFileName), "1\n");
         // Trim trailing separator before GetFileName — otherwise a caller passing "/foo/bar/" reduces
         // target to `folder` itself, and Directory.Move(source, target) becomes "move to self" and throws.
         var basename = Path.GetFileName(Path.TrimEndingDirectorySeparator(path));
@@ -240,20 +247,28 @@ public sealed class RecycleBin
         long size = 0;
         // IgnoreInaccessible so one unreadable subfolder doesn't abort the whole size scan mid-walk.
         var enumOpts = new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = true };
-        foreach (var file in Directory.EnumerateFiles(Root, "*", enumOpts))
+        foreach (var batch in Directory.GetDirectories(Root).Where(IsOwnedBatchDirectory))
         {
-            count++;
-            try
+            foreach (var file in Directory.EnumerateFiles(batch, "*", enumOpts))
             {
-                size += new FileInfo(file).Length;
-            }
-            catch (IOException ex)
-            {
-                Api.Diagnostics.Record("RecycleBin.SizeScan", "Could not stat recycled file '" + file + "': " + ex.Message + ". Total-size total will be short by one entry.");
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                Api.Diagnostics.Record("RecycleBin.SizeScan", "Access denied stat'ing recycled file '" + file + "': " + ex.Message + ". Total-size total will be short by one entry.");
+                if (PathsEqual(file, Path.Combine(batch, OwnershipMarkerFileName)))
+                {
+                    continue;
+                }
+
+                count++;
+                try
+                {
+                    size += new FileInfo(file).Length;
+                }
+                catch (IOException ex)
+                {
+                    Api.Diagnostics.Record("RecycleBin.SizeScan", "Could not stat recycled file '" + file + "': " + ex.Message + ". Total-size total will be short by one entry.");
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    Api.Diagnostics.Record("RecycleBin.SizeScan", "Access denied stat'ing recycled file '" + file + "': " + ex.Message + ". Total-size total will be short by one entry.");
+                }
             }
         }
 
@@ -273,10 +288,15 @@ public sealed class RecycleBin
             return result;
         }
 
-        foreach (var dir in Directory.GetDirectories(Root).OrderByDescending(d => d, StringComparer.Ordinal))
+        foreach (var dir in Directory.GetDirectories(Root).Where(IsOwnedBatchDirectory).OrderByDescending(d => d, StringComparer.Ordinal))
         {
             foreach (var file in Directory.EnumerateFiles(dir))
             {
+                if (PathsEqual(file, Path.Combine(dir, OwnershipMarkerFileName)))
+                {
+                    continue;
+                }
+
                 try
                 {
                     var info = new FileInfo(file);
@@ -416,7 +436,7 @@ public sealed class RecycleBin
 
         try
         {
-            var dirs = Directory.GetDirectories(Root);
+            var dirs = Directory.GetDirectories(Root).Where(IsOwnedBatchDirectory).ToArray();
             System.Threading.Volatile.Write(ref _emptyingTotal, dirs.Length);
             System.Threading.Volatile.Write(ref _emptyingDone, 0);
             foreach (var dir in dirs)
@@ -462,7 +482,7 @@ public sealed class RecycleBin
         }
 
         var cutoff = DateTime.UtcNow.AddDays(-retentionDays);
-        foreach (var dir in Directory.GetDirectories(Root))
+        foreach (var dir in Directory.GetDirectories(Root).Where(IsOwnedBatchDirectory))
         {
             try
             {
@@ -487,18 +507,170 @@ public sealed class RecycleBin
 
     private static DateTime? TryParseRecycleTimestamp(string folderName)
     {
-        // Folder names are yyyyMMdd-HHmmss-fff-<8charGuid>. The first 18 chars are the timestamp.
-        if (folderName.Length < 18)
+        // Folder names are yyyyMMdd-HHmmss-fff-<8charGuid>. The first 19 chars are the timestamp.
+        if (folderName.Length < 19)
         {
             return null;
         }
 
         return DateTime.TryParseExact(
-            folderName[..18],
+            folderName[..19],
             "yyyyMMdd-HHmmss-fff",
             CultureInfo.InvariantCulture,
             System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal,
             out var parsed) ? parsed : null;
+    }
+
+    /// <summary>
+    /// Returns whether a directory name matches the exact timestamp + GUID format created by
+    /// <see cref="MoveToBin"/>. This validates syntax only; destructive operations additionally
+    /// require <see cref="IsOwnedBatchDirectory(string, string)"/>.
+    /// </summary>
+    /// <param name="path">A directory path or leaf name.</param>
+    /// <returns>True only for a valid MediaDash recycle batch name.</returns>
+    internal static bool IsMediaDashBatchName(string path)
+    {
+        var name = Path.GetFileName(Path.TrimEndingDirectorySeparator(path));
+        if (string.IsNullOrEmpty(name) || name.Length != 28 || name[19] != '-' || TryParseRecycleTimestamp(name) is null)
+        {
+            return false;
+        }
+
+        for (var i = 20; i < name.Length; i++)
+        {
+            if (!Uri.IsHexDigit(name[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Returns whether a recycle batch has durable MediaDash ownership evidence. Unmarked legacy
+    /// batches remain eligible only when they are direct children of the plugin's dedicated default
+    /// recycle root; custom roots require the marker so lookalike user folders are never deleted.
+    /// </summary>
+    /// <param name="path">Candidate batch directory.</param>
+    /// <param name="defaultRoot">The plugin's dedicated default recycle root.</param>
+    /// <returns>True when the directory is safe for MediaDash to enumerate or delete.</returns>
+    internal static bool IsOwnedBatchDirectory(string path, string defaultRoot)
+    {
+        if (!IsMediaDashBatchName(path))
+        {
+            return false;
+        }
+
+        try
+        {
+            if (File.Exists(Path.Combine(path, OwnershipMarkerFileName)))
+            {
+                return true;
+            }
+
+            var parent = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)));
+            return parent is not null && PathsEqual(parent, defaultRoot);
+        }
+        catch (Exception ex) when (ex is IOException or ArgumentException or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Adds an ownership marker to an unmarked custom-root batch only when a successful history row
+    /// points at an item directly inside that batch.
+    /// </summary>
+    /// <param name="recyclePath">Recycle path from plugin history.</param>
+    /// <param name="customRoot">Configured custom recycle root.</param>
+    /// <returns>True when the path is an adopted or already-marked direct child batch.</returns>
+    internal static bool TryAdoptLegacyBatch(string recyclePath, string customRoot)
+    {
+        try
+        {
+            if (!File.Exists(recyclePath) && !Directory.Exists(recyclePath))
+            {
+                return false;
+            }
+
+            var batch = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(recyclePath)));
+            if (batch is null || !IsMediaDashBatchName(batch))
+            {
+                return false;
+            }
+
+            var parent = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(batch));
+            if (parent is null || !PathsEqual(parent, customRoot))
+            {
+                return false;
+            }
+
+            var marker = Path.Combine(batch, OwnershipMarkerFileName);
+            if (!File.Exists(marker))
+            {
+                File.WriteAllText(marker, "1\n");
+            }
+
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    private bool IsOwnedBatchDirectory(string path) => IsOwnedBatchDirectory(path, _defaultRoot);
+
+    private void AdoptLegacyCustomBatches(MediaDashDb db)
+    {
+        var root = Root;
+        if (PathsEqual(root, _defaultRoot) || !Directory.Exists(root))
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (var recyclePath in db.GetRecyclePaths())
+            {
+                if (TryAdoptLegacyBatch(recyclePath, root))
+                {
+                    _logger.LogInformation("Verified legacy recycle batch referenced by history for {RecyclePath}", recyclePath);
+                }
+            }
+
+            foreach (var candidate in Directory.GetDirectories(root).Where(IsMediaDashBatchName))
+            {
+                if (!File.Exists(Path.Combine(candidate, OwnershipMarkerFileName)))
+                {
+                    Api.Diagnostics.Record(
+                        "RecycleBin.LegacyBatchNeedsReview",
+                        "Legacy-looking recycle batch '" + candidate + "' was not referenced by MediaDash history and will not be listed or deleted. After verifying MediaDash created it, create an empty '" + OwnershipMarkerFileName + "' file inside that batch to adopt it; otherwise move it out of the configured recycle root.");
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "Could not inspect custom recycle root {Root} for legacy batches", root);
+            Api.Diagnostics.Record("RecycleBin.LegacyMigrationFailed", "Could not inspect custom recycle root '" + root + "' for legacy batches: " + ex.Message);
+        }
+    }
+
+    private static bool PathsEqual(string first, string second)
+    {
+        try
+        {
+            var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            return string.Equals(
+                Path.TrimEndingDirectorySeparator(Path.GetFullPath(first)),
+                Path.TrimEndingDirectorySeparator(Path.GetFullPath(second)),
+                comparison);
+        }
+        catch (Exception ex) when (ex is IOException or ArgumentException or NotSupportedException)
+        {
+            return false;
+        }
     }
 
     private static void MoveAcrossVolumes(string source, string target)

@@ -213,6 +213,11 @@ public class FileBrowserController : ControllerBase
         }
 
         var target = Path.Combine(parent, request.Name);
+        if (!RevalidateInsideLibrary(target, out forbid))
+        {
+            return forbid;
+        }
+
         if (Directory.Exists(target) || System.IO.File.Exists(target))
         {
             return Conflict("An entry with that name already exists.");
@@ -271,6 +276,11 @@ public class FileBrowserController : ControllerBase
         if (System.IO.File.Exists(target) || Directory.Exists(target))
         {
             return Conflict("An entry with that name already exists.");
+        }
+
+        if (!RevalidateInsideLibrary(source, out forbid) || !RevalidateInsideLibrary(target, out forbid))
+        {
+            return forbid;
         }
 
         try
@@ -335,6 +345,16 @@ public class FileBrowserController : ControllerBase
             return Conflict("An entry already exists at the destination.");
         }
 
+        if (!RevalidateInsideLibrary(source, out forbidFrom))
+        {
+            return forbidFrom;
+        }
+
+        if (!RevalidateInsideLibrary(target, out forbidTo))
+        {
+            return forbidTo;
+        }
+
         var sourceIsDir = Directory.Exists(source);
         try
         {
@@ -364,6 +384,16 @@ public class FileBrowserController : ControllerBase
             // file under its final name.
             try
             {
+                if (!RevalidateInsideLibrary(source, out forbidFrom))
+                {
+                    return forbidFrom;
+                }
+
+                if (!RevalidateInsideLibrary(target, out forbidTo))
+                {
+                    return forbidTo;
+                }
+
                 CrossDeviceMove(source, target, sourceIsDir);
             }
             catch (UnauthorizedAccessException innerAuth)
@@ -422,6 +452,16 @@ public class FileBrowserController : ControllerBase
             return Conflict("An entry already exists at the destination.");
         }
 
+        if (!RevalidateInsideLibrary(source, out forbidFrom))
+        {
+            return forbidFrom;
+        }
+
+        if (!RevalidateInsideLibrary(target, out forbidTo))
+        {
+            return forbidTo;
+        }
+
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
@@ -466,6 +506,11 @@ public class FileBrowserController : ControllerBase
         if (!System.IO.File.Exists(full) && !Directory.Exists(full))
         {
             return NotFound();
+        }
+
+        if (!RevalidateInsideLibrary(full, out forbid))
+        {
+            return forbid;
         }
 
         try
@@ -527,6 +572,11 @@ public class FileBrowserController : ControllerBase
         }
 
         var target = Path.Combine(parent, name);
+        if (!RevalidateInsideLibrary(target, out forbid))
+        {
+            return forbid;
+        }
+
         if (System.IO.File.Exists(target) || Directory.Exists(target))
         {
             return Conflict("An entry with that name already exists.");
@@ -569,6 +619,11 @@ public class FileBrowserController : ControllerBase
 
             await output.FlushAsync(HttpContext.RequestAborted).ConfigureAwait(false);
             await output.DisposeAsync().ConfigureAwait(false);
+
+            if (!_guard.IsInsideLibrary(tempPath) || !_guard.IsInsideLibrary(target))
+            {
+                throw new IOException("Upload path changed after validation; refusing to finalize the file.");
+            }
 
             System.IO.File.Move(tempPath, target);
             _libraryMonitor.ReportFileSystemChanged(target);
@@ -615,6 +670,11 @@ public class FileBrowserController : ControllerBase
             return NotFound();
         }
 
+        if (!RevalidateInsideLibrary(full, out forbid))
+        {
+            return forbid;
+        }
+
         var stream = new FileStream(full, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 81920, useAsync: true);
         return File(stream, "application/octet-stream", Path.GetFileName(full), enableRangeProcessing: true);
     }
@@ -652,6 +712,12 @@ public class FileBrowserController : ControllerBase
         }
 
         return true;
+    }
+
+    private bool RevalidateInsideLibrary(string path, out ActionResult forbid)
+    {
+        forbid = Conflict("Refused because the path changed after validation. Retry after checking the library folder for symlinks or junctions.");
+        return _guard.IsInsideLibrary(path);
     }
 
     private ObjectResult PermissionDenied(string path, UnauthorizedAccessException ex)
