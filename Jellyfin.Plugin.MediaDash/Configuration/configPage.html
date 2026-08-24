@@ -3348,6 +3348,11 @@
                                     <input id="mdBinWarnThreshold" type="range" min="0" max="500" step="1" />
                                     <div class="fieldDescription">Shows a banner on the dashboard when the recycle bin passes this size. Set to 0 to disable. Default: 10 GB.</div>
                                 </div>
+                                <div class="inputContainer" style="margin:0;">
+                                    <label class="inputLabel" for="mdBinPauseAt">Pause fixes when the bin reaches<span class="mdSliderVal" id="mdBinPauseAtVal"></span></label>
+                                    <input id="mdBinPauseAt" type="range" min="0" max="1000" step="1" />
+                                    <div class="fieldDescription">Refuses to run fixes until you empty the Recycle bin tab. 0 disables the cap. Dry-run mode ignores this because nothing actually reaches the bin.</div>
+                                </div>
                             </div>
                             <div style="margin-top:1em;display:flex;align-items:center;gap:.8em;flex-wrap:wrap;">
                                 <button is="emby-button" type="button" id="mdBinAccessTest" class="raised mdActionBtn" title="Probe the currently-configured recycle bin path for read + write access. Creates the folder if missing."><span class="material-icons">verified_user</span><span>Test read / write access</span></button>
@@ -3375,6 +3380,10 @@
                             <div style="margin:.6em 0;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
                                 <button is="emby-button" type="button" id="mdMaintV12Migration" class="raised" title="Runs the one-shot post-Jellyfin-12 filesystem cleanup: sweeps orphaned trickplay image folders whose GUID no longer resolves to any BaseItem. Only enabled on Jellyfin 12+ servers." style="font-size:80%;" disabled><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;margin-right:.3em;">upgrade</span><span>Start v12 migration</span></button>
                                 <span id="mdMaintV12MigrationMsg" class="fieldDescription">Sweeps orphaned trickplay folders left behind by the 10.x → 12.x upgrade. Only available on Jellyfin 12+.</span>
+                            </div>
+                            <div style="margin:.6em 0;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
+                                <button is="emby-button" type="button" id="mdResetSchedule" class="raised" title="Re-creates MediaDash's 15-minute Apply-approved-fixes trigger. Use this if you've deleted the task from Dashboard → Scheduled Tasks and want it back — otherwise MediaDash respects your delete and never auto-restores it." style="font-size:80%;"><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;margin-right:.3em;">schedule</span><span>Reset scheduled task</span></button>
+                                <span id="mdResetScheduleMsg" class="fieldDescription">Re-adds the every-15-minutes fix trigger. Once you've deleted it from Dashboard → Scheduled Tasks, MediaDash won't bring it back on restart until you press this.</span>
                             </div>
                             <div style="margin:.6em 0;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
                                 <button is="emby-button" type="button" id="mdResetScan" class="raised" title="Clears every detected issue and the probe/decode caches so the next scan starts from scratch. Fix history and the recycle bin are kept." style="font-size:80%;background:#7f1d1d;color:#fff;"><span>Reset scan data</span></button>
@@ -3714,7 +3723,8 @@
                 { id: 'mdRetention', val: 'mdRetentionVal', unit: 'unitDays' },
                 { id: 'mdTrickplayQuality', val: 'mdTrickplayQualityVal', unit: 'unitPercent' },
                 { id: 'mdTrickplayMinSize', val: 'mdTrickplayMinSizeVal', format: function (v) { return v === '0' || v === 0 ? ' (flag every folder)' : ' ' + v + ' MB'; } },
-                { id: 'mdBinWarnThreshold', val: 'mdBinWarnThresholdVal', format: function (v) { return v === '0' || v === 0 ? ' (off)' : ' ' + v + ' GB'; } }
+                { id: 'mdBinWarnThreshold', val: 'mdBinWarnThresholdVal', format: function (v) { return v === '0' || v === 0 ? ' (off)' : ' ' + v + ' GB'; } },
+                { id: 'mdBinPauseAt', val: 'mdBinPauseAtVal', format: function (v) { return v === '0' || v === 0 ? ' (off)' : ' ' + v + ' GB'; } }
             ];
 
             function fmt(str) {
@@ -6708,6 +6718,7 @@
                     view.querySelector('#mdBinPath').value = c.RecycleBinPath || '';
                     view.querySelector('#mdRetention').value = c.RecycleBinRetentionDays;
                     view.querySelector('#mdBinWarnThreshold').value = (c.RecycleBinWarnThresholdGb != null ? c.RecycleBinWarnThresholdGb : 10);
+                    view.querySelector('#mdBinPauseAt').value = (c.RecycleBinPauseFixesAtGb != null ? c.RecycleBinPauseFixesAtGb : 0);
                     view.querySelector('#mdThorough').checked = c.ThoroughPlayabilityCheck;
                     view.querySelector('#mdEditions').checked = c.TreatEditionsAsDuplicates;
                     view.querySelector('#mdDuplicateMinAge').value = c.DuplicateMinAgeDays == null ? 7 : c.DuplicateMinAgeDays;
@@ -6838,6 +6849,8 @@
                     c.RecycleBinRetentionDays = parseInt(view.querySelector('#mdRetention').value, 10) || 30;
                     var warnGb = parseInt(view.querySelector('#mdBinWarnThreshold').value, 10);
                     c.RecycleBinWarnThresholdGb = isNaN(warnGb) ? 10 : Math.max(0, warnGb);
+                    var pauseGb = parseInt(view.querySelector('#mdBinPauseAt').value, 10);
+                    c.RecycleBinPauseFixesAtGb = isNaN(pauseGb) ? 0 : Math.max(0, pauseGb);
                     c.ThoroughPlayabilityCheck = view.querySelector('#mdThorough').checked;
                     c.TreatEditionsAsDuplicates = view.querySelector('#mdEditions').checked;
                     c.EnabledLibraries = Array.prototype.map.call(view.querySelectorAll('.mdLib:checked'), function (cb) {
@@ -8843,6 +8856,20 @@
                                 setTimeout(function () { loadErrors(); refresh(true); }, 700);
                                 msg.textContent = 'Fix run started — see Overview for progress, and this tab will fill up again if the same errors recur.';
                             });
+                        });
+                    });
+
+                    view.querySelector('#mdResetSchedule').addEventListener('click', function () {
+                        var btn = this;
+                        var msg = view.querySelector('#mdResetScheduleMsg');
+                        btn.disabled = true;
+                        var reenable = function () { btn.disabled = false; };
+                        post('Schedule/Apply').then(function () {
+                            msg.textContent = 'Scheduled task restored. It will next fire on the standard 15-minute interval.';
+                            reenable();
+                        }, function (xhr) {
+                            msg.textContent = 'Could not restore the scheduled task (' + (xhr && xhr.status) + '). Check Dashboard → Scheduled Tasks for a MediaDash entry called "Apply approved fixes".';
+                            reenable();
                         });
                     });
 

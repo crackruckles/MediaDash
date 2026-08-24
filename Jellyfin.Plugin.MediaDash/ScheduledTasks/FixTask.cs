@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -125,6 +126,38 @@ public sealed class FixTask : IScheduledTask
             _logger.LogInformation("Skipping fix run: someone is watching or was recently active. Queued issues stay queued.");
             progress.Report(100);
             return;
+        }
+
+        // Recycle-bin size cap. Non-zero limit AND real (non-dry-run) mode: refuse to fix until the
+        // user empties the bin so we don't blow past the cap they set. Dry-run doesn't add bytes,
+        // so it's exempt.
+        var pauseGb = config.RecycleBinPauseFixesAtGb;
+        if (pauseGb > 0 && !config.DryRun)
+        {
+            var binSizeBytes = 0L;
+            try
+            {
+                binSizeBytes = _recycleBin.GetContents().SizeBytes;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _logger.LogWarning(ex, "Could not measure recycle bin size; letting the fix run proceed.");
+            }
+
+            var capBytes = (long)pauseGb * 1024L * 1024L * 1024L;
+            if (binSizeBytes >= capBytes)
+            {
+                var msg = "Paused: recycle bin is at " + (binSizeBytes / (1024L * 1024L * 1024L)) + " GB (cap " + pauseGb + " GB). Empty it from the Recycle bin tab to resume.";
+                _logger.LogInformation("Skipping fix run: {Msg}", msg);
+                Api.Diagnostics.Record("FixTask.RecycleBinFull", msg);
+                if (isManualRun)
+                {
+                    PauseReason = msg;
+                }
+
+                progress.Report(100);
+                return;
+            }
         }
 
         foreach (var type in FixableTypes)

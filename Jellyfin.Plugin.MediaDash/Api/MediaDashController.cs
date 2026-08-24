@@ -401,6 +401,15 @@ public class MediaDashController : ControllerBase
             ];
         }
 
+        // Keep the seeded flag on so ScheduleMigrator still won't fight the user next boot; this
+        // endpoint is the sanctioned way to bring the trigger back once it's been deleted.
+        var config = Plugin.Instance?.Configuration;
+        if (config is not null && !config.FixTaskSeeded)
+        {
+            config.FixTaskSeeded = true;
+            Plugin.Instance?.SaveConfiguration();
+        }
+
         return NoContent();
     }
 

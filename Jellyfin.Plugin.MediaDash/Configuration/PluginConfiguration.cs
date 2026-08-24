@@ -47,7 +47,9 @@ public class PluginConfiguration : BasePluginConfiguration
         RecycleBinPath = string.Empty;
         RecycleBinRetentionDays = 30;
         RecycleBinWarnThresholdGb = 10;
+        RecycleBinPauseFixesAtGb = 0;
         PauseDuringPlayback = true;
+        FixTaskSeeded = false;
         FirstRunDone = false;
         // On by default — the wizard opt-in path pre-ticks the box; users who skip the wizard also
         // report anonymous stats until they untick in Settings → Safety. No install ID is stored:
@@ -193,6 +195,21 @@ public class PluginConfiguration : BasePluginConfiguration
     /// dashboard. 0 disables the banner entirely.
     /// </summary>
     public int RecycleBinWarnThresholdGb { get; set; }
+
+    /// <summary>
+    /// Gets or sets the recycle-bin size (in GB) at or above which the fix task refuses to run —
+    /// paused with a banner until the user empties the bin. 0 disables the pause entirely (default).
+    /// Dry-run runs ignore this because no bytes actually reach the bin.
+    /// </summary>
+    public int RecycleBinPauseFixesAtGb { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the plugin has already seeded the fix task's
+    /// interval trigger. Once true, <see cref="ScheduledTasks.ScheduleMigrator"/> never re-seeds:
+    /// if the user removes the trigger from Dashboard → Scheduled Tasks it stays removed until
+    /// they hit "Reset scheduled task" in Settings → Maintenance.
+    /// </summary>
+    public bool FixTaskSeeded { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether scheduled scans and fixes only run while the server is idle:

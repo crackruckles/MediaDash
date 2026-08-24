@@ -66,6 +66,15 @@ internal sealed class ScheduleMigrator : IHostedService, IDisposable
 
         try
         {
+            var config = Plugin.Instance?.Configuration;
+            if (config?.FixTaskSeeded == true)
+            {
+                // User is in charge from here on. If they removed the trigger via Dashboard →
+                // Scheduled Tasks we respect that; the "Reset scheduled task" button in
+                // Settings → Maintenance is the one way to bring it back.
+                return;
+            }
+
             var fixTask = _taskManager.ScheduledTasks.FirstOrDefault(w => w.ScheduledTask is FixTask);
             if (fixTask is null)
             {
@@ -74,20 +83,26 @@ internal sealed class ScheduleMigrator : IHostedService, IDisposable
             }
 
             var current = fixTask.Triggers ?? [];
-            if (current.Any(t => t.Type == TaskTriggerInfoType.IntervalTrigger))
+            if (!current.Any(t => t.Type == TaskTriggerInfoType.IntervalTrigger))
             {
-                return;
+                _logger.LogInformation("ScheduleMigrator: seeding fix-task with opportunistic {Interval} IntervalTrigger", FixTask.FixInterval);
+                fixTask.Triggers =
+                [
+                    new TaskTriggerInfo
+                    {
+                        Type = TaskTriggerInfoType.IntervalTrigger,
+                        IntervalTicks = FixTask.FixInterval.Ticks
+                    }
+                ];
             }
 
-            _logger.LogInformation("ScheduleMigrator: replacing legacy fix-task trigger with opportunistic {Interval} IntervalTrigger", FixTask.FixInterval);
-            fixTask.Triggers =
-            [
-                new TaskTriggerInfo
-                {
-                    Type = TaskTriggerInfoType.IntervalTrigger,
-                    IntervalTicks = FixTask.FixInterval.Ticks
-                }
-            ];
+            // Whether we added the trigger or a fresh install already had it from GetDefaultTriggers,
+            // mark seeded so subsequent restarts don't re-add a trigger the user has since deleted.
+            if (config is not null)
+            {
+                config.FixTaskSeeded = true;
+                Plugin.Instance?.SaveConfiguration();
+            }
         }
         catch (Exception ex)
         {
