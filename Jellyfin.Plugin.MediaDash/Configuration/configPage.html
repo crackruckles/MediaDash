@@ -8338,13 +8338,15 @@
 
             function renderFileList(d) {
                 currentFileListing = d;
-                view.querySelector('#mdFileCrumbsText').textContent = d.IsRoot ? 'Library folders' : d.Path;
+                view.querySelector('#mdFileCrumbsText').textContent = d.IsRoot ? 'Library folders' : (d.IsRecycleBin ? 'Recycle bin · ' + d.Path : d.Path);
                 // d.Parent === "" means "one level up is the library-roots pseudo-root". Disable Up only at the pseudo-root itself.
                 view.querySelector('#mdFileUp').disabled = d.IsRoot || d.Parent == null;
                 view.querySelector('#mdFileUp').setAttribute('data-parent', d.Parent == null ? '' : d.Parent);
-                view.querySelector('#mdFileMkdir').disabled = d.IsRoot;
-                view.querySelector('#mdFileUpload').disabled = d.IsRoot;
-                view.querySelector('#mdFileUpload').parentElement.style.opacity = d.IsRoot ? '.5' : '1';
+                // Recycle bin is read-only from the file browser: use the Recycle bin tab to restore or empty.
+                var writeDisabled = d.IsRoot || d.IsRecycleBin;
+                view.querySelector('#mdFileMkdir').disabled = writeDisabled;
+                view.querySelector('#mdFileUpload').disabled = writeDisabled;
+                view.querySelector('#mdFileUpload').parentElement.style.opacity = writeDisabled ? '.5' : '1';
 
                 var listEl = view.querySelector('#mdFileList');
                 if (!d.Entries || d.Entries.length === 0) {
@@ -8361,7 +8363,7 @@
                     if (fileSort.by !== col) return '';
                     return '<span class="material-icons">' + (fileSort.dir === 'asc' ? 'arrow_drop_up' : 'arrow_drop_down') + '</span>';
                 };
-                var selectable = !d.IsRoot;
+                var selectable = !d.IsRoot && !d.IsRecycleBin;
                 var html = '<div class="mdFileTable"><div class="mdFileHead">' +
                     (selectable ? '<input type="checkbox" id="mdFileSelectAll" title="Select all shown" />' : '<span style="width:1.05em;"></span>') +
                     '<span class="material-icons" style="opacity:0;">folder</span>' +
@@ -8374,16 +8376,20 @@
                     html += '<div class="fieldDescription" style="padding:.7em 1em;">No matches.</div>';
                 }
                 sorted.forEach(function (e) {
-                    var icon = e.IsDirectory ? 'folder' : (e.Name.match(/\.(mkv|mp4|avi|mov|webm|m4v|ts|wmv)$/i) ? 'movie' : 'insert_drive_file');
-                    var color = e.IsDirectory ? '#f59e0b' : (e.Name.match(/\.(mkv|mp4|avi|mov|webm|m4v|ts|wmv)$/i) ? '#00a4dc' : '#8b5cf6');
+                    var isBinShortcut = e.Kind === 'recycle-bin';
+                    var icon = isBinShortcut ? 'delete' : (e.IsDirectory ? 'folder' : (e.Name.match(/\.(mkv|mp4|avi|mov|webm|m4v|ts|wmv)$/i) ? 'movie' : 'insert_drive_file'));
+                    var color = isBinShortcut ? '#ec4899' : (e.IsDirectory ? '#f59e0b' : (e.Name.match(/\.(mkv|mp4|avi|mov|webm|m4v|ts|wmv)$/i) ? '#00a4dc' : '#8b5cf6'));
+                    var displayName = isBinShortcut ? 'Recycle bin' : e.Name;
                     var meta = e.IsDirectory ? '' : bytes(e.SizeBytes);
                     var date = new Date(e.ModifiedUtc).toLocaleDateString();
-                    var checked = fileSelection.has(e.Name) ? ' checked' : '';
+                    // Selection is by-name and the recycle-bin shortcut sits at root where selection is off anyway,
+                    // but be defensive: don't offer to select the synthetic entry.
+                    var checked = !isBinShortcut && fileSelection.has(e.Name) ? ' checked' : '';
                     var nameCls = 'mdFileName' + (e.IsDirectory || d.IsRoot ? ' mdFileNameLink' : '');
-                    html += '<div class="mdFileRow" data-name="' + esc(e.Name) + '" data-isdir="' + (e.IsDirectory ? '1' : '0') + '">' +
+                    html += '<div class="mdFileRow" data-name="' + esc(e.Name) + '" data-isdir="' + (e.IsDirectory ? '1' : '0') + '" data-kind="' + esc(e.Kind || '') + '">' +
                         (selectable ? '<input type="checkbox" class="mdFileCheck"' + checked + ' />' : '<span style="width:1.05em;"></span>') +
                         '<span class="material-icons" style="color:' + color + ';">' + icon + '</span>' +
-                        '<span class="' + nameCls + '">' + esc(e.Name) + '</span>' +
+                        '<span class="' + nameCls + '">' + esc(displayName) + '</span>' +
                         '<span class="mdFileMeta">' + meta + '</span>' +
                         '<span class="mdFileDate">' + date + '</span>' +
                         '<span class="mdFileActions"></span>' +
@@ -8435,12 +8441,17 @@
                     if (isDir) {
                         row.querySelector('.mdFileName').addEventListener('click', function () { loadFiles(full); });
                     }
-                    actions.innerHTML =
-                        (isDir ? '' : '<button is="emby-button" type="button" class="raised mdFileAct" data-act="download" title="Download"><span class="material-icons">download</span></button>') +
-                        '<button is="emby-button" type="button" class="raised mdFileAct" data-act="rename" title="Rename"><span class="material-icons">drive_file_rename_outline</span></button>' +
-                        '<button is="emby-button" type="button" class="raised mdFileAct" data-act="move" title="Move"><span class="material-icons">drive_file_move</span></button>' +
-                        '<button is="emby-button" type="button" class="raised mdFileAct" data-act="copy" title="Copy"><span class="material-icons">file_copy</span></button>' +
-                        '<button is="emby-button" type="button" class="raised mdFileAct mdFileActDanger" data-act="delete" title="Delete (moves to recycle bin)"><span class="material-icons">delete</span></button>';
+                    if (d.IsRecycleBin) {
+                        // Read-only view: no mutations from here. Restore / empty live on the Recycle bin tab.
+                        actions.innerHTML = '';
+                    } else {
+                        actions.innerHTML =
+                            (isDir ? '' : '<button is="emby-button" type="button" class="raised mdFileAct" data-act="download" title="Download"><span class="material-icons">download</span></button>') +
+                            '<button is="emby-button" type="button" class="raised mdFileAct" data-act="rename" title="Rename"><span class="material-icons">drive_file_rename_outline</span></button>' +
+                            '<button is="emby-button" type="button" class="raised mdFileAct" data-act="move" title="Move"><span class="material-icons">drive_file_move</span></button>' +
+                            '<button is="emby-button" type="button" class="raised mdFileAct" data-act="copy" title="Copy"><span class="material-icons">file_copy</span></button>' +
+                            '<button is="emby-button" type="button" class="raised mdFileAct mdFileActDanger" data-act="delete" title="Delete (moves to recycle bin)"><span class="material-icons">delete</span></button>';
+                    }
                     Array.from(actions.querySelectorAll('.mdFileAct')).forEach(function (btn) {
                         btn.addEventListener('click', function () { doFileAction(btn.getAttribute('data-act'), full, name, isDir); });
                     });

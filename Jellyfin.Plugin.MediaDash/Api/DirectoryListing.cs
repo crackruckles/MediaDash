@@ -16,6 +16,13 @@ public sealed class DirectoryListing
     /// <summary>Gets or sets a value indicating whether this listing is the pseudo-root that lists library folders.</summary>
     public bool IsRoot { get; set; }
 
+    /// <summary>
+    /// Gets or sets a value indicating whether this listing is inside the recycle-bin root. When true,
+    /// the UI switches to read-only mode: no Mkdir / Upload buttons and no per-row rename / move / copy /
+    /// delete actions. Restoration and empty are handled from the dedicated Recycle bin tab.
+    /// </summary>
+    public bool IsRecycleBin { get; set; }
+
     /// <summary>Gets or sets the entries in this directory.</summary>
     public IReadOnlyList<FileEntry> Entries { get; set; } = [];
 }

@@ -18,4 +18,11 @@ public sealed class FileEntry
 
     /// <summary>Gets or sets when the entry was last modified (UTC).</summary>
     public DateTime ModifiedUtc { get; set; }
+
+    /// <summary>
+    /// Gets or sets an optional entry kind hint for the UI. Empty for regular library entries;
+    /// <c>"recycle-bin"</c> for the synthetic recycle-bin shortcut at the file-browser root so
+    /// the UI can label and style it distinctly (icon, badge, "Recycle bin" instead of the raw path).
+    /// </summary>
+    public string Kind { get; set; } = string.Empty;
 }

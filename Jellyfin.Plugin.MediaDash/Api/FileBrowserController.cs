@@ -104,14 +104,46 @@ public class FileBrowserController : ControllerBase
                     };
                 })
                 .ToList();
+
+            // Append the recycle-bin root as a synthetic navigation shortcut. Kept read-only:
+            // TryResolveInsideLibrary still refuses recycle-bin paths for Mkdir / Rename / Move /
+            // Copy / Delete / Upload / Download, so the browser can only enumerate. Restore /
+            // Empty live on the dedicated Recycle bin tab.
+            try
+            {
+                var binRoot = _recycleBin.GetEffectiveRoot();
+                if (Directory.Exists(binRoot))
+                {
+                    var info = new DirectoryInfo(binRoot);
+                    roots.Add(new FileEntry
+                    {
+                        Name = binRoot,
+                        IsDirectory = true,
+                        SizeBytes = 0,
+                        ModifiedUtc = info.LastWriteTimeUtc,
+                        Kind = "recycle-bin"
+                    });
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Recycle bin root inaccessible — skip the shortcut, root listing still works.
+                Diagnostics.Record("FileBrowser.List", "Could not add recycle-bin shortcut to file browser root: " + ex.Message + ".");
+            }
+
             return new DirectoryListing { Path = string.Empty, Parent = null, IsRoot = true, Entries = roots };
         }
 
-        if (!TryResolveInsideLibrary(path, out var full, out var forbid))
+        // Read-only carve-out: allow enumeration of anything inside the recycle-bin root even though
+        // it sits outside every library location. Every mutation endpoint continues to gate on
+        // TryResolveInsideLibrary, so no write path opens up here.
+        var isInsideBin = TryResolveInsideRecycleBin(path, out var binFull);
+        if (!isInsideBin && !TryResolveInsideLibrary(path, out binFull, out var forbid))
         {
             return forbid;
         }
 
+        var full = binFull;
         if (!Directory.Exists(full))
         {
             return NotFound();
@@ -170,19 +202,66 @@ public class FileBrowserController : ControllerBase
             return StatusCode(StatusCodes.Status500InternalServerError, "Could not list folder: " + ex.Message);
         }
 
-        // Parent is the pseudo-root (empty) when 'full' is itself a library location, otherwise the containing directory.
+        // Parent is the pseudo-root (empty) when 'full' is itself a library location or the recycle-bin
+        // root; otherwise the containing directory. Users still land on the file-browser root when
+        // they hit "Up" from a top-level entry, regardless of which shortcut they navigated into.
         var isLibraryRoot = _libraryManager.GetVirtualFolders()
             .ToList()
             .SelectMany(f => f.Locations)
             .Any(l => string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(l)), Path.TrimEndingDirectorySeparator(full), OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal));
+        var isRecycleBinRoot = isInsideBin && string.Equals(
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(_recycleBin.GetEffectiveRoot())),
+            Path.TrimEndingDirectorySeparator(full),
+            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
 
         return new DirectoryListing
         {
             Path = full,
-            Parent = isLibraryRoot ? string.Empty : Path.GetDirectoryName(full),
+            Parent = (isLibraryRoot || isRecycleBinRoot) ? string.Empty : Path.GetDirectoryName(full),
             IsRoot = false,
+            IsRecycleBin = isInsideBin,
             Entries = entries
         };
+    }
+
+    private bool TryResolveInsideRecycleBin(string? userPath, out string canonical)
+    {
+        canonical = string.Empty;
+        if (string.IsNullOrWhiteSpace(userPath))
+        {
+            return false;
+        }
+
+        try
+        {
+            canonical = Path.GetFullPath(userPath);
+        }
+        catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
+        {
+            return false;
+        }
+
+        string binRoot;
+        try
+        {
+            binRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(_recycleBin.GetEffectiveRoot()));
+        }
+        catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
+        {
+            return false;
+        }
+
+        var trimmed = Path.TrimEndingDirectorySeparator(canonical);
+        var cmp = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        if (string.Equals(trimmed, binRoot, cmp))
+        {
+            return true;
+        }
+
+        // A path is inside the bin when it starts with "<binRoot>/". The separator anchor rejects
+        // "C:\bin-adjacent" from matching a "C:\bin" root.
+        return trimmed.StartsWith(binRoot + Path.DirectorySeparatorChar, cmp)
+            || trimmed.StartsWith(binRoot + Path.AltDirectorySeparatorChar, cmp);
     }
 
     /// <summary>
