@@ -10,6 +10,7 @@ using Jellyfin.Plugin.MediaDash.Data;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Model.Entities;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.MediaDash.Scanners;
@@ -41,9 +42,37 @@ public sealed class OrphanCleanupScanner : IScanner
         ".mpg", ".mpeg", ".ts", ".m2ts", ".vob", ".3gp", ".ogv", ".mts", ".divx", ".rmvb"
     };
 
+    // Every extension that counts as "user media" for the empty-folder pass. Field report:
+    // a music-only library (or books-only, audiobooks-only, comics-only, pictures-only) has zero
+    // files matching VideoExtensions in ANY sub-directory, so every artist/album folder used to be
+    // flagged as an "empty folder" and the fixer deleted the entire library. Add the missing kinds
+    // so a folder is only "empty" when it holds nothing MediaDash recognises as content.
+    internal static readonly HashSet<string> MediaExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Video
+        ".mkv", ".mp4", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v",
+        ".mpg", ".mpeg", ".ts", ".m2ts", ".vob", ".3gp", ".ogv", ".mts", ".divx", ".rmvb", ".iso",
+        // Audio (music, audiobooks)
+        ".mp3", ".flac", ".aac", ".opus", ".ogg", ".m4a", ".m4b", ".wav", ".ape", ".wma", ".alac", ".dsf", ".dff",
+        // Books
+        ".epub", ".mobi", ".azw", ".azw3", ".pdf", ".djvu",
+        // Comics
+        ".cbz", ".cbr", ".cb7",
+        // Pictures (photo libraries)
+        ".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".gif", ".bmp", ".tif", ".tiff", ".raw", ".nef", ".cr2", ".arw", ".dng"
+    };
+
     internal static readonly HashSet<string> SubtitleExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".srt", ".ass", ".ssa", ".vtt", ".sub", ".idx", ".sup"
+    };
+
+    // Folder names Jellyfin (and users) commonly use to keep subtitle sidecars beside — but not
+    // inside — a video's folder. Only these names trigger the parent-lookup in HasCompanionVideo,
+    // so a completely-unrelated adjacent folder still gets treated as an orphan.
+    internal static readonly HashSet<string> SubtitleContainerFolders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "subtitles", "subs", "sub", "captions"
     };
 
     private const string TrickplaySuffix = ".trickplay";
@@ -75,7 +104,10 @@ public sealed class OrphanCleanupScanner : IScanner
         var config = Plugin.Instance!.Configuration;
         var issues = new List<Issue>();
 
-        var libraryLocations = _libraryManager.GetVirtualFolders()
+        // Respect EnabledLibraries via the shared helper. AlwaysUnscoped only means "skip the
+        // DB scoped-delete branch" — never "walk every folder on disk regardless of the user's
+        // Settings → Libraries opt-in list". See VirtualFolderIdentity.GetEnabledFolders.
+        var libraryLocations = VirtualFolderIdentity.GetEnabledFolders(_libraryManager, config.EnabledLibraries)
             .SelectMany(f => f.Locations ?? Array.Empty<string>())
             .Where(Directory.Exists)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -162,11 +194,11 @@ public sealed class OrphanCleanupScanner : IScanner
             return;
         }
 
-        var hasVideos = SubtreeHasVideos(dir);
+        var hasMedia = SubtreeHasMedia(dir);
 
-        // Never flag the library root itself, even when it's video-free — that's a config artefact,
+        // Never flag the library root itself, even when it's media-free — that's a config artefact,
         // not user debris. But do recurse so a Junk/ subdirectory under an empty root still gets found.
-        if (!hasVideos && !isRoot)
+        if (!hasMedia && !isRoot)
         {
             var size = TrySubtreeSize(dir);
             issues.Add(new Issue
@@ -183,7 +215,7 @@ public sealed class OrphanCleanupScanner : IScanner
                 }),
                 SuggestedFix = string.Format(
                     CultureInfo.InvariantCulture,
-                    "Delete video-free folder \"{0}\" (approx. {1} bytes of leftover metadata / sidecars).",
+                    "Delete media-free folder \"{0}\" (approx. {1} bytes of leftover metadata / sidecars).",
                     Path.GetFileName(dir),
                     size)
             });
@@ -208,13 +240,13 @@ public sealed class OrphanCleanupScanner : IScanner
         return name.EndsWith(TrickplaySuffix, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool SubtreeHasVideos(string dir)
+    private static bool SubtreeHasMedia(string dir)
     {
         try
         {
             foreach (var f in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
             {
-                if (VideoExtensions.Contains(Path.GetExtension(f)))
+                if (MediaExtensions.Contains(Path.GetExtension(f)))
                 {
                     return true;
                 }
@@ -222,7 +254,7 @@ public sealed class OrphanCleanupScanner : IScanner
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // Treat unreadable subtree as "has videos" — conservative: don't flag for deletion.
+            // Treat unreadable subtree as "has media" — conservative: don't flag for deletion.
             return true;
         }
 
@@ -302,8 +334,9 @@ public sealed class OrphanCleanupScanner : IScanner
 
     /// <summary>
     /// Returns true when a video file exists in the same directory as <paramref name="subtitlePath"/>
-    /// whose basename is a prefix of the subtitle's basename. Handles multi-dot naming like
-    /// <c>Foo.en.srt</c> pairing with <c>Foo.mkv</c>. Exposed internal for direct unit-testing.
+    /// (or in the immediate parent, for the common <c>Season 01/Subtitles/</c> layout) whose basename
+    /// matches the subtitle's basename. Handles multi-dot naming like <c>Foo.en.srt</c> pairing with
+    /// <c>Foo.mkv</c>. Exposed internal for direct unit-testing.
     /// </summary>
     /// <param name="subtitlePath">Full path to a subtitle file.</param>
     /// <returns>True when a paired video exists.</returns>
@@ -330,6 +363,31 @@ public sealed class OrphanCleanupScanner : IScanner
             candidates.Add(subBase[..lastDot]);
         }
 
+        if (HasNamedVideoIn(dir, candidates))
+        {
+            return true;
+        }
+
+        // Field report B4: some libraries keep subtitles in a Subtitles/ (or Subs/) subfolder next to
+        // the season's video files. Look one level up so the parent-dir video still counts as the
+        // companion. Name matching prevents pairing an unrelated video: "ep02.srt" inside a Subtitles/
+        // folder won't match "ep01.mkv" in the parent. Only walk up when the immediate folder is a
+        // known subtitle-container name; anything else could be an unrelated adjacent folder.
+        var subFolderName = Path.GetFileName(Path.TrimEndingDirectorySeparator(dir));
+        if (SubtitleContainerFolders.Contains(subFolderName))
+        {
+            var parent = Path.GetDirectoryName(dir);
+            if (!string.IsNullOrEmpty(parent) && Directory.Exists(parent) && HasNamedVideoIn(parent, candidates))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool HasNamedVideoIn(string dir, List<string> candidateBases)
+    {
         IEnumerable<string> siblings;
         try
         {
@@ -348,9 +406,9 @@ public sealed class OrphanCleanupScanner : IScanner
             }
 
             var vidBase = Path.GetFileNameWithoutExtension(s);
-            foreach (var c in candidates)
+            for (var i = 0; i < candidateBases.Count; i++)
             {
-                if (string.Equals(vidBase, c, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(vidBase, candidateBases[i], StringComparison.OrdinalIgnoreCase))
                 {
                     return true;
                 }

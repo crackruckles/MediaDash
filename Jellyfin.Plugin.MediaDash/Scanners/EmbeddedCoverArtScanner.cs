@@ -63,7 +63,11 @@ public sealed class EmbeddedCoverArtScanner : IScanner
             return Array.Empty<Issue>();
         }
 
-        var libraryLocations = _libraryManager.GetVirtualFolders()
+        // Only walk libraries the user opted into via Settings → Libraries — otherwise we'd
+        // rewrite audio files (or delete embedded covers) in a music library the user chose NOT
+        // to enable in MediaDash. Same class of bug as the 2026-08-23 field report on
+        // OrphanCleanupScanner. See VirtualFolderIdentity.GetEnabledFolders.
+        var libraryLocations = VirtualFolderIdentity.GetEnabledFolders(_libraryManager, config.EnabledLibraries)
             .Where(f => IsAudioLibrary(f.CollectionType?.ToString()))
             .SelectMany(f => f.Locations ?? Array.Empty<string>())
             .Where(Directory.Exists)

@@ -625,7 +625,7 @@
                     </div>
                 </div>
 
-                <p class="impact-note">Off by default; enable it in Settings → Safety to opt in. No paths, no filenames, no usernames — see <a href="https://github.com/crackruckles/MediaDash/blob/main/docs/PRIVACY.md">what's collected</a>.</p>
+                <p class="impact-note">On by default; untick in Settings → Safety to opt out. No paths, no filenames, no usernames — see <a href="https://github.com/crackruckles/MediaDash/blob/main/docs/PRIVACY.md">what's collected</a>.</p>
             </div>
         </section>
 
@@ -663,7 +663,7 @@
                     </details>
                     <details class="faq-item">
                         <summary>What data does it collect?</summary>
-                        <div class="faq-body">Optional anonymous community stats (off by default): per-month fix counts across every scanner, total bytes freed, plugin/Jellyfin version and a random install UUID. No paths, no filenames, no usernames. Enable it in Settings → Safety to opt in. Full list in <a href="https://github.com/crackruckles/MediaDash/blob/main/docs/PRIVACY.md">docs/PRIVACY.md</a>.</div>
+                        <div class="faq-body">Anonymous community stats (on by default): per-month fix counts across every scanner, total bytes freed, plugin/Jellyfin version and a <b>month-rotated install ID</b> (SHA-256 of Jellyfin's own SystemId + this year-month; rotates on the 1st of every month so nothing links reports across months, and no persistent UUID is stored on disk). No paths, no filenames, no usernames. Untick in Settings → Safety to opt out. Full list in <a href="https://github.com/crackruckles/MediaDash/blob/main/docs/PRIVACY.md">docs/PRIVACY.md</a>.</div>
                     </details>
                 </div>
             </div>

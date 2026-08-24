@@ -373,7 +373,7 @@
     "settings.safety.idle": "Only run when the server is idle",
     "settings.safety.idleHint": "On (default): scheduled scans and fixes wait until nobody is watching anything and nobody has used Jellyfin for 15 minutes. The \"Scan now\" and \"Run fixes now\" buttons always run immediately. This overrides the scheduled time below — if the server is busy when the schedule fires, the run is skipped.",
     "settings.safety.analytics": "Share anonymous stats with the community board",
-    "settings.safety.analyticsHint": "Sends per-month, per-scanner fix counts + total bytes freed + plugin/Jellyfin version + a random install UUID. Off by default; tick here to opt in. No paths, no filenames, no usernames. See docs/PRIVACY.md.",
+    "settings.safety.analyticsHint": "Sends per-month, per-scanner fix counts + total bytes freed + plugin/Jellyfin version, tagged with a month-rotated anonymous ID (SHA-256 of Jellyfin's SystemId + this year-month; changes on the 1st of every month, no persistent UUID stored on disk). On by default; untick here to opt out. No paths, no filenames, no usernames. See docs/PRIVACY.md.",
     "task.scan.name": "Scan libraries for issues",
     "task.scan.description": "Looks for duplicates, unplayable files, oversized encodes, unwanted language tracks, misplaced files and videos missing subtitles.",
     "task.fix.name": "Apply approved fixes",

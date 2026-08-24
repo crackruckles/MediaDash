@@ -24,9 +24,11 @@ public sealed class NfoScanner : IScanner
 {
     // Roots Jellyfin's NFO providers understand. Anything else means we don't know what the file is
     // trying to be — flag it as unrecognised rather than silently keeping useless bytes on disk.
+    // "season" and "person" are Jellyfin's own writer conventions (season.nfo per-Season, person.nfo
+    // per-Actor); omitting them caused the scanner to flag valid Jellyfin metadata as corrupt.
     internal static readonly HashSet<string> KnownRoots = new(StringComparer.OrdinalIgnoreCase)
     {
-        "movie", "tvshow", "episodedetails", "episode", "musicvideo", "album", "artist", "boxset"
+        "movie", "tvshow", "season", "episodedetails", "episode", "musicvideo", "album", "artist", "boxset", "person"
     };
 
     private readonly ILibraryManager _libraryManager;
@@ -51,7 +53,13 @@ public sealed class NfoScanner : IScanner
     public Task<IReadOnlyList<Issue>> ScanAsync(IReadOnlyList<BaseItem> items, IProgress<double> progress, CancellationToken cancellationToken)
     {
         var issues = new List<Issue>();
-        var locations = _libraryManager.GetVirtualFolders()
+        // Only walk libraries the user opted into via Settings → Libraries. NfoScanner is
+        // AlwaysUnscoped (i.e. skips the DB scoped-delete branch), which historically also meant
+        // "walk every folder on disk" — the 2026-08-23 field-report bug class. See
+        // VirtualFolderIdentity.GetEnabledFolders. A corrupt NFO in a library the user chose NOT
+        // to touch should not become an issue MediaDash can be asked to delete.
+        var config = Plugin.Instance!.Configuration;
+        var locations = VirtualFolderIdentity.GetEnabledFolders(_libraryManager, config.EnabledLibraries)
             .SelectMany(f => f.Locations ?? Array.Empty<string>())
             .Where(Directory.Exists)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -160,34 +168,36 @@ public sealed class NfoScanner : IScanner
                 IgnoreWhitespace = true,
                 IgnoreComments = true,
                 CheckCharacters = false,
-                MaxCharactersInDocument = 4_000_000L
+                MaxCharactersInDocument = 4_000_000L,
+                // Kodi/Jellyfin NFO convention appends a bare provider URL after the closing root
+                // tag ("</movie>\nhttps://…"). Document mode throws XmlException on that trailing
+                // text; Fragment mode tolerates it, matching what Jellyfin's own reader accepts.
+                ConformanceLevel = ConformanceLevel.Fragment
             };
 
             using var stream = File.OpenRead(path);
             using var reader = XmlReader.Create(stream, settings);
 
-            var foundRoot = false;
-            string? rootReason = null;
             while (reader.Read())
             {
-                if (reader.NodeType != XmlNodeType.Element || foundRoot)
+                if (reader.NodeType != XmlNodeType.Element)
                 {
                     continue;
                 }
 
-                foundRoot = true;
                 if (!KnownRoots.Contains(reader.LocalName))
                 {
-                    rootReason = "root element <" + reader.LocalName + "> is not a Jellyfin NFO type";
+                    return "root element <" + reader.LocalName + "> is not a Jellyfin NFO type";
                 }
+
+                // Root is recognised. Validate its subtree is well-formed (Skip walks to the matching
+                // end tag), then stop — anything after the root is trailing convention content that
+                // Jellyfin also ignores.
+                reader.Skip();
+                return null;
             }
 
-            if (rootReason is not null)
-            {
-                return rootReason;
-            }
-
-            return foundRoot ? null : "no root element";
+            return "no root element";
         }
         catch (XmlException ex)
         {

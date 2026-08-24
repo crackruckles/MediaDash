@@ -211,6 +211,8 @@ public class MediaDashController : ControllerBase
             PendingFixCount = queuedCount + autoQueueableCount,
             Drives = drives,
             CurrentActivity = Plugin.CurrentActivity,
+            CurrentActivityLabel = Plugin.CurrentActivityLabel,
+            DataDirectory = Data.MediaDashDb.DataDirectory,
             System = SystemStats.Sample(),
             RecycleBinPath = _recycleBin.GetEffectiveRoot(),
             RecycleBinCrossVolume = ComputeRecycleBinCrossVolume(drives),
@@ -1078,7 +1080,20 @@ public class MediaDashController : ControllerBase
         var alreadyRunning = _recycleBin.GetEmptyingProgress().IsRunning;
         if (!alreadyRunning)
         {
-            _ = System.Threading.Tasks.Task.Run(() => _recycleBin.EmptyAll());
+            _ = System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    _recycleBin.EmptyAll();
+                }
+                catch (Exception ex)
+                {
+                    // Fire-and-forget — no caller sees the exception. Surface via Diagnostics so a
+                    // silently-failed empty (permission denied on a bin folder, disk gone away) isn't
+                    // invisible to the user; the next Empty click retries.
+                    Diagnostics.Record("RecycleBin.EmptyAll", "Recycle-bin empty did not complete: " + ex.Message + ". The next Empty click retries.");
+                }
+            });
         }
 
         var (count, size) = _recycleBin.GetContents();

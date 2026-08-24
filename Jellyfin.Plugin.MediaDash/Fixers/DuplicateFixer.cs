@@ -88,6 +88,22 @@ public sealed class DuplicateFixer : IFixer
             return Task.FromResult(FixResult.Fail("Refused: the recorded better copy '" + keeperPath + "' is outside your library folders."));
         }
 
+        // Belt-and-braces behind the DB-level auto-queue gate in FixTask/MediaDashDb: under
+        // Automatic mode we only ever expect confidence-≥-threshold rows to reach the fixer.
+        // If one slips through (data-migration edge case, race with a config change) refuse the
+        // delete and surface a message so the user can approve manually with intent.
+        // See docs/field-reports (2026-08-22 duplicate rework spec §6).
+        if (config.GetFixMode(IssueType.Duplicate) == FixMode.Automatic
+            && issue.Confidence is double conf
+            && conf < config.DuplicateAutoFixConfidence)
+        {
+            return Task.FromResult(FixResult.Fail(string.Format(
+                CultureInfo.InvariantCulture,
+                "Confidence {0:F2} is below the auto-fix threshold {1:F2}. Approve manually from the Issues tab if you're sure — Automatic mode won't auto-delete low-confidence duplicates.",
+                conf,
+                config.DuplicateAutoFixConfidence)));
+        }
+
         var size = new FileInfo(issue.Path).Length;
         var disposal = config.GetDisposal(IssueType.Duplicate);
         var sizeText = size >= 1_073_741_824
@@ -117,7 +133,7 @@ public sealed class DuplicateFixer : IFixer
         }
 
         _libraryMonitor.ReportFileSystemChanged(issue.Path);
-        _logger.LogInformation("Duplicate fix: {Action}", actionText);
+        _logger.LogInformation("Duplicate fix: {Action} (confidence {Confidence}, details {Details})", actionText, issue.Confidence, issue.DetailsJson);
         return Task.FromResult(new FixResult
         {
             Success = true,

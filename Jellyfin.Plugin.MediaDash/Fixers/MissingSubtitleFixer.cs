@@ -62,6 +62,24 @@ public sealed class MissingSubtitleFixer : IFixer
         // Skip the "already added since scan" pre-check — a re-scan clears the issue in that case, and
         // refreshing metadata inline here would need a Task path that's more code than the rare race avoids.
 
+        // Dry-run: describe the intent without hitting the subtitle provider. Previously we called
+        // SearchSubtitles first so the preview could name the exact hit (e.g. "would download fr subtitle
+        // from OpenSubtitles"), but that consumed provider quota and leaked which files exist in the
+        // library on every dry-run. The generic preview is worth the isolation — dry-run stays a pure
+        // read of *local* state.
+        if (config.DryRun)
+        {
+            var languages = string.Join(", ", wanted.Select(LanguageHelper.Normalize));
+            var fileLabel = video.Name ?? System.IO.Path.GetFileNameWithoutExtension(issue.Path);
+            return FixResult.DryRun(
+                string.Format(
+                    CultureInfo.InvariantCulture,
+                    "try to download {0} subtitle(s) for {1} from your configured providers",
+                    languages,
+                    fileLabel),
+                0);
+        }
+
         var attempts = new List<string>();
         foreach (var lang in wanted)
         {
@@ -104,11 +122,6 @@ public sealed class MissingSubtitleFixer : IFixer
                 normalized,
                 video.Name ?? System.IO.Path.GetFileNameWithoutExtension(issue.Path),
                 pick.ProviderName ?? "provider");
-
-            if (config.DryRun)
-            {
-                return FixResult.DryRun(actionText, 0);
-            }
 
             try
             {

@@ -50,8 +50,8 @@ public sealed class OutputVerifier
             return "The new file has no audio stream but the original did.";
         }
 
-        var originalDuration = ParseDuration(originalProbe);
-        var newDuration = ParseDuration(probe);
+        var originalDuration = GetVideoDurationSeconds(originalProbe);
+        var newDuration = GetVideoDurationSeconds(probe);
         if (originalDuration > 0 && Math.Abs(originalDuration - newDuration) > 2.0)
         {
             return string.Format(
@@ -64,8 +64,38 @@ public sealed class OutputVerifier
         return null;
     }
 
-    private static double ParseDuration(FfprobeData probe)
+    // Prefer the retained video stream's duration. The old code read Format.Duration, which ffprobe
+    // derives from the *longest* stream — so remuxing away a longer secondary audio/subtitle track
+    // legitimately shortened the container aggregate even though the video was byte-identical, and
+    // every subtitle-/audio-track removal fell through the > 2 s tolerance and was rejected.
+    // Fallback chain: stream.Duration (empty for most MKV) → stream.Tags["DURATION"] (MKV convention)
+    // → Format.Duration (last resort, matches the old wrong behaviour but only when we have nothing better).
+    internal static double GetVideoDurationSeconds(FfprobeData probe)
     {
-        return double.TryParse(probe.Format?.Duration, NumberStyles.Float, CultureInfo.InvariantCulture, out var d) ? d : 0;
+        var video = probe.Streams?.FirstOrDefault(s => string.Equals(s.CodecType, "video", StringComparison.OrdinalIgnoreCase));
+        if (video is not null)
+        {
+            if (double.TryParse(video.Duration, NumberStyles.Float, CultureInfo.InvariantCulture, out var d) && d > 0)
+            {
+                return d;
+            }
+
+            if (video.Tags is not null)
+            {
+                // MKV writes "DURATION" (sometimes with a language suffix, e.g. "DURATION-eng") as
+                // HH:MM:SS.nanoseconds — pick the first that parses to a positive TimeSpan.
+                foreach (var kv in video.Tags)
+                {
+                    if (kv.Key.StartsWith("DURATION", StringComparison.OrdinalIgnoreCase)
+                        && TimeSpan.TryParse(kv.Value, CultureInfo.InvariantCulture, out var ts)
+                        && ts.TotalSeconds > 0)
+                    {
+                        return ts.TotalSeconds;
+                    }
+                }
+            }
+        }
+
+        return double.TryParse(probe.Format?.Duration, NumberStyles.Float, CultureInfo.InvariantCulture, out var fmt) ? fmt : 0;
     }
 }

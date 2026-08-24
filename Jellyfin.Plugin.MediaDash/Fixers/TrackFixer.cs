@@ -336,7 +336,15 @@ public sealed class TrackFixer : IFixer
         var what = issue.Type == IssueType.AudioLanguage
             ? string.Format(CultureInfo.InvariantCulture, "removed {0} audio track(s)", embeddedCount)
             : string.Format(CultureInfo.InvariantCulture, "removed {0} subtitle track(s) and {1} subtitle file(s)", embeddedCount, externalCount);
-        var keep = disposal == DisposalMethod.RecycleBin ? "original kept in recycle bin" : "original permanently deleted";
-        return string.Format(CultureInfo.InvariantCulture, "{0} from {1} ({2})", what, Path.GetFileName(issue.Path), keep);
+        // Field report A9: users read the old "original kept in recycle bin" and thought MediaDash
+        // was moving their media there for no reason. The truth is that track removal is a remux —
+        // ffmpeg writes a new file next to the source, then the original file is swapped out. The
+        // "original in recycle bin" is a safety copy of the pre-edit file, not a delete of the
+        // media itself. Spell that out so the note reads as "the file you asked me to edit is fine,
+        // your pre-edit copy is recoverable" instead of "your media just went to the bin".
+        var keep = disposal == DisposalMethod.RecycleBin
+            ? "file rebuilt at the same path; the pre-edit copy is in the recycle bin as a safety net"
+            : "file rebuilt at the same path; the pre-edit copy was deleted permanently";
+        return string.Format(CultureInfo.InvariantCulture, "{0} from {1} — {2}", what, Path.GetFileName(issue.Path), keep);
     }
 }

@@ -1,352 +1,351 @@
 {
-  "tagline": "让你的媒体库保持精简且可播放 — 查找重复副本、损坏文件、超大编码和不需要的语言音轨,并安全地修复。",
-  "scanIdle": "上次扫描:{0}",
-  "scanNever": "尚未进行扫描。点击\"立即扫描\"检查你的媒体库。",
-  "scanRunning": "正在扫描媒体库… {0}%",
-  "scanStarting": "开始扫描…",
-  "scanDone": "扫描完成 — 发现 {0} 个未处理问题。",
-  "scanNowLabel": "立即扫描",
-  "stopScanLabel": "停止扫描",
-  "fixRunning": "正在应用修复… {0}%",
-  "fixStarting": "开始修复运行…",
-  "fixNowLabel": "立即执行修复",
-  "stopFixLabel": "停止修复",
-  "fixDone": "修复运行结束 — 查看历史了解详情。",
-  "fixNothingToDo": "暂无可修复项 — 在\"问题\"标签中批准问题,或在设置中把某类修复设为\"自动修复\",然后重新点击。",
-  "dryRunOn": "已批准的修复只会被模拟并记录到历史。当计划看起来正确时,关闭试运行让 MediaDash 进行实际更改。",
-  "diskContext": "你的媒体库磁盘中 {1} 可用 {0}",
-  "driveStorage": "媒体库磁盘存储",
-  "driveUsed": "已使用 {0},共 {1}",
-  "driveFree": "剩余 {0}",
-  "systemStats": "系统性能",
-  "statCpu": "CPU",
-  "statRam": "内存",
-  "statGpu": "GPU",
-  "statCpuHint": "覆盖 {0} 个核心的全系统",
-  "statRamHint": "已使用 {0},共 {1}",
-  "statGpuHint": "通过 {0}",
-  "statGpuMissing": "此主机上没有可用的 GPU 计数器",
-  "statUnavailable": "在 {0} 上不可用",
-  "statUnknown": "—",
-  "statPlatform": "主机:{0}",
-  "totalSavings": "你可以回收的空间",
-  "whereSavings": "节省空间的位置",
-  "issuesByType": "已发现的问题",
-  "noIssues": "未发现问题 — 你的媒体库状态良好。每晚会自动运行新扫描。",
-  "noHistory": "尚未修复任何内容。修复运行完成后会显示在此处,可恢复内容旁会有\"恢复\"按钮。",
-  "allTypes": "所有问题类型",
-  "showingOf": "显示 {1} 个问题中的前 {0} 个。使用上方过滤器缩小列表。",
-  "approve": "批准",
-  "approveHint": "将此修复排入下一次修复运行的队列。",
-  "dismiss": "忽略",
-  "dismissHint": "永久隐藏此问题;未来的扫描不再报告它。",
-  "approveAll": "批准显示的全部 {0} 项",
-  "approveAllTypes": "批准全部 {0} 个问题(所有类型)",
-  "approveAllNote": "批准当前列出的每个问题 — 每个都会在下一次修复运行中处理。",
-  "approved": "已批准 — 将在下一次修复运行中处理。",
-  "dismissed": "已忽略。",
-  "restore": "恢复",
-  "restoreHint": "将文件放回原来的位置。",
-  "restored": "已恢复。",
-  "restoreFailed": "无法恢复:{0}",
-  "spaceSavedToDate": "迄今节省的空间:{0}",
-  "dryRunBadge": "试运行",
-  "saved": "已保存。",
-  "confirmAuto": "自动模式将每晚更改文件而不询问。已删除的文件进入回收站(除非设置为永久删除)。继续吗?",
-  "confirmPermanent": "永久删除意味着已删除的文件无法恢复。确定吗?",
-  "confirmEmptyBin": "永久删除回收站中的所有内容?这些文件将无法恢复。",
-  "confirmReset": "清除所有检测到的问题以及探测/解码缓存?修复历史和回收站将被保留。不会触碰任何媒体文件。",
-  "resetDone": "扫描数据已清除 — 点击\"立即扫描\"重新开始。",
-  "resetBusy": "现在无法重置:扫描或修复正在运行。等其结束后重试。",
-  "binHolding": "当前存放 {0} 个文件({1})。",
-  "binEmpty": "回收站为空。",
-  "binViewHide": "隐藏内容",
-  "binViewShow": "查看内容",
-  "binRestoreHint": "要放回文件,请使用\"历史\"标签中的恢复按钮。",
-  "modeOff": "关闭 — 甚至不扫描",
-  "modeDetect": "仅检测 — 只显示",
-  "modeManual": "先询问我",
-  "modeAuto": "自动修复",
-  "disposalRecycle": "回收站(可恢复)",
-  "disposalPermanent": "永久删除",
-  "unitMbps": "{0} Mbps",
-  "unitPercent": "{0}%",
-  "unitDays": "{0} 天",
-  "types": {
-    "Duplicate": {
-      "title": "重复副本",
-      "hint": "同一部电影或剧集存在多份。",
-      "action": "删除此副本",
-      "actionHint": "将删除此副本排入下一次修复运行队列;更好的副本会保留。",
-      "approveAll": "删除显示的全部 {0} 份重复副本",
-      "doRecycle": "删除较差的副本 — 可从回收站恢复",
-      "doPermanent": "删除较差的副本 — 永久"
+    "tagline": "让你的媒体库保持精简且可播放 — 查找重复副本、损坏文件、超大编码和不需要的语言音轨,并安全地修复。",
+    "scanIdle": "上次扫描:{0}",
+    "scanNever": "尚未进行扫描。点击\"立即扫描\"检查你的媒体库。",
+    "scanRunning": "正在扫描媒体库… {0}%",
+    "scanStarting": "开始扫描…",
+    "scanDone": "扫描完成 — 发现 {0} 个未处理问题。",
+    "scanNowLabel": "立即扫描",
+    "stopScanLabel": "停止扫描",
+    "fixRunning": "正在应用修复… {0}%",
+    "fixStarting": "开始修复运行…",
+    "fixNowLabel": "立即执行修复",
+    "stopFixLabel": "停止修复",
+    "fixDone": "修复运行结束 — 查看历史了解详情。",
+    "fixNothingToDo": "暂无可修复项 — 在\"问题\"标签中批准问题,或在设置中把某类修复设为\"自动修复\",然后重新点击。",
+    "dryRunOn": "已批准的修复只会被模拟并记录到历史。当计划看起来正确时,关闭试运行让 MediaDash 进行实际更改。",
+    "diskContext": "你的媒体库磁盘中 {1} 可用 {0}",
+    "driveStorage": "媒体库磁盘存储",
+    "driveUsed": "已使用 {0},共 {1}",
+    "driveFree": "剩余 {0}",
+    "systemStats": "系统性能",
+    "statCpu": "CPU",
+    "statRam": "内存",
+    "statGpu": "GPU",
+    "statCpuHint": "覆盖 {0} 个核心的全系统",
+    "statRamHint": "已使用 {0},共 {1}",
+    "statGpuHint": "通过 {0}",
+    "statGpuMissing": "此主机上没有可用的 GPU 计数器",
+    "statUnavailable": "在 {0} 上不可用",
+    "statUnknown": "—",
+    "statPlatform": "主机:{0}",
+    "totalSavings": "你可以回收的空间",
+    "whereSavings": "节省空间的位置",
+    "issuesByType": "已发现的问题",
+    "noIssues": "未发现问题 — 你的媒体库状态良好。每晚会自动运行新扫描。",
+    "noHistory": "尚未修复任何内容。修复运行完成后会显示在此处,可恢复内容旁会有\"恢复\"按钮。",
+    "allTypes": "所有问题类型",
+    "showingOf": "显示 {1} 个问题中的前 {0} 个。使用上方过滤器缩小列表。",
+    "approve": "批准",
+    "approveHint": "将此修复排入下一次修复运行的队列。",
+    "dismiss": "忽略",
+    "dismissHint": "永久隐藏此问题;未来的扫描不再报告它。",
+    "approveAll": "批准显示的全部 {0} 项",
+    "approveAllTypes": "批准全部 {0} 个问题(所有类型)",
+    "approveAllNote": "批准当前列出的每个问题 — 每个都会在下一次修复运行中处理。",
+    "approved": "已批准 — 将在下一次修复运行中处理。",
+    "dismissed": "已忽略。",
+    "restore": "恢复",
+    "restoreHint": "将文件放回原来的位置。",
+    "restored": "已恢复。",
+    "restoreFailed": "无法恢复:{0}",
+    "spaceSavedToDate": "迄今节省的空间:{0}",
+    "dryRunBadge": "试运行",
+    "saved": "已保存。",
+    "confirmAuto": "自动模式将每晚更改文件而不询问。已删除的文件进入回收站(除非设置为永久删除)。继续吗?",
+    "confirmPermanent": "永久删除意味着已删除的文件无法恢复。确定吗?",
+    "confirmEmptyBin": "永久删除回收站中的所有内容?这些文件将无法恢复。",
+    "confirmReset": "清除所有检测到的问题以及探测/解码缓存?修复历史和回收站将被保留。不会触碰任何媒体文件。",
+    "resetDone": "扫描数据已清除 — 点击\"立即扫描\"重新开始。",
+    "resetBusy": "现在无法重置:扫描或修复正在运行。等其结束后重试。",
+    "binHolding": "当前存放 {0} 个文件({1})。",
+    "binEmpty": "回收站为空。",
+    "binViewHide": "隐藏内容",
+    "binViewShow": "查看内容",
+    "binRestoreHint": "要放回文件,请使用\"历史\"标签中的恢复按钮。",
+    "modeOff": "关闭 — 甚至不扫描",
+    "modeDetect": "仅检测 — 只显示",
+    "modeManual": "先询问我",
+    "modeAuto": "自动修复",
+    "disposalRecycle": "回收站(可恢复)",
+    "disposalPermanent": "永久删除",
+    "unitMbps": "{0} Mbps",
+    "unitPercent": "{0}%",
+    "unitDays": "{0} 天",
+    "types": {
+        "Duplicate": {
+            "title": "重复副本",
+            "hint": "同一部电影或剧集存在多份。",
+            "action": "删除此副本",
+            "actionHint": "将删除此副本排入下一次修复运行队列;更好的副本会保留。",
+            "approveAll": "删除显示的全部 {0} 份重复副本",
+            "doRecycle": "删除较差的副本 — 可从回收站恢复",
+            "doPermanent": "删除较差的副本 — 永久"
+        },
+        "Playability": {
+            "title": "无法播放的文件",
+            "hint": "这些文件已损坏或无法读取。",
+            "action": "移除文件",
+            "actionHint": "将移除排入下一次修复运行队列(移除前会再次确认已损坏)。",
+            "approveAll": "移除显示的全部 {0} 个损坏文件",
+            "doRecycle": "移除损坏文件 — 可从回收站恢复",
+            "doPermanent": "移除损坏文件 — 永久"
+        },
+        "Quality": {
+            "title": "浪费空间的文件",
+            "hint": "比你选定的质量上限更大。",
+            "action": "重新编码",
+            "actionHint": "将按质量上限重新编码排入下一次修复运行队列;原文件进入回收站。",
+            "approveAll": "重新编码显示的全部 {0} 个文件",
+            "doRecycle": "重新编码至质量上限 — 原文件保留在回收站",
+            "doPermanent": "重新编码至质量上限 — 原文件永久删除"
+        },
+        "SubtitleLanguage": {
+            "title": "不需要的字幕",
+            "hint": "你不保留的语言的字幕。",
+            "action": "移除字幕",
+            "actionHint": "将移除不需要的字幕轨道排入下一次修复运行队列。",
+            "approveAll": "清理显示的全部 {0} 个文件",
+            "doRecycle": "移除不需要的字幕 — 原文件保留在回收站",
+            "doPermanent": "移除不需要的字幕 — 原文件永久删除"
+        },
+        "AudioLanguage": {
+            "title": "不需要的音频",
+            "hint": "你不保留的语言的音轨。",
+            "action": "移除音轨",
+            "actionHint": "将移除不需要的音轨排入下一次修复运行队列。",
+            "approveAll": "清理显示的全部 {0} 个文件",
+            "doRecycle": "移除不需要的音频 — 原文件保留在回收站",
+            "doPermanent": "移除不需要的音频 — 原文件永久删除"
+        },
+        "Misplaced": {
+            "title": "位置错误的文件",
+            "hint": "电影在电视文件夹里,或电视剧集在电影文件夹里。",
+            "action": "移动到正确文件夹",
+            "actionHint": "把文件移动到在\"设置 → 媒体库\"中配置的目标文件夹。",
+            "approveAll": "移动显示的全部 {0} 个位置错误的文件"
+        },
+        "MissingSubtitles": {
+            "title": "缺少字幕",
+            "hint": "在你保留的任何语言中都没有字幕。",
+            "action": "下载字幕",
+            "actionHint": "通过 Jellyfin 中配置的字幕提供商(OpenSubtitles 等)下载。",
+            "approveAll": "为显示的全部 {0} 项下载字幕"
+        },
+        "Stale": {
+            "title": "闲置内容",
+            "hint": "长时间没人观看。",
+            "action": "查看",
+            "actionHint": "目前仅为检测 — MediaDash 列出条目,由你决定删除或保留。",
+            "approveAll": "查看显示的全部 {0} 项闲置内容"
+        },
+        "MalwareRisk": {
+            "title": "可疑可执行文件",
+            "hint": "在媒体文件夹中的程序或脚本 —— 几乎总是来自盗版发布的恶意软件。",
+            "action": "删除该文件",
+            "actionHint": "将删除操作加入下一次修复运行; 除非切换为永久删除,否则文件将进入回收站。",
+            "approveAll": "删除显示的全部 {0} 个可疑文件",
+            "doRecycle": "删除该可执行文件 —— 可从回收站恢复",
+            "doPermanent": "永久删除该可执行文件"
+        },
+        "HeavyTranscode": {
+            "title": "Heavy transcodes",
+            "hint": "Files that keep transcoding on the fly instead of direct-playing.",
+            "action": "Re-encode to compatible codec",
+            "actionHint": "Queues a one-off re-encode with the plugin's own settings so future plays become direct-play.",
+            "approveAll": "Re-encode all {0} heavy-transcode files shown",
+            "doRecycle": "Re-encode; keep the original in the recycle bin",
+            "doPermanent": "Re-encode; permanently delete the original"
+        },
+        "FailedTranscode": {
+            "title": "Failed transcodes",
+            "hint": "Recent transcode attempts failed (non-zero ffmpeg exit or a 'Conversion failed' tail).",
+            "action": "Retry with plugin settings",
+            "actionHint": "Runs a targeted re-encode with MediaDash's settings; often succeeds where the on-the-fly attempt didn't.",
+            "approveAll": "Retry all {0} failed-transcode files shown",
+            "doRecycle": "Retry; keep the original in the recycle bin",
+            "doPermanent": "Retry; permanently delete the original"
+        },
+        "OrphanedDebris": {
+            "title": "Orphaned debris",
+            "hint": "Empty folders, orphan subtitles, orphan trickplay folders and orphan metadata whose parent no longer exists.",
+            "action": "Delete orphan",
+            "actionHint": "Re-verifies at fix time that the parent still doesn't exist; refuses if a companion has reappeared.",
+            "approveAll": "Delete all {0} orphaned items shown"
+        },
+        "LargeTrickplay": {
+            "title": "Large trickplay images",
+            "hint": "Trickplay sprite thumbnails still stored as raw JPG — reclaimable by re-encoding as WebP.",
+            "action": "Optimize trickplay images",
+            "actionHint": "Re-encodes each sprite as WebP renamed .jpg so the client still fetches them; no client-side change.",
+            "approveAll": "Optimize all {0} trickplay folders shown"
+        },
+        "EmbeddedCoverArt": {
+            "title": "Embedded cover art",
+            "hint": "Music or audiobook folders with per-file embedded covers but no folder-level cover.jpg.",
+            "action": "Extract shared folder cover",
+            "actionHint": "Writes cover.jpg once and (optionally) strips the redundant per-file copies.",
+            "approveAll": "Extract shared covers for all {0} folders shown"
+        },
+        "CorruptArtwork": {
+            "title": "Corrupt artwork",
+            "hint": "Poster / backdrop / thumb files inside Jellyfin's metadata folder that are zero-byte, truncated, or fail to decode.",
+            "action": "Delete corrupt artwork",
+            "actionHint": "Removes the broken image; Jellyfin's next library scan re-fetches from providers.",
+            "approveAll": "Delete all {0} corrupt artwork files shown"
+        }
     },
-    "Playability": {
-      "title": "无法播放的文件",
-      "hint": "这些文件已损坏或无法读取。",
-      "action": "移除文件",
-      "actionHint": "将移除排入下一次修复运行队列(移除前会再次确认已损坏)。",
-      "approveAll": "移除显示的全部 {0} 个损坏文件",
-      "doRecycle": "移除损坏文件 — 可从回收站恢复",
-      "doPermanent": "移除损坏文件 — 永久"
+    "languages": [
+        [
+            "eng",
+            "英语"
+        ],
+        [
+            "spa",
+            "西班牙语"
+        ],
+        [
+            "fra",
+            "法语"
+        ],
+        [
+            "deu",
+            "德语"
+        ],
+        [
+            "ita",
+            "意大利语"
+        ],
+        [
+            "por",
+            "葡萄牙语"
+        ],
+        [
+            "nld",
+            "荷兰语"
+        ],
+        [
+            "rus",
+            "俄语"
+        ],
+        [
+            "jpn",
+            "日语"
+        ],
+        [
+            "zho",
+            "中文"
+        ],
+        [
+            "kor",
+            "韩语"
+        ],
+        [
+            "ara",
+            "阿拉伯语"
+        ],
+        [
+            "hin",
+            "印地语"
+        ],
+        [
+            "pol",
+            "波兰语"
+        ],
+        [
+            "swe",
+            "瑞典语"
+        ],
+        [
+            "nor",
+            "挪威语"
+        ],
+        [
+            "dan",
+            "丹麦语"
+        ],
+        [
+            "fin",
+            "芬兰语"
+        ],
+        [
+            "tur",
+            "土耳其语"
+        ],
+        [
+            "ces",
+            "捷克语"
+        ],
+        [
+            "ell",
+            "希腊语"
+        ],
+        [
+            "heb",
+            "希伯来语"
+        ],
+        [
+            "tha",
+            "泰语"
+        ],
+        [
+            "vie",
+            "越南语"
+        ],
+        [
+            "ukr",
+            "乌克兰语"
+        ],
+        [
+            "hun",
+            "匈牙利语"
+        ],
+        [
+            "ron",
+            "罗马尼亚语"
+        ]
+    ],
+    "wizSteps": [
+        "第 1 步(共 9 步)— 欢迎",
+        "第 2 步(共 9 步)— 媒体库",
+        "第 3 步(共 9 步)— 重复项",
+        "第 4 步(共 9 步)— 损坏文件",
+        "第 5 步(共 9 步)— 过大文件",
+        "第 6 步(共 9 步)— 语言",
+        "第 7 步(共 9 步)— 媒体分类",
+        "第 8 步(共 9 步)— 安全",
+        "第 9 步(共 9 步)— 全部完成"
+    ],
+    "wizFinish": "完成设置",
+    "wizContinue": "继续",
+    "html": {
+        "tab.overview": "概览",
+        "tab.issues": "问题",
+        "tab.history": "历史",
+        "tab.files": "文件",
+        "tab.errors": "错误",
+        "tab.settings": "设置",
+        "settings.nav.safety": "安全",
+        "settings.nav.languages": "语言",
+        "settings.nav.fix": "修复什么",
+        "settings.nav.quality": "质量",
+        "settings.nav.libraries": "媒体库",
+        "settings.nav.advanced": "高级",
+        "settings.nav.bin": "回收站",
+        "settings.nav.maintenance": "维护",
+        "settings.safety.title": "安全",
+        "settings.safety.subtitle": "让每次扫描和修复都可逆的护栏。",
+        "settings.safety.dryRun": "试运行模式",
+        "settings.safety.dryRunHint": "开启(默认):修复运行只记录将执行的操作 — 不做任何更改。等你对历史中显示的计划满意后再关闭。",
+        "settings.safety.idle": "仅在服务器空闲时运行",
+        "settings.safety.idleHint": "开启(默认):计划的扫描和修复会等到无人观看且 Jellyfin 15 分钟未使用后再运行。\"立即扫描\"和\"立即执行修复\"按钮始终立即运行。这会覆盖下面的计划时间 — 如果计划触发时服务器忙,则跳过此次运行。",
+        "task.scan.name": "扫描媒体库以查找问题",
+        "task.scan.description": "查找重复项、无法播放的文件、过大的编码、不需要的语言音轨、位置错误的文件以及缺少字幕的视频。",
+        "task.fix.name": "应用已批准的修复",
+        "task.fix.description": "应用已批准和自动修复:移除重复项、重新编码过大文件、移除不需要的音轨。",
+        "tab.recyclebin": "Recycle bin",
+        "settings.safety.analytics": "Share anonymous stats with the community board"
     },
-    "Quality": {
-      "title": "浪费空间的文件",
-      "hint": "比你选定的质量上限更大。",
-      "action": "重新编码",
-      "actionHint": "将按质量上限重新编码排入下一次修复运行队列;原文件进入回收站。",
-      "approveAll": "重新编码显示的全部 {0} 个文件",
-      "doRecycle": "重新编码至质量上限 — 原文件保留在回收站",
-      "doPermanent": "重新编码至质量上限 — 原文件永久删除"
-    },
-    "SubtitleLanguage": {
-      "title": "不需要的字幕",
-      "hint": "你不保留的语言的字幕。",
-      "action": "移除字幕",
-      "actionHint": "将移除不需要的字幕轨道排入下一次修复运行队列。",
-      "approveAll": "清理显示的全部 {0} 个文件",
-      "doRecycle": "移除不需要的字幕 — 原文件保留在回收站",
-      "doPermanent": "移除不需要的字幕 — 原文件永久删除"
-    },
-    "AudioLanguage": {
-      "title": "不需要的音频",
-      "hint": "你不保留的语言的音轨。",
-      "action": "移除音轨",
-      "actionHint": "将移除不需要的音轨排入下一次修复运行队列。",
-      "approveAll": "清理显示的全部 {0} 个文件",
-      "doRecycle": "移除不需要的音频 — 原文件保留在回收站",
-      "doPermanent": "移除不需要的音频 — 原文件永久删除"
-    },
-    "Misplaced": {
-      "title": "位置错误的文件",
-      "hint": "电影在电视文件夹里,或电视剧集在电影文件夹里。",
-      "action": "移动到正确文件夹",
-      "actionHint": "把文件移动到在\"设置 → 媒体库\"中配置的目标文件夹。",
-      "approveAll": "移动显示的全部 {0} 个位置错误的文件"
-    },
-    "MissingSubtitles": {
-      "title": "缺少字幕",
-      "hint": "在你保留的任何语言中都没有字幕。",
-      "action": "下载字幕",
-      "actionHint": "通过 Jellyfin 中配置的字幕提供商(OpenSubtitles 等)下载。",
-      "approveAll": "为显示的全部 {0} 项下载字幕"
-    },
-    "Stale": {
-      "title": "闲置内容",
-      "hint": "长时间没人观看。",
-      "action": "查看",
-      "actionHint": "目前仅为检测 — MediaDash 列出条目,由你决定删除或保留。",
-      "approveAll": "查看显示的全部 {0} 项闲置内容"
-    },
-    "MalwareRisk": {
-      "title": "可疑可执行文件",
-      "hint": "在媒体文件夹中的程序或脚本 —— 几乎总是来自盗版发布的恶意软件。",
-      "action": "删除该文件",
-      "actionHint": "将删除操作加入下一次修复运行; 除非切换为永久删除,否则文件将进入回收站。",
-      "approveAll": "删除显示的全部 {0} 个可疑文件",
-      "doRecycle": "删除该可执行文件 —— 可从回收站恢复",
-      "doPermanent": "永久删除该可执行文件"
-    },
-    "HeavyTranscode": {
-      "title": "Heavy transcodes",
-      "hint": "Files that keep transcoding on the fly instead of direct-playing.",
-      "action": "Re-encode to compatible codec",
-      "actionHint": "Queues a one-off re-encode with the plugin's own settings so future plays become direct-play.",
-      "approveAll": "Re-encode all {0} heavy-transcode files shown",
-      "doRecycle": "Re-encode; keep the original in the recycle bin",
-      "doPermanent": "Re-encode; permanently delete the original"
-    },
-    "FailedTranscode": {
-      "title": "Failed transcodes",
-      "hint": "Recent transcode attempts failed (non-zero ffmpeg exit or a 'Conversion failed' tail).",
-      "action": "Retry with plugin settings",
-      "actionHint": "Runs a targeted re-encode with MediaDash's settings; often succeeds where the on-the-fly attempt didn't.",
-      "approveAll": "Retry all {0} failed-transcode files shown",
-      "doRecycle": "Retry; keep the original in the recycle bin",
-      "doPermanent": "Retry; permanently delete the original"
-    },
-    "OrphanedDebris": {
-      "title": "Orphaned debris",
-      "hint": "Empty folders, orphan subtitles, orphan trickplay folders and orphan metadata whose parent no longer exists.",
-      "action": "Delete orphan",
-      "actionHint": "Re-verifies at fix time that the parent still doesn't exist; refuses if a companion has reappeared.",
-      "approveAll": "Delete all {0} orphaned items shown"
-    },
-    "LargeTrickplay": {
-      "title": "Large trickplay images",
-      "hint": "Trickplay sprite thumbnails still stored as raw JPG — reclaimable by re-encoding as WebP.",
-      "action": "Optimize trickplay images",
-      "actionHint": "Re-encodes each sprite as WebP renamed .jpg so the client still fetches them; no client-side change.",
-      "approveAll": "Optimize all {0} trickplay folders shown"
-    },
-    "EmbeddedCoverArt": {
-      "title": "Embedded cover art",
-      "hint": "Music or audiobook folders with per-file embedded covers but no folder-level cover.jpg.",
-      "action": "Extract shared folder cover",
-      "actionHint": "Writes cover.jpg once and (optionally) strips the redundant per-file copies.",
-      "approveAll": "Extract shared covers for all {0} folders shown"
-    },
-    "CorruptArtwork": {
-      "title": "Corrupt artwork",
-      "hint": "Poster / backdrop / thumb files inside Jellyfin's metadata folder that are zero-byte, truncated, or fail to decode.",
-      "action": "Delete corrupt artwork",
-      "actionHint": "Removes the broken image; Jellyfin's next library scan re-fetches from providers.",
-      "approveAll": "Delete all {0} corrupt artwork files shown"
-    }
-  },
-  "languages": [
-    [
-      "eng",
-      "英语"
-    ],
-    [
-      "spa",
-      "西班牙语"
-    ],
-    [
-      "fra",
-      "法语"
-    ],
-    [
-      "deu",
-      "德语"
-    ],
-    [
-      "ita",
-      "意大利语"
-    ],
-    [
-      "por",
-      "葡萄牙语"
-    ],
-    [
-      "nld",
-      "荷兰语"
-    ],
-    [
-      "rus",
-      "俄语"
-    ],
-    [
-      "jpn",
-      "日语"
-    ],
-    [
-      "zho",
-      "中文"
-    ],
-    [
-      "kor",
-      "韩语"
-    ],
-    [
-      "ara",
-      "阿拉伯语"
-    ],
-    [
-      "hin",
-      "印地语"
-    ],
-    [
-      "pol",
-      "波兰语"
-    ],
-    [
-      "swe",
-      "瑞典语"
-    ],
-    [
-      "nor",
-      "挪威语"
-    ],
-    [
-      "dan",
-      "丹麦语"
-    ],
-    [
-      "fin",
-      "芬兰语"
-    ],
-    [
-      "tur",
-      "土耳其语"
-    ],
-    [
-      "ces",
-      "捷克语"
-    ],
-    [
-      "ell",
-      "希腊语"
-    ],
-    [
-      "heb",
-      "希伯来语"
-    ],
-    [
-      "tha",
-      "泰语"
-    ],
-    [
-      "vie",
-      "越南语"
-    ],
-    [
-      "ukr",
-      "乌克兰语"
-    ],
-    [
-      "hun",
-      "匈牙利语"
-    ],
-    [
-      "ron",
-      "罗马尼亚语"
-    ]
-  ],
-  "wizSteps": [
-    "第 1 步(共 9 步)— 欢迎",
-    "第 2 步(共 9 步)— 媒体库",
-    "第 3 步(共 9 步)— 重复项",
-    "第 4 步(共 9 步)— 损坏文件",
-    "第 5 步(共 9 步)— 过大文件",
-    "第 6 步(共 9 步)— 语言",
-    "第 7 步(共 9 步)— 媒体分类",
-    "第 8 步(共 9 步)— 安全",
-    "第 9 步(共 9 步)— 全部完成"
-  ],
-  "wizFinish": "完成设置",
-  "wizContinue": "继续",
-  "html": {
-    "tab.overview": "概览",
-    "tab.issues": "问题",
-    "tab.history": "历史",
-    "tab.files": "文件",
-    "tab.errors": "错误",
-    "tab.settings": "设置",
-    "settings.nav.safety": "安全",
-    "settings.nav.languages": "语言",
-    "settings.nav.fix": "修复什么",
-    "settings.nav.quality": "质量",
-    "settings.nav.libraries": "媒体库",
-    "settings.nav.advanced": "高级",
-    "settings.nav.bin": "回收站",
-    "settings.nav.maintenance": "维护",
-    "settings.safety.title": "安全",
-    "settings.safety.subtitle": "让每次扫描和修复都可逆的护栏。",
-    "settings.safety.dryRun": "试运行模式",
-    "settings.safety.dryRunHint": "开启(默认):修复运行只记录将执行的操作 — 不做任何更改。等你对历史中显示的计划满意后再关闭。",
-    "settings.safety.idle": "仅在服务器空闲时运行",
-    "settings.safety.idleHint": "开启(默认):计划的扫描和修复会等到无人观看且 Jellyfin 15 分钟未使用后再运行。\"立即扫描\"和\"立即执行修复\"按钮始终立即运行。这会覆盖下面的计划时间 — 如果计划触发时服务器忙,则跳过此次运行。",
-    "task.scan.name": "扫描媒体库以查找问题",
-    "task.scan.description": "查找重复项、无法播放的文件、过大的编码、不需要的语言音轨、位置错误的文件以及缺少字幕的视频。",
-    "task.fix.name": "应用已批准的修复",
-    "task.fix.description": "应用已批准和自动修复:移除重复项、重新编码过大文件、移除不需要的音轨。",
-    "tab.recyclebin": "Recycle bin",
-    "settings.safety.analytics": "Share anonymous stats with the community board",
-    "settings.safety.analyticsHint": "Off by default. Sends monthly aggregate counts and byte totals (no paths, filenames, or user identifiers) so we can show which fixes save the most disk on the community board."
-  },
-  "savedPerLibrary": "各媒体库节省空间",
-  "unassignedLibrary": "未分配"
+    "savedPerLibrary": "各媒体库节省空间",
+    "unassignedLibrary": "未分配"
 }

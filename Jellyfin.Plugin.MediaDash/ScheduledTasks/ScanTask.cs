@@ -114,22 +114,52 @@ public sealed class ScanTask : IScheduledTask
         var scannedPaths = scanIsScoped
             ? items.SelectMany(MediaFileHelper.GetFilePaths).ToList()
             : null;
-        var scanners = _scanners.ToList();
-        for (var i = 0; i < scanners.Count; i++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var scanner = scanners[i];
-            var baseProgress = i * 100.0 / scanners.Count;
-            var slice = 100.0 / scanners.Count;
-            var scannerProgress = new Progress<double>(p => progress.Report(baseProgress + (p * slice / 100.0)));
+        // Reset the doomed-file set at scan start so the previous run's flags don't leak in.
+        Plugin.ClearDoomed();
 
-            var issues = await scanner.ScanAsync(items, scannerProgress, cancellationToken).ConfigureAwait(false);
-            // Scanners that emit non-video-file paths (orphan folders, trickplay dirs, subtitle sidecars)
-            // opt out of the scoped-delete branch — otherwise stale rows sit in the DB forever when the
-            // user has EnabledLibraries set, because scannedPaths only contains video file paths.
-            var pathsForReplace = scanner.AlwaysUnscoped ? null : scannedPaths;
-            _db.ReplaceDetectedIssues(scanner.Type, issues, pathsForReplace);
-            _logger.LogInformation("MediaDash scanner {Type} found {Count} issues", scanner.Type, issues.Count);
+        var scanners = _scanners.ToList();
+        try
+        {
+            for (var i = 0; i < scanners.Count; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var scanner = scanners[i];
+                var baseProgress = i * 100.0 / scanners.Count;
+                var slice = 100.0 / scanners.Count;
+                var scannerProgress = new Progress<double>(p => progress.Report(baseProgress + (p * slice / 100.0)));
+
+                // Coarse label for scanners that don't set per-file activity (Duplicate, MediaGrouper,
+                // Nfo, Artwork, StaleContent, …). ProbingScannerBase-derived scanners overwrite this
+                // per file with the same class name, so no flicker.
+                Plugin.CurrentActivityLabel = scanner.GetType().Name;
+                Plugin.CurrentActivity = null;
+
+                var issues = await scanner.ScanAsync(items, scannerProgress, cancellationToken).ConfigureAwait(false);
+
+                // Feed the doomed-file set from scanners whose fix deletes the file, so later
+                // probing scanners can skip it. Duplicate (loser copies) is by far the biggest
+                // saver — a library with many dupes was previously ffprobing + thorough-decoding
+                // both copies before the fixer deleted one.
+                if (scanner.Type is Data.IssueType.Duplicate or Data.IssueType.MalwareRisk or Data.IssueType.OrphanedDebris)
+                {
+                    foreach (var issue in issues)
+                    {
+                        Plugin.MarkDoomed(issue.Path);
+                    }
+                }
+
+                // Scanners that emit non-video-file paths (orphan folders, trickplay dirs, subtitle sidecars)
+                // opt out of the scoped-delete branch — otherwise stale rows sit in the DB forever when the
+                // user has EnabledLibraries set, because scannedPaths only contains video file paths.
+                var pathsForReplace = scanner.AlwaysUnscoped ? null : scannedPaths;
+                _db.ReplaceDetectedIssues(scanner.Type, issues, pathsForReplace);
+                _logger.LogInformation("MediaDash scanner {Type} found {Count} issues", scanner.Type, issues.Count);
+            }
+        }
+        finally
+        {
+            Plugin.CurrentActivity = null;
+            Plugin.CurrentActivityLabel = null;
         }
 
         // Refresh the redownload-warning list. Compares each recent successful re-encode against the

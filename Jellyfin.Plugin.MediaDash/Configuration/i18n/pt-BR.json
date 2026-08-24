@@ -1,352 +1,351 @@
 {
-  "tagline": "Mantém sua biblioteca enxuta e reproduzível — encontra cópias duplicadas, arquivos quebrados, codificações grandes demais e faixas de idioma indesejadas e as corrige com segurança.",
-  "scanIdle": "Última varredura: {0}",
-  "scanNever": "Nenhuma varredura foi executada ainda. Clique em \"Varrer agora\" para verificar suas bibliotecas.",
-  "scanRunning": "Varrendo suas bibliotecas… {0}%",
-  "scanStarting": "Iniciando varredura…",
-  "scanDone": "Varredura concluída — {0} problema(s) em aberto encontrado(s).",
-  "scanNowLabel": "Varrer agora",
-  "stopScanLabel": "Parar varredura",
-  "fixRunning": "Aplicando correções… {0}%",
-  "fixStarting": "Iniciando execução de correções…",
-  "fixNowLabel": "Executar correções agora",
-  "stopFixLabel": "Parar correções",
-  "fixDone": "Execução de correções concluída — veja Histórico para o que foi feito.",
-  "fixNothingToDo": "Nada a corrigir ainda — aprove problemas na aba Problemas, ou defina um tipo de correção como \"Corrigir automaticamente\" em Configurações, e clique novamente.",
-  "dryRunOn": "As correções aprovadas são apenas simuladas e registradas no Histórico. Quando o plano estiver bom, desligue o modo simulação para o MediaDash fazer mudanças reais.",
-  "diskContext": "{0} livres de {1} em seus discos de biblioteca",
-  "driveStorage": "Armazenamento do disco de biblioteca",
-  "driveUsed": "{0} usados de {1}",
-  "driveFree": "{0} livres",
-  "systemStats": "Desempenho do sistema",
-  "statCpu": "CPU",
-  "statRam": "Memória",
-  "statGpu": "GPU",
-  "statCpuHint": "Todo o sistema em {0} núcleos",
-  "statRamHint": "{0} usados de {1}",
-  "statGpuHint": "via {0}",
-  "statGpuMissing": "Nenhum contador de GPU disponível neste host",
-  "statUnavailable": "N/D em {0}",
-  "statUnknown": "—",
-  "statPlatform": "Host: {0}",
-  "totalSavings": "Espaço que você pode recuperar",
-  "whereSavings": "Onde estão as economias",
-  "issuesByType": "Problemas encontrados",
-  "noIssues": "Nenhum problema encontrado — sua biblioteca está em bom estado. Novas varreduras rodam automaticamente toda noite.",
-  "noHistory": "Nada foi corrigido ainda. As correções aparecem aqui após uma execução, com um botão Restaurar para o que for recuperável.",
-  "allTypes": "Todos os tipos de problema",
-  "showingOf": "Mostrando os primeiros {0} de {1} problemas. Use o filtro acima para reduzir a lista.",
-  "approve": "Aprovar",
-  "approveHint": "Coloca esta correção na fila para a próxima execução.",
-  "dismiss": "Descartar",
-  "dismissHint": "Oculta este problema permanentemente; futuras varreduras não o reportarão novamente.",
-  "approveAll": "Aprovar todos os {0} mostrados",
-  "approveAllTypes": "Aprovar todos os {0} problemas (todos os tipos)",
-  "approveAllNote": "Aprova todos os problemas listados no momento — cada um será corrigido na próxima execução.",
-  "approved": "Aprovado — será tratado na próxima execução.",
-  "dismissed": "Descartado.",
-  "restore": "Restaurar",
-  "restoreHint": "Coloca o arquivo exatamente onde estava.",
-  "restored": "Restaurado.",
-  "restoreFailed": "Não foi possível restaurar: {0}",
-  "spaceSavedToDate": "Espaço economizado até hoje: {0}",
-  "dryRunBadge": "simulação",
-  "saved": "Salvo.",
-  "confirmAuto": "O modo automático alterará arquivos toda noite sem perguntar. Arquivos removidos vão para a lixeira (a menos que definidos para exclusão permanente). Continuar?",
-  "confirmPermanent": "Exclusão permanente significa que arquivos removidos NÃO podem ser recuperados. Tem certeza?",
-  "confirmEmptyBin": "Excluir permanentemente tudo na lixeira? Restaurar não será mais possível para esses arquivos.",
-  "confirmReset": "Limpar todos os problemas detectados e caches de sondagem/decodificação? O histórico de correções e a lixeira são mantidos. Nenhum arquivo de mídia será tocado.",
-  "resetDone": "Dados de varredura limpos — clique em \"Varrer agora\" para começar de novo.",
-  "resetBusy": "Não é possível redefinir agora: uma varredura ou correção está em execução. Aguarde a conclusão e tente novamente.",
-  "binHolding": "Contém atualmente {0} arquivo(s) ({1}).",
-  "binEmpty": "A lixeira está vazia.",
-  "binViewHide": "Ocultar conteúdo",
-  "binViewShow": "Ver conteúdo",
-  "binRestoreHint": "Para devolver um arquivo, use o botão Restaurar na aba Histórico.",
-  "modeOff": "Desligado — nem mesmo varrer",
-  "modeDetect": "Só detectar — apenas mostrar",
-  "modeManual": "Perguntar primeiro",
-  "modeAuto": "Corrigir automaticamente",
-  "disposalRecycle": "Lixeira (recuperável)",
-  "disposalPermanent": "Excluir permanentemente",
-  "unitMbps": "{0} Mbps",
-  "unitPercent": "{0}%",
-  "unitDays": "{0} dias",
-  "types": {
-    "Duplicate": {
-      "title": "Cópias duplicadas",
-      "hint": "O mesmo filme ou episódio existe mais de uma vez.",
-      "action": "Excluir esta cópia",
-      "actionHint": "Coloca a exclusão desta cópia na fila para a próxima execução; a melhor cópia permanece.",
-      "approveAll": "Excluir todas as {0} cópias duplicadas mostradas",
-      "doRecycle": "Excluir a pior cópia — recuperável na lixeira",
-      "doPermanent": "Excluir a pior cópia — permanentemente"
+    "tagline": "Mantém sua biblioteca enxuta e reproduzível — encontra cópias duplicadas, arquivos quebrados, codificações grandes demais e faixas de idioma indesejadas e as corrige com segurança.",
+    "scanIdle": "Última varredura: {0}",
+    "scanNever": "Nenhuma varredura foi executada ainda. Clique em \"Varrer agora\" para verificar suas bibliotecas.",
+    "scanRunning": "Varrendo suas bibliotecas… {0}%",
+    "scanStarting": "Iniciando varredura…",
+    "scanDone": "Varredura concluída — {0} problema(s) em aberto encontrado(s).",
+    "scanNowLabel": "Varrer agora",
+    "stopScanLabel": "Parar varredura",
+    "fixRunning": "Aplicando correções… {0}%",
+    "fixStarting": "Iniciando execução de correções…",
+    "fixNowLabel": "Executar correções agora",
+    "stopFixLabel": "Parar correções",
+    "fixDone": "Execução de correções concluída — veja Histórico para o que foi feito.",
+    "fixNothingToDo": "Nada a corrigir ainda — aprove problemas na aba Problemas, ou defina um tipo de correção como \"Corrigir automaticamente\" em Configurações, e clique novamente.",
+    "dryRunOn": "As correções aprovadas são apenas simuladas e registradas no Histórico. Quando o plano estiver bom, desligue o modo simulação para o MediaDash fazer mudanças reais.",
+    "diskContext": "{0} livres de {1} em seus discos de biblioteca",
+    "driveStorage": "Armazenamento do disco de biblioteca",
+    "driveUsed": "{0} usados de {1}",
+    "driveFree": "{0} livres",
+    "systemStats": "Desempenho do sistema",
+    "statCpu": "CPU",
+    "statRam": "Memória",
+    "statGpu": "GPU",
+    "statCpuHint": "Todo o sistema em {0} núcleos",
+    "statRamHint": "{0} usados de {1}",
+    "statGpuHint": "via {0}",
+    "statGpuMissing": "Nenhum contador de GPU disponível neste host",
+    "statUnavailable": "N/D em {0}",
+    "statUnknown": "—",
+    "statPlatform": "Host: {0}",
+    "totalSavings": "Espaço que você pode recuperar",
+    "whereSavings": "Onde estão as economias",
+    "issuesByType": "Problemas encontrados",
+    "noIssues": "Nenhum problema encontrado — sua biblioteca está em bom estado. Novas varreduras rodam automaticamente toda noite.",
+    "noHistory": "Nada foi corrigido ainda. As correções aparecem aqui após uma execução, com um botão Restaurar para o que for recuperável.",
+    "allTypes": "Todos os tipos de problema",
+    "showingOf": "Mostrando os primeiros {0} de {1} problemas. Use o filtro acima para reduzir a lista.",
+    "approve": "Aprovar",
+    "approveHint": "Coloca esta correção na fila para a próxima execução.",
+    "dismiss": "Descartar",
+    "dismissHint": "Oculta este problema permanentemente; futuras varreduras não o reportarão novamente.",
+    "approveAll": "Aprovar todos os {0} mostrados",
+    "approveAllTypes": "Aprovar todos os {0} problemas (todos os tipos)",
+    "approveAllNote": "Aprova todos os problemas listados no momento — cada um será corrigido na próxima execução.",
+    "approved": "Aprovado — será tratado na próxima execução.",
+    "dismissed": "Descartado.",
+    "restore": "Restaurar",
+    "restoreHint": "Coloca o arquivo exatamente onde estava.",
+    "restored": "Restaurado.",
+    "restoreFailed": "Não foi possível restaurar: {0}",
+    "spaceSavedToDate": "Espaço economizado até hoje: {0}",
+    "dryRunBadge": "simulação",
+    "saved": "Salvo.",
+    "confirmAuto": "O modo automático alterará arquivos toda noite sem perguntar. Arquivos removidos vão para a lixeira (a menos que definidos para exclusão permanente). Continuar?",
+    "confirmPermanent": "Exclusão permanente significa que arquivos removidos NÃO podem ser recuperados. Tem certeza?",
+    "confirmEmptyBin": "Excluir permanentemente tudo na lixeira? Restaurar não será mais possível para esses arquivos.",
+    "confirmReset": "Limpar todos os problemas detectados e caches de sondagem/decodificação? O histórico de correções e a lixeira são mantidos. Nenhum arquivo de mídia será tocado.",
+    "resetDone": "Dados de varredura limpos — clique em \"Varrer agora\" para começar de novo.",
+    "resetBusy": "Não é possível redefinir agora: uma varredura ou correção está em execução. Aguarde a conclusão e tente novamente.",
+    "binHolding": "Contém atualmente {0} arquivo(s) ({1}).",
+    "binEmpty": "A lixeira está vazia.",
+    "binViewHide": "Ocultar conteúdo",
+    "binViewShow": "Ver conteúdo",
+    "binRestoreHint": "Para devolver um arquivo, use o botão Restaurar na aba Histórico.",
+    "modeOff": "Desligado — nem mesmo varrer",
+    "modeDetect": "Só detectar — apenas mostrar",
+    "modeManual": "Perguntar primeiro",
+    "modeAuto": "Corrigir automaticamente",
+    "disposalRecycle": "Lixeira (recuperável)",
+    "disposalPermanent": "Excluir permanentemente",
+    "unitMbps": "{0} Mbps",
+    "unitPercent": "{0}%",
+    "unitDays": "{0} dias",
+    "types": {
+        "Duplicate": {
+            "title": "Cópias duplicadas",
+            "hint": "O mesmo filme ou episódio existe mais de uma vez.",
+            "action": "Excluir esta cópia",
+            "actionHint": "Coloca a exclusão desta cópia na fila para a próxima execução; a melhor cópia permanece.",
+            "approveAll": "Excluir todas as {0} cópias duplicadas mostradas",
+            "doRecycle": "Excluir a pior cópia — recuperável na lixeira",
+            "doPermanent": "Excluir a pior cópia — permanentemente"
+        },
+        "Playability": {
+            "title": "Arquivos que não reproduzem",
+            "hint": "Estes arquivos estão quebrados ou ilegíveis.",
+            "action": "Remover arquivo",
+            "actionHint": "Coloca a remoção na fila para a próxima execução (verificado novamente como quebrado antes da remoção).",
+            "approveAll": "Remover todos os {0} arquivos quebrados mostrados",
+            "doRecycle": "Remover o arquivo quebrado — recuperável na lixeira",
+            "doPermanent": "Remover o arquivo quebrado — permanentemente"
+        },
+        "Quality": {
+            "title": "Arquivos desperdiçando espaço",
+            "hint": "Maiores que seu teto de qualidade escolhido.",
+            "action": "Recodificar",
+            "actionHint": "Coloca uma recodificação até seu teto de qualidade na fila para a próxima execução; o original vai para a lixeira.",
+            "approveAll": "Recodificar todos os {0} arquivos mostrados",
+            "doRecycle": "Recodificar até o teto de qualidade — original mantido na lixeira",
+            "doPermanent": "Recodificar até o teto de qualidade — original excluído permanentemente"
+        },
+        "SubtitleLanguage": {
+            "title": "Legendas indesejadas",
+            "hint": "Legendas em idiomas que você não mantém.",
+            "action": "Remover legendas",
+            "actionHint": "Coloca a remoção das faixas de legenda indesejadas na fila para a próxima execução.",
+            "approveAll": "Limpar todos os {0} arquivos mostrados",
+            "doRecycle": "Remover legendas indesejadas — original mantido na lixeira",
+            "doPermanent": "Remover legendas indesejadas — original excluído permanentemente"
+        },
+        "AudioLanguage": {
+            "title": "Áudio indesejado",
+            "hint": "Faixas de áudio em idiomas que você não mantém.",
+            "action": "Remover faixas de áudio",
+            "actionHint": "Coloca a remoção das faixas de áudio indesejadas na fila para a próxima execução.",
+            "approveAll": "Limpar todos os {0} arquivos mostrados",
+            "doRecycle": "Remover áudio indesejado — original mantido na lixeira",
+            "doPermanent": "Remover áudio indesejado — original excluído permanentemente"
+        },
+        "Misplaced": {
+            "title": "Arquivos fora do lugar",
+            "hint": "Um filme na pasta TV, ou um episódio de TV na pasta de Filmes.",
+            "action": "Mover para a pasta correta",
+            "actionHint": "Move o arquivo para a pasta de destino configurada em Configurações → Bibliotecas.",
+            "approveAll": "Mover todos os {0} arquivos fora do lugar mostrados"
+        },
+        "MissingSubtitles": {
+            "title": "Legendas ausentes",
+            "hint": "Nenhuma legenda em qualquer dos idiomas que você mantém.",
+            "action": "Baixar legendas",
+            "actionHint": "Baixa uma pelos provedores de legendas configurados no Jellyfin (OpenSubtitles etc.).",
+            "approveAll": "Baixar legendas para todos os {0} mostrados"
+        },
+        "Stale": {
+            "title": "Conteúdo obsoleto",
+            "hint": "Ninguém reproduziu há muito tempo.",
+            "action": "Revisar",
+            "actionHint": "Somente detecção por enquanto — MediaDash mostra a lista, você decide se apaga ou mantém.",
+            "approveAll": "Revisar todos os {0} itens obsoletos mostrados"
+        },
+        "MalwareRisk": {
+            "title": "Executáveis suspeitos",
+            "hint": "Programas ou scripts numa pasta de mídia — quase sempre malware de um release pirata.",
+            "action": "Excluir este arquivo",
+            "actionHint": "Enfileira a exclusão para a próxima execução de correções; vai para a lixeira, a menos que seja marcado como permanente.",
+            "approveAll": "Excluir todos os {0} arquivos suspeitos mostrados",
+            "doRecycle": "Excluir o executável — recuperável da lixeira",
+            "doPermanent": "Excluir o executável — permanentemente"
+        },
+        "HeavyTranscode": {
+            "title": "Heavy transcodes",
+            "hint": "Files that keep transcoding on the fly instead of direct-playing.",
+            "action": "Re-encode to compatible codec",
+            "actionHint": "Queues a one-off re-encode with the plugin's own settings so future plays become direct-play.",
+            "approveAll": "Re-encode all {0} heavy-transcode files shown",
+            "doRecycle": "Re-encode; keep the original in the recycle bin",
+            "doPermanent": "Re-encode; permanently delete the original"
+        },
+        "FailedTranscode": {
+            "title": "Failed transcodes",
+            "hint": "Recent transcode attempts failed (non-zero ffmpeg exit or a 'Conversion failed' tail).",
+            "action": "Retry with plugin settings",
+            "actionHint": "Runs a targeted re-encode with MediaDash's settings; often succeeds where the on-the-fly attempt didn't.",
+            "approveAll": "Retry all {0} failed-transcode files shown",
+            "doRecycle": "Retry; keep the original in the recycle bin",
+            "doPermanent": "Retry; permanently delete the original"
+        },
+        "OrphanedDebris": {
+            "title": "Orphaned debris",
+            "hint": "Empty folders, orphan subtitles, orphan trickplay folders and orphan metadata whose parent no longer exists.",
+            "action": "Delete orphan",
+            "actionHint": "Re-verifies at fix time that the parent still doesn't exist; refuses if a companion has reappeared.",
+            "approveAll": "Delete all {0} orphaned items shown"
+        },
+        "LargeTrickplay": {
+            "title": "Large trickplay images",
+            "hint": "Trickplay sprite thumbnails still stored as raw JPG — reclaimable by re-encoding as WebP.",
+            "action": "Optimize trickplay images",
+            "actionHint": "Re-encodes each sprite as WebP renamed .jpg so the client still fetches them; no client-side change.",
+            "approveAll": "Optimize all {0} trickplay folders shown"
+        },
+        "EmbeddedCoverArt": {
+            "title": "Embedded cover art",
+            "hint": "Music or audiobook folders with per-file embedded covers but no folder-level cover.jpg.",
+            "action": "Extract shared folder cover",
+            "actionHint": "Writes cover.jpg once and (optionally) strips the redundant per-file copies.",
+            "approveAll": "Extract shared covers for all {0} folders shown"
+        },
+        "CorruptArtwork": {
+            "title": "Corrupt artwork",
+            "hint": "Poster / backdrop / thumb files inside Jellyfin's metadata folder that are zero-byte, truncated, or fail to decode.",
+            "action": "Delete corrupt artwork",
+            "actionHint": "Removes the broken image; Jellyfin's next library scan re-fetches from providers.",
+            "approveAll": "Delete all {0} corrupt artwork files shown"
+        }
     },
-    "Playability": {
-      "title": "Arquivos que não reproduzem",
-      "hint": "Estes arquivos estão quebrados ou ilegíveis.",
-      "action": "Remover arquivo",
-      "actionHint": "Coloca a remoção na fila para a próxima execução (verificado novamente como quebrado antes da remoção).",
-      "approveAll": "Remover todos os {0} arquivos quebrados mostrados",
-      "doRecycle": "Remover o arquivo quebrado — recuperável na lixeira",
-      "doPermanent": "Remover o arquivo quebrado — permanentemente"
+    "languages": [
+        [
+            "eng",
+            "Inglês"
+        ],
+        [
+            "spa",
+            "Espanhol"
+        ],
+        [
+            "fra",
+            "Francês"
+        ],
+        [
+            "deu",
+            "Alemão"
+        ],
+        [
+            "ita",
+            "Italiano"
+        ],
+        [
+            "por",
+            "Português"
+        ],
+        [
+            "nld",
+            "Holandês"
+        ],
+        [
+            "rus",
+            "Russo"
+        ],
+        [
+            "jpn",
+            "Japonês"
+        ],
+        [
+            "zho",
+            "Chinês"
+        ],
+        [
+            "kor",
+            "Coreano"
+        ],
+        [
+            "ara",
+            "Árabe"
+        ],
+        [
+            "hin",
+            "Híndi"
+        ],
+        [
+            "pol",
+            "Polonês"
+        ],
+        [
+            "swe",
+            "Sueco"
+        ],
+        [
+            "nor",
+            "Norueguês"
+        ],
+        [
+            "dan",
+            "Dinamarquês"
+        ],
+        [
+            "fin",
+            "Finlandês"
+        ],
+        [
+            "tur",
+            "Turco"
+        ],
+        [
+            "ces",
+            "Tcheco"
+        ],
+        [
+            "ell",
+            "Grego"
+        ],
+        [
+            "heb",
+            "Hebraico"
+        ],
+        [
+            "tha",
+            "Tailandês"
+        ],
+        [
+            "vie",
+            "Vietnamita"
+        ],
+        [
+            "ukr",
+            "Ucraniano"
+        ],
+        [
+            "hun",
+            "Húngaro"
+        ],
+        [
+            "ron",
+            "Romeno"
+        ]
+    ],
+    "wizSteps": [
+        "Passo 1 de 9 — Bem-vindo",
+        "Passo 2 de 9 — Bibliotecas",
+        "Passo 3 de 9 — Duplicados",
+        "Passo 4 de 9 — Arquivos quebrados",
+        "Passo 5 de 9 — Arquivos grandes demais",
+        "Passo 6 de 9 — Idiomas",
+        "Passo 7 de 9 — Ordenador de mídia",
+        "Passo 8 de 9 — Segurança",
+        "Passo 9 de 9 — Tudo pronto"
+    ],
+    "wizFinish": "Concluir configuração",
+    "wizContinue": "Continuar",
+    "html": {
+        "tab.overview": "Visão geral",
+        "tab.issues": "Problemas",
+        "tab.history": "Histórico",
+        "tab.files": "Arquivos",
+        "tab.errors": "Erros",
+        "tab.settings": "Configurações",
+        "settings.nav.safety": "Segurança",
+        "settings.nav.languages": "Idiomas",
+        "settings.nav.fix": "O que corrigir",
+        "settings.nav.quality": "Qualidade",
+        "settings.nav.libraries": "Bibliotecas",
+        "settings.nav.advanced": "Avançado",
+        "settings.nav.bin": "Lixeira",
+        "settings.nav.maintenance": "Manutenção",
+        "settings.safety.title": "Segurança",
+        "settings.safety.subtitle": "Salvaguardas que mantêm cada varredura e correção reversíveis.",
+        "settings.safety.dryRun": "Modo simulação",
+        "settings.safety.dryRunHint": "Ligado (padrão): execuções de correção apenas registram o que fariam — nada é alterado. Desligue quando o plano em Histórico estiver bom.",
+        "settings.safety.idle": "Executar apenas quando o servidor estiver ocioso",
+        "settings.safety.idleHint": "Ligado (padrão): varreduras e correções agendadas esperam até ninguém estar assistindo e o Jellyfin não ser usado há 15 minutos. Os botões \"Varrer agora\" e \"Executar correções agora\" rodam sempre imediatamente. Isto sobrepõe o horário agendado abaixo — se o servidor estiver ocupado ao disparar, a execução é pulada.",
+        "task.scan.name": "Varrer bibliotecas em busca de problemas",
+        "task.scan.description": "Procura duplicados, arquivos irreproduzíveis, codificações grandes demais, faixas de idioma indesejadas, arquivos fora do lugar e vídeos sem legendas.",
+        "task.fix.name": "Aplicar correções aprovadas",
+        "task.fix.description": "Aplica correções aprovadas e automáticas: remove duplicados, recodifica arquivos grandes demais, retira faixas indesejadas.",
+        "tab.recyclebin": "Recycle bin",
+        "settings.safety.analytics": "Share anonymous stats with the community board"
     },
-    "Quality": {
-      "title": "Arquivos desperdiçando espaço",
-      "hint": "Maiores que seu teto de qualidade escolhido.",
-      "action": "Recodificar",
-      "actionHint": "Coloca uma recodificação até seu teto de qualidade na fila para a próxima execução; o original vai para a lixeira.",
-      "approveAll": "Recodificar todos os {0} arquivos mostrados",
-      "doRecycle": "Recodificar até o teto de qualidade — original mantido na lixeira",
-      "doPermanent": "Recodificar até o teto de qualidade — original excluído permanentemente"
-    },
-    "SubtitleLanguage": {
-      "title": "Legendas indesejadas",
-      "hint": "Legendas em idiomas que você não mantém.",
-      "action": "Remover legendas",
-      "actionHint": "Coloca a remoção das faixas de legenda indesejadas na fila para a próxima execução.",
-      "approveAll": "Limpar todos os {0} arquivos mostrados",
-      "doRecycle": "Remover legendas indesejadas — original mantido na lixeira",
-      "doPermanent": "Remover legendas indesejadas — original excluído permanentemente"
-    },
-    "AudioLanguage": {
-      "title": "Áudio indesejado",
-      "hint": "Faixas de áudio em idiomas que você não mantém.",
-      "action": "Remover faixas de áudio",
-      "actionHint": "Coloca a remoção das faixas de áudio indesejadas na fila para a próxima execução.",
-      "approveAll": "Limpar todos os {0} arquivos mostrados",
-      "doRecycle": "Remover áudio indesejado — original mantido na lixeira",
-      "doPermanent": "Remover áudio indesejado — original excluído permanentemente"
-    },
-    "Misplaced": {
-      "title": "Arquivos fora do lugar",
-      "hint": "Um filme na pasta TV, ou um episódio de TV na pasta de Filmes.",
-      "action": "Mover para a pasta correta",
-      "actionHint": "Move o arquivo para a pasta de destino configurada em Configurações → Bibliotecas.",
-      "approveAll": "Mover todos os {0} arquivos fora do lugar mostrados"
-    },
-    "MissingSubtitles": {
-      "title": "Legendas ausentes",
-      "hint": "Nenhuma legenda em qualquer dos idiomas que você mantém.",
-      "action": "Baixar legendas",
-      "actionHint": "Baixa uma pelos provedores de legendas configurados no Jellyfin (OpenSubtitles etc.).",
-      "approveAll": "Baixar legendas para todos os {0} mostrados"
-    },
-    "Stale": {
-      "title": "Conteúdo obsoleto",
-      "hint": "Ninguém reproduziu há muito tempo.",
-      "action": "Revisar",
-      "actionHint": "Somente detecção por enquanto — MediaDash mostra a lista, você decide se apaga ou mantém.",
-      "approveAll": "Revisar todos os {0} itens obsoletos mostrados"
-    },
-    "MalwareRisk": {
-      "title": "Executáveis suspeitos",
-      "hint": "Programas ou scripts numa pasta de mídia — quase sempre malware de um release pirata.",
-      "action": "Excluir este arquivo",
-      "actionHint": "Enfileira a exclusão para a próxima execução de correções; vai para a lixeira, a menos que seja marcado como permanente.",
-      "approveAll": "Excluir todos os {0} arquivos suspeitos mostrados",
-      "doRecycle": "Excluir o executável — recuperável da lixeira",
-      "doPermanent": "Excluir o executável — permanentemente"
-    },
-    "HeavyTranscode": {
-      "title": "Heavy transcodes",
-      "hint": "Files that keep transcoding on the fly instead of direct-playing.",
-      "action": "Re-encode to compatible codec",
-      "actionHint": "Queues a one-off re-encode with the plugin's own settings so future plays become direct-play.",
-      "approveAll": "Re-encode all {0} heavy-transcode files shown",
-      "doRecycle": "Re-encode; keep the original in the recycle bin",
-      "doPermanent": "Re-encode; permanently delete the original"
-    },
-    "FailedTranscode": {
-      "title": "Failed transcodes",
-      "hint": "Recent transcode attempts failed (non-zero ffmpeg exit or a 'Conversion failed' tail).",
-      "action": "Retry with plugin settings",
-      "actionHint": "Runs a targeted re-encode with MediaDash's settings; often succeeds where the on-the-fly attempt didn't.",
-      "approveAll": "Retry all {0} failed-transcode files shown",
-      "doRecycle": "Retry; keep the original in the recycle bin",
-      "doPermanent": "Retry; permanently delete the original"
-    },
-    "OrphanedDebris": {
-      "title": "Orphaned debris",
-      "hint": "Empty folders, orphan subtitles, orphan trickplay folders and orphan metadata whose parent no longer exists.",
-      "action": "Delete orphan",
-      "actionHint": "Re-verifies at fix time that the parent still doesn't exist; refuses if a companion has reappeared.",
-      "approveAll": "Delete all {0} orphaned items shown"
-    },
-    "LargeTrickplay": {
-      "title": "Large trickplay images",
-      "hint": "Trickplay sprite thumbnails still stored as raw JPG — reclaimable by re-encoding as WebP.",
-      "action": "Optimize trickplay images",
-      "actionHint": "Re-encodes each sprite as WebP renamed .jpg so the client still fetches them; no client-side change.",
-      "approveAll": "Optimize all {0} trickplay folders shown"
-    },
-    "EmbeddedCoverArt": {
-      "title": "Embedded cover art",
-      "hint": "Music or audiobook folders with per-file embedded covers but no folder-level cover.jpg.",
-      "action": "Extract shared folder cover",
-      "actionHint": "Writes cover.jpg once and (optionally) strips the redundant per-file copies.",
-      "approveAll": "Extract shared covers for all {0} folders shown"
-    },
-    "CorruptArtwork": {
-      "title": "Corrupt artwork",
-      "hint": "Poster / backdrop / thumb files inside Jellyfin's metadata folder that are zero-byte, truncated, or fail to decode.",
-      "action": "Delete corrupt artwork",
-      "actionHint": "Removes the broken image; Jellyfin's next library scan re-fetches from providers.",
-      "approveAll": "Delete all {0} corrupt artwork files shown"
-    }
-  },
-  "languages": [
-    [
-      "eng",
-      "Inglês"
-    ],
-    [
-      "spa",
-      "Espanhol"
-    ],
-    [
-      "fra",
-      "Francês"
-    ],
-    [
-      "deu",
-      "Alemão"
-    ],
-    [
-      "ita",
-      "Italiano"
-    ],
-    [
-      "por",
-      "Português"
-    ],
-    [
-      "nld",
-      "Holandês"
-    ],
-    [
-      "rus",
-      "Russo"
-    ],
-    [
-      "jpn",
-      "Japonês"
-    ],
-    [
-      "zho",
-      "Chinês"
-    ],
-    [
-      "kor",
-      "Coreano"
-    ],
-    [
-      "ara",
-      "Árabe"
-    ],
-    [
-      "hin",
-      "Híndi"
-    ],
-    [
-      "pol",
-      "Polonês"
-    ],
-    [
-      "swe",
-      "Sueco"
-    ],
-    [
-      "nor",
-      "Norueguês"
-    ],
-    [
-      "dan",
-      "Dinamarquês"
-    ],
-    [
-      "fin",
-      "Finlandês"
-    ],
-    [
-      "tur",
-      "Turco"
-    ],
-    [
-      "ces",
-      "Tcheco"
-    ],
-    [
-      "ell",
-      "Grego"
-    ],
-    [
-      "heb",
-      "Hebraico"
-    ],
-    [
-      "tha",
-      "Tailandês"
-    ],
-    [
-      "vie",
-      "Vietnamita"
-    ],
-    [
-      "ukr",
-      "Ucraniano"
-    ],
-    [
-      "hun",
-      "Húngaro"
-    ],
-    [
-      "ron",
-      "Romeno"
-    ]
-  ],
-  "wizSteps": [
-    "Passo 1 de 9 — Bem-vindo",
-    "Passo 2 de 9 — Bibliotecas",
-    "Passo 3 de 9 — Duplicados",
-    "Passo 4 de 9 — Arquivos quebrados",
-    "Passo 5 de 9 — Arquivos grandes demais",
-    "Passo 6 de 9 — Idiomas",
-    "Passo 7 de 9 — Ordenador de mídia",
-    "Passo 8 de 9 — Segurança",
-    "Passo 9 de 9 — Tudo pronto"
-  ],
-  "wizFinish": "Concluir configuração",
-  "wizContinue": "Continuar",
-  "html": {
-    "tab.overview": "Visão geral",
-    "tab.issues": "Problemas",
-    "tab.history": "Histórico",
-    "tab.files": "Arquivos",
-    "tab.errors": "Erros",
-    "tab.settings": "Configurações",
-    "settings.nav.safety": "Segurança",
-    "settings.nav.languages": "Idiomas",
-    "settings.nav.fix": "O que corrigir",
-    "settings.nav.quality": "Qualidade",
-    "settings.nav.libraries": "Bibliotecas",
-    "settings.nav.advanced": "Avançado",
-    "settings.nav.bin": "Lixeira",
-    "settings.nav.maintenance": "Manutenção",
-    "settings.safety.title": "Segurança",
-    "settings.safety.subtitle": "Salvaguardas que mantêm cada varredura e correção reversíveis.",
-    "settings.safety.dryRun": "Modo simulação",
-    "settings.safety.dryRunHint": "Ligado (padrão): execuções de correção apenas registram o que fariam — nada é alterado. Desligue quando o plano em Histórico estiver bom.",
-    "settings.safety.idle": "Executar apenas quando o servidor estiver ocioso",
-    "settings.safety.idleHint": "Ligado (padrão): varreduras e correções agendadas esperam até ninguém estar assistindo e o Jellyfin não ser usado há 15 minutos. Os botões \"Varrer agora\" e \"Executar correções agora\" rodam sempre imediatamente. Isto sobrepõe o horário agendado abaixo — se o servidor estiver ocupado ao disparar, a execução é pulada.",
-    "task.scan.name": "Varrer bibliotecas em busca de problemas",
-    "task.scan.description": "Procura duplicados, arquivos irreproduzíveis, codificações grandes demais, faixas de idioma indesejadas, arquivos fora do lugar e vídeos sem legendas.",
-    "task.fix.name": "Aplicar correções aprovadas",
-    "task.fix.description": "Aplica correções aprovadas e automáticas: remove duplicados, recodifica arquivos grandes demais, retira faixas indesejadas.",
-    "tab.recyclebin": "Recycle bin",
-    "settings.safety.analytics": "Share anonymous stats with the community board",
-    "settings.safety.analyticsHint": "Off by default. Sends monthly aggregate counts and byte totals (no paths, filenames, or user identifiers) so we can show which fixes save the most disk on the community board."
-  },
-  "savedPerLibrary": "Economizado por biblioteca",
-  "unassignedLibrary": "Não atribuído"
+    "savedPerLibrary": "Economizado por biblioteca",
+    "unassignedLibrary": "Não atribuído"
 }

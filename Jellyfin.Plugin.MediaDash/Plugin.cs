@@ -14,6 +14,14 @@ namespace Jellyfin.Plugin.MediaDash;
 /// </summary>
 public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 {
+    // Paths that a previous scanner in this run has flagged for deletion (Duplicate losers,
+    // MalwareRisk executables, OrphanedDebris). Downstream probing scanners consult this via
+    // Plugin.IsDoomed to skip the ffprobe/decode entirely.
+    private static readonly System.Collections.Generic.HashSet<string> DoomedPaths
+        = new(System.StringComparer.OrdinalIgnoreCase);
+
+    private static readonly object DoomedLock = new();
+
     /// <summary>
     /// Initializes a new instance of the <see cref="Plugin"/> class.
     /// </summary>
@@ -23,10 +31,6 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         : base(applicationPaths, xmlSerializer)
     {
         Instance = this;
-        if (Configuration.NormalizeAnalyticsConsent())
-        {
-            SaveConfiguration();
-        }
     }
 
     /// <inheritdoc />
@@ -49,6 +53,13 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     /// Never a load-bearing field — best-effort human readout only.
     /// </summary>
     public static string? CurrentActivity { get; set; }
+
+    /// <summary>
+    /// Gets or sets the display label of the scanner or fixer currently owning <see cref="CurrentActivity"/>
+    /// (e.g. "DuplicateScanner", "TrackFixer"). Rendered next to the path as "{Label} — {Path}" so users
+    /// can see *what* is running, not just what file it's chewing on. Null when idle.
+    /// </summary>
+    public static string? CurrentActivityLabel { get; set; }
 
     /// <summary>
     /// Gets or sets the summary of the most-recently-completed fix run. The dashboard compares
@@ -85,6 +96,49 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 
     /// <summary>Gets or sets the backing field for <see cref="RedownloadWarnings"/> so PluginState.Attach can rehydrate without triggering another persist.</summary>
     internal static System.Collections.Generic.IReadOnlyList<Api.RedownloadWarning> RedownloadWarningsBacking { get; set; } = System.Array.Empty<Api.RedownloadWarning>();
+
+    /// <summary>
+    /// Returns true when a previous scanner has already flagged this file for deletion, so probing
+    /// scanners can skip it. Thread-safe. See <see cref="MarkDoomed"/>, <see cref="ClearDoomed"/>.
+    /// </summary>
+    /// <param name="path">The file path to check.</param>
+    /// <returns>True if the path is already marked for deletion.</returns>
+    internal static bool IsDoomed(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            return false;
+        }
+
+        lock (DoomedLock)
+        {
+            return DoomedPaths.Contains(path);
+        }
+    }
+
+    /// <summary>Marks a file path as doomed so downstream probing scanners will skip it.</summary>
+    /// <param name="path">The file path to add.</param>
+    internal static void MarkDoomed(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            return;
+        }
+
+        lock (DoomedLock)
+        {
+            DoomedPaths.Add(path);
+        }
+    }
+
+    /// <summary>Resets the doomed set — called at the start of each scan run.</summary>
+    internal static void ClearDoomed()
+    {
+        lock (DoomedLock)
+        {
+            DoomedPaths.Clear();
+        }
+    }
 
     /// <inheritdoc />
     public IEnumerable<PluginPageInfo> GetPages()

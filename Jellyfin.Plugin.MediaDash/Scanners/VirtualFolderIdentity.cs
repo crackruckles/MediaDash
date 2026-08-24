@@ -106,4 +106,43 @@ internal static class VirtualFolderIdentity
     {
         return name?.Trim() ?? string.Empty;
     }
+
+    /// <summary>
+    /// Filters <c>ILibraryManager.GetVirtualFolders()</c> by the plugin's
+    /// <c>EnabledLibraries</c> config, matching each folder via <see cref="GetId"/>. Used by
+    /// scanners that walk library roots directly (as opposed to iterating the pre-filtered
+    /// <c>items</c> parameter). Empty <paramref name="enabledIds"/> is treated as "all libraries"
+    /// — the historical behaviour when the user hasn't opted any in yet.
+    ///
+    /// Field-report 2026-08-23 (B6): scanners marked <c>AlwaysUnscoped = true</c> were walking
+    /// every library on disk regardless of what the user had ticked in Settings → Libraries.
+    /// AlwaysUnscoped is a DB-scoped-delete opt-out, NOT a "walk every folder" licence — this
+    /// helper puts the library-scope back in one place so every scanner shares the same rule.
+    /// </summary>
+    /// <param name="libraryManager">The library manager.</param>
+    /// <param name="enabledIds">Enabled library IDs from <c>PluginConfiguration.EnabledLibraries</c>.</param>
+    /// <returns>The subset of virtual folders that MediaDash should touch.</returns>
+    internal static IReadOnlyList<VirtualFolderInfo> GetEnabledFolders(ILibraryManager libraryManager, string[]? enabledIds)
+    {
+        ArgumentNullException.ThrowIfNull(libraryManager);
+
+        var all = libraryManager.GetVirtualFolders();
+        if (enabledIds is null || enabledIds.Length == 0)
+        {
+            return all;
+        }
+
+        var lookup = BuildIdLookup(libraryManager);
+        var enabledSet = new HashSet<string>(enabledIds, StringComparer.OrdinalIgnoreCase);
+        var kept = new List<VirtualFolderInfo>();
+        foreach (var f in all)
+        {
+            if (GetId(f, lookup) is string id && enabledSet.Contains(id))
+            {
+                kept.Add(f);
+            }
+        }
+
+        return kept;
+    }
 }

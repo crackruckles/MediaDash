@@ -1345,6 +1345,26 @@
                 border: 0 !important;
                 height: 44px;
             }
+            /* "Back to top" pill — mirrors mdSetSaveTop's shape but reads secondary so it
+               doesn't compete with the primary Save. Muted card fill + subtle border. */
+            #MediaDashConfigPage .mdBackToTop {
+                display: inline-flex; align-items: center; gap: 6px;
+                margin: 0 0 0 auto;
+                padding: 0 18px; height: 44px;
+                border-radius: 999px;
+                background: var(--md-card-fill);
+                color: var(--md-ink);
+                border: 1px solid var(--md-border-card);
+                font: 700 14px Figtree, sans-serif;
+                font-family: inherit;
+                cursor: pointer;
+                transition: background .12s ease, border-color .12s ease;
+            }
+            #MediaDashConfigPage .mdBackToTop:hover {
+                background: var(--md-card-fill-hover, rgba(255,255,255,.04));
+                border-color: var(--md-border-card-hover, rgba(255,255,255,.18));
+            }
+            #MediaDashConfigPage .mdBackToTop .material-icons { font-size: 18px; }
 
             /* Non-task accents for section cards. */
             #MediaDashConfigPage .mdSetCard--safety     { --md-accent: var(--md-safety);      --md-accent-tint: rgba(34,211,238,.16);  --md-accent-ink: #052a33; }
@@ -2507,9 +2527,27 @@
                                 <button is="emby-button" type="button" id="mdScanNow" class="raised mdActionBtn mdActionScan" title="Scan all enabled libraries for issues. Click again while running to stop.">
                                     <span class="material-icons">search</span><span id="mdScanNowLabel">Scan now</span>
                                 </button>
-                                <button is="emby-button" type="button" id="mdFixNow" class="raised mdActionBtn mdActionFix" title="Run every approved fix in the queue. Click again while running to stop.">
+                                <button is="emby-button" type="button" id="mdFixNow" class="raised mdActionBtn mdActionFix" title="Run every approved fix in the queue. Click again while running to stop. Right-click (or long-press on touch) to reorder fixers.">
                                     <span class="material-icons">build</span><span id="mdFixNowLabel">Run fixes now</span>
                                 </button>
+                            </div>
+                            <!-- Fixer-order dialog. Field report E1: reorder fix types (phases), not individual files.
+                                 Populated at open time from the configured order (or the default when empty). -->
+                            <div id="mdFixOrderDialog" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,.55);align-items:center;justify-content:center;">
+                                <div style="background:var(--md-elev-3,#1e293b);border:1px solid rgba(255,255,255,.14);border-radius:12px;box-shadow:0 12px 48px rgba(0,0,0,.5);max-width:34em;width:92vw;max-height:82vh;display:flex;flex-direction:column;">
+                                    <div style="padding:1em 1.2em .6em;border-bottom:1px solid rgba(255,255,255,.08);">
+                                        <div style="font-size:1.1em;font-weight:600;">Fix order</div>
+                                        <div class="fieldDescription" style="margin-top:.2em;">Higher rows run first. Files inside each phase still go smallest first.</div>
+                                    </div>
+                                    <div id="mdFixOrderList" style="flex:1;overflow-y:auto;padding:.5em .8em;"></div>
+                                    <div id="mdFixOrderWarn" class="fieldDescription" style="display:none;padding:.3em 1.2em .3em;color:#fbbf24;font-size:.85em;"></div>
+                                    <div style="padding:.7em 1em;border-top:1px solid rgba(255,255,255,.08);display:flex;gap:.5em;justify-content:flex-end;flex-wrap:wrap;">
+                                        <button is="emby-button" type="button" id="mdFixOrderReset" class="raised" style="font-size:80%;" title="Restore MediaDash's built-in default order.">Reset to default</button>
+                                        <span style="flex:1;"></span>
+                                        <button is="emby-button" type="button" id="mdFixOrderCancel" class="raised" style="font-size:80%;">Cancel</button>
+                                        <button is="emby-button" type="button" id="mdFixOrderSave" class="raised button-submit" style="font-size:80%;">Save order</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <!-- Scan/fix progress lives above the tab bar so the currently-open tab
@@ -2960,13 +2998,13 @@
                             <h3><span class="material-icons" style="color:#a78bfa;">analytics</span>Community stats (optional)</h3>
                             <p class="mdWizIntro">MediaDash can send anonymous aggregate stats to a community board so everyone can see how much storage the plugin is reclaiming across all users. Tick the box below to opt in — either is fine for the plugin.</p>
                             <div class="fieldDescription" style="margin:.4em 0 .8em;padding:.6em .8em;border-left:3px solid #a78bfa;background:rgba(167,139,250,.06);border-radius:4px;">
-                                <b>What's sent, per fix run:</b> a random UUID we generate for this install (no username, no server name), your plugin version, your Jellyfin version, the current month, and cumulative counts of the fixes MediaDash has completed this month for every scanner (duplicates, broken files, oversized encodes, unwanted subtitles / audio, missing subtitles, misplaced files, stale content, corrupt artwork, suspicious executables, ungrouped media, large trickplay, subtitle fonts, orphaned debris, corrupt NFO, heavy / failed transcodes, embedded cover art) plus the total bytes freed.<br>
-                                <b>What's never sent:</b> file paths, filenames, library names, IP addresses, media titles, or anything that identifies you or your media.<br>
+                                <b>What's sent, per fix run:</b> a <b>month-rotated anonymous ID</b> (SHA-256 of Jellyfin's SystemId + this year-month + a plugin-scoped salt — the same install produces the same ID inside a month so the backend can dedupe, but a fresh ID appears on the 1st of every month and can't be linked back to the previous one), your plugin version, your Jellyfin version, the current month, and cumulative counts of the fixes MediaDash has completed this month for every scanner (duplicates, broken files, oversized encodes, unwanted subtitles / audio, missing subtitles, misplaced files, stale content, corrupt artwork, suspicious executables, ungrouped media, large trickplay, subtitle fonts, orphaned debris, corrupt NFO, heavy / failed transcodes, embedded cover art) plus the total bytes freed.<br>
+                                <b>What's never sent:</b> your Jellyfin SystemId itself, file paths, filenames, library names, IP addresses, media titles, or anything that identifies you or your media. Nothing is stored on disk to derive the ID from — it's computed at report time and forgotten.<br>
                                 Change your mind any time in Settings → Safety. See <a href="https://github.com/crackruckles/MediaDash/blob/main/docs/PRIVACY.md" target="_blank" rel="noopener">docs/PRIVACY.md</a> for the full list and the DB schema.
                             </div>
                             <div class="checkboxContainer checkboxContainer-withDescription">
                                 <label class="emby-checkbox-label">
-                                    <input id="mdWizAnalytics" type="checkbox" is="emby-checkbox" />
+                                    <input id="mdWizAnalytics" type="checkbox" is="emby-checkbox" checked />
                                     <span>Yes, share anonymous stats to help the community</span>
                                 </label>
                                 <div class="fieldDescription">Aggregated numbers show up on the MediaDash GitHub page, refreshed monthly. Great for seeing collective impact.</div>
@@ -3264,12 +3302,12 @@
                                     </label>
                                     <div class="fieldDescription" data-i18n="settings.safety.idleHint">Fixes fire opportunistically every 15 minutes and skip whenever anyone is watching or has been active in the last 15 minutes.</div>
                                 </div>
-                                <div class="checkboxContainer checkboxContainer-withDescription" style="margin:0;" title="Sends per-run counts (per-type success + bytes freed) and version strings to the community stats board. No paths, no filenames, no usernames. See docs/PRIVACY.md for the exact fields.">
+                                <div class="checkboxContainer checkboxContainer-withDescription" style="margin:0;" title="Sends per-run counts (per-type success + bytes freed) and version strings to the community stats board, tagged with a month-rotated anonymous ID (SHA-256 of Jellyfin's SystemId + this year-month — nothing persistent stored). No paths, no filenames, no usernames. See docs/PRIVACY.md for the exact fields.">
                                     <label class="emby-checkbox-label">
                                         <input id="mdAnalytics" type="checkbox" is="emby-checkbox" />
                                         <span data-i18n="settings.safety.analytics">Share anonymous stats with the community board</span>
                                     </label>
-                                    <div class="fieldDescription" data-i18n="settings.safety.analyticsHint">Fix counts and bytes freed. No paths, no filenames, no usernames. See <a href="https://github.com/crackruckles/MediaDash/blob/main/docs/PRIVACY.md" target="_blank" rel="noopener">docs/PRIVACY.md</a>.</div>
+                                    <div class="fieldDescription" data-i18n="settings.safety.analyticsHint">Fix counts and bytes freed, tagged with a month-rotated anonymous ID that changes on the 1st of every month — no persistent install ID is stored on disk. No paths, no filenames, no usernames. See <a href="https://github.com/crackruckles/MediaDash/blob/main/docs/PRIVACY.md" target="_blank" rel="noopener">docs/PRIVACY.md</a>.</div>
                                 </div>
                             </div>
                             <div class="fieldDescription" style="margin-top:14px;">Scan and fix schedules can also be changed in Dashboard → Scheduled Tasks ("Scan libraries for issues" and "Apply approved fixes").</div>
@@ -3351,6 +3389,7 @@
                         <div class="mdSetSave">
                             <button is="emby-button" type="submit" class="raised button-submit"><span>Save changes</span></button>
                             <div id="mdSaveMsg" class="fieldDescription" style="margin:0;"></div>
+                            <button type="button" id="mdBackToTop" class="mdBackToTop" title="Jump back to the top of Settings"><span class="material-icons">arrow_upward</span><span>Back to top</span></button>
                         </div>
                     </form>
                 </div>
@@ -3363,6 +3402,31 @@
             'use strict';
 
             var PLUGIN_ID = '38bdb090-b763-4294-934b-b54ade4d9d6d';
+
+            // Field report D2 default order — mirrors FixTask.DefaultFixerRank on the server so
+            // the "Reset to default" button in the Fix-order dialog restores exactly what the server
+            // would use with FixerOrder = []. Update both when a new IssueType is added.
+            var DEFAULT_FIXER_ORDER = [
+                'MalwareRisk', 'Playability', 'Duplicate', 'OrphanedDebris', 'Misplaced', 'Ungrouped',
+                'MissingSubtitles', 'SubtitleLanguage', 'AudioLanguage', 'Quality',
+                'HeavyTranscode', 'FailedTranscode', 'SubtitleFonts', 'EmbeddedCoverArt',
+                'CorruptNfo', 'CorruptArtwork', 'Stale', 'LargeTrickplay'
+            ];
+
+            // Hard constraints the D2 default preserves. If a user reorders past one of these we
+            // soft-warn but don't block the save — spec explicitly says "keeps user control".
+            var FIXER_HARD_CONSTRAINTS = [
+                ['Duplicate', 'Quality', "Don't rebuild a file that's about to be deleted."],
+                ['Duplicate', 'SubtitleLanguage', "Don't rebuild a file that's about to be deleted."],
+                ['Duplicate', 'AudioLanguage', "Don't rebuild a file that's about to be deleted."],
+                ['Duplicate', 'HeavyTranscode', "Don't rebuild a file that's about to be deleted."],
+                ['Playability', 'Quality', "Don't re-encode a file we're about to remove as broken."],
+                ['MissingSubtitles', 'Quality', "Subtitles must land before the encode or they're orphaned by the rename."],
+                ['MissingSubtitles', 'HeavyTranscode', "Subtitles must land before the encode or they're orphaned by the rename."],
+                ['OrphanedDebris', 'Misplaced', "Sweep orphans before moving files or the mover creates new ones."],
+                ['Quality', 'LargeTrickplay', "Trickplay BIF must match the final video, so it goes last."],
+                ['HeavyTranscode', 'LargeTrickplay', "Trickplay BIF must match the final video, so it goes last."]
+            ];
 
             // All user-facing strings live here for future localization.
             var STR = {
@@ -3477,9 +3541,9 @@
                         doRecycle: 'Re-encode to the quality ceiling — original kept in recycle bin', doPermanent: 'Re-encode to the quality ceiling — original deleted permanently'
                     },
                     SubtitleLanguage: {
-                        title: 'Subtitles', hint: 'Strip unwanted-language subtitle tracks and (optionally) trim embedded fonts from .ass sidecars.', color: '#8b5cf6', icon: 'subtitles',
-                        action: 'Clean up subtitles', actionHint: 'Queues removal of unwanted subtitle tracks (and font-optimize passes when enabled) for the next fix run.', approveAll: 'Clean up all {0} files shown',
-                        doRecycle: 'Remove unwanted subtitle tracks — original kept in recycle bin', doPermanent: 'Remove unwanted subtitle tracks — original deleted permanently'
+                        title: 'Subtitles', hint: 'Strip unwanted-language subtitle tracks and (optionally) trim embedded fonts from .ass sidecars. Rebuilds the video file at the same path; the pre-edit copy goes to the recycle bin as a safety net.', color: '#8b5cf6', icon: 'subtitles',
+                        action: 'Clean up subtitles', actionHint: 'Queues removal of unwanted subtitle tracks (and font-optimize passes when enabled) for the next fix run. The file is rebuilt at the same path — the pre-edit copy goes to the recycle bin so you can revert.', approveAll: 'Clean up all {0} files shown',
+                        doRecycle: 'Rebuild file without unwanted subtitle tracks — pre-edit copy kept in recycle bin', doPermanent: 'Rebuild file without unwanted subtitle tracks — pre-edit copy deleted permanently'
                     },
                     SubtitleFonts: {
                         title: 'Subtitles', hint: 'Embedded fonts in .ass sidecar subtitles that no style actually uses.', color: '#8b5cf6', icon: 'subtitles',
@@ -3511,9 +3575,9 @@
                         doRecycle: 'Extract cover — originals go to the recycle bin before stripping', doPermanent: 'Extract cover — replace stripped audio files in place permanently'
                     },
                     AudioLanguage: {
-                        title: 'Unwanted audio', hint: 'Audio tracks in languages you don’t keep.', color: '#10b981', icon: 'audiotrack',
-                        action: 'Remove audio tracks', actionHint: 'Queues removal of the unwanted audio tracks for the next fix run.', approveAll: 'Clean up all {0} files shown',
-                        doRecycle: 'Remove unwanted audio — original kept in recycle bin', doPermanent: 'Remove unwanted audio — original deleted permanently'
+                        title: 'Unwanted audio', hint: 'Audio tracks in languages you don’t keep. Rebuilds the video file at the same path; the pre-edit copy goes to the recycle bin as a safety net.', color: '#10b981', icon: 'audiotrack',
+                        action: 'Remove audio tracks', actionHint: 'Queues removal of the unwanted audio tracks for the next fix run. The file is rebuilt at the same path — the pre-edit copy goes to the recycle bin so you can revert.', approveAll: 'Clean up all {0} files shown',
+                        doRecycle: 'Rebuild file without unwanted audio — pre-edit copy kept in recycle bin', doPermanent: 'Rebuild file without unwanted audio — pre-edit copy deleted permanently'
                     },
                     Misplaced: {
                         title: 'Misplaced files', hint: 'A movie in the TV folder, or a TV episode in the Movies folder.', color: '#f97316', icon: 'drive_file_move',
@@ -3551,7 +3615,7 @@
                     ['kor', 'Korean'], ['ara', 'Arabic'], ['hin', 'Hindi'], ['pol', 'Polish'], ['swe', 'Swedish'],
                     ['nor', 'Norwegian'], ['dan', 'Danish'], ['fin', 'Finnish'], ['tur', 'Turkish'], ['ces', 'Czech'],
                     ['ell', 'Greek'], ['heb', 'Hebrew'], ['tha', 'Thai'], ['vie', 'Vietnamese'], ['ukr', 'Ukrainian'],
-                    ['hun', 'Hungarian'], ['ron', 'Romanian']
+                    ['hun', 'Hungarian'], ['ron', 'Romanian'], ['fas', 'Persian (Farsi)']
                 ]
             };
 
@@ -3678,8 +3742,11 @@
             }
 
             // ---------- i18n ----------
-            // Resolves the current UI locale. Jellyfin's dashboard uses a global Globalize helper; when it's absent
-            // (older builds, alternative clients) we fall back to the browser tag, then English.
+            // Resolves the current UI locale strictly from Jellyfin's own display-language setting.
+            // Field report A11 (user directive): never fall back to navigator.language or the host
+            // system locale — a user browsing from a German-language desktop with Jellyfin set to
+            // English must get English strings. If Jellyfin's Globalize isn't ready yet or returns
+            // nothing, use English rather than leaking the browser locale.
             function currentLocale() {
                 try {
                     if (typeof Globalize !== 'undefined' && typeof Globalize.getCurrentLocale === 'function') {
@@ -3687,7 +3754,7 @@
                         if (loc) return loc;
                     }
                 } catch (e) { /* Globalize sometimes throws on first-load; ignore and fall through. */ }
-                return (navigator.language || 'en');
+                return 'en';
             }
 
             // Overlays translated strings on top of the English STR object. Deep merge for `types` so per-type
@@ -4056,16 +4123,22 @@
 
             // Big SMART verdict pill anchored top-right of each drive card.
             // Shown only for library/recycle drives (the server only populates SMART for those).
+            // The server distinguishes the "async probe still running" state from a real Unknown by
+            // returning the message "Checking SMART status..." — we surface that as a distinct
+            // pending pill so a fresh boot doesn't briefly say "SMART unknown". The pill auto-heals
+            // on the next /Status poll (~3 s during scan/fix, up to ~15 s idle) once the probe lands.
             function smartHeaderPillHtml(dr) {
                 if (!dr.IsLibraryDrive && !dr.IsRecycleBinDrive) return '';
                 var s = (dr.SmartHealth || 'unknown').toLowerCase();
-                var bg, icon, label;
-                if (s === 'healthy')      { bg = '#22c55e'; icon = 'check_circle';   label = 'SMART OK'; }
-                else if (s === 'warning') { bg = '#f59e0b'; icon = 'warning';        label = 'SMART warning'; }
-                else if (s === 'failing') { bg = '#ef4444'; icon = 'error';          label = 'SMART failing'; }
-                else                       { bg = '#64748b'; icon = 'help_outline';   label = 'SMART unknown'; }
                 var msg = dr.SmartMessage || 'SMART status pending.';
-                return '<span class="mdSmartPill mdSmartPill--' + s + '" title="' + esc(msg) + '" style="background:' + bg + ';">' +
+                var pending = s === 'unknown' && /checking/i.test(msg);
+                var bg, icon, label, cls;
+                if (pending)              { bg = '#64748b'; icon = 'hourglass_empty'; label = 'Checking SMART status'; cls = 'pending'; }
+                else if (s === 'healthy') { bg = '#22c55e'; icon = 'check_circle';    label = 'SMART OK';               cls = s; }
+                else if (s === 'warning') { bg = '#f59e0b'; icon = 'warning';         label = 'SMART warning';          cls = s; }
+                else if (s === 'failing') { bg = '#ef4444'; icon = 'error';           label = 'SMART failing';          cls = s; }
+                else                      { bg = '#64748b'; icon = 'help_outline';    label = 'SMART unknown';          cls = s; }
+                return '<span class="mdSmartPill mdSmartPill--' + cls + '" title="' + esc(msg) + '" style="background:' + bg + ';">' +
                     '<span class="material-icons">' + icon + '</span>' + esc(label) + '</span>';
             }
 
@@ -4102,9 +4175,14 @@
                     tiles.push(driveTileHtml('report_problem', 'I/O errors', errs.toLocaleString(), esub, ec));
                 }
                 if (!tiles.length) {
-                    // No detailed stats available (WMI couldn't populate any counters, or smartctl absent).
-                    // Still surface *something* so the tile row doesn't feel truncated between pill and bar.
-                    tiles.push(driveTileHtml('info', 'SMART detail', '—', 'no attributes reported for this drive', 'rgba(230,237,243,.55)'));
+                    // No detailed stats available. During the initial async probe the server returns
+                    // "Checking SMART status..." — swap the tile sub-text so a fresh boot doesn't
+                    // read as "no attributes" (misleading — attributes are on their way).
+                    var pending = ((dr.SmartHealth || '').toLowerCase() === 'unknown')
+                        && /checking/i.test(dr.SmartMessage || '');
+                    var sub = pending ? 'querying the drive - one moment' : 'no attributes reported for this drive';
+                    var value = pending ? '...' : '-';
+                    tiles.push(driveTileHtml('info', 'SMART detail', value, sub, 'rgba(230,237,243,.55)'));
                 }
                 return '<div class="mdDriveTiles">' + tiles.join('') + '</div>';
             }
@@ -4238,6 +4316,109 @@
                 }
             }
 
+            // Fixer-order dialog (E1). openFixOrderDialog reads current order from plugin config
+            // and paints the list; renderFixOrderList rebuilds it after each up/down move so the
+            // hard-constraint warning stays in sync.
+            function openFixOrderDialog() {
+                ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
+                    var order = (c.FixerOrder && c.FixerOrder.length) ? c.FixerOrder.slice() : DEFAULT_FIXER_ORDER.slice();
+                    // Ensure every known type appears — a saved order from an older version might
+                    // predate newer types. Append missing entries at the end so nothing silently drops.
+                    DEFAULT_FIXER_ORDER.forEach(function (t) {
+                        if (order.indexOf(t) === -1) order.push(t);
+                    });
+                    renderFixOrderList(order);
+                    view.querySelector('#mdFixOrderDialog').style.display = 'flex';
+                });
+            }
+
+            function closeFixOrderDialog() {
+                view.querySelector('#mdFixOrderDialog').style.display = 'none';
+            }
+
+            function renderFixOrderList(order) {
+                var listEl = view.querySelector('#mdFixOrderList');
+                var html = '';
+                for (var i = 0; i < order.length; i++) {
+                    var t = order[i];
+                    var meta = STR.types && STR.types[t];
+                    var title = meta && meta.title ? meta.title : t;
+                    var icon = meta && meta.icon ? meta.icon : 'build';
+                    var color = meta && meta.color ? meta.color : '#94a3b8';
+                    var upDisabled = i === 0 ? ' disabled' : '';
+                    var downDisabled = i === order.length - 1 ? ' disabled' : '';
+                    html += '<div class="mdFixOrderRow" data-type="' + t + '" style="display:flex;align-items:center;gap:.5em;padding:.4em .3em;border-bottom:1px solid rgba(255,255,255,.06);">'
+                        + '<span style="width:1.6em;text-align:right;opacity:.6;font-variant-numeric:tabular-nums;">' + (i + 1) + '.</span>'
+                        + '<span class="material-icons" style="color:' + color + ';font-size:1.2em;">' + icon + '</span>'
+                        + '<span style="flex:1;">' + title + '</span>'
+                        + '<button type="button" class="raised mdFixOrderUp" style="padding:.3em .5em;font-size:80%;"' + upDisabled + ' title="Move up"><span class="material-icons" style="font-size:1em;">arrow_upward</span></button>'
+                        + '<button type="button" class="raised mdFixOrderDown" style="padding:.3em .5em;font-size:80%;"' + downDisabled + ' title="Move down"><span class="material-icons" style="font-size:1em;">arrow_downward</span></button>'
+                        + '</div>';
+                }
+                listEl.innerHTML = html;
+                listEl.querySelectorAll('.mdFixOrderUp').forEach(function (btn, idx) {
+                    // idx is off because disabled rows still yield NodeList entries — read the row's type.
+                    btn.addEventListener('click', function () {
+                        var row = btn.closest('.mdFixOrderRow');
+                        var pos = order.indexOf(row.getAttribute('data-type'));
+                        if (pos > 0) {
+                            var tmp = order[pos - 1]; order[pos - 1] = order[pos]; order[pos] = tmp;
+                            renderFixOrderList(order);
+                        }
+                    });
+                });
+                listEl.querySelectorAll('.mdFixOrderDown').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        var row = btn.closest('.mdFixOrderRow');
+                        var pos = order.indexOf(row.getAttribute('data-type'));
+                        if (pos > -1 && pos < order.length - 1) {
+                            var tmp = order[pos + 1]; order[pos + 1] = order[pos]; order[pos] = tmp;
+                            renderFixOrderList(order);
+                        }
+                    });
+                });
+
+                // Soft-warn on hard-constraint violations. Doesn't block save.
+                var warnings = [];
+                FIXER_HARD_CONSTRAINTS.forEach(function (c) {
+                    var before = order.indexOf(c[0]);
+                    var after = order.indexOf(c[1]);
+                    if (before > -1 && after > -1 && before > after) {
+                        warnings.push(c[0] + ' should run before ' + c[1] + ': ' + c[2]);
+                    }
+                });
+                var warnEl = view.querySelector('#mdFixOrderWarn');
+                if (warnings.length) {
+                    warnEl.innerHTML = '<span class="material-icons" style="font-size:1em;vertical-align:-3px;">warning_amber</span> ' + warnings.map(function (w) { return '<div>' + w + '</div>'; }).join('');
+                    warnEl.style.display = '';
+                } else {
+                    warnEl.style.display = 'none';
+                }
+
+                // Save the current order to a data attribute so saveFixOrder can read it without
+                // reconstructing from DOM state.
+                listEl.setAttribute('data-order', order.join(','));
+            }
+
+            function saveFixOrder() {
+                var listEl = view.querySelector('#mdFixOrderList');
+                var order = (listEl.getAttribute('data-order') || '').split(',').filter(function (s) { return s.length > 0; });
+                if (order.length === 0) return;
+                var isDefault = order.length === DEFAULT_FIXER_ORDER.length
+                    && order.every(function (t, i) { return t === DEFAULT_FIXER_ORDER[i]; });
+                ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
+                    // Store [] when the user has reset to default — keeps the config JSON small and
+                    // means future default-order changes automatically pick up.
+                    c.FixerOrder = isDefault ? [] : order;
+                    ApiClient.updatePluginConfiguration(PLUGIN_ID, c).then(function () {
+                        closeFixOrderDialog();
+                        if (window.Dashboard && Dashboard.processPluginConfigurationUpdateResult) {
+                            Dashboard.processPluginConfigurationUpdateResult();
+                        }
+                    });
+                });
+            }
+
             function renderStatus(s, silent) {
                 // Prefer the client's own list length when it's been populated — the Status endpoint's
                 // OpenIssueTotal is computed from a summary query that can drift from what the Issues
@@ -4345,9 +4526,15 @@
                 }
 
                 var activityEl = view.querySelector('#mdActivity');
-                if ((s.IsScanning || s.IsFixing) && s.CurrentActivity) {
-                    activityEl.textContent = s.CurrentActivity;
-                    activityEl.title = s.CurrentActivity;
+                if (s.IsScanning || s.IsFixing) {
+                    // Show "Label — path" when both known, either alone when we only have one.
+                    // Scanner boundaries set a label without a path (during initial item enumeration);
+                    // ProbingScannerBase-derived scanners and FixTask add the path per file.
+                    var lbl = s.CurrentActivityLabel || '';
+                    var pth = s.CurrentActivity || '';
+                    var text = lbl && pth ? (lbl + ' — ' + pth) : (lbl || pth);
+                    activityEl.textContent = text;
+                    activityEl.title = text;
                 } else {
                     activityEl.textContent = '';
                     activityEl.title = '';
@@ -5214,20 +5401,34 @@
 
             function modeSegments(key) {
                 var canAuto = key !== 'Stale';
+                // Duplicate: Automatic disabled while the new confidence-ladder detection stabilises
+                // (rework landed in 1.0.6, still tuning against real reporter data). Detect-only or
+                // Ask-me-first is the safe posture for now; a stray auto-delete on a false-positive
+                // pair is irreversible where a false-negative leaves a duplicate for next scan.
+                var duplicateAutoDisabled = key === 'Duplicate';
                 var opts = [
                     { v: 'Off', l: STR.modeOff || 'Off' },
                     { v: 'DetectOnly', l: STR.modeDetect || 'Detect only' }
                 ];
                 if (canAuto) {
                     opts.push({ v: 'ManualApprove', l: STR.modeManual || 'Ask me first' });
-                    opts.push({ v: 'Automatic', l: STR.modeAuto || 'Automatic' });
+                    if (!duplicateAutoDisabled) {
+                        opts.push({ v: 'Automatic', l: STR.modeAuto || 'Automatic' });
+                    }
                 }
-                return '<div class="mdTaskModes" role="radiogroup">' + opts.map(function (o) {
+                var tooltip = duplicateAutoDisabled
+                    ? ' title="Automatic mode is temporarily disabled while duplicate detection is being reworked and isn\'t reliable enough for hands-off auto-delete. Use Detect only (safest) or Ask me first."'
+                    : '';
+                return '<div class="mdTaskModes" role="radiogroup"' + tooltip + '>' + opts.map(function (o) {
                     var i = o.l.indexOf(' — ');
                     var inner = i < 0 ? esc(o.l) : esc(o.l.slice(0, i)) + '<span class="mdModeHint"> — ' + esc(o.l.slice(i + 3)) + '</span>';
                     return '<button type="button" data-mode="' + o.v + '">' + inner + '</button>';
                 }).join('') + '</div>' +
                     '<input type="hidden" id="mdMode' + key + '" value="DetectOnly" />';
+                // The "Automatic disabled" explanation lives in the Duplicate task-card BODY
+                // (see buildTaskCard's `key === 'Duplicate'` branch) — putting it here made the
+                // header flex row wrap the amber banner alongside the mode segments, squashing
+                // the card title. The segments-container tooltip is the compact hover cue.
             }
 
             function disposalField(key, label) {
@@ -5256,7 +5457,11 @@
 
             function taskBody(key) {
                 if (key === 'Duplicate') {
-                    return '<div class="mdFieldGrid mdFieldGrid-2">' +
+                    // 1.0.6 rework in flight — surface why Automatic isn't offered before the user
+                    // scrolls through the confidence-gate knobs. Rendered inside the card BODY
+                    // (not the header flex row) so it doesn't squash the title.
+                    return '<div class="fieldDescription" style="margin:0 0 .8em;padding:.6em .8em;border-radius:6px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);font-size:.9em;"><span class="material-icons" style="font-size:1em;vertical-align:-3px;color:#f59e0b;">construction</span> <b>Automatic mode is temporarily disabled for duplicates.</b> The detection pipeline is being reworked (see 1.0.6 changelog); it isn\'t reliable enough for hands-off auto-delete yet. <b>Detect only</b> or <b>Ask me first</b> are the recommended settings until this notice is removed.</div>' +
+                        '<div class="mdFieldGrid mdFieldGrid-2">' +
                         '<div class="mdField">' +
                             '<label for="mdKeeperPolicy" title="How the duplicate scanner picks which copy stays. Best-quality is the safe default; codec-first favours modern re-encodes; size-first ruthlessly picks the smallest file even if it\'s lower quality.">When duplicates are found, keep</label>' +
                             '<select is="emby-select" id="mdKeeperPolicy" class="emby-select-withcolor emby-select">' +
@@ -5277,6 +5482,35 @@
                             '<span style="font-size:13px;font-weight:600;flex:0 0 auto;">Treat different editions as duplicates</span>' +
                             '<span class="mdFieldHint" style="margin:0;flex:1;">Off: a Director\'s Cut and the theatrical cut stay as separate movies.</span>' +
                         '</label>' +
+                        // Confidence ladder controls (2026-08-22 rework §7). Kept collapsed under one
+                        // grid so they don't overwhelm the "just tell me if I have duplicates" user.
+                        '<div style="grid-column:1/-1;margin-top:.6em;padding:.7em .9em;border-radius:8px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);">' +
+                            '<div style="font-size:12px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:var(--md-dim);margin-bottom:.5em;">Confidence gate</div>' +
+                            '<div class="mdFieldGrid mdFieldGrid-2">' +
+                                '<div class="mdField">' +
+                                    '<label for="mdDupAutoFixConfidence" title="When a fix type runs in Automatic mode, only pairs at or above this per-pair confidence are auto-queued. Manual approval from the Issues tab always overrides.">Auto-fix confidence threshold</label>' +
+                                    '<input id="mdDupAutoFixConfidence" type="number" min="0" max="1" step="0.05" is="emby-input" />' +
+                                    '<span class="mdFieldHint">0.80 default. Byte-identical (1.00) always auto-fixes; provider-ID matches (0.90) do; filename/episode-only matches below the gate wait for manual approval.</span>' +
+                                '</div>' +
+                                '<div class="mdField">' +
+                                    '<label for="mdDupTitleVeto" title="Below this filename-token Jaccard, the pair is not flagged as a duplicate at all (protects against two different specials sharing an episode slot).">Title-token veto (Jaccard)</label>' +
+                                    '<input id="mdDupTitleVeto" type="number" min="0" max="1" step="0.05" is="emby-input" />' +
+                                    '<span class="mdFieldHint">0.40 default. Filenames whose title tokens overlap below this are treated as different content.</span>' +
+                                '</div>' +
+                                '<div class="mdField">' +
+                                    '<label for="mdDupRuntimeVeto" title="If both runtimes are known and differ by more than this percent, the pair is not flagged as a duplicate.">Runtime veto (%)</label>' +
+                                    '<input id="mdDupRuntimeVeto" type="number" min="0" max="100" step="1" is="emby-input" />' +
+                                    '<span class="mdFieldHint">15 default. Two files claiming to be the same content but with wildly different runtimes probably aren\'t.</span>' +
+                                '</div>' +
+                                '<label class="mdInsetRow--stack" style="cursor:pointer;" title="Within an already-formed group of same-size candidates, SHA-256 the files to confirm byte-identical matches. Bounded cost, on by default.">' +
+                                    '<span class="mdInsetRowMain">' +
+                                        '<input id="mdDupExactHash" type="checkbox" class="mdInsetCheck" />' +
+                                        '<span style="font-size:13px;font-weight:600;">Confirm byte-identical with SHA-256</span>' +
+                                    '</span>' +
+                                    '<span class="mdFieldHint mdInsetRowHint">Only invoked within a metadata group of same-size files, cached by (path, size, mtime). Byte-identical pairs bypass every veto and auto-fix under any confidence gate.</span>' +
+                                '</label>' +
+                            '</div>' +
+                        '</div>' +
                         '</div>' +
                         '<span class="mdFieldHint">Retention and bin location live in the <a href="#" class="mdGoRecycleTab" style="color:rgba(230,237,243,.85);text-decoration:underline;">Recycle bin tab</a>.</span>';
                 }
@@ -6432,7 +6666,17 @@
                     view.querySelector('#mdPausePlayback').checked = c.PauseDuringPlayback;
                     view.querySelector('#mdAnalytics').checked = !!c.AnalyticsEnabled;
                     FIX_TYPES.forEach(function (t) {
-                        view.querySelector('#mdMode' + t.key).value = c[t.mode];
+                        var mode = c[t.mode];
+                        // Duplicate: Automatic is disabled while the confidence-ladder rework
+                        // stabilises. A legacy config that saved "Automatic" would leave the
+                        // segments with no active button and (worse) still auto-queue server-side
+                        // on the next fix run. Coerce to ManualApprove on load; save writes the
+                        // sanitised value back.
+                        if (t.key === 'Duplicate' && mode === 'Automatic') {
+                            mode = 'ManualApprove';
+                        }
+
+                        view.querySelector('#mdMode' + t.key).value = mode;
                         if (t.disposal) view.querySelector('#mdDisposal' + t.key).value = c[t.disposal];
                     });
                     view.querySelector('#mdStaleThresholdDays').value = c.StaleThresholdDays > 0 ? c.StaleThresholdDays : 365;
@@ -6467,6 +6711,11 @@
                     view.querySelector('#mdThorough').checked = c.ThoroughPlayabilityCheck;
                     view.querySelector('#mdEditions').checked = c.TreatEditionsAsDuplicates;
                     view.querySelector('#mdDuplicateMinAge').value = c.DuplicateMinAgeDays == null ? 7 : c.DuplicateMinAgeDays;
+                    // Confidence ladder controls (§7). Defaults mirror PluginConfiguration ctor.
+                    view.querySelector('#mdDupAutoFixConfidence').value = c.DuplicateAutoFixConfidence != null ? c.DuplicateAutoFixConfidence : 0.80;
+                    view.querySelector('#mdDupTitleVeto').value = c.DuplicateTitleJaccardVeto != null ? c.DuplicateTitleJaccardVeto : 0.40;
+                    view.querySelector('#mdDupRuntimeVeto').value = c.DuplicateRuntimeVetoPct != null ? c.DuplicateRuntimeVetoPct : 15;
+                    view.querySelector('#mdDupExactHash').checked = c.DuplicateExactHashEnabled !== false;
                     view.querySelector('#mdStaleExcludedGenres').value = (c.StaleExcludedGenres || []).join(', ');
                     view.querySelector('#mdTrickplayQuality').value = c.TrickplayWebPQuality > 0 ? c.TrickplayWebPQuality : 80;
                     view.querySelector('#mdTrickplayMinSize').value = (c.TrickplayMinSizeMb != null ? c.TrickplayMinSizeMb : 10);
@@ -6597,6 +6846,14 @@
                     c.KeeperPolicyOrder = KEEPER_PRESETS[view.querySelector('#mdKeeperPolicy').value] || KEEPER_PRESETS.quality;
                     var minAge = parseInt(view.querySelector('#mdDuplicateMinAge').value, 10);
                     c.DuplicateMinAgeDays = isNaN(minAge) || minAge < 0 ? 7 : minAge;
+                    // Confidence ladder — clamp to their spec ranges; empty/invalid → default.
+                    var autoConf = parseFloat(view.querySelector('#mdDupAutoFixConfidence').value);
+                    c.DuplicateAutoFixConfidence = isNaN(autoConf) ? 0.80 : Math.max(0, Math.min(1, autoConf));
+                    var titleVeto = parseFloat(view.querySelector('#mdDupTitleVeto').value);
+                    c.DuplicateTitleJaccardVeto = isNaN(titleVeto) ? 0.40 : Math.max(0, Math.min(1, titleVeto));
+                    var rtVeto = parseInt(view.querySelector('#mdDupRuntimeVeto').value, 10);
+                    c.DuplicateRuntimeVetoPct = isNaN(rtVeto) ? 15 : Math.max(0, Math.min(100, rtVeto));
+                    c.DuplicateExactHashEnabled = view.querySelector('#mdDupExactHash').checked;
                     c.StaleExcludedLibraryIds = Array.prototype.map.call(view.querySelectorAll('.mdStaleExcludeLib:checked'), function (cb) {
                         return cb.getAttribute('data-id');
                     });
@@ -6811,8 +7068,23 @@
             function wizPopulateFromConfig(c) {
                 // Mode + disposal selects. Populate options once, then set current value.
                 view.querySelectorAll('#mdFirstRun [data-mode-for]').forEach(function (sel) {
-                    wizFillSelect(sel, WIZ_MODE_OPTIONS.map(function (o) { return [o[0], STR[o[1]]]; }));
-                    sel.value = c[sel.getAttribute('data-mode-for')] || 'DetectOnly';
+                    var modeFor = sel.getAttribute('data-mode-for');
+                    // Duplicate: Automatic disabled while the confidence-ladder rework stabilises.
+                    // Filter the option list AND coerce a legacy Automatic value to ManualApprove.
+                    var isDuplicate = modeFor === 'DuplicateFixMode';
+                    var opts = WIZ_MODE_OPTIONS.filter(function (o) {
+                        return !(isDuplicate && o[0] === 'Automatic');
+                    }).map(function (o) { return [o[0], STR[o[1]]]; });
+                    wizFillSelect(sel, opts);
+                    var current = c[modeFor] || 'DetectOnly';
+                    if (isDuplicate && current === 'Automatic') {
+                        current = 'ManualApprove';
+                    }
+
+                    sel.value = current;
+                    if (isDuplicate) {
+                        sel.title = 'Automatic mode is temporarily disabled while duplicate detection is being reworked and isn\'t reliable enough for hands-off auto-delete.';
+                    }
                 });
                 view.querySelectorAll('#mdFirstRun [data-disp-for]').forEach(function (sel) {
                     wizFillSelect(sel, [['RecycleBin', STR.disposalRecycle], ['Permanent', STR.disposalPermanent]]);
@@ -6855,8 +7127,9 @@
                 // should present the recommended 365 even if a previous session or test run wrote something
                 // shorter — the wizard is where users get the "sane defaults" pitch.
                 view.querySelector('#mdWizStaleThreshold').value = (staleOn && c.StaleThresholdDays > 0) ? c.StaleThresholdDays : 365;
-                // Analytics is affirmative opt-in on first run and respects the saved choice later.
-                view.querySelector('#mdWizAnalytics').checked = !!c.AnalyticsEnabled;
+                // Pre-tick on first run so the community counts include this install by default;
+                // once FirstRunDone we respect whatever the user last saved.
+                view.querySelector('#mdWizAnalytics').checked = c.FirstRunDone ? !!c.AnalyticsEnabled : true;
                 view.querySelector('#mdWizCoverStrip').checked = c.EmbeddedCoverStripFromAudio !== false;
             }
 
@@ -6973,31 +7246,18 @@
                 }
             }
 
-            // Applies the analytics opt-in toggle to the config object. Mints a fresh UUID the first time
-            // the user opts in (so the anon install identity is defined) and clears it when they opt out.
-            // Both wizard and settings paths funnel through here.
+            // Applies the analytics opt-in toggle to the config object. The install identity is no
+            // longer stored — the server derives a month-rotated hash of Jellyfin's SystemId at
+            // report time (see AnalyticsReporter.ComputeMonthlyInstallId). We still clear any
+            // legacy AnalyticsInstallId that pre-1.0.6 configs might carry so opt-out really
+            // removes every trace from disk.
             function applyAnalyticsToggle(c, enabled) {
                 c.AnalyticsEnabled = !!enabled;
-                c.AnalyticsConsentVersion = 1;
-                if (enabled && !c.AnalyticsInstallId) {
-                    c.AnalyticsInstallId = newUuid();
-                }
-                if (!enabled) {
+                if (c.AnalyticsInstallId) {
                     c.AnalyticsInstallId = '';
                 }
             }
 
-            // Small RFC4122 v4 UUID generator. crypto.randomUUID exists on modern browsers; fall back
-            // for older ones so a browser-shim plugin embedded in an old Jellyfin build still works.
-            function newUuid() {
-                if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-                    return crypto.randomUUID();
-                }
-                return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-                    var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-                    return v.toString(16);
-                });
-            }
 
             function parseLangList(raw) {
                 return (raw || '')
@@ -7091,6 +7351,9 @@
                     // Everything is reachable from Settings — this is the "I know what I'm doing" exit.
                     ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
                         c.FirstRunDone = true;
+                        // Analytics defaults on. No install ID to mint any more — the server hashes
+                        // Jellyfin's SystemId with the current year-month at report time.
+                        applyAnalyticsToggle(c, !!c.AnalyticsEnabled);
                         ApiClient.updatePluginConfiguration(PLUGIN_ID, c).then(function (result) {
                             Dashboard.processPluginConfigurationUpdateResult(result);
                             view.querySelector('#mdFirstRun').style.display = 'none';
@@ -7248,8 +7511,24 @@
                 });
             }
 
+            // Every refresh() fires Status (progress bar — cheap and required at 3s cadence). The
+            // other three endpoints get throttled — they either NEVER change under normal
+            // operation (PostUpgradeCleanup) or only change on user actions (RecycleBin) / scanner
+            // recorded diagnostics (Errors). Full refresh (silent=false) always fetches everything;
+            // silent polls fetch cold data every N ticks, or immediately when scan/fix is running.
+            // Baseline before this: 4 endpoints × 3s = 80 req/min at idle. After: ~24 req/min idle,
+            // full 80 during scan/fix.
+            var _refreshTick = 0;
+            var _postUpgradeChecked = false;      // fetched once per session unless invalidated
+            var _postUpgradeAvailable = false;
             function refresh(silent) {
                 if (!silent) Dashboard.showLoadingMsg();
+                _refreshTick++;
+                var running = lastStatus && (lastStatus.IsScanning || lastStatus.IsFixing);
+                // "Cold" endpoints refresh: on every full (non-silent) call, whenever scan/fix is
+                // running, or once every 15 seconds while idle (5 × 3s poll interval).
+                var refreshCold = !silent || running || (_refreshTick % 5 === 0);
+
                 api('Status').then(function (s) {
                     renderStatus(s, !!silent);
                     if (!silent) Dashboard.hideLoadingMsg();
@@ -7262,7 +7541,7 @@
                 var activeTab = view.querySelector('.mdTab.mdTabActive');
                 if (activeTab && activeTab.getAttribute('data-tab') === 'errors') {
                     loadErrors();
-                } else {
+                } else if (refreshCold) {
                     api('Errors').then(function (errs) {
                         var total = (errs || []).reduce(function (sum, e) { return sum + (e.Count || 1); }, 0);
                         updateErrorBadge(total);
@@ -7272,35 +7551,41 @@
                 // 0 disables the banner. The point is to nudge users before the bin silently eats a
                 // chunk of their library drive. Auto-purge still runs after the retention window,
                 // but a visible banner is a lot louder than a settings hint.
-                api('RecycleBin').then(function (b) {
-                    var banner = view.querySelector('#mdBinFullNote');
-                    // Read the threshold from the settings slider (kept in sync with config on load /
-                    // save). Fall back to 10 GB when the slider hasn't rendered yet — same default the
-                    // constructor sets.
-                    var thresholdInput = view.querySelector('#mdBinWarnThreshold');
-                    var thresholdGb = thresholdInput ? parseInt(thresholdInput.value, 10) : 10;
-                    if (isNaN(thresholdGb)) thresholdGb = 10;
-                    if (thresholdGb <= 0) { banner.style.display = 'none'; return; }
-                    var over = b && b.SizeBytes > thresholdGb * 1024 * 1024 * 1024;
-                    var show = over && !bannerDismissed('mdBinFullNote');
-                    banner.style.display = show ? '' : 'none';
-                    if (show) {
-                        var s = b.FileCount === 1 ? '' : 's';
-                        view.querySelector('#mdBinFullTitle').textContent = fmt(STR.binFullTitle, bytes(b.SizeBytes), b.FileCount, s);
-                        view.querySelector('#mdBinFullText').textContent = STR.binFullBody;
-                    }
-                }, function () { });
+                if (refreshCold) {
+                    api('RecycleBin').then(function (b) {
+                        var banner = view.querySelector('#mdBinFullNote');
+                        // Read the threshold from the settings slider (kept in sync with config on load /
+                        // save). Fall back to 10 GB when the slider hasn't rendered yet — same default the
+                        // constructor sets.
+                        var thresholdInput = view.querySelector('#mdBinWarnThreshold');
+                        var thresholdGb = thresholdInput ? parseInt(thresholdInput.value, 10) : 10;
+                        if (isNaN(thresholdGb)) thresholdGb = 10;
+                        if (thresholdGb <= 0) { banner.style.display = 'none'; return; }
+                        var over = b && b.SizeBytes > thresholdGb * 1024 * 1024 * 1024;
+                        var show = over && !bannerDismissed('mdBinFullNote');
+                        banner.style.display = show ? '' : 'none';
+                        if (show) {
+                            var s = b.FileCount === 1 ? '' : 's';
+                            view.querySelector('#mdBinFullTitle').textContent = fmt(STR.binFullTitle, bytes(b.SizeBytes), b.FileCount, s);
+                            view.querySelector('#mdBinFullText').textContent = STR.binFullBody;
+                        }
+                    }, function () { });
+                }
                 // Post-Jellyfin-12 one-shot cleanup availability. Server tells us whether to show the banner
                 // (host is on Jellyfin 12+ AND the user has not yet run or dismissed the offer). Once run or
-                // dismissed the flag persists in plugin config, so the banner never comes back.
-                api('PostUpgradeCleanup/Status').then(function (r) {
-                    var banner = view.querySelector('#mdPostUpgradeNote');
-                    if (r && r.Available) {
-                        banner.style.display = '';
-                    } else {
-                        banner.style.display = 'none';
-                    }
-                }, function () { });
+                // dismissed the flag persists in plugin config, so the banner never comes back. Cache the
+                // answer for the session — polling at 3s intervals was the single biggest source of idle
+                // request chatter (see 2026-08-23 console-log audit). Invalidated by dismiss/run actions
+                // via invalidatePostUpgradeCache().
+                if (!_postUpgradeChecked || !silent) {
+                    api('PostUpgradeCleanup/Status').then(function (r) {
+                        _postUpgradeChecked = true;
+                        _postUpgradeAvailable = !!(r && r.Available);
+                        view.querySelector('#mdPostUpgradeNote').style.display = _postUpgradeAvailable ? '' : 'none';
+                    }, function () { });
+                } else {
+                    view.querySelector('#mdPostUpgradeNote').style.display = _postUpgradeAvailable ? '' : 'none';
+                }
                 if (!silent) {
                     ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (c) {
                         view.querySelector('#mdDryRunNote').style.display = c.DryRun ? '' : 'none';
@@ -8064,6 +8349,24 @@
                     });
                     installIssueContextMenu();
 
+                    // Bottom-of-Settings "Back to top" pill — jumps to the tab bar so the user can
+                    // switch tabs or edit the save-button-adjacent knobs without a manual scroll.
+                    // Prefers the masthead (which contains the tab bar) as the target; falls back
+                    // to window if we can't find it (older layouts, DOM rearrangement).
+                    var backTop = view.querySelector('#mdBackToTop');
+                    if (backTop) {
+                        backTop.addEventListener('click', function () {
+                            var target = view.querySelector('#mdMasthead')
+                                || view.querySelector('#mdTabBarSlot')
+                                || view.querySelector('#MediaDashConfigPage');
+                            if (target) {
+                                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            } else {
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }
+                        });
+                    }
+
                     view.querySelectorAll('.mdTab').forEach(function (b) {
                         b.addEventListener('click', function () { showTab(b.getAttribute('data-tab')); });
                     });
@@ -8094,6 +8397,48 @@
                         setProgress(true, 3);
                         post('Fix').then(function () { setTimeout(refresh, 700); });
                     });
+
+                    // Right-click (desktop) / long-press (touch) on "Run fixes now" opens the fixer
+                    // reorder dialog. Field report E1 spec: reorder is a power-user knob, not
+                    // primary UI, so it lives in the context menu rather than in the masthead.
+                    var fixBtnEl = view.querySelector('#mdFixNow');
+                    fixBtnEl.addEventListener('contextmenu', function (e) {
+                        e.preventDefault();
+                        openFixOrderDialog();
+                    });
+                    // Long-press: 550 ms threshold matches Android's default touch-hold. Cancel on
+                    // move/up so the primary tap still runs a fix, and preventDefault on the
+                    // synthetic contextmenu that some mobile browsers fire after long-press so we
+                    // don't double-open the dialog.
+                    (function () {
+                        var timer = null;
+                        var fired = false;
+                        fixBtnEl.addEventListener('touchstart', function () {
+                            fired = false;
+                            timer = setTimeout(function () {
+                                fired = true;
+                                openFixOrderDialog();
+                            }, 550);
+                        }, { passive: true });
+                        var cancel = function () { if (timer) { clearTimeout(timer); timer = null; } };
+                        fixBtnEl.addEventListener('touchend', function (e) {
+                            cancel();
+                            // If the long-press already opened the dialog, swallow the trailing
+                            // synthetic click so it doesn't also start a fix run.
+                            if (fired) { e.preventDefault(); }
+                        });
+                        fixBtnEl.addEventListener('touchmove', cancel, { passive: true });
+                        fixBtnEl.addEventListener('touchcancel', cancel);
+                    })();
+                    view.querySelector('#mdFixOrderCancel').addEventListener('click', closeFixOrderDialog);
+                    view.querySelector('#mdFixOrderDialog').addEventListener('click', function (e) {
+                        // Click on the backdrop (but not the inner card) dismisses without saving.
+                        if (e.target === this) closeFixOrderDialog();
+                    });
+                    view.querySelector('#mdFixOrderReset').addEventListener('click', function () {
+                        renderFixOrderList(DEFAULT_FIXER_ORDER.slice());
+                    });
+                    view.querySelector('#mdFixOrderSave').addEventListener('click', saveFixOrder);
 
                     view.querySelector('#mdFixIgnoreActivity').addEventListener('click', function () {
                         // Hide the banner immediately so the click feels responsive; the next status poll (within
@@ -8191,6 +8536,9 @@
                             var freed = (data && data.BytesFreed) || 0;
                             var count = (data && data.OrphanedFoldersDeleted) || 0;
                             resultEl.textContent = 'Cleanup done. Reclaimed ' + bytes(freed) + ' from ' + count + ' orphaned trickplay folder' + (count === 1 ? '' : 's') + '. Logged to History.';
+                            // Server state just changed — invalidate the once-per-session cache so
+                            // the next refresh re-reads (and the banner drops for good).
+                            _postUpgradeChecked = false;
                             setTimeout(function () {
                                 view.querySelector('#mdPostUpgradeNote').style.display = 'none';
                                 refresh(true);
@@ -8206,6 +8554,8 @@
                     view.querySelector('#mdPostUpgradeDismiss').addEventListener('click', function () {
                         // Same permanent flag as Run — dismissal is also "handled forever".
                         post('PostUpgradeCleanup/Run?dismissOnly=true').then(function () {
+                            _postUpgradeChecked = true;
+                            _postUpgradeAvailable = false;
                             view.querySelector('#mdPostUpgradeNote').style.display = 'none';
                         });
                     });

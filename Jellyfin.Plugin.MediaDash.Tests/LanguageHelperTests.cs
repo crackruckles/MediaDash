@@ -15,6 +15,9 @@ public class LanguageHelperTests
     [InlineData("ger", "deu")]
     [InlineData("chi", "zho")]
     [InlineData("dut", "nld")]
+    [InlineData("es-MX", "spa")]
+    [InlineData("ES_mx", "spa")]
+    [InlineData("en-US", "eng")]
     public void Normalize_MapsBibliographicVariantsAndCase(string? input, string expected)
     {
         Assert.Equal(expected, LanguageHelper.Normalize(input));

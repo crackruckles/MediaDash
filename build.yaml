@@ -1,7 +1,7 @@
 ---
 name: "MediaDash"
 guid: "38bdb090-b763-4294-934b-b54ade4d9d6d"
-version: "1.0.0.0"
+version: "1.0.6.0"
 targetAbi: "10.11.0.0"
 framework: "net9.0"
 overview: "The one plugin a Jellyfin library owner needs: finds duplicates, broken files, oversized encodes, unwanted or missing language tracks, misplaced files, corrupt artwork, orphaned metadata, and space-heavy trickplay — then fixes them safely."
@@ -17,8 +17,11 @@ description: >
   by default.
 category: "General"
 owner: "crackruckles"
-artifacts:
-- "Jellyfin.Plugin.MediaDash.dll"
+# `artifacts:` intentionally omitted. The zip contents are governed by tools/release.ps1, which
+# ships the entire publish/ output (main DLL + every runtime sidecar + deps.json). A hand-picked
+# list here — as this file used to carry — invites drift the moment a new NuGet package reference
+# lands: 0.9.9.1 lost System.Diagnostics.PerformanceCounter and 1.0.6 lost System.Management via
+# exactly that mechanism.
 changelog: >
   Managed via tools/release.ps1 and manifest.json — see GitHub Releases for
   every version's changelog.

@@ -1,352 +1,351 @@
 {
-  "tagline": "Garde votre bibliothèque légère et lisible — trouve les copies en double, les fichiers cassés, les encodages surdimensionnés et les pistes de langue indésirables, puis les corrige en toute sécurité.",
-  "scanIdle": "Dernière analyse : {0}",
-  "scanNever": "Aucune analyse n'a encore été effectuée. Cliquez sur \"Analyser maintenant\" pour vérifier vos bibliothèques.",
-  "scanRunning": "Analyse de vos bibliothèques… {0}%",
-  "scanStarting": "Démarrage de l'analyse…",
-  "scanDone": "Analyse terminée — {0} problème(s) ouvert(s) trouvé(s).",
-  "scanNowLabel": "Analyser maintenant",
-  "stopScanLabel": "Arrêter l'analyse",
-  "fixRunning": "Application des correctifs… {0}%",
-  "fixStarting": "Démarrage de l'exécution des correctifs…",
-  "fixNowLabel": "Exécuter les correctifs maintenant",
-  "stopFixLabel": "Arrêter les correctifs",
-  "fixDone": "Exécution des correctifs terminée — consultez Historique pour voir ce qui a été fait.",
-  "fixNothingToDo": "Rien à corriger pour l'instant — approuvez des problèmes dans l'onglet Problèmes, ou passez un type à \"Corriger automatiquement\" dans Paramètres, puis cliquez à nouveau.",
-  "dryRunOn": "Les correctifs approuvés ne sont que simulés et enregistrés dans Historique. Quand le plan vous convient, désactivez le mode simulation pour laisser MediaDash apporter de vrais changements.",
-  "diskContext": "{0} libre sur {1} de vos disques de bibliothèque",
-  "driveStorage": "Stockage du disque de bibliothèque",
-  "driveUsed": "{0} utilisés sur {1}",
-  "driveFree": "{0} libres",
-  "systemStats": "Performances du système",
-  "statCpu": "CPU",
-  "statRam": "Mémoire",
-  "statGpu": "GPU",
-  "statCpuHint": "Tout le système sur {0} cœurs",
-  "statRamHint": "{0} utilisés sur {1}",
-  "statGpuHint": "via {0}",
-  "statGpuMissing": "Aucun compteur GPU disponible sur cet hôte",
-  "statUnavailable": "N/D sur {0}",
-  "statUnknown": "—",
-  "statPlatform": "Hôte : {0}",
-  "totalSavings": "Espace récupérable",
-  "whereSavings": "Où se trouvent les économies",
-  "issuesByType": "Problèmes trouvés",
-  "noIssues": "Aucun problème trouvé — votre bibliothèque est en bon état. De nouvelles analyses s'exécutent automatiquement chaque nuit.",
-  "noHistory": "Rien n'a encore été corrigé. Les correctifs apparaissent ici après une exécution, avec un bouton Restaurer pour tout ce qui est récupérable.",
-  "allTypes": "Tous les types de problème",
-  "showingOf": "Affichage des {0} premiers problèmes sur {1}. Utilisez le filtre ci-dessus pour affiner la liste.",
-  "approve": "Approuver",
-  "approveHint": "Met ce correctif en file d'attente pour la prochaine exécution.",
-  "dismiss": "Ignorer",
-  "dismissHint": "Masque ce problème définitivement ; les futures analyses ne le signaleront plus.",
-  "approveAll": "Approuver les {0} affichés",
-  "approveAllTypes": "Approuver les {0} problèmes (tous types)",
-  "approveAllNote": "Approuve tous les problèmes actuellement listés — chacun sera corrigé à la prochaine exécution.",
-  "approved": "Approuvé — sera traité à la prochaine exécution.",
-  "dismissed": "Ignoré.",
-  "restore": "Restaurer",
-  "restoreHint": "Remet le fichier exactement à sa place.",
-  "restored": "Restauré.",
-  "restoreFailed": "Impossible de restaurer : {0}",
-  "spaceSavedToDate": "Espace économisé à ce jour : {0}",
-  "dryRunBadge": "simulation",
-  "saved": "Enregistré.",
-  "confirmAuto": "Le mode automatique modifiera des fichiers chaque nuit sans demander. Les fichiers supprimés vont à la corbeille (sauf si supprimés définitivement). Continuer ?",
-  "confirmPermanent": "Suppression définitive signifie que les fichiers supprimés NE POURRONT PAS être récupérés. Êtes-vous sûr ?",
-  "confirmEmptyBin": "Supprimer définitivement tout ce qui se trouve dans la corbeille ? La restauration ne sera plus possible pour ces fichiers.",
-  "confirmReset": "Effacer tous les problèmes détectés et les caches de sondage/décodage ? L'historique des correctifs et la corbeille sont conservés. Aucun fichier multimédia ne sera touché.",
-  "resetDone": "Données d'analyse effacées — cliquez sur \"Analyser maintenant\" pour repartir de zéro.",
-  "resetBusy": "Réinitialisation impossible pour le moment : une analyse ou une correction est en cours. Attendez la fin puis réessayez.",
-  "binHolding": "Contient actuellement {0} fichier(s) ({1}).",
-  "binEmpty": "La corbeille est vide.",
-  "binViewHide": "Masquer le contenu",
-  "binViewShow": "Voir le contenu",
-  "binRestoreHint": "Pour remettre un fichier en place, utilisez le bouton Restaurer dans l'onglet Historique.",
-  "modeOff": "Désactivé — ne pas analyser",
-  "modeDetect": "Détecter seulement — juste montrer",
-  "modeManual": "Me demander d'abord",
-  "modeAuto": "Corriger automatiquement",
-  "disposalRecycle": "Corbeille (récupérable)",
-  "disposalPermanent": "Supprimer définitivement",
-  "unitMbps": "{0} Mbps",
-  "unitPercent": "{0}%",
-  "unitDays": "{0} jours",
-  "types": {
-    "Duplicate": {
-      "title": "Copies en double",
-      "hint": "Le même film ou épisode existe en plusieurs exemplaires.",
-      "action": "Supprimer cette copie",
-      "actionHint": "Met en file d'attente la suppression de cette copie pour la prochaine exécution ; la meilleure copie reste.",
-      "approveAll": "Supprimer les {0} copies en double affichées",
-      "doRecycle": "Supprimer la moins bonne copie — récupérable depuis la corbeille",
-      "doPermanent": "Supprimer la moins bonne copie — définitivement"
+    "tagline": "Garde votre bibliothèque légère et lisible — trouve les copies en double, les fichiers cassés, les encodages surdimensionnés et les pistes de langue indésirables, puis les corrige en toute sécurité.",
+    "scanIdle": "Dernière analyse : {0}",
+    "scanNever": "Aucune analyse n'a encore été effectuée. Cliquez sur \"Analyser maintenant\" pour vérifier vos bibliothèques.",
+    "scanRunning": "Analyse de vos bibliothèques… {0}%",
+    "scanStarting": "Démarrage de l'analyse…",
+    "scanDone": "Analyse terminée — {0} problème(s) ouvert(s) trouvé(s).",
+    "scanNowLabel": "Analyser maintenant",
+    "stopScanLabel": "Arrêter l'analyse",
+    "fixRunning": "Application des correctifs… {0}%",
+    "fixStarting": "Démarrage de l'exécution des correctifs…",
+    "fixNowLabel": "Exécuter les correctifs maintenant",
+    "stopFixLabel": "Arrêter les correctifs",
+    "fixDone": "Exécution des correctifs terminée — consultez Historique pour voir ce qui a été fait.",
+    "fixNothingToDo": "Rien à corriger pour l'instant — approuvez des problèmes dans l'onglet Problèmes, ou passez un type à \"Corriger automatiquement\" dans Paramètres, puis cliquez à nouveau.",
+    "dryRunOn": "Les correctifs approuvés ne sont que simulés et enregistrés dans Historique. Quand le plan vous convient, désactivez le mode simulation pour laisser MediaDash apporter de vrais changements.",
+    "diskContext": "{0} libre sur {1} de vos disques de bibliothèque",
+    "driveStorage": "Stockage du disque de bibliothèque",
+    "driveUsed": "{0} utilisés sur {1}",
+    "driveFree": "{0} libres",
+    "systemStats": "Performances du système",
+    "statCpu": "CPU",
+    "statRam": "Mémoire",
+    "statGpu": "GPU",
+    "statCpuHint": "Tout le système sur {0} cœurs",
+    "statRamHint": "{0} utilisés sur {1}",
+    "statGpuHint": "via {0}",
+    "statGpuMissing": "Aucun compteur GPU disponible sur cet hôte",
+    "statUnavailable": "N/D sur {0}",
+    "statUnknown": "—",
+    "statPlatform": "Hôte : {0}",
+    "totalSavings": "Espace récupérable",
+    "whereSavings": "Où se trouvent les économies",
+    "issuesByType": "Problèmes trouvés",
+    "noIssues": "Aucun problème trouvé — votre bibliothèque est en bon état. De nouvelles analyses s'exécutent automatiquement chaque nuit.",
+    "noHistory": "Rien n'a encore été corrigé. Les correctifs apparaissent ici après une exécution, avec un bouton Restaurer pour tout ce qui est récupérable.",
+    "allTypes": "Tous les types de problème",
+    "showingOf": "Affichage des {0} premiers problèmes sur {1}. Utilisez le filtre ci-dessus pour affiner la liste.",
+    "approve": "Approuver",
+    "approveHint": "Met ce correctif en file d'attente pour la prochaine exécution.",
+    "dismiss": "Ignorer",
+    "dismissHint": "Masque ce problème définitivement ; les futures analyses ne le signaleront plus.",
+    "approveAll": "Approuver les {0} affichés",
+    "approveAllTypes": "Approuver les {0} problèmes (tous types)",
+    "approveAllNote": "Approuve tous les problèmes actuellement listés — chacun sera corrigé à la prochaine exécution.",
+    "approved": "Approuvé — sera traité à la prochaine exécution.",
+    "dismissed": "Ignoré.",
+    "restore": "Restaurer",
+    "restoreHint": "Remet le fichier exactement à sa place.",
+    "restored": "Restauré.",
+    "restoreFailed": "Impossible de restaurer : {0}",
+    "spaceSavedToDate": "Espace économisé à ce jour : {0}",
+    "dryRunBadge": "simulation",
+    "saved": "Enregistré.",
+    "confirmAuto": "Le mode automatique modifiera des fichiers chaque nuit sans demander. Les fichiers supprimés vont à la corbeille (sauf si supprimés définitivement). Continuer ?",
+    "confirmPermanent": "Suppression définitive signifie que les fichiers supprimés NE POURRONT PAS être récupérés. Êtes-vous sûr ?",
+    "confirmEmptyBin": "Supprimer définitivement tout ce qui se trouve dans la corbeille ? La restauration ne sera plus possible pour ces fichiers.",
+    "confirmReset": "Effacer tous les problèmes détectés et les caches de sondage/décodage ? L'historique des correctifs et la corbeille sont conservés. Aucun fichier multimédia ne sera touché.",
+    "resetDone": "Données d'analyse effacées — cliquez sur \"Analyser maintenant\" pour repartir de zéro.",
+    "resetBusy": "Réinitialisation impossible pour le moment : une analyse ou une correction est en cours. Attendez la fin puis réessayez.",
+    "binHolding": "Contient actuellement {0} fichier(s) ({1}).",
+    "binEmpty": "La corbeille est vide.",
+    "binViewHide": "Masquer le contenu",
+    "binViewShow": "Voir le contenu",
+    "binRestoreHint": "Pour remettre un fichier en place, utilisez le bouton Restaurer dans l'onglet Historique.",
+    "modeOff": "Désactivé — ne pas analyser",
+    "modeDetect": "Détecter seulement — juste montrer",
+    "modeManual": "Me demander d'abord",
+    "modeAuto": "Corriger automatiquement",
+    "disposalRecycle": "Corbeille (récupérable)",
+    "disposalPermanent": "Supprimer définitivement",
+    "unitMbps": "{0} Mbps",
+    "unitPercent": "{0}%",
+    "unitDays": "{0} jours",
+    "types": {
+        "Duplicate": {
+            "title": "Copies en double",
+            "hint": "Le même film ou épisode existe en plusieurs exemplaires.",
+            "action": "Supprimer cette copie",
+            "actionHint": "Met en file d'attente la suppression de cette copie pour la prochaine exécution ; la meilleure copie reste.",
+            "approveAll": "Supprimer les {0} copies en double affichées",
+            "doRecycle": "Supprimer la moins bonne copie — récupérable depuis la corbeille",
+            "doPermanent": "Supprimer la moins bonne copie — définitivement"
+        },
+        "Playability": {
+            "title": "Fichiers illisibles",
+            "hint": "Ces fichiers sont cassés ou illisibles.",
+            "action": "Supprimer le fichier",
+            "actionHint": "Met la suppression en file d'attente pour la prochaine exécution (revérifié comme cassé avant toute suppression).",
+            "approveAll": "Supprimer les {0} fichiers cassés affichés",
+            "doRecycle": "Supprimer le fichier cassé — récupérable depuis la corbeille",
+            "doPermanent": "Supprimer le fichier cassé — définitivement"
+        },
+        "Quality": {
+            "title": "Fichiers qui gaspillent de l'espace",
+            "hint": "Plus grands que votre plafond de qualité choisi.",
+            "action": "Ré-encoder",
+            "actionHint": "Met en file d'attente un ré-encodage au plafond de qualité pour la prochaine exécution ; l'original va à la corbeille.",
+            "approveAll": "Ré-encoder les {0} fichiers affichés",
+            "doRecycle": "Ré-encoder au plafond de qualité — original conservé dans la corbeille",
+            "doPermanent": "Ré-encoder au plafond de qualité — original supprimé définitivement"
+        },
+        "SubtitleLanguage": {
+            "title": "Sous-titres indésirables",
+            "hint": "Sous-titres dans des langues que vous ne conservez pas.",
+            "action": "Supprimer les sous-titres",
+            "actionHint": "Met en file d'attente la suppression des pistes de sous-titres indésirables pour la prochaine exécution.",
+            "approveAll": "Nettoyer les {0} fichiers affichés",
+            "doRecycle": "Supprimer les sous-titres indésirables — original conservé dans la corbeille",
+            "doPermanent": "Supprimer les sous-titres indésirables — original supprimé définitivement"
+        },
+        "AudioLanguage": {
+            "title": "Audio indésirable",
+            "hint": "Pistes audio dans des langues que vous ne conservez pas.",
+            "action": "Supprimer les pistes audio",
+            "actionHint": "Met en file d'attente la suppression des pistes audio indésirables pour la prochaine exécution.",
+            "approveAll": "Nettoyer les {0} fichiers affichés",
+            "doRecycle": "Supprimer l'audio indésirable — original conservé dans la corbeille",
+            "doPermanent": "Supprimer l'audio indésirable — original supprimé définitivement"
+        },
+        "Misplaced": {
+            "title": "Fichiers mal placés",
+            "hint": "Un film dans le dossier TV, ou un épisode TV dans le dossier Films.",
+            "action": "Déplacer vers le bon dossier",
+            "actionHint": "Déplace le fichier vers le dossier cible configuré dans Paramètres → Bibliothèques.",
+            "approveAll": "Déplacer les {0} fichiers mal placés affichés"
+        },
+        "MissingSubtitles": {
+            "title": "Sous-titres manquants",
+            "hint": "Aucun sous-titre dans l'une de vos langues conservées.",
+            "action": "Télécharger les sous-titres",
+            "actionHint": "Télécharge un via les fournisseurs de sous-titres configurés dans Jellyfin (OpenSubtitles, etc.).",
+            "approveAll": "Télécharger les sous-titres pour les {0} affichés"
+        },
+        "Stale": {
+            "title": "Contenu obsolète",
+            "hint": "Personne ne l'a lu depuis longtemps.",
+            "action": "Vérifier",
+            "actionHint": "Détection seulement pour l'instant — MediaDash affiche la liste, vous décidez de supprimer ou conserver.",
+            "approveAll": "Vérifier les {0} éléments obsolètes affichés"
+        },
+        "MalwareRisk": {
+            "title": "Exécutables suspects",
+            "hint": "Programmes ou scripts dans un dossier média — presque toujours des logiciels malveillants issus d'une version piratée.",
+            "action": "Supprimer ce fichier",
+            "actionHint": "Programme la suppression pour la prochaine exécution ; le fichier va à la corbeille sauf si vous le passez en suppression définitive.",
+            "approveAll": "Supprimer les {0} fichiers suspects affichés",
+            "doRecycle": "Supprimer l'exécutable — récupérable depuis la corbeille",
+            "doPermanent": "Supprimer l'exécutable — définitivement"
+        },
+        "HeavyTranscode": {
+            "title": "Heavy transcodes",
+            "hint": "Files that keep transcoding on the fly instead of direct-playing.",
+            "action": "Re-encode to compatible codec",
+            "actionHint": "Queues a one-off re-encode with the plugin's own settings so future plays become direct-play.",
+            "approveAll": "Re-encode all {0} heavy-transcode files shown",
+            "doRecycle": "Re-encode; keep the original in the recycle bin",
+            "doPermanent": "Re-encode; permanently delete the original"
+        },
+        "FailedTranscode": {
+            "title": "Failed transcodes",
+            "hint": "Recent transcode attempts failed (non-zero ffmpeg exit or a 'Conversion failed' tail).",
+            "action": "Retry with plugin settings",
+            "actionHint": "Runs a targeted re-encode with MediaDash's settings; often succeeds where the on-the-fly attempt didn't.",
+            "approveAll": "Retry all {0} failed-transcode files shown",
+            "doRecycle": "Retry; keep the original in the recycle bin",
+            "doPermanent": "Retry; permanently delete the original"
+        },
+        "OrphanedDebris": {
+            "title": "Orphaned debris",
+            "hint": "Empty folders, orphan subtitles, orphan trickplay folders and orphan metadata whose parent no longer exists.",
+            "action": "Delete orphan",
+            "actionHint": "Re-verifies at fix time that the parent still doesn't exist; refuses if a companion has reappeared.",
+            "approveAll": "Delete all {0} orphaned items shown"
+        },
+        "LargeTrickplay": {
+            "title": "Large trickplay images",
+            "hint": "Trickplay sprite thumbnails still stored as raw JPG — reclaimable by re-encoding as WebP.",
+            "action": "Optimize trickplay images",
+            "actionHint": "Re-encodes each sprite as WebP renamed .jpg so the client still fetches them; no client-side change.",
+            "approveAll": "Optimize all {0} trickplay folders shown"
+        },
+        "EmbeddedCoverArt": {
+            "title": "Embedded cover art",
+            "hint": "Music or audiobook folders with per-file embedded covers but no folder-level cover.jpg.",
+            "action": "Extract shared folder cover",
+            "actionHint": "Writes cover.jpg once and (optionally) strips the redundant per-file copies.",
+            "approveAll": "Extract shared covers for all {0} folders shown"
+        },
+        "CorruptArtwork": {
+            "title": "Corrupt artwork",
+            "hint": "Poster / backdrop / thumb files inside Jellyfin's metadata folder that are zero-byte, truncated, or fail to decode.",
+            "action": "Delete corrupt artwork",
+            "actionHint": "Removes the broken image; Jellyfin's next library scan re-fetches from providers.",
+            "approveAll": "Delete all {0} corrupt artwork files shown"
+        }
     },
-    "Playability": {
-      "title": "Fichiers illisibles",
-      "hint": "Ces fichiers sont cassés ou illisibles.",
-      "action": "Supprimer le fichier",
-      "actionHint": "Met la suppression en file d'attente pour la prochaine exécution (revérifié comme cassé avant toute suppression).",
-      "approveAll": "Supprimer les {0} fichiers cassés affichés",
-      "doRecycle": "Supprimer le fichier cassé — récupérable depuis la corbeille",
-      "doPermanent": "Supprimer le fichier cassé — définitivement"
+    "languages": [
+        [
+            "eng",
+            "Anglais"
+        ],
+        [
+            "spa",
+            "Espagnol"
+        ],
+        [
+            "fra",
+            "Français"
+        ],
+        [
+            "deu",
+            "Allemand"
+        ],
+        [
+            "ita",
+            "Italien"
+        ],
+        [
+            "por",
+            "Portugais"
+        ],
+        [
+            "nld",
+            "Néerlandais"
+        ],
+        [
+            "rus",
+            "Russe"
+        ],
+        [
+            "jpn",
+            "Japonais"
+        ],
+        [
+            "zho",
+            "Chinois"
+        ],
+        [
+            "kor",
+            "Coréen"
+        ],
+        [
+            "ara",
+            "Arabe"
+        ],
+        [
+            "hin",
+            "Hindi"
+        ],
+        [
+            "pol",
+            "Polonais"
+        ],
+        [
+            "swe",
+            "Suédois"
+        ],
+        [
+            "nor",
+            "Norvégien"
+        ],
+        [
+            "dan",
+            "Danois"
+        ],
+        [
+            "fin",
+            "Finnois"
+        ],
+        [
+            "tur",
+            "Turc"
+        ],
+        [
+            "ces",
+            "Tchèque"
+        ],
+        [
+            "ell",
+            "Grec"
+        ],
+        [
+            "heb",
+            "Hébreu"
+        ],
+        [
+            "tha",
+            "Thaï"
+        ],
+        [
+            "vie",
+            "Vietnamien"
+        ],
+        [
+            "ukr",
+            "Ukrainien"
+        ],
+        [
+            "hun",
+            "Hongrois"
+        ],
+        [
+            "ron",
+            "Roumain"
+        ]
+    ],
+    "wizSteps": [
+        "Étape 1 sur 9 — Bienvenue",
+        "Étape 2 sur 9 — Bibliothèques",
+        "Étape 3 sur 9 — Doublons",
+        "Étape 4 sur 9 — Fichiers cassés",
+        "Étape 5 sur 9 — Fichiers surdimensionnés",
+        "Étape 6 sur 9 — Langues",
+        "Étape 7 sur 9 — Trieur de médias",
+        "Étape 8 sur 9 — Sécurité",
+        "Étape 9 sur 9 — Terminé"
+    ],
+    "wizFinish": "Terminer la configuration",
+    "wizContinue": "Continuer",
+    "html": {
+        "tab.overview": "Vue d'ensemble",
+        "tab.issues": "Problèmes",
+        "tab.history": "Historique",
+        "tab.files": "Fichiers",
+        "tab.errors": "Erreurs",
+        "tab.settings": "Paramètres",
+        "settings.nav.safety": "Sécurité",
+        "settings.nav.languages": "Langues",
+        "settings.nav.fix": "Quoi corriger",
+        "settings.nav.quality": "Qualité",
+        "settings.nav.libraries": "Bibliothèques",
+        "settings.nav.advanced": "Avancé",
+        "settings.nav.bin": "Corbeille",
+        "settings.nav.maintenance": "Maintenance",
+        "settings.safety.title": "Sécurité",
+        "settings.safety.subtitle": "Garde-fous qui maintiennent chaque analyse et correction réversibles.",
+        "settings.safety.dryRun": "Mode simulation",
+        "settings.safety.dryRunHint": "Activé (par défaut) : les correctifs se contentent d'enregistrer ce qu'ils feraient — rien n'est modifié. Désactivez-le quand le plan affiché dans Historique vous convient.",
+        "settings.safety.idle": "N'exécuter que lorsque le serveur est inactif",
+        "settings.safety.idleHint": "Activé (par défaut) : les analyses et correctifs planifiés attendent que personne ne regarde et que Jellyfin ne soit plus utilisé depuis 15 minutes. Les boutons \"Analyser maintenant\" et \"Exécuter les correctifs maintenant\" s'exécutent toujours immédiatement. Ceci prime sur l'heure programmée ci-dessous — si le serveur est occupé au déclenchement, l'exécution est ignorée.",
+        "task.scan.name": "Analyser les bibliothèques à la recherche de problèmes",
+        "task.scan.description": "Cherche des doublons, fichiers illisibles, encodages surdimensionnés, pistes de langue indésirables, fichiers mal placés et vidéos sans sous-titres.",
+        "task.fix.name": "Appliquer les correctifs approuvés",
+        "task.fix.description": "Applique les correctifs approuvés et automatiques : supprime les doublons, ré-encode les fichiers surdimensionnés, retire les pistes indésirables.",
+        "tab.recyclebin": "Recycle bin",
+        "settings.safety.analytics": "Share anonymous stats with the community board"
     },
-    "Quality": {
-      "title": "Fichiers qui gaspillent de l'espace",
-      "hint": "Plus grands que votre plafond de qualité choisi.",
-      "action": "Ré-encoder",
-      "actionHint": "Met en file d'attente un ré-encodage au plafond de qualité pour la prochaine exécution ; l'original va à la corbeille.",
-      "approveAll": "Ré-encoder les {0} fichiers affichés",
-      "doRecycle": "Ré-encoder au plafond de qualité — original conservé dans la corbeille",
-      "doPermanent": "Ré-encoder au plafond de qualité — original supprimé définitivement"
-    },
-    "SubtitleLanguage": {
-      "title": "Sous-titres indésirables",
-      "hint": "Sous-titres dans des langues que vous ne conservez pas.",
-      "action": "Supprimer les sous-titres",
-      "actionHint": "Met en file d'attente la suppression des pistes de sous-titres indésirables pour la prochaine exécution.",
-      "approveAll": "Nettoyer les {0} fichiers affichés",
-      "doRecycle": "Supprimer les sous-titres indésirables — original conservé dans la corbeille",
-      "doPermanent": "Supprimer les sous-titres indésirables — original supprimé définitivement"
-    },
-    "AudioLanguage": {
-      "title": "Audio indésirable",
-      "hint": "Pistes audio dans des langues que vous ne conservez pas.",
-      "action": "Supprimer les pistes audio",
-      "actionHint": "Met en file d'attente la suppression des pistes audio indésirables pour la prochaine exécution.",
-      "approveAll": "Nettoyer les {0} fichiers affichés",
-      "doRecycle": "Supprimer l'audio indésirable — original conservé dans la corbeille",
-      "doPermanent": "Supprimer l'audio indésirable — original supprimé définitivement"
-    },
-    "Misplaced": {
-      "title": "Fichiers mal placés",
-      "hint": "Un film dans le dossier TV, ou un épisode TV dans le dossier Films.",
-      "action": "Déplacer vers le bon dossier",
-      "actionHint": "Déplace le fichier vers le dossier cible configuré dans Paramètres → Bibliothèques.",
-      "approveAll": "Déplacer les {0} fichiers mal placés affichés"
-    },
-    "MissingSubtitles": {
-      "title": "Sous-titres manquants",
-      "hint": "Aucun sous-titre dans l'une de vos langues conservées.",
-      "action": "Télécharger les sous-titres",
-      "actionHint": "Télécharge un via les fournisseurs de sous-titres configurés dans Jellyfin (OpenSubtitles, etc.).",
-      "approveAll": "Télécharger les sous-titres pour les {0} affichés"
-    },
-    "Stale": {
-      "title": "Contenu obsolète",
-      "hint": "Personne ne l'a lu depuis longtemps.",
-      "action": "Vérifier",
-      "actionHint": "Détection seulement pour l'instant — MediaDash affiche la liste, vous décidez de supprimer ou conserver.",
-      "approveAll": "Vérifier les {0} éléments obsolètes affichés"
-    },
-    "MalwareRisk": {
-      "title": "Exécutables suspects",
-      "hint": "Programmes ou scripts dans un dossier média — presque toujours des logiciels malveillants issus d'une version piratée.",
-      "action": "Supprimer ce fichier",
-      "actionHint": "Programme la suppression pour la prochaine exécution ; le fichier va à la corbeille sauf si vous le passez en suppression définitive.",
-      "approveAll": "Supprimer les {0} fichiers suspects affichés",
-      "doRecycle": "Supprimer l'exécutable — récupérable depuis la corbeille",
-      "doPermanent": "Supprimer l'exécutable — définitivement"
-    },
-    "HeavyTranscode": {
-      "title": "Heavy transcodes",
-      "hint": "Files that keep transcoding on the fly instead of direct-playing.",
-      "action": "Re-encode to compatible codec",
-      "actionHint": "Queues a one-off re-encode with the plugin's own settings so future plays become direct-play.",
-      "approveAll": "Re-encode all {0} heavy-transcode files shown",
-      "doRecycle": "Re-encode; keep the original in the recycle bin",
-      "doPermanent": "Re-encode; permanently delete the original"
-    },
-    "FailedTranscode": {
-      "title": "Failed transcodes",
-      "hint": "Recent transcode attempts failed (non-zero ffmpeg exit or a 'Conversion failed' tail).",
-      "action": "Retry with plugin settings",
-      "actionHint": "Runs a targeted re-encode with MediaDash's settings; often succeeds where the on-the-fly attempt didn't.",
-      "approveAll": "Retry all {0} failed-transcode files shown",
-      "doRecycle": "Retry; keep the original in the recycle bin",
-      "doPermanent": "Retry; permanently delete the original"
-    },
-    "OrphanedDebris": {
-      "title": "Orphaned debris",
-      "hint": "Empty folders, orphan subtitles, orphan trickplay folders and orphan metadata whose parent no longer exists.",
-      "action": "Delete orphan",
-      "actionHint": "Re-verifies at fix time that the parent still doesn't exist; refuses if a companion has reappeared.",
-      "approveAll": "Delete all {0} orphaned items shown"
-    },
-    "LargeTrickplay": {
-      "title": "Large trickplay images",
-      "hint": "Trickplay sprite thumbnails still stored as raw JPG — reclaimable by re-encoding as WebP.",
-      "action": "Optimize trickplay images",
-      "actionHint": "Re-encodes each sprite as WebP renamed .jpg so the client still fetches them; no client-side change.",
-      "approveAll": "Optimize all {0} trickplay folders shown"
-    },
-    "EmbeddedCoverArt": {
-      "title": "Embedded cover art",
-      "hint": "Music or audiobook folders with per-file embedded covers but no folder-level cover.jpg.",
-      "action": "Extract shared folder cover",
-      "actionHint": "Writes cover.jpg once and (optionally) strips the redundant per-file copies.",
-      "approveAll": "Extract shared covers for all {0} folders shown"
-    },
-    "CorruptArtwork": {
-      "title": "Corrupt artwork",
-      "hint": "Poster / backdrop / thumb files inside Jellyfin's metadata folder that are zero-byte, truncated, or fail to decode.",
-      "action": "Delete corrupt artwork",
-      "actionHint": "Removes the broken image; Jellyfin's next library scan re-fetches from providers.",
-      "approveAll": "Delete all {0} corrupt artwork files shown"
-    }
-  },
-  "languages": [
-    [
-      "eng",
-      "Anglais"
-    ],
-    [
-      "spa",
-      "Espagnol"
-    ],
-    [
-      "fra",
-      "Français"
-    ],
-    [
-      "deu",
-      "Allemand"
-    ],
-    [
-      "ita",
-      "Italien"
-    ],
-    [
-      "por",
-      "Portugais"
-    ],
-    [
-      "nld",
-      "Néerlandais"
-    ],
-    [
-      "rus",
-      "Russe"
-    ],
-    [
-      "jpn",
-      "Japonais"
-    ],
-    [
-      "zho",
-      "Chinois"
-    ],
-    [
-      "kor",
-      "Coréen"
-    ],
-    [
-      "ara",
-      "Arabe"
-    ],
-    [
-      "hin",
-      "Hindi"
-    ],
-    [
-      "pol",
-      "Polonais"
-    ],
-    [
-      "swe",
-      "Suédois"
-    ],
-    [
-      "nor",
-      "Norvégien"
-    ],
-    [
-      "dan",
-      "Danois"
-    ],
-    [
-      "fin",
-      "Finnois"
-    ],
-    [
-      "tur",
-      "Turc"
-    ],
-    [
-      "ces",
-      "Tchèque"
-    ],
-    [
-      "ell",
-      "Grec"
-    ],
-    [
-      "heb",
-      "Hébreu"
-    ],
-    [
-      "tha",
-      "Thaï"
-    ],
-    [
-      "vie",
-      "Vietnamien"
-    ],
-    [
-      "ukr",
-      "Ukrainien"
-    ],
-    [
-      "hun",
-      "Hongrois"
-    ],
-    [
-      "ron",
-      "Roumain"
-    ]
-  ],
-  "wizSteps": [
-    "Étape 1 sur 9 — Bienvenue",
-    "Étape 2 sur 9 — Bibliothèques",
-    "Étape 3 sur 9 — Doublons",
-    "Étape 4 sur 9 — Fichiers cassés",
-    "Étape 5 sur 9 — Fichiers surdimensionnés",
-    "Étape 6 sur 9 — Langues",
-    "Étape 7 sur 9 — Trieur de médias",
-    "Étape 8 sur 9 — Sécurité",
-    "Étape 9 sur 9 — Terminé"
-  ],
-  "wizFinish": "Terminer la configuration",
-  "wizContinue": "Continuer",
-  "html": {
-    "tab.overview": "Vue d'ensemble",
-    "tab.issues": "Problèmes",
-    "tab.history": "Historique",
-    "tab.files": "Fichiers",
-    "tab.errors": "Erreurs",
-    "tab.settings": "Paramètres",
-    "settings.nav.safety": "Sécurité",
-    "settings.nav.languages": "Langues",
-    "settings.nav.fix": "Quoi corriger",
-    "settings.nav.quality": "Qualité",
-    "settings.nav.libraries": "Bibliothèques",
-    "settings.nav.advanced": "Avancé",
-    "settings.nav.bin": "Corbeille",
-    "settings.nav.maintenance": "Maintenance",
-    "settings.safety.title": "Sécurité",
-    "settings.safety.subtitle": "Garde-fous qui maintiennent chaque analyse et correction réversibles.",
-    "settings.safety.dryRun": "Mode simulation",
-    "settings.safety.dryRunHint": "Activé (par défaut) : les correctifs se contentent d'enregistrer ce qu'ils feraient — rien n'est modifié. Désactivez-le quand le plan affiché dans Historique vous convient.",
-    "settings.safety.idle": "N'exécuter que lorsque le serveur est inactif",
-    "settings.safety.idleHint": "Activé (par défaut) : les analyses et correctifs planifiés attendent que personne ne regarde et que Jellyfin ne soit plus utilisé depuis 15 minutes. Les boutons \"Analyser maintenant\" et \"Exécuter les correctifs maintenant\" s'exécutent toujours immédiatement. Ceci prime sur l'heure programmée ci-dessous — si le serveur est occupé au déclenchement, l'exécution est ignorée.",
-    "task.scan.name": "Analyser les bibliothèques à la recherche de problèmes",
-    "task.scan.description": "Cherche des doublons, fichiers illisibles, encodages surdimensionnés, pistes de langue indésirables, fichiers mal placés et vidéos sans sous-titres.",
-    "task.fix.name": "Appliquer les correctifs approuvés",
-    "task.fix.description": "Applique les correctifs approuvés et automatiques : supprime les doublons, ré-encode les fichiers surdimensionnés, retire les pistes indésirables.",
-    "tab.recyclebin": "Recycle bin",
-    "settings.safety.analytics": "Share anonymous stats with the community board",
-    "settings.safety.analyticsHint": "Off by default. Sends monthly aggregate counts and byte totals (no paths, filenames, or user identifiers) so we can show which fixes save the most disk on the community board."
-  },
-  "savedPerLibrary": "Économies par bibliothèque",
-  "unassignedLibrary": "Non assigné"
+    "savedPerLibrary": "Économies par bibliothèque",
+    "unassignedLibrary": "Non assigné"
 }
