@@ -1126,6 +1126,34 @@ public class MediaDashController : ControllerBase
     }
 
     /// <summary>
+    /// Adopts an unowned legacy batch sitting at the top level of the current recycle root by writing
+    /// the ownership marker into it. Once adopted, the batch is folded into the managed bin: it will
+    /// show up in the Recycle bin tab, be counted by size totals, and honour retention purges.
+    /// Rejected paths (wrong root, non-batch shape, missing directory) return 400.
+    /// Used by the Errors tab's "Adopt batch" button when a <c>RecycleBin.LegacyBatchNeedsReview</c>
+    /// diagnostic is surfaced.
+    /// </summary>
+    /// <param name="request">The batch to adopt.</param>
+    /// <returns>No content on success, or 400 when the path is not adoptable.</returns>
+    [HttpPost("RecycleBin/AdoptBatch")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public ActionResult AdoptRecycleBinBatch([FromBody] AdoptBatchRequest request)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.Path))
+        {
+            return BadRequest("Path is required.");
+        }
+
+        if (!_recycleBin.AdoptBatchByPath(request.Path))
+        {
+            return BadRequest("That path is not an unowned MediaDash batch directly inside the configured recycle bin root.");
+        }
+
+        return NoContent();
+    }
+
+    /// <summary>
     /// Wipes all scan state (issues, probe cache, decode cache) so the next scan starts fresh.
     /// Refuses while a scan or fix is running to avoid corrupting in-flight state.
     /// Fix history and the recycle bin are preserved.

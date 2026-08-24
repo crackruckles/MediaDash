@@ -21,6 +21,8 @@ using Microsoft.Extensions.Logging;
 // the recycle bin. RecycleBin has no independent trust boundary; it always operates on paths its caller has already vetted.
 [assembly: SuppressMessage("Security", "CA3003:Review code for file path injection vulnerabilities", Scope = "member", Target = "~M:Jellyfin.Plugin.MediaDash.Fixers.RecycleBin.MoveToBin(System.String)~System.String", Justification = "Callers (fixers and FileBrowserController) validate paths via LibraryGuard before calling.")]
 [assembly: SuppressMessage("Security", "CA3003:Review code for file path injection vulnerabilities", Scope = "member", Target = "~M:Jellyfin.Plugin.MediaDash.Fixers.RecycleBin.MoveAcrossVolumes(System.String,System.String)", Justification = "Only called from validated code paths.")]
+// AdoptBatchByPath does its own validation: (1) Path.GetFullPath canonicalises, (2) IsMediaDashBatchName gates on the exact 28-char timestamp+GUID leaf shape, (3) PathsEqual(parent, Root) requires the path to be a direct child of the current recycle bin. A traversal-shaped input fails IsMediaDashBatchName (leaf can't contain "..") and an out-of-root input fails the parent check.
+[assembly: SuppressMessage("Security", "CA3003:Review code for file path injection vulnerabilities", Scope = "member", Target = "~M:Jellyfin.Plugin.MediaDash.Fixers.RecycleBin.AdoptBatchByPath(System.String)~System.Boolean", Justification = "Path is validated inside the method: must be a direct child of Root and its leaf must match IsMediaDashBatchName.")]
 
 namespace Jellyfin.Plugin.MediaDash.Api;
 

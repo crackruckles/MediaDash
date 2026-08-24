@@ -227,6 +227,62 @@ public sealed class RecycleBin
     public string GetEffectiveRoot() => Root;
 
     /// <summary>
+    /// Writes the ownership marker into an unowned batch directory sitting at the top level of the
+    /// current recycle root, folding it into the managed bin from that point on
+    /// (<see cref="GetContents"/> / <see cref="ListContents"/> / <see cref="EmptyAll"/> /
+    /// <see cref="Purge"/> all pick it up). Rejected paths return false without touching disk.
+    /// The path must be a direct child of the current <see cref="Root"/> AND its name must match the
+    /// canonical timestamp+GUID batch shape (<see cref="IsMediaDashBatchName"/>).
+    /// </summary>
+    /// <param name="batchPath">Absolute path to a batch directory.</param>
+    /// <returns>True when the marker is now present (either freshly written or already there); false when the path is not eligible.</returns>
+    public bool AdoptBatchByPath(string batchPath)
+    {
+        if (string.IsNullOrWhiteSpace(batchPath))
+        {
+            return false;
+        }
+
+        string full;
+        try
+        {
+            full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(batchPath));
+        }
+        catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
+        {
+            return false;
+        }
+
+        if (!Directory.Exists(full) || !IsMediaDashBatchName(full))
+        {
+            return false;
+        }
+
+        var parent = Path.GetDirectoryName(full);
+        if (parent is null || !PathsEqual(parent, Root))
+        {
+            return false;
+        }
+
+        try
+        {
+            var marker = Path.Combine(full, OwnershipMarkerFileName);
+            if (!File.Exists(marker))
+            {
+                File.Create(marker).Dispose();
+            }
+
+            _logger.LogInformation("Adopted legacy recycle batch {Batch} into the managed bin", full);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "Could not adopt legacy recycle batch {Batch}", full);
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Restores a recycled file to its original location.
     /// </summary>
     /// <param name="recyclePath">The file's location inside the bin.</param>
