@@ -679,6 +679,53 @@
                 margin-top: 3px;
                 overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
             }
+            #MediaDashConfigPage .mdBinReasonRow {
+                display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+                margin-top: 6px;
+                font: 500 12px Figtree, sans-serif;
+                color: var(--md-meta);
+            }
+            #MediaDashConfigPage .mdBinReasonChip {
+                display: inline-flex; align-items: center; gap: 5px;
+                padding: 3px 10px; border-radius: 999px;
+                background: rgba(59,130,246,.12);
+                border: 1px solid rgba(59,130,246,.35);
+                color: #93c5fd;
+                font: 700 11.5px Figtree, sans-serif;
+                text-transform: none;
+            }
+            #MediaDashConfigPage .mdBinReasonChip--manual {
+                background: rgba(148,163,184,.12);
+                border-color: rgba(148,163,184,.35);
+                color: #cbd5e1;
+            }
+            #MediaDashConfigPage .mdBinReasonChip--orphan {
+                background: rgba(245,158,11,.10);
+                border-color: rgba(245,158,11,.40);
+                color: #fcd34d;
+            }
+            #MediaDashConfigPage .mdBinRowAction2 {
+                font: 400 12.5px/1.45 Figtree, sans-serif;
+                color: var(--md-body);
+                margin-top: 6px;
+                font-style: italic;
+                opacity: .85;
+            }
+            #MediaDashConfigPage .mdBinRowHelp {
+                display: inline-flex; align-items: center; gap: 4px;
+                margin-top: 6px;
+                padding: 3px 10px;
+                border-radius: 6px;
+                background: rgba(16,185,129,.08);
+                border: 1px solid rgba(16,185,129,.28);
+                color: #6ee7b7;
+                font: 400 11.5px/1.5 Figtree, sans-serif;
+                cursor: help;
+                max-width: 100%;
+            }
+            #MediaDashConfigPage .mdBinRowHelp .material-icons { font-size: 14px; }
+            #MediaDashConfigPage .mdBinRetentionSoon { color: #fbbf24; font-weight: 700; }
+            #MediaDashConfigPage .mdBinRetentionUrgent { color: #f87171; font-weight: 700; }
             #MediaDashConfigPage .mdBinRowSize,
             #MediaDashConfigPage .mdBinRowDate {
                 font: 500 13px 'IBM Plex Mono', monospace;
@@ -3163,6 +3210,12 @@
                                 <input id="mdWizRetention" type="number" min="1" max="365" is="emby-input" />
                                 <div class="fieldDescription">How long removed files are kept before they are permanently purged.</div>
                             </div>
+                            <div class="inputContainer" style="max-width:36em;margin-top:.6em;">
+                                <label class="inputLabel inputLabelUnfocused" for="mdWizBinPath">Recycle bin folder (optional)</label>
+                                <input id="mdWizBinPath" type="text" is="emby-input" placeholder="default (inside Jellyfin's data folder)" />
+                                <div class="fieldDescription">Leave blank to use the default. Pick a folder on the same drive as your media to make recycling instant. Requires at least 5 GB free.</div>
+                            </div>
+                            <div id="mdWizBinDiskWarn" style="display:none;margin-top:.8em;padding:.75em 1em;background:rgba(220,38,38,.08);border:1px solid #dc2626;border-radius:6px;color:#fecaca;font-size:13px;line-height:1.5;"></div>
                         </div>
 
                         <div class="mdWizStep" data-step="14">
@@ -3413,6 +3466,7 @@
                         </div>
                         <div class="mdRecycleHint">Click Restore on any row to put that file back at its original location. Files without a "no history" tag can also be restored from the History tab.</div>
                     </div>
+                    <div id="mdBinConsolidateBanner" style="display:none;"></div>
                     <div class="mdCard mdBinListCard">
                         <div class="mdBinHeader">
                             <div class="mdBinHeadFile">File</div>
@@ -3547,6 +3601,7 @@
                                 <button is="emby-button" type="button" id="mdBinAccessTest" class="raised mdActionBtn" title="Probe the currently-configured recycle bin path for read + write access. Creates the folder if missing."><span class="material-icons">verified_user</span><span>Test read / write access</span></button>
                                 <div id="mdBinAccessResults" class="fieldDescription" style="flex:1;min-width:16em;"></div>
                             </div>
+                            <div id="mdBinDiskWarn" style="display:none;margin-top:1em;padding:.75em 1em;background:rgba(220,38,38,.08);border:1px solid #dc2626;border-radius:6px;color:#fecaca;font-size:13px;line-height:1.5;"></div>
                         </section>
 
                         <section id="mdSet-maintenance" class="mdSetCard mdSetCard--maintenance mdSetCard--collapsible mdSetCard--full">
@@ -3661,8 +3716,11 @@
                 statUnknown: '—',
                 statPlatform: 'Host: {0}',
                 totalSavings: 'Space you could reclaim',
-                lifetimeSaved: 'Reclaimed since install',
-                lifetimeSavedHint: 'Bytes freed by every successful non-dry-run fix. Includes the post-Jellyfin-12 cleanup.',
+                lifetimeSaved: 'Space trimmed since install',
+                lifetimeSavedHint: 'Sum of per-file shrinkage from remuxes and re-encodes plus outright deletions. Originals wait in the recycle bin until purged (see below), so free disk space drops during a fix run and only fully recovers once the bin empties.',
+                binHeldNow: 'Sitting in recycle bin now',
+                binHeldNowHint: 'Originals moved aside so fixes stay reversible. Auto-purges after {0} day(s). Once purged, this space is truly reclaimed.',
+                binHeldEmpty: 'Nothing in the recycle bin.',
                 whereSavings: 'Where the savings are',
                 issuesByType: 'Issues found',
                 noIssues: 'No issues found — your library is in good shape. New scans run automatically on schedule.',
@@ -3672,7 +3730,7 @@
                 approve: 'Approve',
                 approveHint: 'Queues this fix for the next fix run.',
                 dismiss: 'Ignore this',
-                dismissHint: 'Excludes this file from future scans of this issue type — it won’t be reported again.',
+                dismissHint: 'Won’t report this file for this issue again.',
                 approveAll: 'Approve all {0} shown',
                 approveAllTypes: 'Approve all {0} issues (all types)',
                 approveAllNote: 'Approves every issue currently listed — each will be fixed on the next fix run.',
@@ -3681,6 +3739,10 @@
                 clearAllNothing: 'No issues to clear.',
                 approved: 'Approved — will be handled by the next fix run.',
                 dismissed: 'Ignored — this file won’t be reported again.',
+                undoAction: 'Undo',
+                undoActionHint: 'Change your mind? Puts the issue back on the decision list so you can pick again.',
+                undoneMsg: 'Undone — this issue is back on your decision list.',
+                undoFailedMsg: 'Could not undo (the fix may already have run).',
                 langFilterLabel: 'Filter by audio language:',
                 langFilterAll: 'All languages',
                 ctxIgnoreFolder: 'Ignore all issues in this folder',
@@ -3691,13 +3753,13 @@
                 ctxNothing: 'No matching open issues.',
                 page: 'Page {0} of {1}',
                 restore: 'Restore',
+                restoredAs: 'Restored as {0} (a file already existed at the original path — both copies are kept).',
                 restoreHint: 'Puts the file back exactly where it was.',
                 restored: 'Restored.',
                 restoreFailed: 'Could not restore: {0}',
                 restoring: 'Restoring…',
-                restoreOverwritePrompt: 'A file already exists at that path (probably the newer version MediaDash wrote). Send the current file to the recycle bin and put this older copy back in its place? The current file stays recoverable.',
                 spaceSavedToDate: 'Space saved to date: {0}',
-                savedPerLibrary: 'Reclaimed since install per library',
+                savedPerLibrary: 'Space trimmed per library',
                 unassignedLibrary: 'Unassigned',
                 dryRunBadge: 'dry run',
                 saved: 'Saved.',
@@ -3783,7 +3845,7 @@
                     },
                     MissingSubtitles: {
                         title: 'Missing subtitles', hint: 'No subtitle in any of your kept languages.', color: '#a78bfa', icon: 'closed_caption',
-                        action: 'Download subtitles', actionHint: 'Downloads one via Jellyfin’s configured subtitle providers (OpenSubtitles etc.).', approveAll: 'Download subtitles for all {0} shown'
+                        action: 'Download subtitles', actionHint: 'Downloads a subtitle from your configured provider (OpenSubtitles etc.).', approveAll: 'Download subtitles for all {0} shown'
                     },
                     Stale: {
                         title: 'Stale content', hint: 'Nobody has played it in a long time.', color: '#64748b', icon: 'hourglass_bottom',
@@ -3974,10 +4036,51 @@
                 return n.toFixed(n >= 10 || i === 0 ? 0 : 1) + ' ' + units[i];
             }
 
+            // Renders a past date as "X minute(s) ago", "X hour(s) ago", "X day(s) ago", or
+            // "on YYYY-MM-DD" beyond 90 days. Used by the Recycle bin tab so users see time-in-bin
+            // without having to compute it from a raw timestamp.
+            function describeRelativeAgo(date) {
+                var now = new Date();
+                var secs = Math.max(0, Math.floor((now - date) / 1000));
+                if (secs < 90) return secs + ' second' + (secs === 1 ? '' : 's') + ' ago';
+                var mins = Math.floor(secs / 60);
+                if (mins < 90) return mins + ' minute' + (mins === 1 ? '' : 's') + ' ago';
+                var hrs = Math.floor(mins / 60);
+                if (hrs < 36) return hrs + ' hour' + (hrs === 1 ? '' : 's') + ' ago';
+                var days = Math.floor(hrs / 24);
+                if (days <= 90) return days + ' day' + (days === 1 ? '' : 's') + ' ago';
+                return 'on ' + date.toISOString().slice(0, 10);
+            }
+
+            // Renders the AutoPurgesAtUtc timestamp as "auto-deletes in N days" or a warning-tinted
+            // "auto-deletes in N days" when we're inside 3 days. Returns HTML (span markup) so we
+            // can colour the urgent case. Empty when purge is disabled (retention = 0) or unknown.
+            function describeRetention(iso) {
+                if (!iso) return '';
+                var when = new Date(iso);
+                if (isNaN(when.getTime())) return '';
+                var days = Math.round((when - new Date()) / 86400000);
+                var cls = '';
+                if (days <= 0) cls = 'mdBinRetentionUrgent';
+                else if (days <= 3) cls = 'mdBinRetentionSoon';
+                var text;
+                if (days <= 0) text = 'auto-deletes now';
+                else if (days === 1) text = 'auto-deletes tomorrow';
+                else text = 'auto-deletes in ' + days + ' days';
+                return cls
+                    ? '<span class="' + cls + '">' + text + '</span>'
+                    : text;
+            }
+
             function esc(s) {
+                // textContent → innerHTML escapes <, >, and & correctly but leaves " unescaped.
+                // Every callsite that dumps this into an HTML attribute (title="…", data-…="…")
+                // then breaks when the payload contains a quote — the attribute closes early and
+                // everything after is misparsed. Escape " (and ' for good measure) here so any
+                // reachable use in either HTML text OR an attribute is safe.
                 var d = document.createElement('div');
                 d.textContent = s == null ? '' : s;
-                return d.innerHTML;
+                return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
             }
 
             var view, pollTimer;
@@ -4125,37 +4228,27 @@
                 return 'other';
             }
 
-            // Attempt a restore; on the "already exists at target" conflict, prompt the user to
-            // force-swap (current file → recycle bin, older copy → original location).
-            function tryRestore(id, btn, msgEl, force) {
+            // Attempt a restore. Non-destructive by default: if a file already exists at the
+            // original path, the backend lands the restore alongside it as <name>-restored<ext>
+            // and returns Suffixed=true. UI shows either "Restored." or "Restored as <basename>".
+            function tryRestore(id, btn, msgEl) {
                 if (btn) btn.disabled = true;
                 if (msgEl) { msgEl.style.color = ''; msgEl.textContent = STR.restoring; }
-                post('History/' + id + '/Restore' + (force ? '?force=true' : '')).then(function () {
-                    if (msgEl) msgEl.textContent = STR.restored;
+                postJson('History/' + id + '/Restore').then(function (r) {
+                    if (msgEl) msgEl.textContent = restoreMessage(r);
                     // btn stays disabled — restored history rows don't restore twice
                 }, function (err) {
-                    var handled = maybeOfferForceRestore(err, id, function () {
-                        if (msgEl) msgEl.textContent = STR.restored;
-                    }, function (err2) {
-                        if (msgEl) msgEl.textContent = fmt(STR.restoreFailed, errorMessage(err2));
-                        if (btn) btn.disabled = false;
-                    });
-                    if (!handled) {
-                        if (msgEl) msgEl.textContent = fmt(STR.restoreFailed, errorMessage(err));
-                        if (btn) btn.disabled = false;
-                    }
+                    if (msgEl) msgEl.textContent = fmt(STR.restoreFailed, errorMessage(err));
+                    if (btn) btn.disabled = false;
                 });
             }
 
-            // If the restore failed with the "target exists" conflict, ask the user and (on yes)
-            // retry with force=true. Returns true if it took over the error handling — callers
-            // should NOT surface the original error in that case.
-            function maybeOfferForceRestore(err, id, onOk, onFail) {
-                var msg = errorMessage(err);
-                if (!msg || msg.indexOf('already exists') < 0) return false;
-                if (!window.confirm(STR.restoreOverwritePrompt || msg)) return true;
-                post('History/' + id + '/Restore?force=true').then(onOk, onFail);
-                return true;
+            function restoreMessage(r) {
+                if (r && r.Suffixed && r.RestoredTo) {
+                    var base = String(r.RestoredTo).split(/[\\/]/).pop();
+                    return fmt(STR.restoredAs, base);
+                }
+                return STR.restored;
             }
 
             // ---------- Charts (inline SVG, no dependencies) ----------
@@ -4922,7 +5015,7 @@
                 var lifetimeCounts = s.LifetimeCounts || [];
                 var hero = view.querySelector('#mdHero');
                 var lifetime = s.LifetimeBytesReclaimed || 0;
-                if (s.TotalPotentialSavings > 0 || counts.length > 0 || lifetime > 0) {
+                if (s.TotalPotentialSavings > 0 || counts.length > 0 || lifetime > 0 || (s.RecycleBinBytes || 0) > 0) {
                     // Design: two side-by-side panels, each with its own 4px accent top bar.
                     // Left panel (#3b82f6): "Space you could reclaim" + 104px conic-gradient donut
                     // sized by issue COUNT + count-badge legend.
@@ -4960,6 +5053,19 @@
                             '</div>';
                         }).join('');
                     }
+                    function binFooterHtml(s) {
+                        var binBytes = s.RecycleBinBytes || 0;
+                        var binCount = s.RecycleBinFileCount || 0;
+                        var retention = s.RecycleBinRetentionDays || 30;
+                        var body = binCount > 0
+                            ? '<span style="font-family:\'IBM Plex Mono\', monospace;color:#facc15;">' + esc(bytes(binBytes)) + '</span> · ' +
+                              esc(fmt(STR.binHeldNowHint, retention))
+                            : esc(STR.binHeldEmpty);
+                        return '<div style="margin-top:22px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08);font-size:12.5px;color:var(--md-meta);line-height:1.45;">' +
+                            '<div style="font:700 11.5px Figtree,sans-serif;letter-spacing:.13em;text-transform:uppercase;margin-bottom:6px;">' + esc(STR.binHeldNow) + '</div>' +
+                            '<div>' + body + '</div>' +
+                        '</div>';
+                    }
                     function lifetimeLegend(items) {
                         return items.map(function (c) {
                             var t = STR.types[c.Type] || { title: c.Type, color: '#888' };
@@ -4992,6 +5098,7 @@
                                     '<div style="font:700 11.5px Figtree,sans-serif;letter-spacing:.13em;text-transform:uppercase;color:var(--md-meta);" title="' + esc(STR.lifetimeSavedHint) + '">' + esc(STR.lifetimeSaved) + '</div>' +
                                     '<div style="margin:10px 0 22px;font:700 40px \'IBM Plex Mono\', monospace;letter-spacing:-.03em;color:#34d399;">' + esc(bytes(lifetime)) + '</div>' +
                                     (lifetimeCounts.length ? '<div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">' + conicDonut(lifetimeCounts, 'bytes', panelBg) + '<div style="display:flex;flex-direction:column;gap:11px;">' + lifetimeLegend(lifetimeCounts) + '</div></div>' : '') +
+                                    binFooterHtml(s) +
                                 '</div>' +
                             '</div>' +
                         '</div>';
@@ -5215,6 +5322,12 @@
                     var statusBadge = isQueued
                         ? '<span class="mdBadge" style="background:rgba(0,164,220,.35);color:#fff;">queued</span> '
                         : '';
+                    // "You restored this before" badge: rendered on any Detected row whose (path, type)
+                    // is in the restored_paths table. Tells the user why the row isn't auto-queuing
+                    // even though the type is set to Automatic — MediaDash won't override their restore.
+                    var restoredBadge = i.WasPreviouslyRestored
+                        ? '<span class="mdBadge" style="background:rgba(245,158,11,.20);color:#fbbf24;border:1px solid rgba(245,158,11,.5);" title="MediaDash will not auto-fix this file again because you restored it before. Click Approve to fix it anyway, or Ignore this to stop seeing it.">↩ you restored this before</span> '
+                        : '';
                     var verifyBtn = '';
                     if (i.Type === 'Playability' && i.ItemId && i.ItemId !== '00000000-0000-0000-0000-000000000000') {
                         verifyBtn = '<button is="emby-button" type="button" class="raised mdOpenInJellyfin" data-item="' + esc(i.ItemId) + '" style="font-size:80%;"><span class="material-icons" style="font-size:1em;vertical-align:middle;margin-right:.2em;">play_arrow</span>Try to play</button>';
@@ -5225,13 +5338,22 @@
                     var actionButtons, actionHint;
                     if (isQueued) {
                         actionButtons = verifyBtn +
+                            '<button is="emby-button" type="button" class="raised mdUndoAction" data-id="' + i.Id + '" style="font-size:80%;" title="' + esc(STR.undoActionHint) + '"><span class="material-icons" style="font-size:1em;vertical-align:-2px;margin-right:.25em;">undo</span><span>' + esc(STR.undoAction) + '</span></button>' +
                             '<button is="emby-button" type="button" class="raised mdDismiss" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(STR.dismiss) + '</span></button>';
-                        actionHint = '<span class="material-icons" style="font-size:15px;vertical-align:middle;color:var(--md-primary);">schedule</span> Queued for next fix run — click "Run fixes now" on Overview.';
+                        actionHint = '<span class="material-icons" style="font-size:15px;vertical-align:middle;color:var(--md-primary);">schedule</span> Queued for next fix run — click "Run fixes now" on Overview. Change your mind? Click Undo.';
                     } else {
                         actionButtons = verifyBtn +
                             '<button is="emby-button" type="button" class="raised button-submit mdApprove" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(t.action || STR.approve) + '</span></button>' +
                             '<button is="emby-button" type="button" class="raised mdDismiss" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(STR.dismiss) + '</span></button>';
-                        actionHint = esc(t.actionHint || STR.approveHint) + ' · ' + esc(STR.dismissHint);
+                        // Label each half of the hint with the button it describes so the two
+                        // sentences don't run together and read as one confusing description of a
+                        // single action. Field report: "Downloads one via… · Excludes this file
+                        // from future scans" was parsed as one sentence.
+                        var approveLabel = esc(t.action || STR.approve);
+                        var dismissLabel = esc(STR.dismiss);
+                        actionHint =
+                            '<strong>' + approveLabel + ':</strong> ' + esc(t.actionHint || STR.approveHint) +
+                            ' · <strong>' + dismissLabel + ':</strong> ' + esc(STR.dismissHint);
                     }
                     var actions = actionButtons;
                     var keeperPath = '';
@@ -5254,6 +5376,8 @@
                                 '<div class="mdIssueTitleRow">' +
                                     '<span class="mdIssueFilename">' + esc(i.FileName) + '</span>' +
                                     '<span class="mdIssueTagChip">' + esc(t.title) + '</span>' +
+                                    statusBadge +
+                                    restoredBadge +
                                 '</div>' +
                                 pathBlock +
                                 '<div class="mdIssueHint">' + esc(i.SuggestedFix) +
@@ -5275,6 +5399,9 @@
                 });
                 el.querySelectorAll('.mdDismiss').forEach(function (b) {
                     b.addEventListener('click', function () { rowAction(b, 'Dismiss', STR.dismissed); });
+                });
+                el.querySelectorAll('.mdUndoAction').forEach(function (b) {
+                    b.addEventListener('click', function () { undoRowAction(b); });
                 });
                 el.querySelectorAll('.mdIssuePath').forEach(function (p) {
                     p.addEventListener('click', function () { openInFileBrowser(p.getAttribute('data-path')); });
@@ -5302,11 +5429,47 @@
                 post('Issues/' + id + '/' + action).then(function () {
                     var row = button.closest('[data-issue]');
                     row.querySelector('.mdRowMsg').textContent = doneText;
-                    row.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
                     row.style.opacity = '.55';
+                    // Keep the in-memory issue list in sync with the server. Without this the
+                    // renderIssuesFiltered fingerprint (Id + Status) stays stale, and a follow-up
+                    // loadIssues short-circuits its DOM re-render because "nothing changed" — that's
+                    // the class of bug that broke undo before we mutated Status here.
+                    var issue = lastIssueList.find(function (i) { return String(i.Id) === String(id); });
+                    if (issue) issue.Status = (action === 'Approve') ? 'Queued' : 'Dismissed';
+                    // Replace the action cluster with a single Undo button. Users often mis-click
+                    // Approve / Dismiss; the Fix task runs on a schedule so there's a real window to
+                    // change your mind. Revert flips the issue back to Detected on the server.
+                    var actionsCell = row.querySelector('.mdIssueActions');
+                    if (actionsCell) {
+                        actionsCell.innerHTML = '<button is="emby-button" type="button" class="raised mdUndoAction" data-id="' + id + '" style="font-size:80%;"><span class="material-icons" style="font-size:1em;vertical-align:-2px;margin-right:.25em;">undo</span><span>' + esc(STR.undoAction) + '</span></button>';
+                        var undoBtn = actionsCell.querySelector('.mdUndoAction');
+                        undoBtn.addEventListener('click', function () { undoRowAction(undoBtn); });
+                    }
                     // Refresh in the background so PendingFixCount reflects the approval right away — otherwise
                     // clicking "Run fixes now" immediately after approving reads the stale count and shows "nothing to fix".
                     refresh(true);
+                });
+            }
+
+            function undoRowAction(button) {
+                var id = button.getAttribute('data-id');
+                button.disabled = true;
+                post('Issues/' + id + '/Revert').then(function () {
+                    // Bust the fingerprint so renderIssuesFiltered doesn't short-circuit. The list
+                    // returned from loadIssues will report Status=Detected, which is what the row
+                    // ALREADY reads as in lastIssueList after a manual DOM-only Approve — leaving
+                    // the fingerprint identical and the render skipped. Explicitly clearing it here
+                    // forces the re-render every time.
+                    var listEl = view.querySelector('#mdIssueList');
+                    if (listEl) listEl.removeAttribute('data-fingerprint');
+                    loadIssues();
+                    refresh(true);
+                }, function () {
+                    button.disabled = false;
+                    var row = button.closest('[data-issue]');
+                    if (row) {
+                        row.querySelector('.mdRowMsg').textContent = STR.undoFailedMsg;
+                    }
                 });
             }
 
@@ -5522,7 +5685,7 @@
                 var summaryEl = view.querySelector('#mdHistorySummary');
                 var saved = stats ? (stats.TotalBytesFreed || 0) : 0;
                 if (saved > 0) {
-                    summaryEl.innerHTML = '<div class="mdHistSummaryLabel">Reclaimed since install</div>' +
+                    summaryEl.innerHTML = '<div class="mdHistSummaryLabel">Space trimmed since install</div>' +
                         '<div class="mdHistSummaryValue">' + esc(bytes(saved)) + '</div>';
                 } else {
                     summaryEl.innerHTML = '';
@@ -5600,7 +5763,7 @@
                 el.innerHTML = html;
 
                 el.querySelectorAll('.mdRestore').forEach(function (b) {
-                    b.addEventListener('click', function () { tryRestore(b.getAttribute('data-id'), b, b.closest('[data-history]').querySelector('.mdRowMsg'), false); });
+                    b.addEventListener('click', function () { tryRestore(b.getAttribute('data-id'), b, b.closest('[data-history]').querySelector('.mdRowMsg')); });
                 });
             }
 
@@ -6907,22 +7070,58 @@
                         html = '<div class="mdBinEmpty">' + esc(STR.binEmpty) + '</div>';
                     } else {
                         items.forEach(function (f) {
-                            var origTitle = f.OriginalPath
-                                ? 'Restore to ' + f.OriginalPath
-                                : "This bin file has no matching history row — it was recycled before MediaDash tracked restore destinations, or the row was purged. Use file browser to move it back manually if needed.";
-                            var restoreBtn = f.HistoryId
-                                ? '<button is="emby-button" type="button" class="raised mdBinRestore" data-history-id="' + f.HistoryId + '" title="' + esc(origTitle) + '"><span class="material-icons">restore</span><span>' + esc(STR.restore) + '</span></button>'
-                                : '<span class="mdBinNoHistory" title="' + esc(origTitle) + '">no history</span>';
+                            var hint = f.RestoreHint || 'Click Restore to put the file back.';
+                            var restoreBtn;
+                            if (f.HistoryId) {
+                                restoreBtn = '<button is="emby-button" type="button" class="raised mdBinRestore" data-history-id="' + f.HistoryId + '" title="' + esc(hint) + '"><span class="material-icons">restore</span><span>' + esc(STR.restore) + '</span></button>';
+                            } else if (f.BinPath && f.OriginalPath) {
+                                restoreBtn = '<button is="emby-button" type="button" class="raised mdBinRestore" data-bin-path="' + esc(f.BinPath) + '" title="' + esc(hint) + '"><span class="material-icons">restore</span><span>' + esc(STR.restore) + '</span></button>';
+                            } else {
+                                restoreBtn = '<span class="mdBinNoHistory" title="' + esc(hint) + '">no origin</span>';
+                            }
+
                             var fromPath = f.OriginalPath
-                                ? '<div class="mdBinRowFrom">from ' + esc(f.OriginalPath) + '</div>'
+                                ? '<div class="mdBinRowFrom" title="' + esc(f.OriginalPath) + '">from ' + esc(f.OriginalPath) + '</div>'
                                 : '';
+
+                            // Jellyfin serializes enums as strings; accept either form defensively so a
+                            // future serializer swap doesn't silently drop the chip styling.
+                            var provenance = f.Provenance;
+                            var chipClass = 'mdBinReasonChip';
+                            if (provenance === 1 || provenance === 'Manifest') chipClass += ' mdBinReasonChip--manual';
+                            else if (provenance === 2 || provenance === 'Orphan') chipClass += ' mdBinReasonChip--orphan';
+                            var reasonChip = f.Reason
+                                ? '<span class="' + chipClass + '" title="' + esc(f.IssueType || '') + '">' + esc(f.Reason) + '</span>'
+                                : '';
+
+                            var recycledAt = new Date(f.RecycledAtUtc);
+                            var recycledAgo = describeRelativeAgo(recycledAt);
+                            var purge = describeRetention(f.AutoPurgesAtUtc);
+
+                            var actionLine = f.ActionText
+                                ? '<div class="mdBinRowAction2" title="' + esc(f.ActionText) + '">' + esc(f.ActionText) + '</div>'
+                                : '';
+                            var helpBubble = f.RestoreHint
+                                ? '<div class="mdBinRowHelp" title="' + esc(f.RestoreHint) + '">' +
+                                        '<span class="material-icons">help_outline</span>' +
+                                        '<span>How to recover</span>' +
+                                    '</div>'
+                                : '';
+
                             html += '<div class="mdBinRow" title="' + esc(f.OriginalPath || f.FileName) + '">' +
                                 '<div class="mdBinRowFile">' +
                                     '<div class="mdBinRowName">' + esc(f.FileName) + '</div>' +
                                     fromPath +
+                                    '<div class="mdBinReasonRow">' +
+                                        reasonChip +
+                                        '<span>Recycled ' + esc(recycledAgo) + '</span>' +
+                                        (purge ? '<span>· ' + purge + '</span>' : '') +
+                                    '</div>' +
+                                    actionLine +
+                                    helpBubble +
                                 '</div>' +
                                 '<div class="mdBinRowSize">' + esc(bytes(f.SizeBytes)) + '</div>' +
-                                '<div class="mdBinRowDate">' + esc(new Date(f.RecycledAtUtc).toLocaleDateString()) + '</div>' +
+                                '<div class="mdBinRowDate">' + esc(recycledAt.toLocaleDateString()) + '</div>' +
                                 '<div class="mdBinRowAction">' + restoreBtn + '<span class="mdBinRowMsg"></span></div>' +
                                 '</div>';
                         });
@@ -6932,30 +7131,29 @@
                     listEl.querySelectorAll('.mdBinRestore').forEach(function (rb) {
                         rb.addEventListener('click', function () {
                             var id = rb.getAttribute('data-history-id');
+                            var binPath = rb.getAttribute('data-bin-path');
                             var row = rb.closest('.mdBinRow');
                             var msg = row.querySelector('.mdBinRowMsg');
                             rb.disabled = true;
                             msg.style.color = '#22c55e';
                             msg.textContent = STR.restoring;
-                            post('History/' + id + '/Restore').then(function () {
-                                msg.textContent = STR.restored;
+                            var request = id
+                                ? postJson('History/' + id + '/Restore')
+                                : ApiClient.ajax({
+                                    type: 'POST',
+                                    url: ApiClient.getUrl('MediaDash/RecycleBin/Items/Restore'),
+                                    dataType: 'json',
+                                    data: JSON.stringify({ BinPath: binPath }),
+                                    contentType: 'application/json'
+                                });
+                            request.then(function (r) {
+                                msg.textContent = restoreMessage(r);
                                 rb.style.display = 'none';
                                 loadBinInfo();
                             }, function (err) {
                                 msg.style.color = '#ef4444';
-                                var handled = maybeOfferForceRestore(err, id, function () {
-                                    msg.style.color = '#22c55e';
-                                    msg.textContent = STR.restored;
-                                    rb.style.display = 'none';
-                                    loadBinInfo();
-                                }, function (err2) {
-                                    msg.textContent = fmt(STR.restoreFailed, errorMessage(err2));
-                                    rb.disabled = false;
-                                });
-                                if (!handled) {
-                                    msg.textContent = fmt(STR.restoreFailed, errorMessage(err));
-                                    rb.disabled = false;
-                                }
+                                msg.textContent = fmt(STR.restoreFailed, errorMessage(err));
+                                rb.disabled = false;
                             });
                         });
                     });
@@ -7237,6 +7435,41 @@
                     c.OrphanScanTrickplay = view.querySelector('#mdOrphanTrickplay').checked;
                     c.OrphanScanMetadata = view.querySelector('#mdOrphanMetadata').checked;
 
+                    validateAndSaveConfig(c, view.querySelector('#mdBinPath').value.trim());
+                });
+                return false;
+            }
+
+            // Pre-flight the recycle bin volume before saving: ≥5 GB free is required and, when the
+            // pause-cap is still at the 0 (disabled) default, seed it with the disk's suggestion so
+            // fills can't drive the volume below the 3 GB safety floor unseen. Refuses hard on
+            // insufficient space with a jump-to-card button — matches the user's ask for a UI
+            // shortcut back to the Recycle bin setting.
+            function validateAndSaveConfig(c, binPath) {
+                var warnEl = view.querySelector('#mdBinDiskWarn');
+                if (warnEl) warnEl.style.display = 'none';
+                var url = 'RecycleBin/DiskInfo';
+                if (binPath) url += '?path=' + encodeURIComponent(binPath);
+                api(url).then(function (info) {
+                    if (info && info.MeetsFiveGbMinimum === false) {
+                        showBinDiskWarning(info);
+                        return;
+                    }
+
+                    if ((c.RecycleBinPauseFixesAtGb || 0) === 0 && info && info.SuggestedPauseCapGb > 0) {
+                        c.RecycleBinPauseFixesAtGb = info.SuggestedPauseCapGb;
+                    }
+
+                    ApiClient.updatePluginConfiguration(PLUGIN_ID, c).then(function (result) {
+                        view.querySelector('#mdSaveMsg').textContent = STR.saved;
+                        Dashboard.processPluginConfigurationUpdateResult(result);
+                        post('Schedule/Apply');
+                        refresh();
+                        markSettingsClean();
+                    });
+                }, function () {
+                    // Endpoint failed (network, permission) — fall through and save. Missing pre-flight
+                    // isn't worth blocking a settings save; the FixTask floor still enforces safety.
                     ApiClient.updatePluginConfiguration(PLUGIN_ID, c).then(function (result) {
                         view.querySelector('#mdSaveMsg').textContent = STR.saved;
                         Dashboard.processPluginConfigurationUpdateResult(result);
@@ -7245,7 +7478,35 @@
                         markSettingsClean();
                     });
                 });
-                return false;
+            }
+
+            function showBinDiskWarning(info) {
+                var warnEl = view.querySelector('#mdBinDiskWarn');
+                if (!warnEl) return;
+                var freeGb = Math.round((info.FreeBytes || 0) / (1024 * 1024 * 1024));
+                warnEl.innerHTML =
+                    '<div style="margin-bottom:.5em;"><strong>Refused to save:</strong> ' +
+                    esc(info.PathProbed || '(default location)') + ' has only ' + freeGb + ' GB free.</div>' +
+                    '<div style="margin-bottom:.7em;">Jellyfin needs 2 GB of free space to run so MediaDash requires at least 5 GB before it will use a folder for the recycle bin. Pick a location with more room.</div>' +
+                    '<button is="emby-button" type="button" id="mdBinDiskWarnJump" class="raised" style="background:#dc2626;color:#fff;font-size:80%;"><span class="material-icons" style="font-size:1em;vertical-align:-2px;margin-right:.3em;">arrow_downward</span><span>Go to Recycle bin settings</span></button>';
+                warnEl.style.display = '';
+                var jumpBtn = warnEl.querySelector('#mdBinDiskWarnJump');
+                if (jumpBtn) {
+                    jumpBtn.addEventListener('click', function () {
+                        var card = view.querySelector('#mdSet-recycle');
+                        if (!card) return;
+                        // Uncollapse the card if it's collapsed (mdSetHead click toggles collapsed state).
+                        if (card.classList.contains('mdSetCard--collapsed')) {
+                            var head = card.querySelector('.mdSetHead');
+                            if (head) head.click();
+                        }
+                        card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        var pathInput = view.querySelector('#mdBinPath');
+                        if (pathInput) {
+                            setTimeout(function () { pathInput.focus(); }, 350);
+                        }
+                    });
+                }
             }
 
             // ---------- First run wizard ----------
@@ -7496,6 +7757,7 @@
                 // user may have saved previously — the walkthrough is the recommended-defaults moment.
                 view.querySelector('#mdWizPausePlayback').checked = true;
                 view.querySelector('#mdWizRetention').value = c.RecycleBinRetentionDays || 30;
+                view.querySelector('#mdWizBinPath').value = c.RecycleBinPath || '';
                 var staleOn = c.StaleFixMode && c.StaleFixMode !== 'Off';
                 view.querySelector('#mdWizStaleEnabled').checked = staleOn;
                 // Only surface a persisted threshold when the user has actually opted in. A first-run wizard
@@ -7607,6 +7869,7 @@
                         c.PauseDuringPlayback = view.querySelector('#mdWizPausePlayback').checked;
                         var days = parseInt(view.querySelector('#mdWizRetention').value, 10);
                         if (!isNaN(days) && days > 0) c.RecycleBinRetentionDays = days;
+                        c.RecycleBinPath = view.querySelector('#mdWizBinPath').value.trim();
                         break;
                     case 14:
                         c.StaleFixMode = view.querySelector('#mdWizStaleEnabled').checked ? 'DetectOnly' : 'Off';
@@ -7654,15 +7917,66 @@
                         if (step === total - 1) {
                             c.FirstRunDone = true;
                         }
-                        ApiClient.updatePluginConfiguration(PLUGIN_ID, c).then(function (result) {
-                            Dashboard.processPluginConfigurationUpdateResult(result);
-                            msg.textContent = '';
-                            next(c);
-                        }, function () {
-                            msg.textContent = 'Could not save — try again.';
-                            msg.classList.add('mdWizErr');
+
+                        // Recycle bin free-space gate on the Safety-net step: won't advance until the
+                        // chosen (or default) bin volume has >=5 GB free. Same rule as the Settings-tab
+                        // save, minus the "Go to Recycle bin card" button — the wizard's own input is
+                        // right there on the step.
+                        var proceed = (step === 13) ? gateOnBinDiskInfo(c) : Promise.resolve(true);
+                        proceed.then(function (ok) {
+                            if (!ok) {
+                                msg.textContent = '';
+                                return;
+                            }
+
+                            ApiClient.updatePluginConfiguration(PLUGIN_ID, c).then(function (result) {
+                                Dashboard.processPluginConfigurationUpdateResult(result);
+                                msg.textContent = '';
+                                next(c);
+                            }, function () {
+                                msg.textContent = 'Could not save — try again.';
+                                msg.classList.add('mdWizErr');
+                            });
                         });
                     });
+                }
+
+                function gateOnBinDiskInfo(c) {
+                    var warnEl = view.querySelector('#mdWizBinDiskWarn');
+                    if (warnEl) warnEl.style.display = 'none';
+                    var binPath = (c.RecycleBinPath || '').trim();
+                    var url = 'RecycleBin/DiskInfo';
+                    if (binPath) url += '?path=' + encodeURIComponent(binPath);
+                    return api(url).then(function (info) {
+                        if (info && info.MeetsFiveGbMinimum === false) {
+                            renderWizBinWarn(info);
+                            return false;
+                        }
+
+                        if ((c.RecycleBinPauseFixesAtGb || 0) === 0 && info && info.SuggestedPauseCapGb > 0) {
+                            c.RecycleBinPauseFixesAtGb = info.SuggestedPauseCapGb;
+                        }
+
+                        return true;
+                    }, function () {
+                        // Endpoint failure = allow through; the FixTask floor still enforces safety.
+                        return true;
+                    });
+                }
+
+                function renderWizBinWarn(info) {
+                    var warnEl = view.querySelector('#mdWizBinDiskWarn');
+                    if (!warnEl) return;
+                    var freeGb = Math.round((info.FreeBytes || 0) / (1024 * 1024 * 1024));
+                    warnEl.innerHTML =
+                        '<div style="margin-bottom:.5em;"><strong>This location isn’t safe:</strong> ' +
+                        esc(info.PathProbed || '(default location)') + ' has only ' + freeGb + ' GB free.</div>' +
+                        '<div>Jellyfin needs 2 GB of free space to run so MediaDash requires at least 5 GB before it will use a folder for the recycle bin. Enter a different path above (a folder on your media drive works best) and try again.</div>';
+                    warnEl.style.display = '';
+                    var pathInput = view.querySelector('#mdWizBinPath');
+                    if (pathInput) {
+                        setTimeout(function () { pathInput.focus(); }, 100);
+                    }
                 }
 
                 // Await the cultures list so localeToIso3() has real data when picking the default audio language.
@@ -8004,6 +8318,98 @@
             function loadRecycleBinTab() {
                 loadBinInfo();
                 loadBinList();
+                loadOtherBinsBanner();
+            }
+
+            function loadOtherBinsBanner() {
+                var banner = view.querySelector('#mdBinConsolidateBanner');
+                if (!banner) return;
+                api('RecycleBin/OtherBins').then(function (list) {
+                    if (!Array.isArray(list) || list.length === 0) {
+                        banner.style.display = 'none';
+                        banner.innerHTML = '';
+                        return;
+                    }
+
+                    var totalBatches = list.reduce(function (a, o) { return a + (o.BatchCount || 0); }, 0);
+                    var totalBytes = list.reduce(function (a, o) { return a + (o.SizeBytes || 0); }, 0);
+                    var locationLines = list.map(function (o) {
+                        return '<div style="font:600 12.5px \'IBM Plex Mono\', monospace;margin-top:.35em;">' +
+                                esc(o.RootPath) + ' <span style="opacity:.7;font-weight:400;">(' +
+                                o.BatchCount + ' batch' + (o.BatchCount === 1 ? '' : 'es') + ', ' + esc(bytes(o.SizeBytes || 0)) + ')</span>' +
+                                '</div>';
+                    }).join('');
+                    banner.innerHTML =
+                        '<div class="mdCard mdFade" style="border-left:4px solid #f59e0b;padding:14px 18px;margin-bottom:14px;">' +
+                            '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">' +
+                                '<span class="material-icons" style="color:#f59e0b;font-size:1.6em;">move_to_inbox</span>' +
+                                '<div style="flex:1;min-width:20em;">' +
+                                    '<div style="font-weight:700;font-size:14px;margin-bottom:.35em;">' +
+                                        totalBatches + ' recycle batch' + (totalBatches === 1 ? '' : 'es') +
+                                        ' at ' + list.length + ' other location' + (list.length === 1 ? '' : 's') +
+                                        ' (' + esc(bytes(totalBytes)) + ')' +
+                                    '</div>' +
+                                    '<div class="fieldDescription">These came from an earlier Settings → Recycle bin folder. Consolidate them into the current bin so restore, empty, and retention all work from one place.</div>' +
+                                    locationLines +
+                                '</div>' +
+                                '<button is="emby-button" type="button" id="mdBinConsolidateGo" class="raised" style="background:#f59e0b;color:#111;font-weight:700;">' +
+                                    '<span class="material-icons" style="font-size:1.1em;vertical-align:-3px;margin-right:.3em;">merge_type</span><span>Consolidate all</span>' +
+                                '</button>' +
+                            '</div>' +
+                        '</div>';
+                    banner.style.display = '';
+
+                    var goBtn = banner.querySelector('#mdBinConsolidateGo');
+                    if (!goBtn) return;
+                    goBtn.addEventListener('click', function () {
+                        var msg = 'Move ' + totalBatches + ' recycle batch(es) (' + bytes(totalBytes) + ') into the current bin?\n\n' +
+                            'Files stay recyclable and history-restorable, they just live in one place. Cross-volume moves may take a while.';
+                        if (!window.confirm(msg)) return;
+                        goBtn.disabled = true;
+                        consolidateAllOtherBins(list, goBtn);
+                    });
+                }, function () {
+                    banner.style.display = 'none';
+                });
+            }
+
+            function consolidateAllOtherBins(list, btn) {
+                // Sequential so we can report per-source outcomes cleanly; parallelism buys nothing
+                // on a filesystem move-heavy workload.
+                var remaining = list.slice();
+                var totalMoved = 0, totalSkipped = 0, totalBytes = 0;
+                var warnings = [];
+                function next() {
+                    var src = remaining.shift();
+                    if (!src) {
+                        var line = totalMoved + ' batch(es) consolidated (' + bytes(totalBytes) + ')' +
+                            (totalSkipped ? ', ' + totalSkipped + ' skipped' : '') +
+                            (warnings.length ? '. Warnings: ' + warnings.join('; ') : '.');
+                        Dashboard.alert({ title: 'Consolidate', message: line });
+                        loadRecycleBinTab();
+                        refresh(true);
+                        return;
+                    }
+
+                    ApiClient.ajax({
+                        type: 'POST',
+                        url: ApiClient.getUrl('MediaDash/RecycleBin/Consolidate'),
+                        dataType: 'json',
+                        data: JSON.stringify({ SourceRoot: src.RootPath }),
+                        contentType: 'application/json'
+                    }).then(function (r) {
+                        totalMoved += r.BatchesMoved || 0;
+                        totalSkipped += r.BatchesSkipped || 0;
+                        totalBytes += r.BytesMoved || 0;
+                        if (r.Warning) warnings.push(r.Warning);
+                        next();
+                    }, function (err) {
+                        warnings.push('Failed for ' + src.RootPath + ': ' + errorMessage(err));
+                        next();
+                    });
+                }
+
+                next();
             }
 
             // ---------- Dismissible banners ----------
@@ -8388,12 +8794,16 @@
 
             function renderFileList(d) {
                 currentFileListing = d;
-                view.querySelector('#mdFileCrumbsText').textContent = d.IsRoot ? 'Library folders' : (d.IsRecycleBin ? 'Recycle bin · ' + d.Path : d.Path);
+                view.querySelector('#mdFileCrumbsText').textContent = d.IsRoot
+                    ? 'Library folders'
+                    : (d.IsRecycleBin ? 'Recycle bin · ' + d.Path
+                        : (d.IsLogsDir ? 'Logs · ' + d.Path : d.Path));
                 // d.Parent === "" means "one level up is the library-roots pseudo-root". Disable Up only at the pseudo-root itself.
                 view.querySelector('#mdFileUp').disabled = d.IsRoot || d.Parent == null;
                 view.querySelector('#mdFileUp').setAttribute('data-parent', d.Parent == null ? '' : d.Parent);
-                // Recycle bin is read-only from the file browser: use the Recycle bin tab to restore or empty.
-                var writeDisabled = d.IsRoot || d.IsRecycleBin;
+                // Recycle bin and logs are read-only shortcuts. Bin restores live on the Recycle bin tab; logs
+                // are downloadable but never editable — users pull them for bug reports, never touch them.
+                var writeDisabled = d.IsRoot || d.IsRecycleBin || d.IsLogsDir;
                 view.querySelector('#mdFileMkdir').disabled = writeDisabled;
                 view.querySelector('#mdFileUpload').disabled = writeDisabled;
                 view.querySelector('#mdFileUpload').parentElement.style.opacity = writeDisabled ? '.5' : '1';
@@ -8413,7 +8823,7 @@
                     if (fileSort.by !== col) return '';
                     return '<span class="material-icons">' + (fileSort.dir === 'asc' ? 'arrow_drop_up' : 'arrow_drop_down') + '</span>';
                 };
-                var selectable = !d.IsRoot && !d.IsRecycleBin;
+                var selectable = !d.IsRoot && !d.IsRecycleBin && !d.IsLogsDir;
                 var html = '<div class="mdFileTable"><div class="mdFileHead">' +
                     (selectable ? '<input type="checkbox" id="mdFileSelectAll" title="Select all shown" />' : '<span style="width:1.05em;"></span>') +
                     '<span class="material-icons" style="opacity:0;">folder</span>' +
@@ -8427,14 +8837,20 @@
                 }
                 sorted.forEach(function (e) {
                     var isBinShortcut = e.Kind === 'recycle-bin';
-                    var icon = isBinShortcut ? 'delete' : (e.IsDirectory ? 'folder' : (e.Name.match(/\.(mkv|mp4|avi|mov|webm|m4v|ts|wmv)$/i) ? 'movie' : 'insert_drive_file'));
-                    var color = isBinShortcut ? '#ec4899' : (e.IsDirectory ? '#f59e0b' : (e.Name.match(/\.(mkv|mp4|avi|mov|webm|m4v|ts|wmv)$/i) ? '#00a4dc' : '#8b5cf6'));
-                    var displayName = isBinShortcut ? 'Recycle bin' : e.Name;
+                    var isLogsShortcut = e.Kind === 'logs';
+                    var isShortcut = isBinShortcut || isLogsShortcut;
+                    var icon = isBinShortcut ? 'delete'
+                        : isLogsShortcut ? 'article'
+                        : (e.IsDirectory ? 'folder' : (e.Name.match(/\.(mkv|mp4|avi|mov|webm|m4v|ts|wmv)$/i) ? 'movie' : 'insert_drive_file'));
+                    var color = isBinShortcut ? '#ec4899'
+                        : isLogsShortcut ? '#22d3ee'
+                        : (e.IsDirectory ? '#f59e0b' : (e.Name.match(/\.(mkv|mp4|avi|mov|webm|m4v|ts|wmv)$/i) ? '#00a4dc' : '#8b5cf6'));
+                    var displayName = isBinShortcut ? 'Recycle bin' : isLogsShortcut ? 'Jellyfin logs' : e.Name;
                     var meta = e.IsDirectory ? '' : bytes(e.SizeBytes);
                     var date = new Date(e.ModifiedUtc).toLocaleDateString();
-                    // Selection is by-name and the recycle-bin shortcut sits at root where selection is off anyway,
-                    // but be defensive: don't offer to select the synthetic entry.
-                    var checked = !isBinShortcut && fileSelection.has(e.Name) ? ' checked' : '';
+                    // Selection is by-name and shortcut entries live at root where selection is off anyway,
+                    // but be defensive: don't offer to select synthetic entries.
+                    var checked = !isShortcut && fileSelection.has(e.Name) ? ' checked' : '';
                     var nameCls = 'mdFileName' + (e.IsDirectory || d.IsRoot ? ' mdFileNameLink' : '');
                     html += '<div class="mdFileRow" data-name="' + esc(e.Name) + '" data-isdir="' + (e.IsDirectory ? '1' : '0') + '" data-kind="' + esc(e.Kind || '') + '">' +
                         (selectable ? '<input type="checkbox" class="mdFileCheck"' + checked + ' />' : '<span style="width:1.05em;"></span>') +
@@ -8494,6 +8910,11 @@
                     if (d.IsRecycleBin) {
                         // Read-only view: no mutations from here. Restore / empty live on the Recycle bin tab.
                         actions.innerHTML = '';
+                    } else if (d.IsLogsDir) {
+                        // Logs are downloadable but never editable — grabbing a log for a bug report is the
+                        // whole reason the shortcut exists.
+                        actions.innerHTML = isDir ? ''
+                            : '<button is="emby-button" type="button" class="raised mdFileAct" data-act="download" title="Download"><span class="material-icons">download</span></button>';
                     } else {
                         actions.innerHTML =
                             (isDir ? '' : '<button is="emby-button" type="button" class="raised mdFileAct" data-act="download" title="Download"><span class="material-icons">download</span></button>') +
@@ -8551,7 +8972,7 @@
                 var token = ApiClient.accessToken();
                 Array.from(fileSelection).forEach(function (name) {
                     var full = joinPath(currentFilePath, name);
-                    window.open(ApiClient.getUrl('MediaDash/Files/Download') + '?path=' + encodeURIComponent(full) + '&api_key=' + encodeURIComponent(token), '_blank');
+                    window.open(ApiClient.getUrl('MediaDash/Files/Download') + '?path=' + encodeURIComponent(full) + '&ApiKey=' + encodeURIComponent(token), '_blank');
                 });
             }
 
@@ -8639,7 +9060,7 @@
 
             function doFileAction(act, full, name, isDir) {
                 if (act === 'download') {
-                    var tokenParam = ApiClient.accessToken ? '&api_key=' + encodeURIComponent(ApiClient.accessToken()) : '';
+                    var tokenParam = ApiClient.accessToken ? '&ApiKey=' + encodeURIComponent(ApiClient.accessToken()) : '';
                     window.open(ApiClient.getUrl('MediaDash/Files/Download') + '?path=' + encodeURIComponent(full) + tokenParam, '_blank');
                     return;
                 }

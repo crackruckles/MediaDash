@@ -1,0 +1,10 @@
+Relevant lines from %LOCALAPPDATA%\jellyfin-v10\log\log_20260828.log, session 2026-08-28
+(datadir MediaDash_0.9.0.0, meta.json version=0.0.0.0):
+
+[2026-08-28 06:27:30.016 +08:00] [INF] [11] Emby.Server.Implementations.Plugins.PluginManager: Loaded plugin: "MediaDash" "0.0.0.0"
+
+Directory name says 0.9.0.0, meta.json says 0.0.0.0, so Jellyfin reports 0.0.0.0.
+The manifest.json for the *installed catalog release* is not what's on disk here;
+this looks like a hand-rolled dev copy or a `dotnet build` output copied in without
+a real publish step. Recorded because every future test's "which plugin version am
+I testing" answer is 0.0.0.0 per Jellyfin, not 0.9.0.0 per the folder name.

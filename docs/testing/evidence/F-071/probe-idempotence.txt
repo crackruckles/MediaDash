@@ -1,0 +1,14 @@
+E.2 doc: "Re-scan without file changes → row LastProbedUtc updated but content stable (idempotent)."
+
+Actual: rescan without file changes leaves the `probe_cache` row COMPLETELY untouched — probed_at_utc does NOT advance, json is byte-identical.
+
+Sample (probe_cache path=C:\dev\mediadash-fixtures\music\Test Artist\Test Album\01 - Short Song.mp3):
+
+  BEFORE rescan:  probed_at_utc=639235234066264308  json sha256[:16]=49e83195dacd98e3  json_len=2016
+  AFTER rescan:   probed_at_utc=639235234066264308  json sha256[:16]=49e83195dacd98e3  json_len=2016
+
+Both timestamp and content identical.
+
+Doc drift: probe cache is skipped entirely when (size, mtime_utc) unchanged — so `probed_at_utc` never advances until the source file mtime actually changes. The doc claims a "touch" behaviour that does not exist.
+
+Not a functional bug — the "content stable" invariant holds. Simply update E.2 to say "row untouched when file mtime unchanged".

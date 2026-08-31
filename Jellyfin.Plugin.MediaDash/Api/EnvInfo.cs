@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace Jellyfin.Plugin.MediaDash.Api;
 
 /// <summary>
-/// Snapshot of environment info used by the Errors tab's "Copy diagnostics" button and by the wizard's
+/// Snapshot of environment info used by the Errors tab's "Report an issue" button and by the wizard's
 /// missing-subtitle step to warn when no subtitle provider is installed.
 /// </summary>
 public sealed class EnvInfo

@@ -1,0 +1,38 @@
+[
+    {
+        "Id":  607,
+        "Type":  "MissingSubtitles",
+        "FileName":  "Big Buck Test (2020) - 1080p.mkv",
+        "Library":  "MediaDash Test",
+        "Action":  "Preview only — no files were changed. Would have try to download eng subtitle(s) for Big Buck Test from your configured providers",
+        "BytesFreed":  0,
+        "FixedAtUtc":  "2026-08-28T10:17:15.7032761Z",
+        "WasDryRun":  true,
+        "Success":  true,
+        "CanRestore":  false
+    },
+    {
+        "Id":  606,
+        "Type":  "MissingSubtitles",
+        "FileName":  "Big Buck Test (2020) - 1080p.mkv",
+        "Library":  "MediaDash Test",
+        "Action":  "Preview only — no files were changed. Would have try to download eng subtitle(s) for Big Buck Test (2020) from your configured providers",
+        "BytesFreed":  0,
+        "FixedAtUtc":  "2026-08-28T10:17:15.7013434Z",
+        "WasDryRun":  true,
+        "Success":  true,
+        "CanRestore":  false
+    },
+    {
+        "Id":  605,
+        "Type":  "MissingSubtitles",
+        "FileName":  "Multi Audio (2022).mkv",
+        "Library":  "MediaDash Test",
+        "Action":  "Preview only — no files were changed. Would have try to download eng subtitle(s) for Multi Audio (2022) from your configured providers",
+        "BytesFreed":  0,
+        "FixedAtUtc":  "2026-08-28T10:17:15.6993043Z",
+        "WasDryRun":  true,
+        "Success":  true,
+        "CanRestore":  false
+    }
+]

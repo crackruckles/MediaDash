@@ -1,0 +1,79 @@
+﻿[2026-08-28 22:04:54.647 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scan starting: 12 items, 17 scanners (0 skipped as Off)
+[2026-08-28 22:04:54.648 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Duplicate found 0 issues
+[2026-08-28 22:04:54.651 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner MalwareRisk found 0 issues
+[2026-08-28 22:04:54.655 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Misplaced found 0 issues
+[2026-08-28 22:04:54.657 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Ungrouped found 1 issues
+[2026-08-28 22:04:54.664 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Stale found 0 issues
+[2026-08-28 22:04:54.665 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.Scanners.TranscodeLogScanner: TranscodeLogScanner: 2 log(s) inspected → 1 distinct file(s) → 0 heavy, 0 failed
+[2026-08-28 22:04:54.665 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner HeavyTranscode found 0 issues
+[2026-08-28 22:04:54.667 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.Scanners.NfoScanner: NfoScanner: 0 corrupt NFO file(s) across 5 library root(s).
+[2026-08-28 22:04:54.667 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner CorruptNfo found 0 issues
+[2026-08-28 22:04:54.718 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner CorruptArtwork found 0 issues
+[2026-08-28 22:04:54.719 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.Scanners.SubtitleFontScanner: SubtitleFontScanner: 0 sidecar(s) have reclaimable embedded fonts.
+[2026-08-28 22:04:54.719 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner SubtitleFonts found 0 issues
+[2026-08-28 22:04:54.737 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.Scanners.OrphanCleanupScanner: OrphanCleanupScanner: 3 orphan(s) across 4 pass(es).
+[2026-08-28 22:04:54.739 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner OrphanedDebris found 3 issues
+[2026-08-28 22:04:54.739 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.Scanners.TrickplayOptimizeScanner: TrickplayOptimizeScanner: skipping media-folder walk in library ""MediaDash Test"" — SaveTrickplayWithMedia=false and no legacy sidecars in a 5-item sample.
+[2026-08-28 22:04:54.739 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.Scanners.TrickplayOptimizeScanner: TrickplayOptimizeScanner: 0 trickplay folder(s) have convertible sprites.
+[2026-08-28 22:04:54.740 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner LargeTrickplay found 0 issues
+[2026-08-28 22:04:55.153 +08:00] [INF] [49] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner AudioLanguage found 0 issues
+[2026-08-28 22:04:55.157 +08:00] [INF] [49] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner SubtitleLanguage found 0 issues
+[2026-08-28 22:04:55.161 +08:00] [INF] [49] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner MissingSubtitles found 5 issues
+[2026-08-28 22:04:55.162 +08:00] [INF] [49] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Quality found 0 issues
+[2026-08-28 22:04:55.165 +08:00] [INF] [49] Jellyfin.Plugin.MediaDash.Scanners.EmbeddedCoverArtScanner: EmbeddedCoverArtScanner: 0 folder(s) with duplicated embedded artwork.
+[2026-08-28 22:04:55.165 +08:00] [INF] [49] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner EmbeddedCoverArt found 0 issues
+[2026-08-28 22:04:56.843 +08:00] [INF] [48] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Playability found 1 issues
+[2026-08-28 22:04:56.844 +08:00] [INF] [48] Emby.Server.Implementations.ScheduledTasks.TaskManager: "Scan libraries for issues" Completed after 0 minute(s) and 2 seconds
+[2026-08-28 22:04:58.806 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scan starting: 12 items, 17 scanners (0 skipped as Off)
+[2026-08-28 22:04:58.806 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Duplicate found 0 issues
+[2026-08-28 22:04:58.808 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner MalwareRisk found 0 issues
+[2026-08-28 22:04:58.813 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Misplaced found 0 issues
+[2026-08-28 22:04:58.815 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Ungrouped found 1 issues
+[2026-08-28 22:04:58.826 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Stale found 0 issues
+[2026-08-28 22:04:58.826 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.Scanners.TranscodeLogScanner: TranscodeLogScanner: 2 log(s) inspected → 1 distinct file(s) → 0 heavy, 0 failed
+[2026-08-28 22:04:58.827 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner HeavyTranscode found 0 issues
+[2026-08-28 22:04:58.829 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.Scanners.NfoScanner: NfoScanner: 0 corrupt NFO file(s) across 5 library root(s).
+[2026-08-28 22:04:58.829 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner CorruptNfo found 0 issues
+[2026-08-28 22:04:58.880 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner CorruptArtwork found 0 issues
+[2026-08-28 22:04:58.881 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.Scanners.SubtitleFontScanner: SubtitleFontScanner: 0 sidecar(s) have reclaimable embedded fonts.
+[2026-08-28 22:04:58.881 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner SubtitleFonts found 0 issues
+[2026-08-28 22:04:58.900 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.Scanners.OrphanCleanupScanner: OrphanCleanupScanner: 3 orphan(s) across 4 pass(es).
+[2026-08-28 22:04:58.903 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner OrphanedDebris found 3 issues
+[2026-08-28 22:04:58.903 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.Scanners.TrickplayOptimizeScanner: TrickplayOptimizeScanner: skipping media-folder walk in library ""MediaDash Test"" — SaveTrickplayWithMedia=false and no legacy sidecars in a 5-item sample.
+[2026-08-28 22:04:58.904 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.Scanners.TrickplayOptimizeScanner: TrickplayOptimizeScanner: 0 trickplay folder(s) have convertible sprites.
+[2026-08-28 22:04:58.904 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner LargeTrickplay found 0 issues
+[2026-08-28 22:04:58.905 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner AudioLanguage found 0 issues
+[2026-08-28 22:04:58.908 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner SubtitleLanguage found 0 issues
+[2026-08-28 22:04:58.913 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner MissingSubtitles found 5 issues
+[2026-08-28 22:04:58.914 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Quality found 0 issues
+[2026-08-28 22:04:58.916 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.Scanners.EmbeddedCoverArtScanner: EmbeddedCoverArtScanner: 0 folder(s) with duplicated embedded artwork.
+[2026-08-28 22:04:58.916 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner EmbeddedCoverArt found 0 issues
+[2026-08-28 22:04:58.921 +08:00] [INF] [50] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Playability found 1 issues
+[2026-08-28 22:04:58.922 +08:00] [INF] [50] Emby.Server.Implementations.ScheduledTasks.TaskManager: "Scan libraries for issues" Completed after 0 minute(s) and 0 seconds
+[2026-08-28 22:05:00.328 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scan starting: 12 items, 17 scanners (0 skipped as Off)
+[2026-08-28 22:05:00.328 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Duplicate found 0 issues
+[2026-08-28 22:05:00.331 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner MalwareRisk found 0 issues
+[2026-08-28 22:05:00.337 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Misplaced found 0 issues
+[2026-08-28 22:05:00.339 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Ungrouped found 1 issues
+[2026-08-28 22:05:00.350 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Stale found 0 issues
+[2026-08-28 22:05:00.351 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.Scanners.TranscodeLogScanner: TranscodeLogScanner: 2 log(s) inspected → 1 distinct file(s) → 0 heavy, 0 failed
+[2026-08-28 22:05:00.351 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner HeavyTranscode found 0 issues
+[2026-08-28 22:05:00.354 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.Scanners.NfoScanner: NfoScanner: 0 corrupt NFO file(s) across 5 library root(s).
+[2026-08-28 22:05:00.354 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner CorruptNfo found 0 issues
+[2026-08-28 22:05:00.417 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner CorruptArtwork found 0 issues
+[2026-08-28 22:05:00.417 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.Scanners.SubtitleFontScanner: SubtitleFontScanner: 0 sidecar(s) have reclaimable embedded fonts.
+[2026-08-28 22:05:00.418 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner SubtitleFonts found 0 issues
+[2026-08-28 22:05:00.443 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.Scanners.OrphanCleanupScanner: OrphanCleanupScanner: 3 orphan(s) across 4 pass(es).
+[2026-08-28 22:05:00.445 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner OrphanedDebris found 3 issues
+[2026-08-28 22:05:00.446 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.Scanners.TrickplayOptimizeScanner: TrickplayOptimizeScanner: skipping media-folder walk in library ""MediaDash Test"" — SaveTrickplayWithMedia=false and no legacy sidecars in a 5-item sample.
+[2026-08-28 22:05:00.446 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.Scanners.TrickplayOptimizeScanner: TrickplayOptimizeScanner: 0 trickplay folder(s) have convertible sprites.
+[2026-08-28 22:05:00.446 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner LargeTrickplay found 0 issues
+[2026-08-28 22:05:00.447 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner AudioLanguage found 0 issues
+[2026-08-28 22:05:00.452 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner SubtitleLanguage found 0 issues
+[2026-08-28 22:05:00.457 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner MissingSubtitles found 5 issues
+[2026-08-28 22:05:00.458 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Quality found 0 issues
+[2026-08-28 22:05:00.461 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.Scanners.EmbeddedCoverArtScanner: EmbeddedCoverArtScanner: 0 folder(s) with duplicated embedded artwork.
+[2026-08-28 22:05:00.461 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner EmbeddedCoverArt found 0 issues
+[2026-08-28 22:05:00.465 +08:00] [INF] [62] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Playability found 1 issues
+[2026-08-28 22:05:00.466 +08:00] [INF] [62] Emby.Server.Implementations.ScheduledTasks.TaskManager: "Scan libraries for issues" Completed after 0 minute(s) and 0 seconds
+

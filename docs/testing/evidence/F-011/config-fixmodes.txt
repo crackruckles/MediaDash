@@ -1,0 +1,22 @@
+%LOCALAPPDATA%\jellyfin-v10\plugins\configurations\Jellyfin.Plugin.MediaDash.xml
+Snapshot taken 2026-08-28 during 00-setup §6.1.
+
+<DuplicateFixMode>ManualApprove</DuplicateFixMode>
+<TranscodeFixMode>Automatic</TranscodeFixMode>
+<SubtitleFixMode>Automatic</SubtitleFixMode>
+<AudioFixMode>Automatic</AudioFixMode>
+<PlayabilityFixMode>Automatic</PlayabilityFixMode>
+<DryRun>false</DryRun>
+<MisplacedFixMode>Automatic</MisplacedFixMode>
+<MissingSubtitlesFixMode>DetectOnly</MissingSubtitlesFixMode>
+<StaleFixMode>DetectOnly</StaleFixMode>
+<SuspiciousFileFixMode>Automatic</SuspiciousFileFixMode>
+<TrickplayFixMode>DetectOnly</TrickplayFixMode>
+<SubtitleFontFixMode>DetectOnly</SubtitleFontFixMode>
+<OrphanCleanupFixMode>DetectOnly</OrphanCleanupFixMode>
+<NfoFixMode>DetectOnly</NfoFixMode>
+<HeavyTranscodeFixMode>DetectOnly</HeavyTranscodeFixMode>
+<FailedTranscodeFixMode>DetectOnly</FailedTranscodeFixMode>
+<EmbeddedCoverFixMode>DetectOnly</EmbeddedCoverFixMode>
+<UngroupedFixMode>DetectOnly</UngroupedFixMode>
+<CorruptArtworkFixMode>DetectOnly</CorruptArtworkFixMode>

@@ -1,0 +1,30 @@
+D.3: "BytesFreed non-null only for space-affecting fixers."
+
+Actual: `bytes_freed` column is INTEGER NOT NULL. Nullability check trivially passes (nothing is null). Semantics test: is bytes_freed=0 only for non-space-affecting actions?
+
+By history type (int → enum):
+  type=0  Duplicate       : 14 rows, 13 zero_bf, 1 pos_bf   -- expected all positive (space freed)
+  type=1  Playability     : 101 rows, 63 zero_bf, 38 pos_bf -- expected mostly positive
+  type=2  Quality         :   5 rows,  0 zero_bf,  5 pos_bf -- ok
+  type=3  SubtitleLang    :   1 row,   0 zero_bf,  1 pos_bf -- ok
+  type=4  AudioLang       :   1 row,   0 zero_bf,  1 pos_bf -- ok
+  type=6  MissingSubs     : 470 rows, 470 zero_bf, 0 pos_bf -- ok (download, no space freed)
+  type=7  Stale           :   1 row,   0 zero_bf,  1 pos_bf -- ok
+  type=9  MalwareRisk     :   1 row,   0 zero_bf,  1 pos_bf -- ok
+  type=13 OrphanedDebris  :   7 rows,  2 zero_bf,  5 pos_bf -- ok
+  type=15 (unnamed)       :   9 rows,  9 zero_bf,  0 pos_bf -- unnameable via API
+
+Concern: type=0 Duplicate has 13 of 14 rows with bytes_freed=0 despite dedup being the archetypical space-freeing fixer. Type=1 Playability has 63/101 zero_bf — many of these are DryRun preview rows ("Preview only — no files were changed…"), which is a plausible reason for bytes_freed=0.
+
+By action-text pattern (partial):
+  "Preview only — no files were changed…"     : 401 rows all bytes_freed=0 (correct — dry run)
+  "The file no longer exists…"                : 39 rows all 0 (correct — nothing removed)
+  "The file is outside your library folders…" : 9 rows all 0 (correct)
+  "Restored bin file…"                        : 8 rows all 0 (correct — restore is not freeing)
+  "moved to recycle bin"                      : 1 row 5MB pos_bf (correct)
+  "re-encoded … original kept in recycle bin" : 5 rows all pos_bf (correct)
+  "removed unplayable file"                   : 30+ rows pos_bf (correct)
+
+So bytes_freed=0 is used both as "N/A" (subs download, restore, dry-run preview) and as "genuinely 0 bytes freed". Column is not nullable in DB.
+
+Verdict: not really a bug — DB schema uses a sentinel 0, doc says "nullable". Doc drift; no functional issue.

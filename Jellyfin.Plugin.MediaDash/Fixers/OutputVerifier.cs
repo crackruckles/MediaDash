@@ -50,15 +50,23 @@ public sealed class OutputVerifier
             return "The new file has no audio stream but the original did.";
         }
 
+        // Slack scales with runtime: the old fixed 2 s tolerance was hostile to long-form content
+        // (a Breaking Bad 47-min episode remuxed via -c copy from an mpegts source legitimately loses
+        // ~30 s of pre-first-video-keyframe garbage the demuxer counted toward duration). Use the
+        // larger of 2 s or 2 % of the original duration. 2 % of a 45-min file is ~54 s; 2 % of a
+        // 2-hour Blu-ray is ~144 s. Real truncations still fail — a file cut in half is 50 % off,
+        // orders of magnitude past the gate.
         var originalDuration = GetVideoDurationSeconds(originalProbe);
         var newDuration = GetVideoDurationSeconds(probe);
-        if (originalDuration > 0 && Math.Abs(originalDuration - newDuration) > 2.0)
+        var slack = Math.Max(2.0, originalDuration * 0.02);
+        if (originalDuration > 0 && Math.Abs(originalDuration - newDuration) > slack)
         {
             return string.Format(
                 CultureInfo.InvariantCulture,
-                "Duration mismatch: original {0:F1}s, new file {1:F1}s.",
+                "Duration mismatch: original {0:F1}s, new file {1:F1}s (allowed slack {2:F1}s).",
                 originalDuration,
-                newDuration);
+                newDuration,
+                slack);
         }
 
         return null;

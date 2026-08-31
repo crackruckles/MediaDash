@@ -25,6 +25,14 @@ public static class SmartHealthProbeWmi
     private static readonly ConcurrentDictionary<string, byte> NoReliabilityCounter =
         new(StringComparer.OrdinalIgnoreCase);
 
+    // Per-drive-letter WMI failure cache. Users on Storage Spaces, USB-bridged drives, or NVMe with
+    // exotic drivers hit repeatable WMI failures every 10-minute refresh; the first failure is
+    // informative but the 300th just clogs the Errors tab. First failure per drive per session
+    // still surfaces; subsequent ones short-circuit before we even try the WMI call.
+    // ponytail: process-lifetime cache; restart re-probes.
+    private static readonly ConcurrentDictionary<string, byte> WmiKnownFailing =
+        new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// Returns SMART health for the physical disk hosting <paramref name="driveRoot"/> as reported by
     /// Windows' own Storage subsystem. Returns null when WMI is unavailable or the drive can't be
@@ -45,23 +53,45 @@ public static class SmartHealthProbeWmi
             return null;
         }
 
+        // Short-circuit: this drive has already failed WMI once this session. Save the ~50 ms
+        // per 10-minute refresh cycle and, more importantly, don't re-emit the diagnostic.
+        // Fallback chain (smartctl) still runs.
+        if (WmiKnownFailing.ContainsKey(letter))
+        {
+            return null;
+        }
+
         try
         {
             return QueryStorageManagement(letter) ?? QueryLegacyPredict(letter);
         }
         catch (System.Management.ManagementException ex)
         {
-            Diagnostics.Record("SmartHealth.Wmi", "WMI query failed for " + letter + ": " + ex.Message + ". Falling back to smartctl.");
+            // Only emit the diagnostic on the first failure per drive per session. Subsequent
+            // 10-min refreshes short-circuit above.
+            if (WmiKnownFailing.TryAdd(letter, 0))
+            {
+                Diagnostics.Record("SmartHealth.Wmi", "WMI query failed for " + letter + ": " + ex.Message + ". Falling back to smartctl. This drive will use smartctl for the rest of the session.");
+            }
+
             return null;
         }
         catch (UnauthorizedAccessException ex)
         {
-            Diagnostics.Record("SmartHealth.Wmi", "WMI access denied for " + letter + ": " + ex.Message + ". Jellyfin needs admin rights to read SMART via WMI on some hosts.");
+            if (WmiKnownFailing.TryAdd(letter, 0))
+            {
+                Diagnostics.Record("SmartHealth.Wmi", "WMI access denied for " + letter + ": " + ex.Message + ". Jellyfin needs admin rights to read SMART via WMI on some hosts. Falling back to smartctl for the rest of the session.");
+            }
+
             return null;
         }
         catch (COMException ex)
         {
-            Diagnostics.Record("SmartHealth.Wmi", "WMI COM error for " + letter + ": " + ex.Message + ".");
+            if (WmiKnownFailing.TryAdd(letter, 0))
+            {
+                Diagnostics.Record("SmartHealth.Wmi", "WMI COM error for " + letter + ": " + ex.Message + ". Falling back to smartctl for the rest of the session.");
+            }
+
             return null;
         }
     }

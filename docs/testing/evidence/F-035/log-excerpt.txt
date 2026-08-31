@@ -1,0 +1,30 @@
+﻿[2026-08-28 13:21:34.818 +08:00] [INF] [22] Jellyfin.Plugin.MediaDash.Scanners.EmbeddedCoverArtScanner: EmbeddedCoverArtScanner: 0 folder(s) with duplicated embedded artwork.
+[2026-08-28 13:21:34.818 +08:00] [INF] [22] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner EmbeddedCoverArt found 0 issues
+[2026-08-28 16:24:05.163 +08:00] [INF] [8] Jellyfin.Plugin.MediaDash.Scanners.EmbeddedCoverArtScanner: EmbeddedCoverArtScanner: 0 folder(s) with duplicated embedded artwork.
+[2026-08-28 16:24:05.163 +08:00] [INF] [8] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner EmbeddedCoverArt found 0 issues
+[2026-08-28 16:24:40.389 +08:00] [INF] [22] Jellyfin.Plugin.MediaDash.Scanners.EmbeddedCoverArtScanner: EmbeddedCoverArtScanner: 0 folder(s) with duplicated embedded artwork.
+[2026-08-28 16:24:40.389 +08:00] [INF] [22] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner EmbeddedCoverArt found 0 issues
+ ---> Microsoft.Data.Sqlite.SqliteException (0x80004005): SQLite Error 19: 'FOREIGN KEY constraint failed'.
+ ---> Microsoft.Data.Sqlite.SqliteException (0x80004005): SQLite Error 19: 'FOREIGN KEY constraint failed'.
+ ---> Microsoft.Data.Sqlite.SqliteException (0x80004005): SQLite Error 19: 'FOREIGN KEY constraint failed'.
+ ---> Microsoft.Data.Sqlite.SqliteException (0x80004005): SQLite Error 19: 'FOREIGN KEY constraint failed'.
+ ---> Microsoft.Data.Sqlite.SqliteException (0x80004005): SQLite Error 19: 'FOREIGN KEY constraint failed'.
+ ---> Microsoft.Data.Sqlite.SqliteException (0x80004005): SQLite Error 19: 'FOREIGN KEY constraint failed'.
+ ---> Microsoft.Data.Sqlite.SqliteException (0x80004005): SQLite Error 19: 'FOREIGN KEY constraint failed'.
+ ---> Microsoft.Data.Sqlite.SqliteException (0x80004005): SQLite Error 19: 'FOREIGN KEY constraint failed'.
+[2026-08-28 16:26:54.439 +08:00] [INF] [8] Jellyfin.Plugin.MediaDash.Scanners.EmbeddedCoverArtScanner: EmbeddedCoverArtScanner: 0 folder(s) with duplicated embedded artwork.
+[2026-08-28 16:26:54.439 +08:00] [INF] [8] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner EmbeddedCoverArt found 0 issues
+[2026-08-28 16:27:17.374 +08:00] [INF] [21] Jellyfin.Plugin.MediaDash.Scanners.EmbeddedCoverArtScanner: EmbeddedCoverArtScanner: 0 folder(s) with duplicated embedded artwork.
+[2026-08-28 16:27:17.374 +08:00] [INF] [21] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner EmbeddedCoverArt found 0 issues
+[2026-08-28 16:27:37.668 +08:00] [INF] [10] Jellyfin.Plugin.MediaDash.Scanners.EmbeddedCoverArtScanner: EmbeddedCoverArtScanner: 0 folder(s) with duplicated embedded artwork.
+[2026-08-28 16:27:37.668 +08:00] [INF] [10] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner EmbeddedCoverArt found 0 issues
+[2026-08-28 16:28:15.879 +08:00] [INF] [22] Jellyfin.Plugin.MediaDash.Scanners.EmbeddedCoverArtScanner: EmbeddedCoverArtScanner: 0 folder(s) with duplicated embedded artwork.
+[2026-08-28 16:28:15.879 +08:00] [INF] [22] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner EmbeddedCoverArt found 0 issues
+[2026-08-28 16:28:38.285 +08:00] [INF] [22] Jellyfin.Plugin.MediaDash.Scanners.EmbeddedCoverArtScanner: EmbeddedCoverArtScanner: 0 folder(s) with duplicated embedded artwork.
+[2026-08-28 16:28:38.285 +08:00] [INF] [22] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner EmbeddedCoverArt found 0 issues
+ ---> Microsoft.Data.Sqlite.SqliteException (0x80004005): SQLite Error 19: 'FOREIGN KEY constraint failed'.
+ ---> Microsoft.Data.Sqlite.SqliteException (0x80004005): SQLite Error 19: 'FOREIGN KEY constraint failed'.
+ ---> Microsoft.Data.Sqlite.SqliteException (0x80004005): SQLite Error 19: 'FOREIGN KEY constraint failed'.
+ ---> Microsoft.Data.Sqlite.SqliteException (0x80004005): SQLite Error 19: 'FOREIGN KEY constraint failed'.
+[2026-08-28 16:29:26.315 +08:00] [INF] [8] Jellyfin.Plugin.MediaDash.Scanners.EmbeddedCoverArtScanner: EmbeddedCoverArtScanner: 0 folder(s) with duplicated embedded artwork.
+[2026-08-28 16:29:26.315 +08:00] [INF] [8] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner EmbeddedCoverArt found 0 issues

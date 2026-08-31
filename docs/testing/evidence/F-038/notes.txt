@@ -1,0 +1,21 @@
+Control experiment (no rename, two back-to-back scans without reset):
+Run 1: 10 issues
+Run 2: 11 issues
+IDs kept between runs: 1
+IDs dropped: 9
+IDs new: 10
+
+Compare to rename cycle (Reset -> Scan -> Rename -> Scan, no reset before 2nd scan):
+Pre-rename: 10 issues
+Post-rename: 8 issues
+IDs kept: 7
+IDs dropped: 3
+IDs new: 1
+Path/type continuity: 7/9 (2 lost were OrphanedDebris on HI Test sidecars, self-heal on next scan cycle)
+
+Rename endpoint used:
+POST /Library/VirtualFolders/Name?name=MediaDash%20Test&newName=MediaDash%20Test%20Renamed
+Returns 204. The virtual folder ItemId field stays empty in the API listing before and after, so identity cannot be visually confirmed from the virtual-folders endpoint. Path continuity survives, which is what practically matters.
+
+Row-ID churn root cause:
+Even without rename, Issue.Id changes across scans. This is orthogonal to R.6 but breaks any client that tries to hold a stable ID pointer to an issue between scans.

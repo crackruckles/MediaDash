@@ -48,6 +48,11 @@ public sealed class FixTask : IScheduledTask
     /// and returns immediately when someone is watching or was active in the last 15 minutes (see <see cref="IdleCheck"/>);
     /// no queued issues stay queued and nothing else changes. When the server is genuinely idle, all queued fixes run.
     /// </summary>
+    // Free-space floor for the bin volume. Non-configurable — Jellyfin itself needs ~2 GB of
+    // working headroom, plus a 1 GB safety window for the plugin data (SQLite, probe cache, active
+    // sidecars). Below the floor, further fixes risk driving the disk to 0 free bytes mid-write.
+    internal const long BinVolumeMinFreeBytes = 3L * 1024 * 1024 * 1024;
+
     internal static readonly TimeSpan FixInterval = TimeSpan.FromMinutes(15);
 
     private readonly MediaDashDb _db;
@@ -160,6 +165,23 @@ public sealed class FixTask : IScheduledTask
             }
         }
 
+        // Free-space floor on the bin volume. Independent of the user-visible size cap above and
+        // not disable-able — Jellyfin itself needs headroom, and recycling more files while the
+        // volume is critically full risks corrupting the plugin data folder that lives alongside
+        // the bin. 3 GB matches the Jellyfin runtime's ~2 GB working set plus a 1 GB safety.
+        if (!config.DryRun && IsBinVolumeCriticallyFull(out var floorMsg))
+        {
+            _logger.LogInformation("Skipping fix run: {Msg}", floorMsg);
+            Api.Diagnostics.Record("FixTask.BinVolumeCriticallyFull", floorMsg);
+            if (isManualRun)
+            {
+                PauseReason = floorMsg;
+            }
+
+            progress.Report(100);
+            return;
+        }
+
         foreach (var type in FixableTypes)
         {
             // Duplicate: Automatic mode temporarily disabled server-side too. The UI now hides the
@@ -171,6 +193,18 @@ public sealed class FixTask : IScheduledTask
             if (type == Data.IssueType.Duplicate && config.GetFixMode(type) == FixMode.Automatic)
             {
                 _logger.LogInformation("Duplicate is set to Automatic in config but auto-queue is disabled while the detection rework stabilises; issues remain Detected until manually approved.");
+                continue;
+            }
+
+            // OrphanedDebris: same server-side Automatic-disable as Duplicate. Users report
+            // (issue #13, F-201) that when the scanner mis-classified a music/audiobook folder
+            // as "empty of media" (video-extensions-only check), Automatic mode recycled the
+            // whole tree without review. Until OrphanCleanupScanner's media-kind detector
+            // covers audio+books+comics (PR-D scope), block auto-queue here. Manual approval
+            // from the Issues tab still queues normally.
+            if (type == Data.IssueType.OrphanedDebris && config.GetFixMode(type) == FixMode.Automatic)
+            {
+                _logger.LogInformation("OrphanedDebris is set to Automatic but auto-queue is disabled server-side (F-201): the scanner's media-kind detector can misclassify non-video libraries. Issues stay Detected until manually approved.");
                 continue;
             }
 
@@ -209,12 +243,49 @@ public sealed class FixTask : IScheduledTask
 
         _logger.LogInformation("MediaDash fix run: {Count} queued issues (dry-run: {DryRun})", queue.Count, config.DryRun);
 
+        // Combined-pass detection: same file with BOTH AudioLanguage AND SubtitleLanguage queued.
+        // The TrackFixer can drop both categories in ONE ffmpeg remux instead of two back-to-back
+        // (which would read the source twice and produce two intermediate bin entries). Cuts wall
+        // time roughly in half on TV episodes and 60–70% on Blu-ray remuxes. Users hit this every
+        // time they set both AllowedAudioLanguages and AllowedSubtitleLanguages tightly on a multi-
+        // language rip.
+        // combinedPairs maps the AUDIO issue id → SUBTITLE partner issue on the same path.
+        // combinedPartners is every SUBTITLE issue that's been paired — the main loop skips those
+        // (they get handled as the audio side's companion, not on their own).
+        var combinedPairs = new Dictionary<long, Issue>();
+        var combinedPartners = new HashSet<long>();
+        {
+            var trackPairs = queue
+                .Where(i => i.Type == IssueType.AudioLanguage || i.Type == IssueType.SubtitleLanguage)
+                .GroupBy(i => i.Path, StringComparer.OrdinalIgnoreCase);
+            foreach (var pathGroup in trackPairs)
+            {
+                var audio = pathGroup.FirstOrDefault(i => i.Type == IssueType.AudioLanguage);
+                var subtitle = pathGroup.FirstOrDefault(i => i.Type == IssueType.SubtitleLanguage);
+                if (audio is not null && subtitle is not null)
+                {
+                    combinedPairs[audio.Id] = subtitle;
+                    combinedPartners.Add(subtitle.Id);
+                }
+            }
+        }
+
+        if (combinedPairs.Count > 0)
+        {
+            _logger.LogInformation("Combined-pass eligible: {Count} file(s) have both AudioLanguage and SubtitleLanguage queued — running as one ffmpeg per file instead of two.", combinedPairs.Count);
+        }
+
         // Run tallies live here (not thread-local per fixer) so the after-run summary can call out the
         // dominant failure — e.g. "all 142 fixes failed with permission denied" — via a dashboard alert.
         var attempted = 0;
         var succeeded = 0;
         var failed = 0;
         var reasonCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        // Subtitle-provider quotas (OpenSubtitles free tier: 5 downloads / 24 h) exhaust in a run
+        // and hit the same wall on every remaining MissingSubtitles file. Track first detection,
+        // skip subsequent items silently, log one summary. Keep them Queued so they retry after reset.
+        var subtitleProviderQuotaExhausted = false;
+        var subtitleQuotaSkipped = 0;
         void RecordFailure(string reason)
         {
             failed++;
@@ -240,6 +311,21 @@ public sealed class FixTask : IScheduledTask
         for (var i = 0; i < queue.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            // Re-check the free-space floor between items — a single big remux can shift the bin
+            // volume by many GB. If we cross the floor mid-run, drop the remaining queue rather
+            // than fill the disk to empty.
+            if (!config.DryRun && IsBinVolumeCriticallyFull(out var midRunFloorMsg))
+            {
+                _logger.LogInformation("Pausing fix run mid-queue: {Msg}", midRunFloorMsg);
+                Api.Diagnostics.Record("FixTask.BinVolumeCriticallyFull", midRunFloorMsg);
+                if (isManualRun)
+                {
+                    PauseReason = midRunFloorMsg;
+                }
+
+                break;
+            }
 
             if (config.PauseDuringPlayback && !IgnoreActivityForCurrentRun && IdleCheck.IsServerBusy(_sessionManager))
             {
@@ -279,6 +365,20 @@ public sealed class FixTask : IScheduledTask
                 continue;
             }
 
+            if (issue.Type == IssueType.MissingSubtitles && subtitleProviderQuotaExhausted)
+            {
+                subtitleQuotaSkipped++;
+                continue;
+            }
+
+            // Combined-pass: skip subtitle issues that were paired to an audio issue on the same
+            // path — they'll be processed together with the audio side in one ffmpeg pass. This
+            // runs BEFORE the fixer lookup so the "no fixer" branch doesn't trigger.
+            if (combinedPartners.Contains(issue.Id))
+            {
+                continue;
+            }
+
             var fixer = _fixers.FirstOrDefault(f => f.CanFix(issue.Type));
             if (fixer is null)
             {
@@ -294,9 +394,27 @@ public sealed class FixTask : IScheduledTask
             var itemProgress = new SynchronousProgress(fraction => progress.Report((itemIndex + Math.Clamp(fraction, 0, 1)) * slot));
 
             attempted++;
+            // Combined-pass detection is decided outside the try so both branches share the same
+            // exception handling below (OperationCanceled, UnauthorizedAccess, IOException, etc.).
+            var isCombinedPair = issue.Type == IssueType.AudioLanguage
+                && combinedPairs.TryGetValue(issue.Id, out var subtitlePartner)
+                && fixer is Fixers.TrackFixer;
+            var partner = isCombinedPair ? combinedPairs[issue.Id] : null;
             try
             {
-                var result = await RunFixWithSharingRetryAsync(fixer, issue, itemProgress, cancellationToken).ConfigureAwait(false);
+                Fixers.FixResult result;
+                if (isCombinedPair)
+                {
+                    // One ffmpeg pass drops both categories at once; the caller records TWO history
+                    // rows (one per source issue) below so both bin-tab and Issues-tab views are
+                    // consistent.
+                    result = await ((Fixers.TrackFixer)fixer!).FixCombinedAsync(issue, partner!, itemProgress, cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    result = await RunFixWithSharingRetryAsync(fixer, issue, itemProgress, cancellationToken).ConfigureAwait(false);
+                }
+
                 _db.AddHistory(new HistoryEntry
                 {
                     IssueId = issue.Id,
@@ -309,6 +427,52 @@ public sealed class FixTask : IScheduledTask
                     WasDryRun = result.WasDryRun,
                     Success = result.Success
                 });
+
+                // Second history row for the subtitle partner in a combined pass — same bin path,
+                // same message, so both bin-tab rows link back to the same file and both
+                // Issues-tab rows have their own record. Only emitted on success; failure surfaces
+                // through the audio issue's history row already.
+                if (isCombinedPair && result.Success && partner is not null)
+                {
+                    _db.AddHistory(new HistoryEntry
+                    {
+                        IssueId = partner.Id,
+                        Type = partner.Type,
+                        Path = partner.Path,
+                        Action = result.Message,
+                        BytesFreed = 0,
+                        RecyclePath = result.RecyclePath,
+                        FixedAtUtc = DateTime.UtcNow,
+                        WasDryRun = result.WasDryRun,
+                        Success = true
+                    });
+                    if (!result.WasDryRun)
+                    {
+                        _db.UpdateIssueStatus(partner.Id, IssueStatus.Fixed);
+                    }
+                }
+
+                // Per-sidecar history rows so the Recycle Bin tab renders a Restore button next to each
+                // recycled sidecar. Without these, external subtitle files / pre-strip audio originals
+                // show "no history" and dead-end the user.
+                if (result.Success && !result.WasDryRun && result.AdditionalRecycled is { Count: > 0 })
+                {
+                    foreach (var extra in result.AdditionalRecycled)
+                    {
+                        _db.AddHistory(new HistoryEntry
+                        {
+                            IssueId = issue.Id,
+                            Type = issue.Type,
+                            Path = extra.OriginalPath,
+                            Action = extra.Action,
+                            BytesFreed = 0,
+                            RecyclePath = extra.RecyclePath,
+                            FixedAtUtc = DateTime.UtcNow,
+                            WasDryRun = false,
+                            Success = true
+                        });
+                    }
+                }
 
                 if (result.Success && !result.WasDryRun)
                 {
@@ -323,9 +487,16 @@ public sealed class FixTask : IScheduledTask
                     // Stale failure: the file was renamed/rebuilt/removed by an external tool (Sonarr, Radarr,
                     // manual edit) between the scan and this fix run. Retrying every 15 minutes won't help —
                     // move the issue out of Queued so the loop stops. Next scan re-detects if still applicable.
-                    if (IsStaleFailure(result.Message))
+                    // F-206: only advance status when NOT in dry-run. During dry-run the row must stay Queued
+                    // so the user can re-approve after inspecting; flipping to Fixed silently loses the queue.
+                    if (IsStaleFailure(result.Message) && !config.DryRun)
                     {
                         _db.UpdateIssueStatus(issue.Id, IssueStatus.Fixed);
+                    }
+
+                    if (issue.Type == IssueType.MissingSubtitles && IsSubtitleProviderQuotaExhausted(result.Message))
+                    {
+                        subtitleProviderQuotaExhausted = true;
                     }
                 }
             }
@@ -494,6 +665,11 @@ public sealed class FixTask : IScheduledTask
             }
         }
 
+        if (subtitleQuotaSkipped > 0)
+        {
+            _logger.LogInformation("Subtitle provider download quota reached; skipped {Count} queued MissingSubtitles issue(s). They stay queued and retry on the next run after quota reset.", subtitleQuotaSkipped);
+        }
+
         Plugin.CurrentActivity = null;
         Plugin.CurrentActivityLabel = null;
 
@@ -575,6 +751,52 @@ public sealed class FixTask : IScheduledTask
 
         return message.Contains("no longer exists", StringComparison.OrdinalIgnoreCase)
             || message.Contains("Nothing to remove any more", StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Reads free space on the bin volume; returns true when it's below the floor. Reason string is
+    // set only when true, phrased for direct display in the dashboard's pause banner.
+    private bool IsBinVolumeCriticallyFull(out string reason)
+    {
+        reason = string.Empty;
+        try
+        {
+            var binRoot = _recycleBin.GetEffectiveRoot();
+            var drive = RecycleBin.FindDriveForPath(binRoot);
+            if (drive is null)
+            {
+                return false;
+            }
+
+            var free = drive.AvailableFreeSpace;
+            if (free >= BinVolumeMinFreeBytes)
+            {
+                return false;
+            }
+
+            var freeGb = (int)(free / (1024L * 1024 * 1024));
+            reason = "Paused: bin volume '" + drive.RootDirectory.FullName + "' has " + freeGb + " GB free. Jellyfin needs 2 GB of free space to run so MediaDash requires 3 GB to ensure nothing goes wrong. Free some space (empty the recycle bin, move files off this volume) and the next run will resume.";
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "Could not read free space on bin volume; letting the fix run proceed.");
+            return false;
+        }
+    }
+
+    // Whether the fixer's reason indicates the subtitle provider is out of downloads for now.
+    // Matches OpenSubtitles' free-tier "download limit reached" and API "download quota" wording;
+    // both signal that every remaining MissingSubtitles issue in this run will fail the same way.
+    // ponytail: string match, upgrade to a provider-typed error only if a second provider joins.
+    internal static bool IsSubtitleProviderQuotaExhausted(string message)
+    {
+        if (string.IsNullOrEmpty(message))
+        {
+            return false;
+        }
+
+        return message.Contains("download limit reached", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("download quota", StringComparison.OrdinalIgnoreCase);
     }
 
     // Fold a specific error message into a short reason-family so 142 permission-denied failures collapse to

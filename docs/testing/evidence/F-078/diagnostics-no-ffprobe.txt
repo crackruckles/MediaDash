@@ -1,0 +1,11 @@
+04-F.2 doc: "FfprobeError type serializes into diagnostics."
+
+After scanning, `diagnostics` table contents:
+  count=5  source=MediaSorter.BadTarget  message="TV target folder 'C:\dev\mediadash-fixtures\tv' is not inside any Jellyfin library..."
+
+That is the ONLY entry. No source starting with "FfprobeService" / "Ffprobe" / "Probe" is present.
+
+The probe_cache row for good-book.epub does contain the ffprobe error:
+  { "error": { "code": -1094995529, "string": "Invalid data found when processing input" } }
+
+But this error is buried in the raw JSON blob of probe_cache and never propagated to the diagnostics table. The plugin's log tail has zero MediaDash lines mentioning ffprobe (search: "MediaDash|Probe|SmartHealth|ffprobe" in log_20260828.log returns only unrelated Jellyfin core lines).

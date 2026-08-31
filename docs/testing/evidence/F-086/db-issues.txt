@@ -1,0 +1,10 @@
+7970|10|0|C:\dev\mediadash-fixtures\movies\Big Buck Test (2020)
+7971|13|0|C:\dev\mediadash-fixtures\movies\Truncated Movie (2021)
+7972|13|0|C:\dev\mediadash-fixtures\movies\HI Test (2024)\reg.srt
+7973|13|0|C:\dev\mediadash-fixtures\movies\HI Test (2024)\sdh.srt
+7974|6|0|C:\dev\mediadash-fixtures\movies\Big Buck Test (2020)\Big Buck Test (2020) - 1080p.mkv
+7975|6|0|C:\dev\mediadash-fixtures\movies\Big Buck Test (2020)\Big Buck Test (2020) - 2160p.mkv
+7976|6|0|C:\dev\mediadash-fixtures\movies\Big Buck Test (2020)\Big Buck Test (2020) - 1080p.mkv
+7977|6|0|C:\dev\mediadash-fixtures\movies\Multi Audio (2022)\Multi Audio (2022).mkv
+7978|6|0|C:\dev\mediadash-fixtures\movies\Truncated Movie (2021)\Truncated Movie (2021).mkv
+7979|1|2|C:\dev\mediadash-fixtures\movies\Truncated Movie (2021)\Truncated Movie (2021).mkv

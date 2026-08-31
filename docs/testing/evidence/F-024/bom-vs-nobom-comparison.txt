@@ -1,0 +1,21 @@
+BOM vs no-BOM comparison for TranscodeLogScanner input parsing.
+
+Log filename identical structure; only difference is UTF-8 BOM (0xEF 0xBB 0xBF) prefix.
+
+Scan 1: log written with BOM. Summary line:
+  TranscodeLogScanner: 8 log(s) inspected -> 1 distinct file(s) -> 0 heavy, 1 failed
+  (only the pre-existing Truncated Movie session was counted; all 5 non-zero seeded logs (Clean Movie + orphan) silently skipped)
+
+Scan 2: identical logs re-written without BOM (using UTF8Encoding(false)). Summary line:
+  TranscodeLogScanner: 8 log(s) inspected -> 3 distinct file(s) -> 0 heavy, 2 failed
+  (Clean Movie and Nonexistent Ghost now recognised)
+
+Real Jellyfin-generated ffmpeg transcode logs are BOM-less. But .NET's default
+File.WriteAllText and PowerShell's Set-Content / Out-File emit UTF-8 WITH BOM. If any
+future automation or an admin-side helper writes to this log directory using default
+encoding, those logs will be silently dropped by the scanner without warning.
+
+Suggested fix area: Jellyfin.Plugin.MediaDash.Scanners.TranscodeLogScanner — the JSON
+header parser at the top of each ffmpeg-transcode log should either strip a BOM or use
+a JSON reader that tolerates one (System.Text.Json JsonDocument.Parse tolerates BOM in
+byte input but throws on string input starting with U+FEFF).

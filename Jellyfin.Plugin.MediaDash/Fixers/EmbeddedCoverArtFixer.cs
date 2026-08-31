@@ -145,6 +145,7 @@ public sealed class EmbeddedCoverArtFixer : IFixer
         long freed = 0;
         var stripped = 0;
         var strippedFailures = 0;
+        var additionalRecycled = new List<RecycledSidecar>();
         if (config.EmbeddedCoverStripFromAudio)
         {
             for (var i = 0; i < audioFiles.Count; i++)
@@ -158,6 +159,15 @@ public sealed class EmbeddedCoverArtFixer : IFixer
                 {
                     stripped++;
                     freed += stripResult.BytesFreed;
+                    if (!string.IsNullOrEmpty(stripResult.RecyclePath) && !string.IsNullOrEmpty(stripResult.RecycledOriginalPath))
+                    {
+                        additionalRecycled.Add(new RecycledSidecar
+                        {
+                            OriginalPath = stripResult.RecycledOriginalPath!,
+                            RecyclePath = stripResult.RecyclePath!,
+                            Action = "Recycled pre-strip audio original during embedded-cover-art fix."
+                        });
+                    }
                 }
                 else if (stripResult.Skipped)
                 {
@@ -184,7 +194,8 @@ public sealed class EmbeddedCoverArtFixer : IFixer
         {
             Success = true,
             Message = summary + ".",
-            BytesFreed = freed
+            BytesFreed = freed,
+            AdditionalRecycled = additionalRecycled
         };
     }
 
@@ -327,9 +338,10 @@ public sealed class EmbeddedCoverArtFixer : IFixer
 
             File.Move(tempPath, swapPath);
 
+            string? recyclePath = null;
             if (disposal == DisposalMethod.RecycleBin)
             {
-                _recycleBin.MoveToBin(audioPath);
+                recyclePath = _recycleBin.MoveToBin(audioPath);
             }
             else if (File.Exists(audioPath))
             {
@@ -342,7 +354,7 @@ public sealed class EmbeddedCoverArtFixer : IFixer
 
             var newSize = new FileInfo(audioPath).Length;
             var freed = Math.Max(0, originalSize - newSize);
-            return StripResult.Ok(freed);
+            return StripResult.Ok(freed, audioPath, recyclePath);
         }
         catch (IOException ex)
         {
@@ -452,7 +464,19 @@ public sealed class EmbeddedCoverArtFixer : IFixer
 
         public string Message { get; private init; } = string.Empty;
 
-        public static StripResult Ok(long freed) => new() { Success = true, BytesFreed = freed };
+        // Non-null when the original was recycled instead of deleted; feeds a per-file history row so
+        // the Recycle Bin tab can render a Restore button for each stripped original, not just one.
+        public string? RecycledOriginalPath { get; private init; }
+
+        public string? RecyclePath { get; private init; }
+
+        public static StripResult Ok(long freed, string? recycledOriginalPath = null, string? recyclePath = null) => new()
+        {
+            Success = true,
+            BytesFreed = freed,
+            RecycledOriginalPath = recycledOriginalPath,
+            RecyclePath = recyclePath
+        };
 
         public static StripResult SkippedNoCover() => new() { Skipped = true, Message = "No embedded cover on this file." };
 

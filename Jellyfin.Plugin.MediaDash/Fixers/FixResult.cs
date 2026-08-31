@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Jellyfin.Plugin.MediaDash.Fixers;
 
 /// <summary>
@@ -24,6 +26,14 @@ public sealed class FixResult
     /// Gets or sets the recycle bin path of the removed file, when recycled.
     /// </summary>
     public string? RecyclePath { get; set; }
+
+    /// <summary>
+    /// Gets or initializes additional files that were recycled during this fix (external subtitle
+    /// sidecars, etc.). Each entry gets its own history row so the Recycle Bin tab can render a
+    /// Restore button for it — a fix that recycled three files should yield three restorable rows,
+    /// not one.
+    /// </summary>
+    public IReadOnlyList<RecycledSidecar> AdditionalRecycled { get; init; } = System.Array.Empty<RecycledSidecar>();
 
     /// <summary>
     /// Gets or sets a value indicating whether this was a dry run.

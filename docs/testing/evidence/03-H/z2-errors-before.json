@@ -1,0 +1,1 @@
+[{"AtUtc":"2026-08-28T13:57:18.2622007Z","Source":"MediaSorter.BadTarget","Message":"TV target folder \u0027C:\\dev\\mediadash-fixtures\\tv\u0027 is not inside any Jellyfin library. MediaDash will not move files outside your libraries \u2014 set it under one of the folders in Dashboard \u2192 Libraries.","Count":14,"LastAtUtc":"2026-08-28T14:10:21.7521626Z"}]

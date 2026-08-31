@@ -149,6 +149,12 @@ public sealed class TranscodeFixer : IFixer
         var swapPath = SidecarPath(targetPath, "new." + runToken, string.Empty);
         var originalDisposed = false;
         var swapCompleted = false;
+        // F-202 / issue #31: capture source timestamps before any rewrite. Restored after
+        // the final swap so Jellyfin's Recently Added widget doesn't treat every re-encode
+        // as newly-added media.
+        var srcInfo = new FileInfo(issue.Path);
+        var srcCreatedUtc = srcInfo.Exists ? srcInfo.CreationTimeUtc : DateTime.UtcNow;
+        var srcModifiedUtc = srcInfo.Exists ? srcInfo.LastWriteTimeUtc : DateTime.UtcNow;
         try
         {
             string? vaapiDevice = null;
@@ -227,6 +233,19 @@ public sealed class TranscodeFixer : IFixer
 
             originalDisposed = true;
             File.Move(swapPath, targetPath);
+            // F-202 / issue #31: preserve source timestamps on the transcoded file. Do after
+            // Move so the rename doesn't clobber them. Non-fatal on failure — the transcode
+            // is already committed.
+            try
+            {
+                File.SetCreationTimeUtc(targetPath, srcCreatedUtc);
+                File.SetLastWriteTimeUtc(targetPath, srcModifiedUtc);
+            }
+            catch (IOException ex)
+            {
+                _logger.LogInformation("TranscodeFixer: could not restore source timestamps on '{Path}': {Message}", targetPath, ex.Message);
+            }
+
             swapCompleted = true;
             var finalPath = targetPath;
             if (config.RenameAfterTranscode)

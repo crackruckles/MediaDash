@@ -1,0 +1,7 @@
+{
+    "expected":  "0 Quality issues (ceiling disabled)",
+    "ceiling_high_actual":  0,
+    "ceiling_setting":  "MaxResolutionHeight=0, MaxBitrateMbpsAt1080p=0 (natural \u0027disabled\u0027 sentinel)",
+    "ceiling_high_setting":  "MaxResolutionHeight=100000, MaxBitrateMbpsAt1080p=100000",
+    "actual":  7
+}

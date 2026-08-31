@@ -1,0 +1,25 @@
+Actual tables + indexes (SELECT name,type FROM sqlite_master):
+
+Tables:
+  decode_cache          (path PK, size, mtime_utc, checked_at_utc, error)
+  diagnostics           (source PK, message_hash PK, message, count, at_utc, last_at_utc)
+  file_hashes           (path PK, size PK, mtime PK, hash)
+  format_probe_cache    (path PK, size, mtime_utc, probed_at_utc, ok, reason)
+  history               (id PK, issue_id, type, path, action, bytes_freed, recycle_path, fixed_at_utc, dry_run, restored, success, acknowledged)
+  issues                (id PK, type, item_id, path, details, suggested_fix, size_savings, status, detected_at_utc, confidence)
+  plugin_state          (key PK, value)
+  probe_cache           (path PK, size, mtime_utc, probed_at_utc, json)
+  restored_paths        (path PK, type PK, restored_at_utc)
+
+Indexes:
+  idx_diagnostics_last_at_utc  ON diagnostics(last_at_utc)
+  idx_issues_type_status       ON issues(type,status)
+
+Doc (06-data.md A.2) expects: Issues, History, FormatProbeResults, MonthAggregates, KeyValue.
+
+Drift summary:
+- Case: doc uses PascalCase, DB is snake_case (issues vs Issues, history vs History).
+- FormatProbeResults → actual name is `format_probe_cache` (and there is ALSO an unrelated `probe_cache` table with json stream data).
+- MonthAggregates → NO SUCH TABLE. Aggregation must happen on-the-fly from `history` if it happens at all. Doc 06-F.1 references a query against a table that does not exist.
+- KeyValue → actual name is `plugin_state` (schema: key TEXT PK, value TEXT).
+- Extra tables not in doc: decode_cache, diagnostics, file_hashes, probe_cache (json), restored_paths.

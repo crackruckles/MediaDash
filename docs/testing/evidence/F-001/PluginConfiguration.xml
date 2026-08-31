@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PluginConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <FirstRunDone>true</FirstRunDone>
+  <EnabledLibraries>
+    <string>0d877f7fb0c5ae6ce2adcf46d86a9beb</string>
+    <string>d0a072c0de23e12e352adb926985c426</string>
+    <string>23654860b2373a85ab546517e33645ec</string>
+    <string>9afe957cb7dcf9131ba4946d52ca28b3</string>
+    <string>3b051332da6ffd623af99d05f06d140a</string>
+  </EnabledLibraries>
+  <DuplicateFixMode>ManualApprove</DuplicateFixMode>
+  <TranscodeFixMode>Automatic</TranscodeFixMode>
+  <SubtitleFixMode>Automatic</SubtitleFixMode>
+  <AudioFixMode>Automatic</AudioFixMode>
+  <PlayabilityFixMode>Automatic</PlayabilityFixMode>
+  <PlayabilityDisposal>RecycleBin</PlayabilityDisposal>
+  <DuplicateDisposal>RecycleBin</DuplicateDisposal>
+  <TranscodeDisposal>RecycleBin</TranscodeDisposal>
+  <SubtitleDisposal>RecycleBin</SubtitleDisposal>
+  <AudioDisposal>RecycleBin</AudioDisposal>
+  <RecycleBinPath />
+  <RecycleBinRetentionDays>30</RecycleBinRetentionDays>
+  <RecycleBinWarnThresholdGb>10</RecycleBinWarnThresholdGb>
+  <RecycleBinPauseFixesAtGb>1000</RecycleBinPauseFixesAtGb>
+  <FixTaskSeeded>true</FixTaskSeeded>
+  <PauseDuringPlayback>true</PauseDuringPlayback>
+  <AnalyticsEnabled>true</AnalyticsEnabled>
+  <MaxResolutionHeight>1080</MaxResolutionHeight>
+  <MaxBitrateMbpsAt1080p>8</MaxBitrateMbpsAt1080p>
+  <PreferredCodec>hevc</PreferredCodec>
+  <QualityTolerancePercent>15</QualityTolerancePercent>
+  <AllowedAudioLanguages>
+    <string>eng</string>
+  </AllowedAudioLanguages>
+  <AllowedSubtitleLanguages>
+    <string>eng</string>
+  </AllowedSubtitleLanguages>
+  <CodecPreferenceOrder>
+    <string>av1</string>
+    <string>hevc</string>
+    <string>h264</string>
+    <string>vp9</string>
+    <string>mpeg4</string>
+    <string>mpeg2video</string>
+  </CodecPreferenceOrder>
+  <ReencodeFileTypes />
+  <TargetContainer>mkv</TargetContainer>
+  <UseHardwareEncoder>true</UseHardwareEncoder>
+  <PreferredGpuIndex xsi:nil="true" />
+  <SoftwareEncodePreset>Balanced</SoftwareEncodePreset>
+  <MinScanFileSizeMb>0</MinScanFileSizeMb>
+  <SkipHdrContent>true</SkipHdrContent>
+  <QualityScanAudiobooks>false</QualityScanAudiobooks>
+  <KeeperPolicyOrder>
+    <string>Resolution</string>
+    <string>Codec</string>
+    <string>Bitrate</string>
+    <string>Size</string>
+  </KeeperPolicyOrder>
+  <ThoroughPlayabilityCheck>true</ThoroughPlayabilityCheck>
+  <ScanCpuThreads>0</ScanCpuThreads>
+  <ScanBelowNormalPriority>true</ScanBelowNormalPriority>
+  <FixerOrder />
+  <TreatEditionsAsDuplicates>false</TreatEditionsAsDuplicates>
+  <DuplicateAutoFixConfidence>0.8</DuplicateAutoFixConfidence>
+  <DuplicateExactHashEnabled>true</DuplicateExactHashEnabled>
+  <DuplicateTitleJaccardVeto>0.4</DuplicateTitleJaccardVeto>
+  <DuplicateRuntimeVetoPct>15</DuplicateRuntimeVetoPct>
+  <DryRun>false</DryRun>
+  <MisplacedFixMode>Automatic</MisplacedFixMode>
+  <MoviesTargetPath>C:\dev\mediadash-fixtures\movies</MoviesTargetPath>
+  <TvTargetPath>C:\dev\mediadash-fixtures\tv</TvTargetPath>
+  <MusicTargetPath>C:\dev\mediadash-fixtures\music</MusicTargetPath>
+  <BooksTargetPath>C:\dev\mediadash-fixtures\books</BooksTargetPath>
+  <ComicsTargetPath />
+  <PicturesTargetPath />
+  <MediaSortSource>JellyfinMetadata</MediaSortSource>
+  <RenameAfterTranscode>false</RenameAfterTranscode>
+  <MissingSubtitlesFixMode>DetectOnly</MissingSubtitlesFixMode>
+  <SubtitleIgnoreRateLimit>true</SubtitleIgnoreRateLimit>
+  <SubtitleHearingImpairedMode>false</SubtitleHearingImpairedMode>
+  <ShowSystemPerformance>true</ShowSystemPerformance>
+  <AnimeTargetPath />
+  <StaleFixMode>DetectOnly</StaleFixMode>
+  <StaleThresholdDays>365</StaleThresholdDays>
+  <StaleExcludedLibraryIds />
+  <StaleExcludedGenres />
+  <DuplicateMinAgeDays>7</DuplicateMinAgeDays>
+  <PostV12CleanupCompleted>true</PostV12CleanupCompleted>
+  <HistoryHiddenBeforeUtcTicks>639232655234870700</HistoryHiddenBeforeUtcTicks>
+  <SuspiciousFileFixMode>Automatic</SuspiciousFileFixMode>
+  <SuspiciousFileDisposal>RecycleBin</SuspiciousFileDisposal>
+  <TrickplayFixMode>DetectOnly</TrickplayFixMode>
+  <TrickplayWebPQuality>80</TrickplayWebPQuality>
+  <TrickplayMinSizeMb>10</TrickplayMinSizeMb>
+  <SubtitleFontFixMode>DetectOnly</SubtitleFontFixMode>
+  <SubtitleForceFont />
+  <OrphanCleanupFixMode>DetectOnly</OrphanCleanupFixMode>
+  <OrphanCleanupDisposal>RecycleBin</OrphanCleanupDisposal>
+  <OrphanScanEmptyFolders>true</OrphanScanEmptyFolders>
+  <OrphanScanSubtitles>true</OrphanScanSubtitles>
+  <OrphanScanTrickplay>true</OrphanScanTrickplay>
+  <OrphanScanMetadata>true</OrphanScanMetadata>
+  <NfoFixMode>DetectOnly</NfoFixMode>
+  <NfoDisposal>RecycleBin</NfoDisposal>
+  <HeavyTranscodeFixMode>DetectOnly</HeavyTranscodeFixMode>
+  <HeavyTranscodeDisposal>RecycleBin</HeavyTranscodeDisposal>
+  <HeavyTranscodeLookbackDays>30</HeavyTranscodeLookbackDays>
+  <FailedTranscodeFixMode>DetectOnly</FailedTranscodeFixMode>
+  <FailedTranscodeDisposal>RecycleBin</FailedTranscodeDisposal>
+  <EmbeddedCoverFixMode>DetectOnly</EmbeddedCoverFixMode>
+  <UngroupedFixMode>DetectOnly</UngroupedFixMode>
+  <CorruptArtworkFixMode>DetectOnly</CorruptArtworkFixMode>
+  <EmbeddedCoverDisposal>RecycleBin</EmbeddedCoverDisposal>
+  <EmbeddedCoverStripFromAudio>true</EmbeddedCoverStripFromAudio>
+  <EmbeddedCoverFilename>cover.jpg</EmbeddedCoverFilename>
+</PluginConfiguration>

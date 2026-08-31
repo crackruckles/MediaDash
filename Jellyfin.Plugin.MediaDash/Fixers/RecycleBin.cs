@@ -17,6 +17,13 @@ public sealed class RecycleBin
     /// <summary>Marker written into every newly-created MediaDash recycle batch.</summary>
     internal const string OwnershipMarkerFileName = ".mediadash-owned-v1";
 
+    // Per-batch sidecar that remembers where each recycled file came from. UTF-8, one absolute path
+    // per line, one line per file in the batch — the order matches Directory.EnumerateFiles's listing.
+    // Restore looks the original path up here so every bin file can be put back exactly where it was,
+    // regardless of whether a HistoryEntry row exists. Missing (pre-manifest batches) or unreadable
+    // manifests degrade gracefully to the previous "no history" state.
+    internal const string OriginManifestFileName = ".mediadash-origin";
+
     // OS-reserved roots the recycle bin must not sit under — an admin who accidentally (or
     // maliciously) sets RecycleBinPath = "/etc" would otherwise land recycled files at
     // /etc/<timestamp>/<original-name>. Refusing these here is defense in depth; the setting is
@@ -141,6 +148,8 @@ public sealed class RecycleBin
         Directory.CreateDirectory(folder);
         // Presence is the signal; no reader consults the content.
         File.Create(Path.Combine(folder, OwnershipMarkerFileName)).Dispose();
+        AppendOriginManifest(folder, path);
+
         // Trim trailing separator before GetFileName — otherwise a caller passing "/foo/bar/" reduces
         // target to `folder` itself, and Directory.Move(source, target) becomes "move to self" and throws.
         var basename = Path.GetFileName(Path.TrimEndingDirectorySeparator(path));
@@ -320,15 +329,32 @@ public sealed class RecycleBin
         {
             foreach (var file in Directory.EnumerateFiles(batch, "*", enumOpts))
             {
-                if (PathsEqual(file, Path.Combine(batch, OwnershipMarkerFileName)))
+                if (PathsEqual(file, Path.Combine(batch, OwnershipMarkerFileName))
+                    || PathsEqual(file, Path.Combine(batch, OriginManifestFileName)))
                 {
                     continue;
                 }
 
-                count++;
                 try
                 {
-                    size += new FileInfo(file).Length;
+                    var length = new FileInfo(file).Length;
+                    // count only after the size read succeeds — a vanished file no longer exists to
+                    // count. Old order inflated the count by 1 whenever the FileInfo threw.
+                    count++;
+                    size += length;
+                }
+                catch (FileNotFoundException)
+                {
+                    // Benign race: a concurrent purge / restore / empty-all removed this file between
+                    // EnumerateFiles yielding it and FileInfo reading it. Skip silently — the next scan
+                    // sees the correct state. Suppressing avoids the noisy user-report class where the
+                    // dashboard's status poll fires every few seconds and catches every transient miss.
+                }
+                catch (DirectoryNotFoundException)
+                {
+                    // Same benign race, whole batch folder went away mid-walk. Rest of the enumerator
+                    // will throw on next MoveNext; break so we don't spin.
+                    break;
                 }
                 catch (IOException ex)
                 {
@@ -349,10 +375,10 @@ public sealed class RecycleBin
     /// </summary>
     /// <param name="limit">Maximum entries returned.</param>
     /// <returns>File name, size and when it was recycled.</returns>
-    public IReadOnlyList<(string FileName, string BinPath, long SizeBytes, DateTime RecycledAtUtc)> ListContents(int limit = 500)
+    public IReadOnlyList<(string FileName, string BinPath, long SizeBytes, DateTime RecycledAtUtc, string? OriginalPath)> ListContents(int limit = 500)
     {
         _ = _legacyAdopted.Value;
-        var result = new List<(string, string, long, DateTime)>();
+        var result = new List<(string, string, long, DateTime, string?)>();
         if (!Directory.Exists(Root))
         {
             return result;
@@ -360,9 +386,11 @@ public sealed class RecycleBin
 
         foreach (var dir in Directory.GetDirectories(Root).Where(IsOwnedBatchDirectory).OrderByDescending(d => d, StringComparer.Ordinal))
         {
+            var manifestOrigins = ReadOriginManifest(dir);
             foreach (var file in Directory.EnumerateFiles(dir))
             {
-                if (PathsEqual(file, Path.Combine(dir, OwnershipMarkerFileName)))
+                if (PathsEqual(file, Path.Combine(dir, OwnershipMarkerFileName))
+                    || PathsEqual(file, Path.Combine(dir, OriginManifestFileName)))
                 {
                     continue;
                 }
@@ -375,7 +403,18 @@ public sealed class RecycleBin
                     // is stored as local time and returned to us in the wrong TZ.
                     var folderName = Path.GetFileName(dir);
                     var recycledAt = TryParseRecycleTimestamp(folderName) ?? Directory.GetCreationTimeUtc(dir);
-                    result.Add((info.Name, file, info.Length, recycledAt));
+                    var origin = MatchManifestEntryToFile(manifestOrigins, info.Name);
+                    result.Add((info.Name, file, info.Length, recycledAt, string.IsNullOrEmpty(origin) ? null : origin));
+                }
+                catch (FileNotFoundException)
+                {
+                    // Benign race with a concurrent purge / restore / adopt. Same rationale as GetContents.
+                    continue;
+                }
+                catch (DirectoryNotFoundException)
+                {
+                    // Whole batch folder was removed mid-enumeration; the rest of the walker will trip on it too.
+                    break;
                 }
                 catch (IOException ex)
                 {
@@ -398,6 +437,80 @@ public sealed class RecycleBin
         return result;
     }
 
+    // Appends the source path to a batch's origin manifest so restore knows where to put the file
+    // back regardless of HistoryEntry state. Missing manifest is not fatal — it degrades restore to
+    // "no origin metadata"; logs a warning so a filesystem that refuses small text writes still
+    // surfaces the failure. Instance method so it can log through _logger, but the read counterpart
+    // is static.
+    private void AppendOriginManifest(string batchFolder, string sourcePath)
+    {
+        try
+        {
+            File.AppendAllText(
+                Path.Combine(batchFolder, OriginManifestFileName),
+                Path.GetFullPath(sourcePath) + Environment.NewLine);
+        }
+        catch (IOException ex)
+        {
+            _logger.LogWarning(ex, "Could not write recycle-bin origin manifest for '{Path}'.", sourcePath);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Access denied writing recycle-bin origin manifest for '{Path}'.", sourcePath);
+        }
+    }
+
+    // Picks the manifest line whose basename matches a bin file's basename. Several files can share
+    // a batch (Directory.Move of a folder, or future multi-file bundles), and manifest lines are
+    // appended in MoveToBin's order — but the FS listing order is not guaranteed across platforms.
+    // Match by basename rather than positional. Returns null when nothing matches. Internal for direct
+    // testing so basename-collision behavior can be pinned without touching disk.
+    internal static string? MatchManifestEntryToFile(IReadOnlyList<string> manifestOrigins, string fileName)
+    {
+        for (var i = 0; i < manifestOrigins.Count; i++)
+        {
+            var line = manifestOrigins[i];
+            if (string.IsNullOrEmpty(line))
+            {
+                continue;
+            }
+
+            if (string.Equals(Path.GetFileName(line), fileName, StringComparison.Ordinal))
+            {
+                return line;
+            }
+        }
+
+        return null;
+    }
+
+    // Returns absolute paths written by MoveToBin's manifest, or an empty list when the batch
+    // predates the manifest or the file is unreadable. Internal so unit tests can drive the
+    // reader on a synthetic batch directory without wiring up a full RecycleBin instance.
+    internal static string[] ReadOriginManifest(string batchDir)
+    {
+        var manifestPath = Path.Combine(batchDir, OriginManifestFileName);
+        if (!File.Exists(manifestPath))
+        {
+            return Array.Empty<string>();
+        }
+
+        try
+        {
+            return File.ReadAllLines(manifestPath)
+                .Where(l => !string.IsNullOrWhiteSpace(l))
+                .ToArray();
+        }
+        catch (IOException)
+        {
+            return Array.Empty<string>();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Array.Empty<string>();
+        }
+    }
+
     /// <summary>
     /// Finds the "optimized twin" of a recycled original: the smaller sibling bin file with the same
     /// basename, recycled within a small time window of <paramref name="fixedAtUtc"/>. Used by the
@@ -407,8 +520,15 @@ public sealed class RecycleBin
     /// </summary>
     /// <param name="originalRecyclePath">Bin path of the original file (from the history row).</param>
     /// <param name="fixedAtUtc">When the buggy fix ran.</param>
+    /// <param name="sourceOriginalPath">
+    /// Optional: the on-disk path the original file lived at before the buggy fix recycled it (from
+    /// <c>HistoryEntry.Path</c>). When supplied, disambiguates two same-basename/time-window
+    /// candidates by preferring the one whose manifest's OriginalPath equals this value — a much
+    /// tighter match than basename alone. Pass null on legacy call sites that don't have it; the
+    /// selector still works, just with the old ambiguity handling.
+    /// </param>
     /// <returns>The twin's bin path and size, or null.</returns>
-    public (string BinPath, long SizeBytes)? FindOptimizedTwin(string originalRecyclePath, DateTime fixedAtUtc)
+    public (string BinPath, long SizeBytes)? FindOptimizedTwin(string originalRecyclePath, DateTime fixedAtUtc, string? sourceOriginalPath = null)
     {
         if (string.IsNullOrEmpty(originalRecyclePath) || !File.Exists(originalRecyclePath))
         {
@@ -429,7 +549,7 @@ public sealed class RecycleBin
             return null;
         }
 
-        return SelectOptimizedTwin(ListContents(limit: 5000), originalRecyclePath, originalSize, fixedAtUtc);
+        return SelectOptimizedTwin(ListContents(limit: 5000), originalRecyclePath, originalSize, fixedAtUtc, sourceOriginalPath);
     }
 
     /// <summary>
@@ -438,20 +558,24 @@ public sealed class RecycleBin
     /// minutes of the buggy fix. Returns null when no candidate matches or when the choice is
     /// ambiguous. Exposed internal for direct unit testing.
     /// </summary>
-    /// <param name="entries">Bin listing to search.</param>
+    /// <param name="entries">Every entry currently in the bin (already enumerated by the caller).</param>
     /// <param name="originalRecyclePath">Bin path of the original file.</param>
     /// <param name="originalSize">Size in bytes of the original.</param>
     /// <param name="fixedAtUtc">When the buggy fix ran.</param>
+    /// <param name="sourceOriginalPath">Optional on-disk source path used to disambiguate multiple candidates by manifest match.</param>
     /// <returns>The twin's bin path and size, or null.</returns>
     internal static (string BinPath, long SizeBytes)? SelectOptimizedTwin(
-        IReadOnlyList<(string FileName, string BinPath, long SizeBytes, DateTime RecycledAtUtc)> entries,
+        IReadOnlyList<(string FileName, string BinPath, long SizeBytes, DateTime RecycledAtUtc, string? OriginalPath)> entries,
         string originalRecyclePath,
         long originalSize,
-        DateTime fixedAtUtc)
+        DateTime fixedAtUtc,
+        string? sourceOriginalPath = null)
     {
         var basename = Path.GetFileName(originalRecyclePath);
         var window = TimeSpan.FromMinutes(5);
-        var candidates = new List<(string BinPath, long SizeBytes)>();
+        // Tuple carries OriginalPath so the disambiguation pass below can prefer manifest-matched
+        // twins over ambiguous basename+window matches.
+        var candidates = new List<(string BinPath, long SizeBytes, string? OriginalPath)>();
 
         foreach (var entry in entries)
         {
@@ -475,12 +599,35 @@ public sealed class RecycleBin
                 continue;
             }
 
-            candidates.Add((entry.BinPath, entry.SizeBytes));
+            candidates.Add((entry.BinPath, entry.SizeBytes, entry.OriginalPath));
         }
 
-        // Multiple candidates in the same window mean we can't be sure which is "the" twin.
-        // Better to make the user pick from the recycle bin UI than restore the wrong file.
-        return candidates.Count == 1 ? candidates[0] : null;
+        // Fast path: exactly one candidate is unambiguous.
+        if (candidates.Count == 1)
+        {
+            return (candidates[0].BinPath, candidates[0].SizeBytes);
+        }
+
+        // Disambiguation: when we have multiple basename+time-window matches AND the caller told
+        // us where the source file lived on disk, prefer the candidate whose manifest OriginalPath
+        // matches — that's the strongest signal that the buggy fix recycled BOTH from the same
+        // source. Pre-manifest candidates (OriginalPath=null) are excluded from this pass.
+        if (candidates.Count > 1 && !string.IsNullOrEmpty(sourceOriginalPath))
+        {
+            var manifestMatched = candidates
+                .Where(c => !string.IsNullOrEmpty(c.OriginalPath)
+                            && string.Equals(c.OriginalPath, sourceOriginalPath, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (manifestMatched.Count == 1)
+            {
+                return (manifestMatched[0].BinPath, manifestMatched[0].SizeBytes);
+            }
+        }
+
+        // Multiple candidates in the same window with no unambiguous manifest match mean we can't
+        // be sure which is "the" twin. Better to make the user pick from the recycle bin UI than
+        // restore the wrong file.
+        return null;
     }
 
     /// <summary>
@@ -694,6 +841,255 @@ public sealed class RecycleBin
 
     private bool IsOwnedBatchDirectory(string path) => IsOwnedBatchDirectory(path, _defaultRoot);
 
+    /// <summary>
+    /// Derives every OTHER bin root the user has historically recycled to, based on
+    /// <see cref="HistoryEntry.RecyclePath"/>. Filters out the current <see cref="Root"/>. Each
+    /// entry reports counts of MediaDash-shaped batch folders still on disk and their total size —
+    /// so the UI can offer a "consolidate into current bin" action.
+    /// </summary>
+    /// <param name="db">The plugin database (source of historical recycle paths).</param>
+    /// <returns>List of foreign bin roots with file counts + sizes.</returns>
+    public IReadOnlyList<(string RootPath, int BatchCount, long SizeBytes)> DiscoverOtherBinRoots(MediaDashDb db)
+    {
+        return DiscoverOtherBinRoots(db.GetRecyclePaths(), Root);
+    }
+
+    /// <summary>
+    /// Pure logic — no <see cref="Plugin.Instance"/>, no _logger. Given a set of historical recycle
+    /// paths and the currently-configured bin root, returns every other root that still holds
+    /// MediaDash-shaped batches. Exposed internal for direct unit testing.
+    /// </summary>
+    /// <param name="recyclePaths">Distinct RecyclePath values from HistoryEntry rows.</param>
+    /// <param name="currentRoot">The currently-configured bin root, to exclude from the result.</param>
+    /// <returns>Discovered other roots with per-root batch and size counts.</returns>
+    internal static IReadOnlyList<(string RootPath, int BatchCount, long SizeBytes)> DiscoverOtherBinRoots(
+        IEnumerable<string> recyclePaths,
+        string currentRoot)
+    {
+        var seen = new Dictionary<string, (int BatchCount, long SizeBytes)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var recyclePath in recyclePaths)
+        {
+            var derivedRoot = DeriveBinRoot(recyclePath);
+            if (string.IsNullOrEmpty(derivedRoot) || PathsEqual(derivedRoot, currentRoot))
+            {
+                continue;
+            }
+
+            if (!Directory.Exists(derivedRoot))
+            {
+                continue;
+            }
+
+            if (seen.ContainsKey(derivedRoot))
+            {
+                continue;
+            }
+
+            seen[derivedRoot] = MeasureBinRoot(derivedRoot);
+        }
+
+        return seen
+            .Select(kv => (kv.Key, kv.Value.BatchCount, kv.Value.SizeBytes))
+            .Where(t => t.BatchCount > 0)
+            .ToList();
+    }
+
+    // From <bin>/<batch>/<file> back to <bin>. Returns empty when the path doesn't have the
+    // expected batch-shape parent (defence against corrupted history rows).
+    internal static string DeriveBinRoot(string recyclePath)
+    {
+        try
+        {
+            var batch = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(recyclePath)));
+            if (batch is null || !IsMediaDashBatchName(batch))
+            {
+                return string.Empty;
+            }
+
+            var root = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(batch));
+            return string.IsNullOrEmpty(root) ? string.Empty : Path.TrimEndingDirectorySeparator(root);
+        }
+        catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
+        {
+            return string.Empty;
+        }
+    }
+
+    private static (int BatchCount, long SizeBytes) MeasureBinRoot(string root)
+    {
+        var batchCount = 0;
+        long total = 0;
+        try
+        {
+            foreach (var batch in Directory.GetDirectories(root).Where(IsMediaDashBatchName))
+            {
+                batchCount++;
+                try
+                {
+                    foreach (var file in Directory.EnumerateFiles(batch, "*", SearchOption.AllDirectories))
+                    {
+                        try
+                        {
+                            total += new FileInfo(file).Length;
+                        }
+                        catch (FileNotFoundException)
+                        {
+                            // Benign race with a concurrent purge; skip.
+                        }
+                        catch (IOException)
+                        {
+                        }
+                        catch (UnauthorizedAccessException)
+                        {
+                        }
+                    }
+                }
+                catch (IOException)
+                {
+                }
+                catch (UnauthorizedAccessException)
+                {
+                }
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+
+        return (batchCount, total);
+    }
+
+    /// <summary>
+    /// Moves every MediaDash-shaped batch folder from <paramref name="sourceRoot"/> into the
+    /// currently-configured <see cref="Root"/>. Cross-volume safe. Skips a batch when a name
+    /// collision exists at the target (extremely unlikely given the timestamp+GUID shape).
+    /// The manifest sidecar rides along with each batch — restore paths and history joins remain intact.
+    /// </summary>
+    /// <param name="sourceRoot">Absolute path of the legacy bin root to drain.</param>
+    /// <returns>Counts + bytes moved and an optional warning string.</returns>
+    public (int BatchesMoved, int BatchesSkipped, long BytesMoved, string? Warning) ConsolidateFromRoot(string sourceRoot)
+    {
+        var result = ConsolidateBetween(sourceRoot, Root);
+        _logger.LogInformation(
+            "Consolidated {Moved} legacy batch(es) ({Bytes} bytes) from {Source} into {Root}",
+            result.BatchesMoved,
+            result.BytesMoved,
+            sourceRoot,
+            Root);
+        return result;
+    }
+
+    /// <summary>
+    /// Pure-logic core of <see cref="ConsolidateFromRoot(string)"/>: moves every batch-shaped
+    /// folder under <paramref name="sourceRoot"/> into <paramref name="targetRoot"/>. Cross-volume
+    /// safe via <see cref="Api.FileBrowserController.CrossDeviceMove(string, string, bool)"/>.
+    /// Skips a batch when the target already holds one with the same leaf. Exposed internal so
+    /// unit tests can drive it against temporary directories without touching <see cref="Root"/>.
+    /// </summary>
+    /// <param name="sourceRoot">The legacy bin root to drain.</param>
+    /// <param name="targetRoot">The currently-configured bin root.</param>
+    /// <returns>Counts + bytes moved and an optional warning string.</returns>
+    internal static (int BatchesMoved, int BatchesSkipped, long BytesMoved, string? Warning) ConsolidateBetween(
+        string sourceRoot,
+        string targetRoot)
+    {
+        if (PathsEqual(sourceRoot, targetRoot))
+        {
+            return (0, 0, 0, "Source is the same as the current bin.");
+        }
+
+        try
+        {
+            Directory.CreateDirectory(targetRoot);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return (0, 0, 0, "Could not create the target bin directory '" + targetRoot + "': " + ex.Message);
+        }
+
+        var moved = 0;
+        var skipped = 0;
+        long bytes = 0;
+        string? warning = null;
+
+        string[] batches;
+        try
+        {
+            batches = Directory.GetDirectories(sourceRoot).Where(IsMediaDashBatchName).ToArray();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return (0, 0, 0, "Could not enumerate legacy bin '" + sourceRoot + "': " + ex.Message);
+        }
+
+        foreach (var batch in batches)
+        {
+            var leaf = Path.GetFileName(Path.TrimEndingDirectorySeparator(batch));
+            var target = Path.Combine(targetRoot, leaf);
+            if (Directory.Exists(target) || File.Exists(target))
+            {
+                skipped++;
+                continue;
+            }
+
+            long batchBytes = 0;
+            try
+            {
+                foreach (var file in Directory.EnumerateFiles(batch, "*", SearchOption.AllDirectories))
+                {
+                    try
+                    {
+                        batchBytes += new FileInfo(file).Length;
+                    }
+                    catch (IOException)
+                    {
+                    }
+                    catch (UnauthorizedAccessException)
+                    {
+                    }
+                }
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+
+            try
+            {
+                Directory.Move(batch, target);
+            }
+            catch (IOException)
+            {
+                try
+                {
+                    Api.FileBrowserController.CrossDeviceMove(batch, target, sourceIsDir: true);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    warning = (warning ?? string.Empty) + "Batch '" + leaf + "' could not be moved: " + ex.Message + ". ";
+                    skipped++;
+                    continue;
+                }
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                warning = (warning ?? string.Empty) + "Batch '" + leaf + "' could not be moved: " + ex.Message + ". ";
+                skipped++;
+                continue;
+            }
+
+            moved++;
+            bytes += batchBytes;
+        }
+
+        return (moved, skipped, bytes, warning);
+    }
+
     private void AdoptLegacyCustomBatches(MediaDashDb db)
     {
         var root = Root;
@@ -714,11 +1110,27 @@ public sealed class RecycleBin
 
             foreach (var candidate in Directory.GetDirectories(root).Where(IsMediaDashBatchName))
             {
-                if (!File.Exists(Path.Combine(candidate, OwnershipMarkerFileName)))
+                var marker = Path.Combine(candidate, OwnershipMarkerFileName);
+                if (File.Exists(marker))
                 {
+                    continue;
+                }
+
+                // The 28-char yyyyMMdd-HHmmss-fff-<8hex> shape is strict enough that a
+                // non-MediaDash folder collision is practically impossible; users landing here
+                // asked for auto-adoption instead of a per-batch review workflow. Write the
+                // marker so the batch is listed, purged on schedule, and restorable from the UI.
+                try
+                {
+                    File.Create(marker).Dispose();
+                    _logger.LogInformation("Auto-adopted legacy recycle batch {Batch} into the managed bin", candidate);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    _logger.LogWarning(ex, "Could not auto-adopt legacy recycle batch {Batch}", candidate);
                     Api.Diagnostics.Record(
-                        "RecycleBin.LegacyBatchNeedsReview",
-                        "Legacy-looking recycle batch '" + candidate + "' was not referenced by MediaDash history and will not be listed or deleted. After verifying MediaDash created it, create an empty '" + OwnershipMarkerFileName + "' file inside that batch to adopt it; otherwise move it out of the configured recycle root.");
+                        "RecycleBin.LegacyMigrationFailed",
+                        "Could not adopt legacy recycle batch '" + candidate + "': " + ex.Message + ". Create an empty '" + OwnershipMarkerFileName + "' file inside that batch to adopt it manually.");
                 }
             }
         }

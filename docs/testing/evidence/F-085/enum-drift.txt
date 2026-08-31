@@ -1,0 +1,5 @@
+FixMode options in configPage: Off, DetectOnly, ManualApprove, Automatic (4)
+Doc claim: Off, Approved, Auto (3)
+---
+MediaSortSource options in configPage: JellyfinMetadata, FilenameHeuristic (2)
+Doc claim: Folder, Filename, Ffprobe (3)

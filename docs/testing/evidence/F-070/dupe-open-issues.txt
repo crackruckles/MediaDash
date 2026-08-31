@@ -1,0 +1,23 @@
+B.6: doc says "Re-running a scan does NOT duplicate open issues for unchanged files (identity by type + path)."
+
+Repro:
+1. Reset. Scan. 10 issues created (Open). Approve id=7933 (Duplicate 1080p), Dismiss id=7932 (Duplicate 2160p), then via /Issues/7936/Approve triggered DryRun auto-execute → 7936 status→2 (Fixed).
+2. Rescan.
+3. Check DB `SELECT type, path, count(*) FROM issues GROUP BY type,path HAVING c>1`.
+
+Dupe rows (same type + same path) after rescan:
+  type=1 (Playability) path=Truncated Movie (2021).mkv : id 7936 (status=2 Fixed), id 7943 (status=0 Open, NEW)
+    -- Doc-B.7 behavior: fixed issue that reappears creates a new Open row. OK.
+  type=10 (Ungrouped)  path=Big Buck Test (2020)       : id 7927 (status=0 Open), id 7937 (status=0 Open, NEW)
+    -- Both Open, both same type+path. This is a DUPE OF AN OPEN ISSUE. Violates the invariant.
+
+id=7927 was the original Ungrouped issue from the first scan. It stayed status=0 (Open) throughout the session (not approved/dismissed/fixed). The rescan then created 7937 as a fresh Open row instead of recognising the existing one — no dedup on (type, path).
+
+Additionally in the same rescan, 5 unmodified Open issues (MissingSubtitles×2, OrphanedDebris×3) also received new IDs (7938-7942) — the old rows disappeared from `SELECT`? No: check IDs — after rescan max(id)=7943, count=11. So the old open rows 7928-7931, 7934, 7935 must have been DELETED or renumbered. Actually issue table has ids 7927, 7932, 7933, 7936, 7937-7943 = 11 rows total. Old open issues 7928-7931, 7934, 7935 (6 rows) are gone; new 7937-7943 (7 rows) took their place. Net +1 (7927 duplicated).
+
+So the scan pattern appears to be "delete all rows with status=0 (Open), reinsert" — but 7927 is Open and it survived. So maybe it's "delete rows for currently-scanning-scope, reinsert" and 7927 came from a different scope? That would make it a scoping bug: two scanners each produce an Ungrouped Big Buck Test row and their scopes don't overlap in the dedup pass.
+
+Verdict: BUG — open issues can duplicate for the same (type, path) after a rescan.
+
+Evidence commands:
+  node --experimental-sqlite b6.js  -> shows dupe rows and full listing

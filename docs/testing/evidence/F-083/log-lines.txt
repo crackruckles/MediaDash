@@ -1,0 +1,6 @@
+[2026-08-29 05:07:48.386 +08:00] [INF] [56] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner SubtitleLanguage found 0 issues
+[2026-08-29 05:07:48.389 +08:00] [INF] [56] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner MissingSubtitles found 5 issues
+[2026-08-29 05:07:48.391 +08:00] [INF] [56] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Quality found 0 issues
+[2026-08-29 05:07:48.392 +08:00] [INF] [56] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner EmbeddedCoverArt found 0 issues
+[2026-08-29 05:07:48.394 +08:00] [INF] [56] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Playability found 1 issues
+[2026-08-29 05:07:48.395 +08:00] [INF] [56] Emby.Server.Implementations.ScheduledTasks.TaskManager: "Scan libraries for issues" Completed after 0 minute(s) and 0 seconds

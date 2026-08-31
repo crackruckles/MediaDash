@@ -1,0 +1,8 @@
+{
+    "detailsJson":  "{\"width\":1920,\"height\":1080,\"codec\":\"hevc\",\"videoBitrate\":0,\"allowedBitrate\":197530,\"maxHeight\":480,\"targetCodec\":\"hevc\"}",
+    "ffprobe_actual":  "hevc 1920x1080 2.88 Mbps",
+    "note":  "videoBitrate=0 for ALL 7 issues; scanner never populates actual bitrate; K.6 requires \u0027actual resolution AND bitrate\u0027",
+    "fileName":  "Big Buck Test (2020) - 2160p.mkv",
+    "ffprobe_actual_bitrate_bps":  2884106,
+    "jellyfin_MediaStream_BitRate":  "null/absent (not populated in Jellyfin MediaStreams table)"
+}

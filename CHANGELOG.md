@@ -4,23 +4,180 @@ Release notes for every published version are on GitHub Releases: https://github
 
 The Jellyfin plugin catalog also shows the changelog for each version — open **Dashboard → Plugins → Catalog** in your Jellyfin server, or read `manifest.json` in this repo.
 
-## Highlights so far
+## 1.0.7.3
 
-- **1.0.7.2** — Reliability hotfix targeting the four "why won't MediaDash leave my files alone" report classes (GitHub #19 + Reddit/Discord threads). **Sharing-violation root cause found**: every scanner and probe (`ArtworkScanner`, `NfoScanner`, `TrickplayOptimizeScanner`, `BookProbeService` × 2 sites, `FileHasher`) was opening library files via `File.OpenRead` — .NET's default `FileShare.Read`, which allows other *readers* but blocks any concurrent move/rename/delete on Windows. A fixer arriving on a file the scan was mid-probe hit `ERROR_SHARING_VIOLATION 32`, and Process Explorer showed nothing because our own handles were transient — matches the "13 files locked in one scan, nothing holding them" report exactly. New `MediaFileHelper.OpenSharedRead(path)` opens with `FileShare.ReadWrite | FileShare.Delete`; all six sites migrated. Regression test in `MediaFileHelperSharingTests` verifies concurrent Delete succeeds through an open handle (would fail against the old code). **Fix-run "disk error" label overhaul**: `FixTask.cs`'s single `catch (IOException)` funnelled sharing-violation retry exhaustion, `FileNotFoundException`, ENOSPC, network glitches, and ACL edges all into `FixTask.IOError` — which the config page labelled "Fix run — disk error" regardless. Split into four diagnostic keys — `FixTask.FileMissing` (also marks the issue `Fixed` so the 15-min retry stops chasing a ghost that Sonarr/Radarr already renamed), `FixTask.FileLocked` (sharing violation surviving the 3× retry ladder), `FixTask.DiskFull` (only true ENOSPC via HResult 112/39/28), and the residual `FixTask.IOError` reworded away from "disk error". Every bucket has a new `ERROR_META` entry with actionable copy. **NFS/SMB scan lockup**: a hard-mounted network share whose server is offline hangs every syscall indefinitely; `ScanTask` used to fan thousands of `File.Exists` / `FfprobeService.Probe` calls into the dead mount, exhaust the .NET ThreadPool, and take the whole Jellyfin instance down (users report LXC restarts). New `ScanTask.FindUnreachableRootsAsync` does one 5 s `Directory.Exists` probe per library root via `Task.WhenAny(probe, Task.Delay)`; any root that doesn't respond in time gets its items filtered out with a `ScanTask.UnreachableRoot` diagnostic pointing users at `soft,timeo=30,retrans=3` mount flags. Leaks one orphaned worker per unreachable root per scan instead of thousands — the scan finishes and Jellyfin stays responsive. **Track remux / Ffmpeg.Timeout noise cleanup**: on large-Blu-ray remuxes, `TrackFixer`'s 30-min first pass would timeout, emit `Ffmpeg.Timeout`, retry with a 5-hour cap, emit `Track.RemuxRetry`, then succeed — leaving *two* "errors" in the Errors tab for a fix that actually worked. `FfmpegExecutor.RunAsync` gains `recordDiagnosticOnTimeout` (default `true` preserves `TranscodeFixer`/`EmbeddedCoverArtFixer`/`TrickplayOptimizeFixer` behaviour); `TrackFixer`'s first pass passes `false` so only the retry's failure surfaces. `Track.RemuxRetry` diagnostic **removed** — a happy-path recovery event was noise, not signal (kept as an info-level log line for debugging). New `ERROR_META` entries for `Ffmpeg.Timeout` and `Ffmpeg.Error` — they previously fell through to a bare-string title with no hint. **README `## Uninstall` section** added between Install and What-it-does: Jellyfin's Uninstall button leaves the repository URL registered, and the "Update Plugins" scheduled task can race the `deleteOnStartup` marker and re-fetch the plugin into the same folder before restart — the correct procedure is remove-repo → uninstall → restart. Still one binary for both Jellyfin 10.11 and 12.0. Full suite 444/444 green.
-- **1.0.7.1** — Hotfix + post-v1.0.7 polish. Startup purge of stale `SmartHealth.Wmi` diagnostics — upgraders from v1.0.6 were still seeing the "No MSFT_StorageReliabilityCounter association found for &lt;model&gt; via any WMI or PowerShell path" and "PowerShell counter fallback ran for &lt;model&gt; but no output line's FriendlyName matched" spam on the Errors tab even though v1.0.7's `SmartHealthProbeWmi.cs` stopped emitting them; the rows were persisted in the diagnostics table and reloaded into the in-memory buffer on every boot. `Diagnostics.PurgeObsolete` now runs once immediately after `Diagnostics.Attach` in the `MediaDashDb` ctor and drops any row whose source is `SmartHealth.Wmi` and whose message matches one of the two known-obsolete signatures. Post-v1.0.7 UX polish rolling in with it: the file browser gets a **read-only Recycle bin shortcut** at the pseudo-root — clicking it navigates into `RecycleBin.GetEffectiveRoot()` with a pink `delete` icon and a `Recycle bin · <path>` breadcrumb; New folder / Upload / per-row action buttons are all hidden inside the bin (all mutations still 403 via `TryResolveInsideLibrary`). Every `RecycleBin.LegacyBatchNeedsReview` diagnostic on the Errors tab now carries a **"Merge into current bin"** button in the top-right (teal primary, matching the tab-header actions) — click writes `.mediadash-owned-v1` into the flagged batch, folds its contents into the managed bin, and purges the stale diagnostic so the card drops on the next refresh. New `POST /MediaDash/RecycleBin/AdoptBatch { Path }` endpoint backs it; validation refuses anything that isn't a direct child of the current recycle root AND matches the 28-char timestamp+GUID batch shape. `tools/release.ps1` accepts 4-part hotfix versions and now passes `--target <HEAD SHA>` to `gh release create` so the git tag pins to the release commit instead of drifting to whatever the remote's default-branch head happens to be — v1.0.7's tag landed on the PR#11 merge because of exactly this bug. Still one binary for both Jellyfin 10.11 and 12.0.
-- **1.0.7** — Safety hardening + UX polish + user-managed schedule. Recycle-bin ownership marker (`.mediadash-owned-v1`) — every batch MediaDash creates carries a durable marker; enumeration / deletion / purge / empty-all now refuse to touch anything else in a custom-configured recycle root (fixes the "MediaDash Empty deleted my other tool's files" class of bug when `RecycleBinPath` sits somewhere with pre-existing folders that look timestamp-shaped). Legacy custom-root batches are auto-adopted only when non-dry-run history directly proves ownership; anything unaccounted-for gets a `RecycleBin.LegacyBatchNeedsReview` diagnostic explaining how to adopt it manually. Off-by-one timestamp width fix in `TryParseRecycleTimestamp` (`[..18]` → `[..19]`) — `Purge` retention was silently no-op'ing on every batch and falling back to `GetCreationTimeUtc`. File-browser TOCTOU re-validation: every Mkdir / Rename / Move / Copy / Delete / Upload / Download re-checks the path against `LibraryGuard.IsInsideLibrary` immediately before the mutation, closing the window where a symlink or junction is swapped in between resolve and act. Legacy-batch adoption deferred out of the `RecycleBin` constructor into a `Lazy<bool>` gate so plugin startup no longer blocks on filesystem walks or marker writes when the recycle root is a slow / unavailable network share. New setting: **Settings → Recycle bin → "Pause fixes when the bin reaches N GB"** — refuses to run the fix task while the bin is at or above the cap, so runaway auto-fixes can't blow past a user's disk budget. Dry-run is exempt. New setting: **Settings → Maintenance → "Reset scheduled task"** — `PluginConfiguration.FixTaskSeeded` gates `ScheduleMigrator` so the 15-minute interval trigger is seeded exactly once; users who delete "Apply approved fixes" from Dashboard → Scheduled Tasks stay deleted across restarts, and the button is the sanctioned way to bring it back. Hearing-impaired subtitle mode (`SubtitleHearingImpairedMode`) — protects SDH/CC tracks from the SubtitleLanguage scanner even when outside the keep-list, treats HI as the required format for the MissingSubtitles scanner, and prefers HI-flagged provider hits at download time. Provider `isAutomated` bypass toggle (`SubtitleIgnoreRateLimit`, default on) — routes searches through the manual-UI path so OpenSubtitles.com returns full episode lists instead of the trimmed automated set. System Performance card show/hide preference (`ShowSystemPerformance`) — right-click the card to hide it and swap in a compact placeholder. New canonical `Scanners/MediaFormats.cs` + `Scanners/SubtitleFormats.cs` — every filesystem-walking pass (orphan cleanup, sorter, duplicate signals) now reads from one place so they can't drift out of sync with Jellyfin's `NamingOptions`. Bigger `OrphanCleanupScanner` rework with 186 lines of new regression tests. Windows SMART: per-model negative cache on `MSFT_StorageReliabilityCounter` so the ~1 s PowerShell fallback doesn't re-spawn every 10-min refresh for drives (Lexar NM790, other NVMe) Windows won't populate; benign "no reliability counter" and "PowerShell counter fallback ran but no match" diagnostics no longer spam the Errors tab. Config-page CSS: `.mdChip button min-height: 0` closes an emby-button `min-height: 40px` bleed that inflated language chips to 52 px (now 27 px); `.mdTaskPill` height + `border-box` matches sibling `.mdJumpCollapse` so the "17 of 17 active" pill and "Collapse all" button baseline-align (both 46 px). Hearing-impaired mode description trimmed to one line. `tools/deploy-local.ps1` auto-discovers `MediaDash_*` plugin folder per ABI so v12 no longer silently skips when the folder name drifts from the hardcoded `MediaDash_0.9.0.0`. i18n regenerated across 9 languages. Still one binary for both Jellyfin 10.11 and 12.0.
-- **1.0.6** — Duplicate detection rework (confidence ladder). Fixes GitHub issue #3 and the broader class of duplicate false positives. Every emitted duplicate now carries a per-pair `Confidence` in [0,1] with three tiers: **Exact** (SHA-256 byte-identical, 1.00, always auto-fix), **Identified** (shared TMDb/IMDb/TVDb/ISBN/MusicBrainz ID, 0.90), and **Heuristic** (name/episode fallback, 0.70 base + soft adjustments). Two hard vetoes kill the Futurama-specials false-positive class: filename title-token Jaccard below `DuplicateTitleJaccardVeto` (default 0.40) or runtime delta above `DuplicateRuntimeVetoPct` (default 15%). Under Automatic mode only pairs at or above `DuplicateAutoFixConfidence` (default 0.80) are auto-queued; below-threshold pairs stay `Detected` for manual approval — the auto-queue gate lives at the DB layer and the fixer has a belt-and-braces refusal for the same threshold. New `file_hashes` cache table, new `Confidence` column on `issues` (idempotent migration to schema v4), new `DuplicateSignals` helpers (`TitleTokenJaccard`, `RuntimeDeltaFraction`, `TierForKey`), new `FileHasher` service. Settings → Duplicates exposes all four thresholds. Also in this release: month-rotated anonymous analytics ID (no persistent UUID stored on disk; SHA-256 of Jellyfin SystemId + this year-month) for stricter APP/GDPR posture; ArtworkFixer now invalidates the item's `ImageInfos` before deleting the file on disk so `/Items/{id}/Images/Primary` stops 404-ing after a corrupt-artwork sweep; dry-run is now airtight (no local writes, no external subtitle-provider queries).
-- **1.0.0** — First stable release. Two independent security audits, two UX audits, and two docs+migration audits closed 70+ findings across scanner correctness (`FixableTypes` array completeness, `PlayabilityFixer` reason-driven re-verify, `TrackFixer` path normalisation, `MediaGrouperScanner` NRE), safety hardening (`RecycleBin` cross-volume verified copy, timestamp-collision GUIDs, library-adjacency gate, symlink-refusing `LibraryGuard`, upload size caps with `Content-Length` pre-flight, TOCTOU 409 on rename/move, Windows-reserved-name refusal in `IsSimpleName`, arg-safe `smartctl` / `nvidia-smi` invocation, absolute-path binary resolution on Linux, WQL-safe drive-letter validation), UI completeness (`Ungrouped` + `CorruptArtwork` fully wired into `STR.types` / `FIX_TYPES` / config UI, dynamic task-active count, `STR.restoring` in all restore paths, viewport meta, wizard i18n guard relaxed to `Math.min`, 17-step wizStep alignment, mouse-click focus-ring suppression, dev-build update-banner skip), performance (`GetIssue` targeted SELECT, `BulkUpdateOpenIssueStatus` chunked at 500, `RestoreFromHistory` uses helper), and correctness (`RelocateIssuePaths` `COLLATE NOCASE` on Windows, ISO 639-1 → 639-2 language fold, ffprobe pipe-buffer deadlock fix, `File.Move` overwrite:false + IOException→409 translation). `AnalyticsEnabled` default flipped to `false` to match every user-visible string. Obsolete `ScheduledFixTime` config field removed. Still one binary for both Jellyfin 10.11 and 12.0.
-- **0.9.9.x** — Redownload-warning banner + one-click restore of the "optimized twin" from the recycle bin. Post-Jellyfin-12 cleanup offer that sweeps orphaned trickplay folders. VAAPI encoder detection fixes. Recycle bin cross-volume warning. Version-schema hotfix stream.
-- **0.9.1** — Opportunistic 15-minute fix scheduling replaces the daily-time picker. Fix task defers via idle check while anyone is watching or has been active in the last 15 minutes. Automatic migration from any legacy `DailyTrigger` on first boot.
-- **0.9.0** — Full media-type coverage: extended `DuplicateScanner`, `PlayabilityScanner`, `MediaSorterScanner`, `StaleContentScanner`, and `QualityScanner` to Music, Audiobook, and Book library items alongside video. New *Corrupt artwork* scanner + fixer — deletes broken poster/backdrop files inside Jellyfin's metadata folder so Jellyfin's own metadata pipeline re-fetches on the next scan (never touches user-placed artwork alongside media files). New integrity probes for EPUB / PDF / MOBI / AZW3 (stdlib only) and CBZ / CBR / CB7 (via SharpCompress) that catch container-corrupt book and comic files. Quality scanner adds detect-only audio ceilings (MP3 > 320 kbps, AAC > 256 kbps; lossless codecs skipped; audiobook opt-in via a new setting). New `tools/verify-cross-abi.md` — a manual checklist for the Jellyfin 10.11 ↔ 12.0 release gate. `ScanTask.IncludeItemTypes` widened to include Audio / AudioBook / Book / MusicVideo alongside Movie / Episode so every scanner sees the new library types. Still one binary for both Jellyfin 10.11 and 12.0.
-- **0.7.3** — New *Stale content* scanner (detect-only): flags media nobody has played in a configurable window (default 365 days). Jellyfin 12.0 compatibility: one binary works on both 10.11 and 12.0 via a reflection bridge over the `IUserManager` / `User` entity changes; manifest advertises both target ABIs. Playability scanner gains three new checks — stderr marker scan for "File ended prematurely" / "Truncating packet" (ffmpeg emits these but exits 0), container-bitrate-vs-actual-size sanity check, and decoded-time vs requested-segment comparison. Together they catch files that "sort of play" — ones ffprobe accepts but that stop short during actual playback.
-- **0.7.x pre-0.7.3** — Configurable fix schedule (Settings → Safety), UI localisation (en source + de/es/fr/it/nl/pt-BR/ru/zh-CN machine-translated seeds), opt-in community stats board, Settings tab redesign, mobile-responsive pass.
-- **0.6.0** — New *Missing subtitles* fix type (downloads via Jellyfin's configured providers). Multi-step first-run wizard walking each feature one at a time. Hardware GPU picker beside the encoder toggle. AMD APU (Rembrandt / Phoenix) GPU% now reads from `gpu_metrics` when `gpu_busy_percent` is pinned at 0. Queued issues count toward "Space you could reclaim".
-- **0.5.x** — Media sorter (misplaced files), History tab filter chips, first-run library-access check, recycle-bin cross-volume warning, hardware encoder + preferred GPU, Errors tab retry, canonical rename after re-encode, ffprobe cache, HDR-skip default.
-- **0.4.x** — Multi-GPU system stats card (NVIDIA / Windows PDH / Linux sysfs), Files tab, per-fix disposal, permission-error surfacing, thorough playability check, thumbnails.
-- **0.1 – 0.3** — Five original scanners (dupes, playability, quality, subs, audio), dry-run + recycle bin, verify-before-swap, three-question first-run.
+- overhauled Recycle bin
+- overhauled duplicate detection
+- fixed symlinks / 0-byte de-dupe issue
+- fixed orphan debris music / audiobook issue
+- fixed remake duplicate detection issue
+- fixed file date issue on rebuilt files
+- fixed dry-run marking vanished files as fixed
+- added container / extension mismatch check
+- fixed files being wrongly flagged as unplayable
+- fixed drive-health errors repeating on every refresh
+- fixed remuxes failing on files with negative or shifted timestamps
+- fixed duplicate remuxes when a file needed both audio and subtitle cleanup
+- added Jellyfin logs shortcut in the Files tab
+- renamed "Copy diagnostics" to "Report an issue"
+
+One binary for Jellyfin 10.11 and 12.0.
+
+---
+
+## 1.0.7.2
+
+- fixed sharing violations in scanners (files that "were in use" during a fix)
+- fixed catch-all "Fix run — disk error" hiding four different causes
+- fixed 15-minute retry storm on files Sonarr / Radarr had already renamed
+- fixed unreachable NFS / SMB mounts locking up whole scan runs
+- fixed Errors tab lighting up twice for large Blu-ray remuxes that actually succeeded
+- added Uninstall instructions to the README
+- 444 / 444 tests green
+
+---
+
+## 1.0.7.1
+
+- fixed SmartHealth noise for users upgrading from 1.0.6
+- added Recycle bin shortcut on the Files tab (read-only)
+- added "Merge into current bin" button to legacy-batch rows on the Errors tab
+- release tooling now pins the version tag to the exact commit
+
+---
+
+## 1.0.7
+
+- Recycle bin will not touch anything MediaDash didn't create — closes the "MediaDash Empty deleted my other tool's files" case
+- fixed Recycle bin retention silently never purging
+- fixed Files tab actions racing symlink swaps
+- fixed startup blocking on a slow / offline Recycle bin location
+- added "Pause fixes when the bin reaches N GB" setting
+- added "Reset scheduled task" button (Maintenance)
+- added Hearing-impaired subtitle mode
+- added "Ignore subtitle provider rate limits" toggle (default on)
+- added right-click hide on the System Performance card
+- Windows SMART no longer spams the Errors tab for NVMe drives Windows can't read
+- language chip and task-pill sizing fixes
+- language packs regenerated across 9 UI languages
+
+---
+
+## 1.0.6
+
+- fixed duplicate detection false positives (Futurama specials, franchise / episode collapse)
+- added confidence scores (0.00–1.00) to every duplicate report
+- added three-tier duplicate matching: byte-identical → provider ID → heuristic
+- added "auto-fix confidence threshold" setting (default 0.80)
+- added file hash cache so identical files don't re-hash
+- fixed artwork fix leaving posters 404-ing until the next Jellyfin refresh
+- fixed dry-run writing to disk in edge cases
+- analytics ID now rotates monthly instead of being a permanent UUID
+
+---
+
+## 1.0.0
+
+- first stable release after two security audits, two UX audits, and two docs / migration audits
+- 70+ correctness and safety findings closed
+- Recycle bin gained verified cross-volume copy and symlink refusal
+- upload size cap enforced before the transfer starts
+- Windows-reserved filenames (CON, PRN, AUX, NUL, COM1…) refused on the Files tab
+- Corrupt artwork and Ungrouped media detectors fully wired into the UI
+- analytics off by default
+
+---
+
+## 0.9.9.x
+
+- added Redownload warning banner when a file MediaDash fixed comes back
+- added one-click restore of the "optimised twin" from the Recycle bin
+- added post-Jellyfin 12 cleanup sweep for orphan trickplay folders
+- added Recycle bin cross-volume warning
+- fixed VAAPI encoder detection on some Linux distributions
+
+---
+
+## 0.9.1
+
+- fix scheduling switched from a daily time picker to an opportunistic 15-minute check
+- automatic migration from any legacy daily-time schedule on first boot after upgrade
+
+---
+
+## 0.9.0
+
+- Duplicate, Playability, Misplaced, Stale and Quality scanners now cover Music, Audiobooks, Books and Comics
+- added Corrupt artwork scanner + fixer (metadata folder only — never touches user-placed art)
+- added EPUB / PDF / MOBI / AZW3 integrity probes
+- added CBZ / CBR / CB7 integrity probes
+- added audio ceilings to the Quality scanner (MP3 > 320 kbps, AAC > 256 kbps; audiobooks opt-in)
+- one binary works on Jellyfin 10.11 and 12.0
+
+---
+
+## 0.7.3
+
+- added Stale content scanner (default: unplayed for 365+ days, Detect only)
+- Jellyfin 12.0 compatibility
+- Playability scanner catches three new "sort of plays" failure modes
+
+---
+
+## 0.7.x (before 0.7.3)
+
+- configurable fix schedule
+- UI localisation added for German, Spanish, French, Italian, Dutch, Portuguese (Brazil), Russian, Simplified Chinese
+- opt-in community stats board
+- Settings tab redesign
+- mobile-responsive UI pass
+
+---
+
+## 0.6.0
+
+- added Missing subtitles fix (downloads via Jellyfin's configured providers)
+- added multi-step first-run wizard
+- added hardware GPU picker
+- fixed AMD APU GPU usage reporting on Rembrandt / Phoenix chips
+- queued issues now count toward "Space you could reclaim"
+
+---
+
+## 0.5.x
+
+- added Misplaced files scanner
+- added History tab filter chips
+- added first-run library-access check
+- added Recycle bin cross-volume warning
+- added hardware encoder + preferred GPU pickers
+- added Errors tab retry button
+- added canonical rename after re-encode
+- added ffprobe cache
+- Skip HDR content default flipped on
+
+---
+
+## 0.4.x
+
+- added multi-GPU system stats card (NVIDIA, Windows perf counters, Linux sysfs)
+- added Files tab
+- added per-fix disposal picker (bin vs delete)
+- permission errors now surface on the Errors tab
+- added thorough playability check (opt-in — decodes samples)
+- added thumbnails on the Issues tab
+
+---
+
+## 0.1 – 0.3
+
+- five original scanners: duplicates, playability, quality, subtitles, audio
+- dry-run default and Recycle bin so every fix is reversible
+- verify-before-swap: the rebuilt file has to play before it replaces the original
+- three-question first-run — usable in under a minute
+
+---
 
 ## Reporting issues
 
-Use the **Copy diagnostics** button on the Errors tab — it copies plugin/OS/Jellyfin versions and every visible error to your clipboard in a format that pastes cleanly into a new GitHub issue.
+Use the **Report an issue** button on the Errors tab — it copies your MediaDash / Jellyfin / OS versions and every recent error to your clipboard, and opens a fresh GitHub issue in a new tab. Paste and describe what you were doing when it happened.

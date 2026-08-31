@@ -1,0 +1,8 @@
+POST /MediaDash/RecycleBin/Items/Restore
+Body {"itemIds":[..]} -> 409 'BinPath is required.'
+Body {"BinPath":"..."} -> 404 (accepted, then not found)
+
+POST /MediaDash/RecycleBin/AdoptBatch
+Body {"paths":[..]} -> 400 'Path is required.' (singular, no batch)
+
+GET /MediaDash/RecycleBin/Items -> item shape: FileName, SizeBytes, RecycledAtUtc, AutoPurgesAtUtc, HistoryId, OriginalPath, Provenance, Reason, IssueType, ActionText, RestoreHint. NO Id field.

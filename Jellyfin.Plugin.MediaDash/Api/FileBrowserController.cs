@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.MediaDash.Configuration;
 using Jellyfin.Plugin.MediaDash.Fixers;
+using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -23,6 +24,8 @@ using Microsoft.Extensions.Logging;
 [assembly: SuppressMessage("Security", "CA3003:Review code for file path injection vulnerabilities", Scope = "member", Target = "~M:Jellyfin.Plugin.MediaDash.Fixers.RecycleBin.MoveAcrossVolumes(System.String,System.String)", Justification = "Only called from validated code paths.")]
 // AdoptBatchByPath does its own validation: (1) Path.GetFullPath canonicalises, (2) IsMediaDashBatchName gates on the exact 28-char timestamp+GUID leaf shape, (3) PathsEqual(parent, Root) requires the path to be a direct child of the current recycle bin. A traversal-shaped input fails IsMediaDashBatchName (leaf can't contain "..") and an out-of-root input fails the parent check.
 [assembly: SuppressMessage("Security", "CA3003:Review code for file path injection vulnerabilities", Scope = "member", Target = "~M:Jellyfin.Plugin.MediaDash.Fixers.RecycleBin.AdoptBatchByPath(System.String)~System.Boolean", Justification = "Path is validated inside the method: must be a direct child of Root and its leaf must match IsMediaDashBatchName.")]
+[assembly: SuppressMessage("Security", "CA3003:Review code for file path injection vulnerabilities", Scope = "member", Target = "~M:Jellyfin.Plugin.MediaDash.Fixers.RecycleBin.ConsolidateFromRoot(System.String)~System.ValueTuple{System.Int32,System.Int32,System.Int64,System.String}", Justification = "The caller (MediaDashController.ConsolidateBin) validates SourceRoot against DiscoverOtherBinRoots — only history-derived roots that are direct grandparents of a MediaDash-shape batch folder are accepted. Arbitrary paths from a hostile admin token are rejected at the controller layer with 404.")]
+[assembly: SuppressMessage("Security", "CA3003:Review code for file path injection vulnerabilities", Scope = "member", Target = "~M:Jellyfin.Plugin.MediaDash.Fixers.RecycleBin.ConsolidateBetween(System.String,System.String)~System.ValueTuple{System.Int32,System.Int32,System.Int64,System.String}", Justification = "Pure-logic core; taint gate is enforced at the controller (see ConsolidateFromRoot justification).")]
 
 namespace Jellyfin.Plugin.MediaDash.Api;
 
@@ -55,6 +58,7 @@ public class FileBrowserController : ControllerBase
     private readonly RecycleBin _recycleBin;
     private readonly ILibraryMonitor _libraryMonitor;
     private readonly ILibraryManager _libraryManager;
+    private readonly IApplicationPaths _appPaths;
     private readonly ILogger<FileBrowserController> _logger;
 
     /// <summary>
@@ -64,13 +68,15 @@ public class FileBrowserController : ControllerBase
     /// <param name="recycleBin">Recycle bin.</param>
     /// <param name="libraryMonitor">Instance of the <see cref="ILibraryMonitor"/> interface.</param>
     /// <param name="libraryManager">Instance of the <see cref="ILibraryManager"/> interface.</param>
+    /// <param name="appPaths">Instance of the <see cref="IApplicationPaths"/> interface; used to locate the Jellyfin log directory for the read-only shortcut.</param>
     /// <param name="logger">Logger.</param>
-    public FileBrowserController(LibraryGuard guard, RecycleBin recycleBin, ILibraryMonitor libraryMonitor, ILibraryManager libraryManager, ILogger<FileBrowserController> logger)
+    public FileBrowserController(LibraryGuard guard, RecycleBin recycleBin, ILibraryMonitor libraryMonitor, ILibraryManager libraryManager, IApplicationPaths appPaths, ILogger<FileBrowserController> logger)
     {
         _guard = guard;
         _recycleBin = recycleBin;
         _libraryMonitor = libraryMonitor;
         _libraryManager = libraryManager;
+        _appPaths = appPaths;
         _logger = logger;
     }
 
@@ -133,14 +139,40 @@ public class FileBrowserController : ControllerBase
                 Diagnostics.Record("FileBrowser.List", "Could not add recycle-bin shortcut to file browser root: " + ex.Message + ".");
             }
 
+            // Same shortcut treatment for Jellyfin's log directory so admins can grab logs for bug
+            // reports without leaving the plugin UI. Read-only: mutation endpoints refuse paths not
+            // inside a library, and this directory sits outside every library — no write path opens
+            // up. Download is explicitly carved out below to allow saving individual log files.
+            try
+            {
+                var logsRoot = _appPaths.LogDirectoryPath;
+                if (!string.IsNullOrEmpty(logsRoot) && Directory.Exists(logsRoot))
+                {
+                    var info = new DirectoryInfo(logsRoot);
+                    roots.Add(new FileEntry
+                    {
+                        Name = logsRoot,
+                        IsDirectory = true,
+                        SizeBytes = 0,
+                        ModifiedUtc = info.LastWriteTimeUtc,
+                        Kind = "logs"
+                    });
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Diagnostics.Record("FileBrowser.List", "Could not add logs shortcut to file browser root: " + ex.Message + ".");
+            }
+
             return new DirectoryListing { Path = string.Empty, Parent = null, IsRoot = true, Entries = roots };
         }
 
-        // Read-only carve-out: allow enumeration of anything inside the recycle-bin root even though
-        // it sits outside every library location. Every mutation endpoint continues to gate on
-        // TryResolveInsideLibrary, so no write path opens up here.
+        // Read-only carve-outs: allow enumeration of anything inside the recycle-bin root or the
+        // Jellyfin log directory even though both sit outside every library location. Every
+        // mutation endpoint continues to gate on TryResolveInsideLibrary, so no write path opens up.
         var isInsideBin = TryResolveInsideRecycleBin(path, out var binFull);
-        if (!isInsideBin && !TryResolveInsideLibrary(path, out binFull, out var forbid))
+        var isInsideLogs = !isInsideBin && TryResolveInsideLogsDir(path, out binFull);
+        if (!isInsideBin && !isInsideLogs && !TryResolveInsideLibrary(path, out binFull, out var forbid))
         {
             return forbid;
         }
@@ -204,32 +236,52 @@ public class FileBrowserController : ControllerBase
             return StatusCode(StatusCodes.Status500InternalServerError, "Could not list folder: " + ex.Message);
         }
 
-        // Parent is the pseudo-root (empty) when 'full' is itself a library location or the recycle-bin
-        // root; otherwise the containing directory. Users still land on the file-browser root when
-        // they hit "Up" from a top-level entry, regardless of which shortcut they navigated into.
+        // Parent is the pseudo-root (empty) when 'full' is itself a library location, the recycle-bin
+        // root, or the logs root; otherwise the containing directory. Users still land on the
+        // file-browser root when they hit "Up" from a top-level entry.
+        var cmp = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var trimmedFull = Path.TrimEndingDirectorySeparator(full);
         var isLibraryRoot = _libraryManager.GetVirtualFolders()
             .ToList()
             .SelectMany(f => f.Locations)
-            .Any(l => string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(l)), Path.TrimEndingDirectorySeparator(full), OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal));
+            .Any(l => string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(l)), trimmedFull, cmp));
         var isRecycleBinRoot = isInsideBin && string.Equals(
             Path.TrimEndingDirectorySeparator(Path.GetFullPath(_recycleBin.GetEffectiveRoot())),
-            Path.TrimEndingDirectorySeparator(full),
-            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+            trimmedFull,
+            cmp);
+        var isLogsRoot = isInsideLogs && string.Equals(
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(_appPaths.LogDirectoryPath)),
+            trimmedFull,
+            cmp);
 
         return new DirectoryListing
         {
             Path = full,
-            Parent = (isLibraryRoot || isRecycleBinRoot) ? string.Empty : Path.GetDirectoryName(full),
+            Parent = (isLibraryRoot || isRecycleBinRoot || isLogsRoot) ? string.Empty : Path.GetDirectoryName(full),
             IsRoot = false,
             IsRecycleBin = isInsideBin,
+            IsLogsDir = isInsideLogs,
             Entries = entries
         };
     }
 
     private bool TryResolveInsideRecycleBin(string? userPath, out string canonical)
     {
+        return TryResolveInsideRoot(userPath, _recycleBin.GetEffectiveRoot(), out canonical);
+    }
+
+    private bool TryResolveInsideLogsDir(string? userPath, out string canonical)
+    {
+        return TryResolveInsideRoot(userPath, _appPaths.LogDirectoryPath, out canonical);
+    }
+
+    // Shared canonicalise-and-anchor check for the two read-only shortcut roots (recycle bin, logs).
+    // A path is "inside" the root when it equals the root or starts with "<root>/" — the trailing
+    // separator anchor rejects "C:\logs-adjacent" from matching a "C:\logs" root.
+    private static bool TryResolveInsideRoot(string? userPath, string? rootPath, out string canonical)
+    {
         canonical = string.Empty;
-        if (string.IsNullOrWhiteSpace(userPath))
+        if (string.IsNullOrWhiteSpace(userPath) || string.IsNullOrWhiteSpace(rootPath))
         {
             return false;
         }
@@ -243,10 +295,10 @@ public class FileBrowserController : ControllerBase
             return false;
         }
 
-        string binRoot;
+        string root;
         try
         {
-            binRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(_recycleBin.GetEffectiveRoot()));
+            root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(rootPath));
         }
         catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
         {
@@ -255,15 +307,13 @@ public class FileBrowserController : ControllerBase
 
         var trimmed = Path.TrimEndingDirectorySeparator(canonical);
         var cmp = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        if (string.Equals(trimmed, binRoot, cmp))
+        if (string.Equals(trimmed, root, cmp))
         {
             return true;
         }
 
-        // A path is inside the bin when it starts with "<binRoot>/". The separator anchor rejects
-        // "C:\bin-adjacent" from matching a "C:\bin" root.
-        return trimmed.StartsWith(binRoot + Path.DirectorySeparatorChar, cmp)
-            || trimmed.StartsWith(binRoot + Path.AltDirectorySeparatorChar, cmp);
+        return trimmed.StartsWith(root + Path.DirectorySeparatorChar, cmp)
+            || trimmed.StartsWith(root + Path.AltDirectorySeparatorChar, cmp);
     }
 
     /// <summary>
@@ -741,7 +791,23 @@ public class FileBrowserController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public ActionResult Download([FromQuery] string path)
     {
-        if (!TryResolveInsideLibrary(path, out var full, out var forbid))
+        // Log files inside the Jellyfin log directory are downloadable so admins can attach them to
+        // bug reports. Path is canonicalised via TryResolveInsideLogsDir before any FS call — no
+        // traversal escape possible.
+        string full;
+        ActionResult forbid;
+        if (TryResolveInsideLogsDir(path, out full))
+        {
+            if (!System.IO.File.Exists(full))
+            {
+                return NotFound();
+            }
+
+            var logStream = new FileStream(full, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, bufferSize: 81920, useAsync: true);
+            return File(logStream, "application/octet-stream", Path.GetFileName(full), enableRangeProcessing: true);
+        }
+
+        if (!TryResolveInsideLibrary(path, out full, out forbid))
         {
             return forbid;
         }

@@ -1,0 +1,54 @@
+[
+    {
+        "Id":  7187,
+        "ItemId":  "00000000000000000000000000000000",
+        "Type":  "OrphanedDebris",
+        "Path":  "C:\\dev\\mediadash-fixtures\\movies\\HI Test (2024)\\sdh.srt",
+        "FileName":  "sdh.srt",
+        "SuggestedFix":  "Delete orphan subtitle \"sdh.srt\" — no companion video in its folder.",
+        "DetailsJson":  "{\"kind\":\"OrphanSubtitle\",\"bytesEstimate\":44}",
+        "SizeSavings":  44,
+        "Status":  "Detected",
+        "DetectedAtUtc":  "2026-08-28T04:12:51.3813435Z",
+        "WasPreviouslyRestored":  true
+    },
+    {
+        "Id":  7186,
+        "ItemId":  "00000000000000000000000000000000",
+        "Type":  "OrphanedDebris",
+        "Path":  "C:\\dev\\mediadash-fixtures\\movies\\HI Test (2024)\\reg.srt",
+        "FileName":  "reg.srt",
+        "SuggestedFix":  "Delete orphan subtitle \"reg.srt\" — no companion video in its folder.",
+        "DetailsJson":  "{\"kind\":\"OrphanSubtitle\",\"bytesEstimate\":44}",
+        "SizeSavings":  44,
+        "Status":  "Detected",
+        "DetectedAtUtc":  "2026-08-28T04:12:51.3812829Z",
+        "WasPreviouslyRestored":  false
+    },
+    {
+        "Id":  7185,
+        "ItemId":  "00000000000000000000000000000000",
+        "Type":  "OrphanedDebris",
+        "Path":  "C:\\dev\\mediadash-fixtures\\movies\\Ghost (2020)\\Ghost (2020).en.srt",
+        "FileName":  "Ghost (2020).en.srt",
+        "SuggestedFix":  "Delete orphan subtitle \"Ghost (2020).en.srt\" — no companion video in its folder.",
+        "DetailsJson":  "{\"kind\":\"OrphanSubtitle\",\"bytesEstimate\":47}",
+        "SizeSavings":  47,
+        "Status":  "Detected",
+        "DetectedAtUtc":  "2026-08-28T04:12:51.3811939Z",
+        "WasPreviouslyRestored":  false
+    },
+    {
+        "Id":  7184,
+        "ItemId":  "00000000000000000000000000000000",
+        "Type":  "OrphanedDebris",
+        "Path":  "C:\\dev\\mediadash-fixtures\\movies\\Ghost (2020)",
+        "FileName":  "Ghost (2020)",
+        "SuggestedFix":  "Delete media-free folder \"Ghost (2020)\" (approx. 47 bytes of leftover metadata / sidecars).",
+        "DetailsJson":  "{\"kind\":\"EmptyFolder\",\"bytesEstimate\":47}",
+        "SizeSavings":  47,
+        "Status":  "Detected",
+        "DetectedAtUtc":  "2026-08-28T04:12:51.3802181Z",
+        "WasPreviouslyRestored":  false
+    }
+]

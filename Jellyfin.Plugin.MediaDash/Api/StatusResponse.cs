@@ -122,6 +122,15 @@ public sealed class StatusResponse
     /// </summary>
     public bool RecycleBinCrossVolume { get; set; }
 
+    /// <summary>Gets or sets the current recycle-bin size in bytes. Shown on Overview so users see that "space trimmed" is not the same as "disk freed" during the retention window.</summary>
+    public long RecycleBinBytes { get; set; }
+
+    /// <summary>Gets or sets the current recycle-bin file count. Companion to <see cref="RecycleBinBytes"/>.</summary>
+    public int RecycleBinFileCount { get; set; }
+
+    /// <summary>Gets or sets the configured recycle-bin retention window in days, so the Overview can say "auto-purges after N days".</summary>
+    public int RecycleBinRetentionDays { get; set; }
+
     /// <summary>Gets or sets the summary of the most-recently-completed fix run (attempted / succeeded / failed / top reason), or null if no run has ever completed.</summary>
     public FixRunSummary? LastFixRun { get; set; }
 

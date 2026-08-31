@@ -1,0 +1,3 @@
+CodecPreferenceOrder
+ScanCpuThreads
+ScanBelowNormalPriority

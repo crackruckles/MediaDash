@@ -1,0 +1,5 @@
+[2026-08-28 12:23:54.190 +08:00] [INF] [21] Jellyfin.Plugin.MediaDash.Scanners.TranscodeLogScanner: TranscodeLogScanner: 2 log(s) inspected → 1 distinct file(s) → 0 heavy, 1 failed
+[2026-08-28 12:30:23.088 +08:00] [INF] [13] Jellyfin.Plugin.MediaDash.Scanners.TranscodeLogScanner: TranscodeLogScanner: 8 log(s) inspected → 1 distinct file(s) → 0 heavy, 1 failed
+[2026-08-28 12:31:55.937 +08:00] [INF] [21] Jellyfin.Plugin.MediaDash.Scanners.TranscodeLogScanner: TranscodeLogScanner: 8 log(s) inspected → 1 distinct file(s) → 0 heavy, 1 failed
+[2026-08-28 12:33:09.379 +08:00] [INF] [10] Jellyfin.Plugin.MediaDash.Scanners.TranscodeLogScanner: TranscodeLogScanner: 8 log(s) inspected → 1 distinct file(s) → 0 heavy, 1 failed
+[2026-08-28 12:34:08.830 +08:00] [INF] [23] Jellyfin.Plugin.MediaDash.Scanners.TranscodeLogScanner: TranscodeLogScanner: 8 log(s) inspected → 3 distinct file(s) → 0 heavy, 2 failed

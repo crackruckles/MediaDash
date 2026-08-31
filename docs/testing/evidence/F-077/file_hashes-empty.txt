@@ -1,0 +1,11 @@
+After a full MediaDash /Scan on the current library (16 files, 6 movies indexed by Jellyfin, 3 tracks, 1 audiobook, 2 book fixtures, 2 comic fixtures):
+
+  SELECT COUNT(*) FROM file_hashes  ->  0
+
+file_hashes table exists (schema: path TEXT PK, size INTEGER PK, mtime INTEGER PK, hash TEXT NOT NULL) but the FileHasher never populated it during this scan.
+
+Duplicate scanner ran (log: "MediaDash scanner Duplicate found 0 issues"). So either:
+  (a) the hasher runs lazily only for duplicate-candidate pairs and there were none,
+  (b) hashes are only computed under a different code path not triggered by /Scan.
+
+Consequence: 04-E.1/E.2/E.4/E.5 (FileHasher round-trip) cannot be validated on a stock scan. E.3 (constant-time on >10 GB) already skipped per session plan.

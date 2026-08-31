@@ -17,7 +17,14 @@ public sealed class MediaDashDb
     // v1: -xerror + exit-code-only in the decode check (2026-07-20) — previous stderr-noise-as-error entries invalidated.
     // v3: history.acknowledged column for redownload-warning acknowledgement (2026-08-17).
     // v4: issues.confidence column for the duplicate confidence ladder (2026-08-22).
-    private const int SchemaVersion = 4;
+    private const int SchemaVersion = 5;
+
+    // Sentinel used in restored_paths.type when the restore came from a manifest-only bin entry
+    // (RecycleBin/Items/Restore). We don't know which IssueType triggered the original recycle in
+    // that case — the manifest sidecar only stores the origin path. Blocking auto-queue for ALL
+    // types at that path is the safe default: the user restored the file, so they don't want any
+    // scanner to auto-fix it again. Manual approval from the Issues tab still works.
+    internal const int RestoredPathAnyType = -1;
 
     private readonly string _connectionString;
 
@@ -137,6 +144,13 @@ public sealed class MediaDashDb
             CREATE TABLE IF NOT EXISTS plugin_state (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS restored_paths (
+                path TEXT NOT NULL,
+                type INTEGER NOT NULL,
+                restored_at_utc INTEGER NOT NULL,
+                PRIMARY KEY (path, type)
             );
             """;
         cmd.ExecuteNonQuery();
@@ -275,6 +289,24 @@ public sealed class MediaDashDb
                 addColumn.CommandText = "ALTER TABLE issues ADD COLUMN confidence REAL NULL";
                 addColumn.ExecuteNonQuery();
             }
+        }
+
+        if (current < 5)
+        {
+            // restored_paths tracks every (path, type) tuple a user has restored from the recycle
+            // bin. FixTask's auto-queue step filters against this table so a restored file never
+            // gets auto-fixed again — the user explicitly reversed the fix; treat that as a strong
+            // "don't touch this" signal. Manual approval from the Issues tab still works.
+            using var create = connection.CreateCommand();
+            create.CommandText = """
+                CREATE TABLE IF NOT EXISTS restored_paths (
+                    path TEXT NOT NULL,
+                    type INTEGER NOT NULL,
+                    restored_at_utc INTEGER NOT NULL,
+                    PRIMARY KEY (path, type)
+                )
+                """;
+            create.ExecuteNonQuery();
         }
 
         using var setVersion = connection.CreateCommand();
@@ -769,19 +801,32 @@ public sealed class MediaDashDb
     {
         using var connection = Open();
         using var cmd = connection.CreateCommand();
+        // The NOT EXISTS gate against restored_paths implements the "if a user restored a file, no
+        // scanner may auto-fix it again" invariant. Manual approval via /Issues/{id}/Approve still
+        // works — that endpoint updates status directly and doesn't go through this method.
+        var baseSql = """
+            UPDATE issues SET status = @queued
+            WHERE type = @type AND status = @detected
+              AND NOT EXISTS (
+                  SELECT 1 FROM restored_paths rp
+                  WHERE rp.path = issues.path AND (rp.type = issues.type OR rp.type = @any)
+              )
+            """;
+
         if (minConfidence is double gate)
         {
-            cmd.CommandText = "UPDATE issues SET status = @queued WHERE type = @type AND status = @detected AND (confidence IS NULL OR confidence >= @gate)";
+            cmd.CommandText = baseSql + " AND (confidence IS NULL OR confidence >= @gate)";
             cmd.Parameters.AddWithValue("@gate", gate);
         }
         else
         {
-            cmd.CommandText = "UPDATE issues SET status = @queued WHERE type = @type AND status = @detected";
+            cmd.CommandText = baseSql;
         }
 
         cmd.Parameters.AddWithValue("@queued", (int)IssueStatus.Queued);
         cmd.Parameters.AddWithValue("@type", (int)type);
         cmd.Parameters.AddWithValue("@detected", (int)IssueStatus.Detected);
+        cmd.Parameters.AddWithValue("@any", RestoredPathAnyType);
         return cmd.ExecuteNonQuery();
     }
 
@@ -1096,6 +1141,100 @@ public sealed class MediaDashDb
         cmd.CommandText = "UPDATE history SET restored = 1 WHERE id = @id";
         cmd.Parameters.AddWithValue("@id", historyId);
         cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Records that a user restored a file at <paramref name="path"/> for a given IssueType. The
+    /// FixTask auto-queue step consults this table so a restored file never gets auto-fixed again —
+    /// the user explicitly reversed the fix. Manual approval from the Issues tab still works.
+    /// Idempotent: repeated restores for the same (path, type) update the timestamp, not the row.
+    /// Use <see cref="RestoredPathAnyType"/> for manifest-only restores where the type isn't known.
+    /// </summary>
+    /// <param name="path">The absolute path that was restored.</param>
+    /// <param name="type">The issue type that had originally recycled it, or <see cref="RestoredPathAnyType"/> when unknown.</param>
+    public void MarkPathRestored(string path, IssueType type)
+    {
+        MarkPathRestored(path, (int)type);
+    }
+
+    /// <summary>
+    /// Records a restore for a manifest-only bin entry, where the caller doesn't know the IssueType
+    /// (only the origin path). Recorded under <see cref="RestoredPathAnyType"/> so the auto-queue
+    /// gate blocks every type at that path — the user restored it, they don't want any scanner
+    /// touching it again automatically.
+    /// </summary>
+    /// <param name="path">The absolute path that was restored.</param>
+    public void MarkPathRestoredForAnyType(string path)
+    {
+        MarkPathRestored(path, RestoredPathAnyType);
+    }
+
+    private void MarkPathRestored(string path, int rawType)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO restored_paths (path, type, restored_at_utc)
+            VALUES (@path, @type, @at)
+            ON CONFLICT (path, type) DO UPDATE SET restored_at_utc = excluded.restored_at_utc
+            """;
+        cmd.Parameters.AddWithValue("@path", path);
+        cmd.Parameters.AddWithValue("@type", rawType);
+        cmd.Parameters.AddWithValue("@at", DateTime.UtcNow.Ticks);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Returns whether the given (path, type) tuple was ever restored — either as an exact match
+    /// or via the wildcard <see cref="RestoredPathAnyType"/> sentinel that manifest-only restores use.
+    /// FixTask auto-queue and the Issues tab badge both check this.
+    /// </summary>
+    /// <param name="path">The absolute path to look up.</param>
+    /// <param name="type">The issue type the caller is about to auto-queue.</param>
+    /// <returns>True when a matching row exists.</returns>
+    public bool WasPathRestored(string path, IssueType type)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT 1 FROM restored_paths WHERE path = @path AND (type = @type OR type = @any) LIMIT 1";
+        cmd.Parameters.AddWithValue("@path", path);
+        cmd.Parameters.AddWithValue("@type", (int)type);
+        cmd.Parameters.AddWithValue("@any", RestoredPathAnyType);
+        return cmd.ExecuteScalar() is not null;
+    }
+
+    /// <summary>
+    /// Returns the paths (of the currently-Detected issues for <paramref name="type"/>) that were
+    /// previously restored, so FixTask can skip them during the auto-queue step. Batched with a
+    /// single query instead of one lookup per issue.
+    /// </summary>
+    /// <param name="type">The issue type being auto-queued.</param>
+    /// <returns>Set of paths (case-sensitive) that must NOT auto-queue.</returns>
+    public IReadOnlySet<string> GetRestoredPathsBlockingAutoQueue(IssueType type)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT path FROM restored_paths WHERE type = @type OR type = @any";
+        cmd.Parameters.AddWithValue("@type", (int)type);
+        cmd.Parameters.AddWithValue("@any", RestoredPathAnyType);
+        var result = new HashSet<string>(StringComparer.Ordinal);
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            result.Add(reader.GetString(0));
+        }
+
+        return result;
     }
 
     /// <summary>

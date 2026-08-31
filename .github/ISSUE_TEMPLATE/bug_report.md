@@ -12,7 +12,7 @@ labels: bug
 
 **Diagnostics dump**
 
-Open MediaDash → Errors tab → **Copy diagnostics**. Paste the result here — it includes plugin/Jellyfin/OS/runtime versions and every recorded plugin error, pre-formatted.
+Open MediaDash → **Errors** tab → click **Report an issue** (top of the tab, with the bug icon). It copies plugin/Jellyfin/OS/runtime versions and every recorded plugin error to your clipboard, then opens this tracker in a new tab — paste the clipboard contents here.
 
 ```
 (paste diagnostics here)

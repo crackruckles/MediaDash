@@ -182,6 +182,23 @@ public class MediaDashController : ControllerBase
         var queuedCount = _db.GetIssues(status: IssueStatus.Queued).Count;
         var autoQueueableCount = _db.GetIssues(status: IssueStatus.Detected)
             .Count(i => config.GetFixMode(i.Type) == Configuration.FixMode.Automatic);
+        var binContents = SafeGetBinContents();
+
+        (int FileCount, long SizeBytes) SafeGetBinContents()
+        {
+            try
+            {
+                return _recycleBin.GetContents();
+            }
+            catch (IOException)
+            {
+                return (0, 0);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return (0, 0);
+            }
+        }
 
         return new StatusResponse
         {
@@ -223,6 +240,9 @@ public class MediaDashController : ControllerBase
                 : new SystemStats { SystemStatsAvailable = false },
             RecycleBinPath = _recycleBin.GetEffectiveRoot(),
             RecycleBinCrossVolume = ComputeRecycleBinCrossVolume(drives),
+            RecycleBinBytes = binContents.SizeBytes,
+            RecycleBinFileCount = binContents.FileCount,
+            RecycleBinRetentionDays = config.RecycleBinRetentionDays,
             LastFixRun = Plugin.LastFixRun,
             FixPauseReason = FixTask.PauseReason,
             RedownloadWarnings = Plugin.RedownloadWarnings
@@ -281,16 +301,29 @@ public class MediaDashController : ControllerBase
         [FromQuery] IssueStatus? status = IssueStatus.Detected,
         [FromQuery] bool openOnly = false)
     {
-        if (openOnly)
+        var rows = openOnly
+            ? _db.GetIssues(type, IssueStatus.Detected).Concat(_db.GetIssues(type, IssueStatus.Queued)).ToList()
+            : _db.GetIssues(type, status).ToList();
+
+        // Enrich each DTO with a "was previously restored" flag so the UI can render the badge that
+        // explains why an auto-mode type isn't queuing on its own. Cache the restored path set per
+        // IssueType so we do one query per distinct type in the result, not one per row.
+        var restoredByType = new Dictionary<IssueType, IReadOnlySet<string>>();
+        var dtos = new List<IssueDto>(rows.Count);
+        foreach (var issue in rows)
         {
-            var combined = _db.GetIssues(type, IssueStatus.Detected)
-                .Concat(_db.GetIssues(type, IssueStatus.Queued))
-                .Select(IssueDto.FromIssue)
-                .ToList();
-            return Ok(combined);
+            var dto = IssueDto.FromIssue(issue);
+            if (!restoredByType.TryGetValue(issue.Type, out var restored))
+            {
+                restored = _db.GetRestoredPathsBlockingAutoQueue(issue.Type);
+                restoredByType[issue.Type] = restored;
+            }
+
+            dto.WasPreviouslyRestored = restored.Contains(issue.Path);
+            dtos.Add(dto);
         }
 
-        return Ok(_db.GetIssues(type, status).Select(IssueDto.FromIssue).ToList());
+        return Ok(dtos);
     }
 
     /// <summary>
@@ -364,6 +397,33 @@ public class MediaDashController : ControllerBase
     public ActionResult DismissIssue([FromRoute] long id)
     {
         return _db.UpdateIssueStatus(id, IssueStatus.Dismissed) ? NoContent() : NotFound();
+    }
+
+    /// <summary>
+    /// Reverts a queued or dismissed issue back to Detected so the user can change their mind
+    /// after clicking Approve or Dismiss by accident. Refuses when the issue has already Fixed
+    /// (the file has already been touched) — the History tab's Restore is the right path for that.
+    /// </summary>
+    /// <param name="id">The issue id.</param>
+    /// <returns>No content on success; 404 for unknown ids; 409 for any status other than Queued or Dismissed.</returns>
+    [HttpPost("Issues/{id}/Revert")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public ActionResult RevertIssue([FromRoute] long id)
+    {
+        var current = _db.GetIssueStatus(id);
+        if (current is null)
+        {
+            return NotFound();
+        }
+
+        if (current != IssueStatus.Queued && current != IssueStatus.Dismissed)
+        {
+            return Conflict("Can only revert issues in Queued or Dismissed state; this one is " + current + ". If the fix has already run, use the History tab's Restore instead.");
+        }
+
+        return _db.UpdateIssueStatus(id, IssueStatus.Detected) ? NoContent() : NotFound();
     }
 
     /// <summary>
@@ -630,15 +690,18 @@ public class MediaDashController : ControllerBase
     }
 
     /// <summary>
-    /// Restores a recycled file to its original location.
+    /// Restores a recycled file. If nothing sits at the original path, restores there. If a
+    /// re-encoded / stripped replacement is already at that path, restores alongside it as
+    /// <c>&lt;name&gt;-restored&lt;ext&gt;</c> (or -restored-2, -3, … on further collisions) so
+    /// the user never risks data loss on restore.
     /// </summary>
     /// <param name="id">The history entry id.</param>
     /// <param name="force">When true and a file already exists at the original location, that file
-    /// is moved to the recycle bin (and logged to history for its own restore) before this one
-    /// is put back in its place. Without force=true the endpoint returns 409 so the UI can prompt.</param>
-    /// <returns>No content on success; 404 when unknown; 409 when the file cannot be restored.</returns>
+    /// is moved to the recycle bin (and logged to history for its own restore) before this one is
+    /// put back in its place. Default (false) uses the non-destructive -restored suffix path.</param>
+    /// <returns>200 with the actual restored path; 404 when unknown; 409 when unrestorable.</returns>
     [HttpPost("History/{id}/Restore")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(RestoreResult), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public ActionResult RestoreFromHistory([FromRoute] long id, [FromQuery] bool force = false)
@@ -663,52 +726,49 @@ public class MediaDashController : ControllerBase
             return Conflict("This file is no longer in the recycle bin.");
         }
 
-        // The common conflict: a fix run replaced the file at entry.Path with a new (re-encoded /
-        // stripped) version, so File.Exists(target) is true and RecycleBin.Restore refuses. When
-        // force=true the caller has explicitly opted in — send the current file to the bin first
-        // (reversible) and log it, then restore the original on top.
+        var targetPath = entry.Path;
+        var suffixed = false;
+
         if (System.IO.File.Exists(entry.Path))
         {
-            if (!force)
+            if (force)
             {
-                return Conflict("A file already exists at " + entry.Path + ". Restoring would overwrite it. Use force=true to send the current file to the recycle bin first, then restore this one.");
-            }
-
-            try
-            {
-                var swappedBinPath = _recycleBin.MoveToBin(entry.Path);
-                long swappedSize = 0;
+                // Explicit destructive path: swap the current file to the bin so the original goes
+                // back into its slot. Logged as its own recyclable history row (still reversible).
                 try
                 {
-                    swappedSize = new System.IO.FileInfo(swappedBinPath).Length;
+                    var swappedBinPath = _recycleBin.MoveToBin(entry.Path);
+                    _db.AddHistory(new HistoryEntry
+                    {
+                        IssueId = 0,
+                        Type = entry.Type,
+                        Path = entry.Path,
+                        Action = "Swapped out to recycle bin so an older copy could be restored in its place.",
+                        BytesFreed = 0,
+                        RecyclePath = swappedBinPath,
+                        FixedAtUtc = DateTime.UtcNow,
+                        WasDryRun = false,
+                        Success = true
+                    });
                 }
-                catch (IOException)
+                catch (IOException ex)
                 {
+                    return Conflict("Couldn't move the current file to the recycle bin before restoring: " + ex.Message);
                 }
-
-                _db.AddHistory(new HistoryEntry
-                {
-                    IssueId = 0,
-                    Type = entry.Type,
-                    Path = entry.Path,
-                    Action = "Swapped out to recycle bin so an older copy could be restored in its place.",
-                    BytesFreed = 0,
-                    RecyclePath = swappedBinPath,
-                    FixedAtUtc = DateTime.UtcNow,
-                    WasDryRun = false,
-                    Success = true
-                });
-                _ = swappedSize; // reserved for a future BytesFreed reporting change
             }
-            catch (IOException ex)
+            else
             {
-                return Conflict("Couldn't move the current file to the recycle bin before restoring: " + ex.Message);
+                // Non-destructive default: land next to the current file with a suffix. The user's
+                // reasonable concern is "will restoring nuke my re-encoded copy?" — this answers no,
+                // both live side-by-side and the user picks which to keep from the File Browser.
+                targetPath = ResolveNonCollidingRestorePath(entry.Path);
+                suffixed = true;
             }
         }
 
         try
         {
-            _recycleBin.Restore(entry.RecyclePath, entry.Path);
+            _recycleBin.Restore(entry.RecyclePath, targetPath);
         }
         catch (IOException ex)
         {
@@ -716,8 +776,45 @@ public class MediaDashController : ControllerBase
         }
 
         _db.MarkRestored(id);
-        _libraryMonitor.ReportFileSystemChanged(entry.Path);
-        return NoContent();
+        // Record the user's "don't touch this again" signal so the FixTask auto-queue step skips
+        // any future re-detection at this (path, type) — the scanner still emits the Issue so the
+        // user can see it in the Issues tab, but MediaDash won't automatically re-recycle it.
+        // Guard on entry.Path (original) rather than targetPath so a -restored-suffixed collision
+        // still protects the ORIGINAL slot — that's the file identity the user cared about.
+        _db.MarkPathRestored(entry.Path, entry.Type);
+        _libraryMonitor.ReportFileSystemChanged(targetPath);
+        if (suffixed)
+        {
+            // Force is false and we wrote to a different path; still ping the original so any
+            // Jellyfin-side listeners rescan the folder and pick up the sibling.
+            _libraryMonitor.ReportFileSystemChanged(entry.Path);
+        }
+
+        return Ok(new RestoreResult { RestoredTo = targetPath, Suffixed = suffixed });
+    }
+
+    // Returns the original path when it's free; otherwise the first non-existing path of the form
+    // <dir>/<name>-restored<ext>, <name>-restored-2<ext>, …. Exposed internal for unit-test reach —
+    // tests seed collisions on disk in a tmpdir rather than mocking File.Exists.
+    internal static string ResolveNonCollidingRestorePath(string originalPath)
+    {
+        if (!System.IO.File.Exists(originalPath))
+        {
+            return originalPath;
+        }
+
+        var dir = System.IO.Path.GetDirectoryName(originalPath) ?? string.Empty;
+        var name = System.IO.Path.GetFileNameWithoutExtension(originalPath);
+        var ext = System.IO.Path.GetExtension(originalPath);
+        var candidate = System.IO.Path.Combine(dir, name + "-restored" + ext);
+        var counter = 2;
+        while (System.IO.File.Exists(candidate))
+        {
+            candidate = System.IO.Path.Combine(dir, name + "-restored-" + counter.ToString(System.Globalization.CultureInfo.InvariantCulture) + ext);
+            counter++;
+        }
+
+        return candidate;
     }
 
     /// <summary>
@@ -832,6 +929,82 @@ public class MediaDashController : ControllerBase
         }
 
         return Ok(entry);
+    }
+
+    /// <summary>
+    /// Reports the size / free space of the volume that would own a candidate recycle bin path,
+    /// plus a save-time verdict against the 5 GB minimum-free floor and a suggested value for
+    /// <see cref="Configuration.PluginConfiguration.RecycleBinPauseFixesAtGb"/>. Called from the
+    /// Settings page and the first-run wizard before persisting a new path.
+    /// </summary>
+    /// <param name="path">The candidate recycle bin path. Empty falls back to the effective default.</param>
+    /// <returns>Volume capacity, free space, and derived pause-cap suggestion.</returns>
+    [HttpGet("RecycleBin/DiskInfo")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Security",
+        "CA3003:Review code for file path injection vulnerabilities",
+        Justification = "Endpoint requires RequiresElevation policy (admin only) and performs read-only probes (Directory.Exists + DriveInfo). No file writes and no path returned back to the client.")]
+    public ActionResult<RecycleBinDiskInfo> GetRecycleBinDiskInfo([FromQuery] string? path)
+    {
+        const long minFreeBytes = 5L * 1024 * 1024 * 1024;
+        const long floorBytes = 3L * 1024 * 1024 * 1024;
+
+        var target = string.IsNullOrWhiteSpace(path) ? _recycleBin.GetEffectiveRoot() : path;
+        var info = new RecycleBinDiskInfo { PathProbed = target };
+
+        // The path doesn't need to exist yet — DriveInfo works off the parent volume. Walk up until
+        // we hit a directory that resolves; when nothing resolves (path on an offline network share,
+        // or drive letter that isn't mounted), report Warning so the UI can surface it.
+        var probe = target;
+        while (!string.IsNullOrEmpty(probe) && !System.IO.Directory.Exists(probe))
+        {
+            var parent = System.IO.Path.GetDirectoryName(probe);
+            if (string.IsNullOrEmpty(parent) || string.Equals(parent, probe, StringComparison.Ordinal))
+            {
+                break;
+            }
+
+            probe = parent;
+        }
+
+        var drive = RecycleBin.FindDriveForPath(string.IsNullOrEmpty(probe) ? target : probe);
+        if (drive is null)
+        {
+            info.Warning = "Couldn't resolve '" + target + "' to a mounted volume. Check the path exists and is reachable.";
+            return Ok(info);
+        }
+
+        try
+        {
+            info.TotalBytes = drive.TotalSize;
+            info.FreeBytes = drive.AvailableFreeSpace;
+        }
+        catch (IOException ex)
+        {
+            info.Warning = "Couldn't read free space on '" + drive.RootDirectory.FullName + "': " + ex.Message;
+            return Ok(info);
+        }
+
+        info.MeetsFiveGbMinimum = info.FreeBytes >= minFreeBytes;
+        info.SuggestedPauseCapGb = ComputeSuggestedPauseCapGb(info.TotalBytes, floorBytes);
+        return Ok(info);
+    }
+
+    /// <summary>
+    /// Computes the default value for <see cref="Configuration.PluginConfiguration.RecycleBinPauseFixesAtGb"/>
+    /// from a volume's capacity: <c>totalBytes / GiB − 3</c>, clamped to at least 1 GB so a small volume
+    /// doesn't save as 0 (which disables the cap altogether). Exposed internal for unit testing.
+    /// </summary>
+    /// <param name="totalBytes">The volume's total capacity in bytes.</param>
+    /// <param name="floorBytes">The reserved free-space floor in bytes (default 3 GB).</param>
+    /// <returns>The suggested pause cap in whole GB.</returns>
+    internal static int ComputeSuggestedPauseCapGb(long totalBytes, long floorBytes)
+    {
+        const long gib = 1024L * 1024 * 1024;
+        var floorGb = (int)System.Math.Max(1, floorBytes / gib);
+        var totalGb = (int)System.Math.Max(0, totalBytes / gib);
+        return System.Math.Max(1, totalGb - floorGb);
     }
 
     /// <summary>
@@ -1062,25 +1235,265 @@ public class MediaDashController : ControllerBase
     public ActionResult<IReadOnlyList<RecycleBinItem>> GetRecycleBinItems()
     {
         // Join each bin file back to its history row so the UI can show a per-item Restore button.
-        // History is authoritative for the original destination path; the bin itself doesn't store it.
+        // History is authoritative for the original destination path AND the reason (issue type +
+        // action text) — the bin itself doesn't store either.
         var byRecyclePath = _db.GetHistory()
             .Where(h => !h.Restored && !string.IsNullOrEmpty(h.RecyclePath))
             .GroupBy(h => h.RecyclePath!, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.OrderByDescending(h => h.FixedAtUtc).First(), StringComparer.OrdinalIgnoreCase);
 
+        var retentionDays = Plugin.Instance?.Configuration.RecycleBinRetentionDays ?? 0;
         return Ok(_recycleBin.ListContents()
             .Select(e =>
             {
                 var item = new RecycleBinItem { FileName = e.FileName, SizeBytes = e.SizeBytes, RecycledAtUtc = e.RecycledAtUtc };
+                // F-207 follow-up: every DTO row carries BinPath. Previously it was set only for
+                // manifest-provenance items; History-provenance items had it null, so clients
+                // that wanted to restore via POST /RecycleBin/Items/Restore had no field to send
+                // and hit the classic user issue #26 "how do I restore this". Frontend can still
+                // prefer History/{id}/Restore when HistoryId is populated — this just makes the
+                // fallback path always available.
+                item.BinPath = e.BinPath;
+                if (retentionDays > 0)
+                {
+                    item.AutoPurgesAtUtc = e.RecycledAtUtc.AddDays(retentionDays);
+                }
+
                 if (byRecyclePath.TryGetValue(e.BinPath, out var h))
                 {
                     item.HistoryId = h.Id;
                     item.OriginalPath = h.Path;
+                    item.Provenance = RecycleProvenance.History;
+                    item.IssueType = h.Type.ToString();
+                    item.Reason = RecycleReasonMapper.ReasonFor(h.Type);
+                    item.ActionText = h.Action ?? string.Empty;
+                    item.RestoreHint = RecycleReasonMapper.RestoreHintFor(RecycleProvenance.History, h.Path);
+                }
+                else if (!string.IsNullOrEmpty(e.OriginalPath))
+                {
+                    // Manifest-only: no HistoryEntry, but the batch's origin sidecar remembers the
+                    // source path. Frontend restores via BinPath instead of HistoryId. Manual delete
+                    // via the Files tab is the common trigger — hence the "Manual delete" reason.
+                    item.OriginalPath = e.OriginalPath;
+                    item.BinPath = e.BinPath;
+                    item.Provenance = RecycleProvenance.Manifest;
+                    item.Reason = "Manual delete via Files tab";
+                    item.ActionText = "Sent to the recycle bin from the Files tab. Not tied to any MediaDash fix.";
+                    item.RestoreHint = RecycleReasonMapper.RestoreHintFor(RecycleProvenance.Manifest, e.OriginalPath);
+                }
+                else
+                {
+                    // Truly orphaned: no HistoryEntry, no manifest. Recycled by a pre-manifest build.
+                    // No safe automatic restore — the Files tab manual move is the only path.
+                    item.Provenance = RecycleProvenance.Orphan;
+                    item.Reason = "Origin unknown";
+                    item.ActionText = "Recycled by an older MediaDash build that didn't record where the file came from.";
+                    item.RestoreHint = RecycleReasonMapper.RestoreHintFor(RecycleProvenance.Orphan, null);
                 }
 
                 return item;
             })
             .ToList());
+    }
+
+    /// <summary>
+    /// Restores one or more bin files identified by bin path (used for manifest-only items that no
+    /// HistoryEntry references — sidecars, cover-art originals, and any legacy orphan the bin
+    /// still remembers the origin of). Same suffix-on-collision semantics as History/{id}/Restore.
+    /// <para>
+    /// Single-item shape: <c>{"BinPath": "..."}</c> returns a <see cref="RestoreResult"/> body on
+    /// success. Batch shape: <c>{"BinPaths": ["...", "..."]}</c> returns a
+    /// <see cref="BatchRestoreResult"/> body with a per-entry outcome list — failures are recorded
+    /// per row and the batch always returns 200 unless the request body itself is malformed.
+    /// </para>
+    /// </summary>
+    /// <param name="request">The bin file(s) to restore.</param>
+    /// <returns>200 with a <see cref="RestoreResult"/> (single) or <see cref="BatchRestoreResult"/> (batch);
+    /// 400 when the body lacks any bin path; 404 when a single-item BinPath is unknown; 409 when unrestorable
+    /// due to state (missing manifest, outside library).</returns>
+    [HttpPost("RecycleBin/Items/Restore")]
+    [ProducesResponseType(typeof(RestoreResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(BatchRestoreResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public ActionResult RestoreByBinPath([FromBody] BinRestoreRequest request)
+    {
+        // F-207 / issue #26: the endpoint used to return 409 for a missing BinPath, which
+        // matches "state conflict" semantics but users routinely POST alternative shapes
+        // ({ids: [...]}, {itemIds: [...]}, {id: "..."}) inherited from other bin APIs.
+        // Distinguish "you sent the wrong shape" (400) from "you sent the right shape but
+        // the target can't be restored right now" (409).
+
+        // Batch path: {BinPaths: [...]} with 2+ entries. Always returns 200 with per-entry outcomes
+        // so a bad path halfway through doesn't hide the successes. Single-item batches fall through
+        // to the single-item path below so backward-compatible clients still get a RestoreResult.
+        if (request.BinPaths is { Length: > 1 } batch)
+        {
+            var body = new BatchRestoreResult();
+            var seen = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var entries = _recycleBin.ListContents(limit: 5000);
+            foreach (var candidatePath in batch)
+            {
+                if (string.IsNullOrEmpty(candidatePath) || !seen.Add(candidatePath))
+                {
+                    // Skip empty strings and de-duplicate — restoring the same bin file twice is a
+                    // no-op on attempt two (the source is gone) but users would see a spurious
+                    // failure row. Drop silently.
+                    continue;
+                }
+
+                var row = RestoreOneBinPath(candidatePath, entries);
+                body.Results.Add(row);
+                if (row.Success)
+                {
+                    body.Successes++;
+                }
+                else
+                {
+                    body.Failures++;
+                }
+            }
+
+            return Ok(body);
+        }
+
+        var binPath = request.BinPath;
+        if (string.IsNullOrEmpty(binPath) && request.BinPaths is { Length: 1 } single)
+        {
+            binPath = single[0];
+        }
+
+        if (string.IsNullOrEmpty(binPath))
+        {
+            return BadRequest("Missing 'BinPath' (or 'BinPaths[]'). Get valid values from GET /MediaDash/RecycleBin/Items — each row's 'BinPath' field is what this endpoint expects. If your client is sending {ids: […]} or {itemIds: […]}, update it to send {BinPath: '…'} instead.");
+        }
+
+        var singleEntries = _recycleBin.ListContents(limit: 5000);
+        var entry = singleEntries.FirstOrDefault(e =>
+            string.Equals(e.BinPath, binPath, StringComparison.OrdinalIgnoreCase));
+        if (entry.BinPath is null)
+        {
+            return NotFound();
+        }
+
+        if (string.IsNullOrEmpty(entry.OriginalPath))
+        {
+            return Conflict("This bin file has no origin manifest — MediaDash doesn't know where it came from. Restore it manually from the Files tab's Recycle bin shortcut.");
+        }
+
+        if (!_libraryGuard.IsInsideLibrary(entry.OriginalPath))
+        {
+            return Conflict("Refused: the origin path '" + entry.OriginalPath + "' is not inside a configured Jellyfin library.");
+        }
+
+        var targetPath = System.IO.File.Exists(entry.OriginalPath)
+            ? ResolveNonCollidingRestorePath(entry.OriginalPath)
+            : entry.OriginalPath;
+        var suffixed = !string.Equals(targetPath, entry.OriginalPath, StringComparison.Ordinal);
+
+        try
+        {
+            _recycleBin.Restore(entry.BinPath, targetPath);
+        }
+        catch (IOException ex)
+        {
+            return Conflict(ex.Message);
+        }
+
+        // Log the manual restore as a history row so future audits can see it — matches the shape
+        // of a normal fixer output but with no IssueId, and marked Restored=true straight away.
+        _db.AddHistory(new HistoryEntry
+        {
+            IssueId = 0,
+            Type = Data.IssueType.Duplicate,
+            Path = entry.OriginalPath!,
+            Action = suffixed
+                ? "Restored bin file (with -restored suffix) via Recycle bin tab: " + targetPath
+                : "Restored bin file via Recycle bin tab: " + targetPath,
+            BytesFreed = 0,
+            RecyclePath = entry.BinPath,
+            FixedAtUtc = DateTime.UtcNow,
+            WasDryRun = false,
+            Success = true,
+            Restored = true
+        });
+
+        // Manifest-only restores don't know the underlying IssueType (the manifest sidecar stores
+        // only the origin path). Record the block under the "any type" sentinel so no scanner can
+        // auto-fix this path again. If it re-detects, the row sits Detected for manual review.
+        _db.MarkPathRestoredForAnyType(entry.OriginalPath!);
+
+        _libraryMonitor.ReportFileSystemChanged(targetPath);
+        return Ok(new RestoreResult { RestoredTo = targetPath, Suffixed = suffixed });
+    }
+
+    /// <summary>
+    /// Per-entry helper for the batch restore path. Same policy as the single-item path but
+    /// records failures into a <see cref="BatchRestoreEntry"/> row instead of returning HTTP
+    /// status codes, so one bad path doesn't fail the whole batch.
+    /// </summary>
+    private BatchRestoreEntry RestoreOneBinPath(
+        string binPath,
+        System.Collections.Generic.IReadOnlyList<(string FileName, string BinPath, long SizeBytes, DateTime RecycledAtUtc, string? OriginalPath)> entries)
+    {
+        var row = new BatchRestoreEntry { BinPath = binPath };
+        var entry = entries.FirstOrDefault(e => string.Equals(e.BinPath, binPath, StringComparison.OrdinalIgnoreCase));
+        if (entry.BinPath is null)
+        {
+            row.Error = "Unknown bin path — not currently in the recycle bin.";
+            return row;
+        }
+
+        if (string.IsNullOrEmpty(entry.OriginalPath))
+        {
+            row.Error = "No origin manifest — MediaDash doesn't know where this file came from. Restore manually from the Files tab.";
+            return row;
+        }
+
+        if (!_libraryGuard.IsInsideLibrary(entry.OriginalPath))
+        {
+            row.Error = "Origin path '" + entry.OriginalPath + "' is not inside any configured Jellyfin library.";
+            return row;
+        }
+
+        var targetPath = System.IO.File.Exists(entry.OriginalPath)
+            ? ResolveNonCollidingRestorePath(entry.OriginalPath)
+            : entry.OriginalPath;
+        var suffixed = !string.Equals(targetPath, entry.OriginalPath, StringComparison.Ordinal);
+
+        try
+        {
+            _recycleBin.Restore(entry.BinPath, targetPath);
+        }
+        catch (IOException ex)
+        {
+            row.Error = ex.Message;
+            return row;
+        }
+
+        _db.AddHistory(new HistoryEntry
+        {
+            IssueId = 0,
+            Type = Data.IssueType.Duplicate,
+            Path = entry.OriginalPath!,
+            Action = suffixed
+                ? "Batch-restored bin file (with -restored suffix) via Recycle bin tab: " + targetPath
+                : "Batch-restored bin file via Recycle bin tab: " + targetPath,
+            BytesFreed = 0,
+            RecyclePath = entry.BinPath,
+            FixedAtUtc = DateTime.UtcNow,
+            WasDryRun = false,
+            Success = true,
+            Restored = true
+        });
+        _db.MarkPathRestoredForAnyType(entry.OriginalPath!);
+        _libraryMonitor.ReportFileSystemChanged(targetPath);
+
+        row.Success = true;
+        row.RestoredTo = targetPath;
+        row.Suffixed = suffixed;
+        return row;
     }
 
     /// <summary>
@@ -1126,12 +1539,71 @@ public class MediaDashController : ControllerBase
     }
 
     /// <summary>
+    /// Lists other bin-root locations the user has historically recycled to (derived from
+    /// <c>HistoryEntry.RecyclePath</c>), excluding the currently-configured root. Powers the
+    /// Recycle bin tab's "Consolidate legacy locations" banner.
+    /// </summary>
+    /// <returns>Zero or more other bin locations with file counts + sizes.</returns>
+    [HttpGet("RecycleBin/OtherBins")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<IReadOnlyList<OtherBinLocation>> GetOtherBinLocations()
+    {
+        return Ok(_recycleBin.DiscoverOtherBinRoots(_db)
+            .Select(t => new OtherBinLocation { RootPath = t.RootPath, BatchCount = t.BatchCount, SizeBytes = t.SizeBytes })
+            .ToList());
+    }
+
+    /// <summary>
+    /// Moves every MediaDash-shaped batch folder from a legacy bin root into the currently
+    /// configured one. Cross-volume safe (falls back to verified copy + delete). Only touches
+    /// folders whose leaf matches <c>IsMediaDashBatchName</c>. Returns counts + bytes moved.
+    /// </summary>
+    /// <param name="request">Body naming the source root.</param>
+    /// <returns>Consolidation result summary.</returns>
+    [HttpPost("RecycleBin/Consolidate")]
+    [ProducesResponseType(typeof(ConsolidateResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Security",
+        "CA3003:Review code for file path injection vulnerabilities",
+        Justification = "Endpoint requires RequiresElevation policy (admin only). SourceRoot must match one of the paths returned by GetOtherBinLocations — validated inside the method against DiscoverOtherBinRoots so an arbitrary path can't be laundered through here.")]
+    public ActionResult ConsolidateBin([FromBody] ConsolidateRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.SourceRoot))
+        {
+            return BadRequest("SourceRoot is required.");
+        }
+
+        // Gate the source against DiscoverOtherBinRoots — that's the only set of paths the UI is
+        // supposed to send. Prevents an admin token from being used to move arbitrary folders on
+        // the host; also refuses when the "other" root turns out to be the current one.
+        var known = _recycleBin.DiscoverOtherBinRoots(_db)
+            .Any(t => string.Equals(
+                System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath(t.RootPath)),
+                System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath(request.SourceRoot)),
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal));
+        if (!known)
+        {
+            return NotFound();
+        }
+
+        var result = _recycleBin.ConsolidateFromRoot(request.SourceRoot);
+        return Ok(new ConsolidateResult
+        {
+            BatchesMoved = result.BatchesMoved,
+            BatchesSkipped = result.BatchesSkipped,
+            BytesMoved = result.BytesMoved,
+            Warning = result.Warning
+        });
+    }
+
+    /// <summary>
     /// Adopts an unowned legacy batch sitting at the top level of the current recycle root by writing
     /// the ownership marker into it. Once adopted, the batch is folded into the managed bin: it will
     /// show up in the Recycle bin tab, be counted by size totals, and honour retention purges.
     /// Rejected paths (wrong root, non-batch shape, missing directory) return 400.
-    /// Used by the Errors tab's "Adopt batch" button when a <c>RecycleBin.LegacyBatchNeedsReview</c>
-    /// diagnostic is surfaced.
+    /// Retained for legacy Errors-tab entries; new installs auto-adopt on startup.
     /// </summary>
     /// <param name="request">The batch to adopt.</param>
     /// <returns>No content on success, or 400 when the path is not adoptable.</returns>
@@ -1303,7 +1775,9 @@ public class MediaDashController : ControllerBase
             return Conflict("Refused: the target path '" + entry.Path + "' is not inside a configured Jellyfin library.");
         }
 
-        var twin = _recycleBin.FindOptimizedTwin(entry.RecyclePath, entry.FixedAtUtc);
+        // Pass the source's on-disk path so SelectOptimizedTwin can prefer manifest-matched
+        // candidates when two same-basename bin files sit in the fix's time window.
+        var twin = _recycleBin.FindOptimizedTwin(entry.RecyclePath, entry.FixedAtUtc, entry.Path);
         if (twin is null)
         {
             return Conflict("Couldn't find an unambiguous optimized twin in the recycle bin. It may have been purged, or multiple candidates were found. Use the Recycle bin tab to pick manually, or use the History tab's Restore to bring back the original instead.");
@@ -1318,7 +1792,22 @@ public class MediaDashController : ControllerBase
 
             try
             {
-                _recycleBin.MoveToBin(entry.Path);
+                var swappedBinPath = _recycleBin.MoveToBin(entry.Path);
+                // Parity with RestoreFromHistory's force=true branch: the swapped-out file gets its
+                // own HistoryEntry so it stays restorable from the Recycle bin tab. Without this row
+                // the swap silently vanishes from History and only shows up under "no origin".
+                _db.AddHistory(new HistoryEntry
+                {
+                    IssueId = 0,
+                    Type = entry.Type,
+                    Path = entry.Path,
+                    Action = "Swapped out to recycle bin so the optimized copy could be restored in its place.",
+                    BytesFreed = 0,
+                    RecyclePath = swappedBinPath,
+                    FixedAtUtc = DateTime.UtcNow,
+                    WasDryRun = false,
+                    Success = true
+                });
             }
             catch (IOException ex)
             {
@@ -1381,7 +1870,7 @@ public class MediaDashController : ControllerBase
     }
 
     /// <summary>
-    /// Gets environment info used by the Errors tab's "Copy diagnostics" button and by the wizard's
+    /// Gets environment info used by the Errors tab's "Report an issue" button and by the wizard's
     /// subtitle step to warn when no provider is installed.
     /// </summary>
     /// <returns>The env snapshot.</returns>

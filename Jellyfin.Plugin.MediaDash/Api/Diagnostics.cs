@@ -266,6 +266,11 @@ public static class Diagnostics
     {
         RemoveMatching("SmartHealth.Wmi", "No MSFT_StorageReliabilityCounter association found");
         RemoveMatching("SmartHealth.Wmi", "PowerShell counter fallback ran for");
+        // v1.0.8: LegacyBatchNeedsReview retired in favour of auto-adopt on startup. Any diagnostic
+        // persisted from an earlier install is stale by definition — either it's already been
+        // adopted by the new startup pass, or the user needs to re-run adoption. Either way the
+        // sitting-there row misleads.
+        RemoveMatching("RecycleBin.LegacyBatchNeedsReview", "Legacy-looking recycle batch");
     }
 
     /// <summary>

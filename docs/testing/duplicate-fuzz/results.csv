@@ -1,0 +1,44 @@
+scenario_id,category,description,expected,jellyfin_indexed,scanner_flagged,group_size,keep_path,confidence,details_reason,notes
+A.1,Path,Inception (2010) vs Inception (2010) 4K different parents same content,flag,true,true,2,B1_Inception_TMDB_a/B1 Movie (2010).mkv,1.0,Exact hash + tmdb:27205 (Jellyfin auto-resolved from filename),pass - grouped with B.1 via provider-id
+A.2,Path,Movie A2 (2020) [1080p] vs [4K],flag,true,true,2,A2_MovieA2_4K/Movie A2 (2020).mkv,1.0,Exact hash + tmdb:280217 auto-resolved,pass - also grouped with D.2 via same auto-resolved tmdb
+A.3,Path,Container A3 mkv vs mp4 remux,flag,true,false,,,,, false-negative - both indexed but no dup issue; F-095
+A.4,Path,Titanic (1997) vs Titanic 1997 year fmt,flag,true,true,2,A4b_Titanic_bare/Titanic 1997.mkv,1.0,Exact hash + tmdb:597 auto-resolved on both,pass
+A.5,Path,The.Movie.A5.2020.mkv bare vs canonical folder,flag,true,false,,,,, false-negative - both indexed no group; F-095
+A.6,Path,Deep nested vs flat same name,flag,true,false,,,,, false-negative - both indexed no group; F-095
+A.7,Path,NTFS symlink to a real movie,flag,true,true,2,A7_link/A7 Target Movie (2020).mkv,0.95,Heuristic tier - titleJaccard=1 hashesMatch=false due to Jellyfin treating symlink target as 0 bytes,pass but keeper is bogus 0-byte symlink side - F-098
+B.1,Metadata,Two folders shared tmdbid=27205 via movie.nfo,flag,true,true,4,B1_Inception_TMDB_a/B1 Movie (2010).mkv,1.0,tmdb:27205 group - includes A.1 both + B.2 both (all 4 auto-resolved to Inception),pass
+B.2,Metadata,Two folders shared imdbid=tt1375666,flag,true,true,4,B1_Inception_TMDB_a/B1 Movie (2010).mkv,1.0,Auto-cross-populated tmdb=27205 by Jellyfin - grouped with B.1,pass
+B.3,Metadata,tmdbid=603 on completely different titles,flag,true,true,2,B3_TmdbCollision_a/B3 Alpha Different (2001).mkv,1.0,groupKey movie:tmdb:603 titleJaccard=0.5,pass
+B.4,Metadata,Two epubs same ISBN (marker files),flag,false,false,,,,, epub not indexed as Movie - Books lib not present
+B.5,Metadata,Two mp3s same musicbrainz_trackid,flag,false,false,,,,, mp3 not indexed as Movie - Music lib not present
+C.1,Content,Byte-identical Clean Movie in two parents,flag @ 1.0,true,false,,,,, false-negative - hash-identical no shared provider-id; F-096
+C.2,Content,Same bytes different filename,flag @ 1.0,true,false,,,,, false-negative - hash-identical different stems no provider-id link; F-096
+C.3,Content,Off-by-one truncation (2372373 vs 2372372),no-exact-flag,true,false,,,,, pass - correctly not flagged
+D.1,FalsePositive,Doctor Who Classic - 10 eps in one folder,no-flag,true,false,,,,, PASS - user complaint does NOT reproduce - same-dir episodes NOT flagged
+D.2,FalsePositive,First Movie (2020) vs Second Movie (2020),no-flag,true,true,3,A2_MovieA2_4K/Movie A2 (2020).mkv,1.0,groupKey movie:tmdb:280217 titleJaccard=0.33 - Jellyfin auto-resolved DIFFERENT filenames to SAME tmdb id then Exact hash tier ignored jaccard-veto; FALSE POSITIVE; F-097
+D.3,FalsePositive,Fast and Furious (2001) vs FnF 2 (2003),no-flag,true,false,,,,, pass
+D.4,FalsePositive,The Thing (1982) vs (2011) remake,no-flag,true,true,2,D4_TheThing_2011/The Thing (2011).mkv,1.0,groupKey movie:tmdb:1091 - both auto-resolved to same tmdb entry - REMAKE COLLAPSED; FALSE POSITIVE; F-097
+D.5,FalsePositive,Futurama Specials 3 movies in Specials/,no-flag,true,false,,,,, PASS - user complaint does NOT reproduce
+D.6,FalsePositive,SMDM S01E01..05 thin filenames,no-flag,true,false,,,,, PASS - user complaint does NOT reproduce - 5 items indexed 0 flagged
+D.7,FalsePositive,Same title 30% runtime delta,no-flag,n/a,n/a,,,,,Skipped remux
+E.1,Edge,Zero-byte movie in valid folder,no-crash,true,false,,,,, no crash
+E.2,Edge,Special chars in name,no-crash,true,false,,,,, no crash
+E.3,Edge,Unicode 映画 + Мuvie,no-crash,true,false,,,,, no crash - both indexed
+E.4,Edge,180-char filename near path limit,no-crash,true,false,,,,, no crash
+E.5,Edge,Case-only dir diff Movie E5 vs MOVIE E5,no-crash,true,false,,,,, no crash - Jellyfin collapsed both dirs to 1 item (F-099 side note)
+E.6,Edge,Ext case only .mkv vs .MKV,no-crash,true,false,,,,, no crash - both indexed distinctly
+E.7,Edge,Double-space vs single-space,no-crash,true,true,2,E7_Space_double/Movie  E7 (2020).mkv,1.0,Heuristic tier exact-hash pass matched by content - arguable FP but hash=match so borderline,borderline
+F.1,ConfigToggle,DuplicateFixMode=DetectOnly baseline,measurable_effect,n/a,,,,,, 0 dups scan 22.1s - defaults suppress all findings
+F.2,ConfigToggle,DuplicateFixMode=Automatic,measurable_effect,n/a,,,,,, 0 dups - no effect on detection
+F.3a,ConfigToggle,DuplicateAutoFixConfidence=0.5,measurable_effect,n/a,,,,,, 0 dups - no effect on detection (as documented - gates auto-fix only)
+F.3b,ConfigToggle,DuplicateAutoFixConfidence=0.7,measurable_effect,n/a,,,,,, 0 dups
+F.3c,ConfigToggle,DuplicateAutoFixConfidence=0.9,measurable_effect,n/a,,,,,, 0 dups
+F.3d,ConfigToggle,DuplicateAutoFixConfidence=1.0,measurable_effect,n/a,,,,,, 0 dups
+F.4a,ConfigToggle,DuplicateExactHashEnabled=false,measurable_effect,n/a,,,,,, 0 dups
+F.4b,ConfigToggle,DuplicateExactHashEnabled=true,measurable_effect,n/a,,,,,, 0 dups
+F.5a,ConfigToggle,DuplicateMinAgeDays=0,measurable_effect,n/a,,,,,, 5 dups!! MinAgeDays was blocking - fresh fixtures gated by 7-day default; MAJOR TOGGLE EFFECT
+F.5b,ConfigToggle,DuplicateTitleJaccardVeto=0.1,measurable_effect,n/a,,,,,, 5 dups (same as 5a - Jaccard veto never engages when Exact tier matches)
+F.5c,ConfigToggle,DuplicateRuntimeVetoPct=50,measurable_effect,n/a,,,,,, 5 dups (no additional effect)
+F.5d,ConfigToggle,TreatEditionsAsDuplicates=true,measurable_effect,n/a,,,,,, 12 dups (jumped from 5 to 12 - TreatEditions=true unlocked 7 more groups!)
+F.max,ConfigToggle,All permissive (Age=0 Jaccard=0.05 Runtime=90 Hash=on Editions=on),measurable_effect,n/a,,,,,, 12 dups - confirms MinAgeDays + TreatEditions are the two levers; other toggles inert
+G.parallel_lib,ExistingItems,No parallel library this run - fresh datadir,n/a,n/a,n/a,,,,,Not re-tested on fresh DB

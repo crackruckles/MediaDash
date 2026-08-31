@@ -1,0 +1,45 @@
+G.1-G.18 coverage on this dev box after Reset+Scan and existing 610 history rows:
+
+Enum mapping (0-based, derived by matching DB `history.type` counts to Status.LifetimeCounts names):
+  0  Duplicate
+  1  Playability
+  2  Quality
+  3  SubtitleLanguage
+  4  AudioLanguage
+  5  Misplaced          (not in DB, not observed)
+  6  MissingSubtitles
+  7  Stale              (LifetimeCounts calls it "Stale", doc G.8 name matches)
+  8  CorruptArtwork     (not in DB)
+  9  MalwareRisk
+  10 Ungrouped
+  11 LargeTrickplay     (not in DB) -- but Stale/Trickplay item in history "Removed 2 orphaned trickplay folder(s) reclaiming 700000 bytes" has type=7 (Stale). So enum 11 unobserved.
+  12 SubtitleFonts      (not in DB)
+  13 OrphanedDebris
+  14 CorruptNfo         (not in DB)
+  15 (unresolved — 9 history rows all bytes_freed=0, no LifetimeCounts entry; doc order predicts HeavyTranscode)
+  16 (not in DB) predicted FailedTranscode
+  17 (not in DB) predicted EmbeddedCoverArt
+
+Doc row-by-row:
+  G.1  Duplicate         [x]  history+issues cover
+  G.2  Playability       [x]
+  G.3  Quality           [x]
+  G.4  SubtitleLanguage  [x]
+  G.5  AudioLanguage     [x]
+  G.6  Misplaced         [!]  no coverage this box
+  G.7  MissingSubtitles  [x]
+  G.8  Stale             [x]
+  G.9  CorruptArtwork    [!]  no coverage this box
+  G.10 MalwareRisk       [x]
+  G.11 Ungrouped         [x]
+  G.12 LargeTrickplay    [!]  no coverage (trickplay work was recorded under Stale)
+  G.13 SubtitleFonts     [!]  no coverage
+  G.14 OrphanedDebris    [x]
+  G.15 CorruptNfo        [!]  no coverage
+  G.16 HeavyTranscode    [?]  int=15 present (9 rows) but name unconfirmed via API surface
+  G.17 FailedTranscode   [!]  no coverage
+  G.18 EmbeddedCoverArt  [!]  no coverage
+
+Missing coverage (7 of 18): Misplaced, CorruptArtwork, LargeTrickplay, SubtitleFonts, CorruptNfo, FailedTranscode, EmbeddedCoverArt. These aren't plugin bugs, just fixture-coverage gaps on this dev box.
+
+Note also: Status.Counts / Status.LifetimeCounts is the ONLY way to resolve int→name for enum values that have appeared. Without a dedicated enum endpoint, any type-int present in history/issues but never in the aggregated Counts (e.g. int=15) is unnameable from API surface alone.

@@ -1,0 +1,10 @@
+Sequence:
+1. Sub Heavy has embedded subs eng+rus+fra. AllowedSubtitleLanguages=[eng], SubtitleFixMode=Automatic.
+2. Scan -> SubtitleLanguage count = 1 (Sub Heavy).
+3. Change SubtitleFixMode=DetectOnly (via /Plugins/{guid}/Configuration POST).
+4. Scan -> SubtitleLanguage count = 1 (still 1).
+5. Restore SubtitleFixMode=Automatic, add "rus","fra" to AllowedSubtitleLanguages.
+6. Scan -> SubtitleLanguage count = 0.
+
+Conclusion: SubtitleFixMode=DetectOnly does NOT disable detection, only auto-fix.
+The only "off" for detection is AllowedSubtitleLanguages coverage.

@@ -17,9 +17,14 @@ public sealed class FfprobeTruncationMarkerTests
     }
 
     [Fact]
-    public void TruncatingPacket_IsTruncation()
+    public void TruncatingPacket_IsNotTruncation()
     {
-        Assert.True(FfprobeService.HasTruncationMarker("[matroska @ 0x1234] Truncating packet of size 4096"));
+        // Reversed 2026-08-31: field reports (Reddit thread — 4 independent users) confirmed
+        // "Truncating packet" fires on benign container quirks (MKV cluster boundaries, MPEG-TS
+        // packet alignment, MP4 mdat overlap) on files that play fine in Jellyfin. Not a reliable
+        // truncation signal on its own. Real truncation still trips exit code, "File ended
+        // prematurely", and the bitrate-vs-size heuristic in PlayabilityScanner.
+        Assert.False(FfprobeService.HasTruncationMarker("[matroska @ 0x1234] Truncating packet of size 4096"));
     }
 
     [Fact]

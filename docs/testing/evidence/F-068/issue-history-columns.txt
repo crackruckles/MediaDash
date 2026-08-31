@@ -1,0 +1,47 @@
+Actual columns:
+
+issues:
+  id INTEGER PK
+  type INTEGER NOT NULL
+  item_id TEXT NOT NULL
+  path TEXT NOT NULL
+  details TEXT NOT NULL         -- doc calls this Metadata / DetailsJson
+  suggested_fix TEXT NOT NULL
+  size_savings INTEGER NOT NULL
+  status INTEGER NOT NULL
+  detected_at_utc INTEGER NOT NULL
+  confidence REAL
+
+Doc 06-B.2 expects: Id, Type, Path, LibraryId, DetectedUtc, Status, Metadata (JSON blob).
+Drift: no LibraryId column exists. `item_id` (Jellyfin item Guid) is present instead.
+     `Metadata` -> actual column is `details` (raw JSON blob string; API DTO name is `DetailsJson`).
+     `DetectedUtc` -> actual `detected_at_utc` (INTEGER, .NET DateTime ticks).
+     Extra: `suggested_fix`, `size_savings`, `confidence`.
+
+history:
+  id INTEGER PK
+  issue_id INTEGER NOT NULL
+  type INTEGER NOT NULL
+  path TEXT NOT NULL
+  action TEXT NOT NULL           -- doc has no equivalent field
+  bytes_freed INTEGER NOT NULL   -- doc says nullable; actual NOT NULL (uses 0 sentinel)
+  recycle_path TEXT              -- doc calls BinPath (nullable) — matches
+  fixed_at_utc INTEGER NOT NULL  -- doc TimestampUtc
+  dry_run INTEGER NOT NULL       -- doc DryRun
+  restored INTEGER NOT NULL      -- doc has no field for this
+  success INTEGER NOT NULL       -- doc Result enum Success/Failure/DryRun replaced by two ints (success + dry_run)
+  acknowledged INTEGER NOT NULL  -- doc has no field for this
+
+Doc 06-D.2 expects: Id, TimestampUtc, IssueType, Path, Result (enum), DryRun, BytesFreed, ErrorMessage, BinPath, MetadataJson.
+Drift:
+  - IssueType -> actual `type` (INTEGER)
+  - TimestampUtc -> `fixed_at_utc`
+  - Result enum -> replaced by (success:int, dry_run:int)
+  - ErrorMessage -> not stored in DB (may exist in action text)
+  - BinPath -> `recycle_path`
+  - MetadataJson -> not present
+  - Extra columns: issue_id, action, restored, acknowledged
+  - BytesFreed: doc says "non-null only for space-affecting fixers", actual column is NOT NULL. Semantics: 0 = no space freed, >0 = bytes reclaimed. See F-069 for behaviour.
+
+API DTO for /MediaDash/History returns: Id, Type, FileName, Library, Action, BytesFreed, FixedAtUtc, WasDryRun, Success, CanRestore.
+Column-name drift between DB, doc, and API DTO is thorough — three different naming schemes for the same fields.

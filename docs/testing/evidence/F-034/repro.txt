@@ -1,0 +1,9 @@
+Docs (01-scanners.md N.2/N.3): fixture recipe says "eng + rus + fre embedded subs".
+Actual on disk (ffprobe):
+  Sub Heavy (2023).mkv streams: video, audio(eng), subtitle(eng)  -- only ONE eng sub.
+
+Baseline scan of stock fixture -> SubtitleLanguage count = 0.
+Had to remux Sub Heavy with rus+fra tracks to produce the positive case.
+
+Also: no separate "control" file with only eng subs exists (N.3 spec calls for
+one). HI Test has eng + eng-SDH; usable but not called out in N.2/N.3.

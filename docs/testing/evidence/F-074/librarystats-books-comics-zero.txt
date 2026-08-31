@@ -1,0 +1,22 @@
+GET /MediaDash/LibraryStats response:
+
+[
+  {"Name":"MediaDash Test","CollectionType":"movies","ItemCount":6,...},
+  {"Name":"Test Audiobooks","ItemCount":0,...},
+  {"Name":"Test Books","CollectionType":"books","ItemCount":0,...},
+  {"Name":"Test Comics","CollectionType":"books","ItemCount":0,...},
+  {"Name":"Test Music","CollectionType":"music","ItemCount":0,...}
+]
+
+But fixtures on disk (physical):
+  books\good-book.epub (237 B)
+  books\broken-book.epub (134 B)
+  comics\good-comic.cbz (124 B)
+  music\Test Artist\Test Album\{01-Short Song.mp3, 02-Longer Song.mp3, 03-Lossless Track.flac}
+  audiobooks\Test Author - Test Book\chapter-01.m4b
+
+And format_probe_cache has rows for good-book.epub and good-comic.cbz (ok=1). So the probe subsystem clearly touched those files, yet the /LibraryStats endpoint reports ItemCount=0 for Books and Comics libraries.
+
+Doc 04-B.6 explicitly says "LibraryStats book counts include these." — this is not the observed behaviour.
+
+Likely root cause: F-019 (Jellyfin core FK burst prevents new movie/book/comic items from being indexed), so the plugin's LibraryStats — which reads Jellyfin item counts — returns 0 for these library types. The fix could either be on the Jellyfin side (root cause) or make LibraryStats read from probe_cache/format_probe_cache as a fallback.

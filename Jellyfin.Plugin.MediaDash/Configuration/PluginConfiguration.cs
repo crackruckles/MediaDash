@@ -77,7 +77,11 @@ public class PluginConfiguration : BasePluginConfiguration
         StaleThresholdDays = 365;
         StaleExcludedLibraryIds = [];
         StaleExcludedGenres = [];
-        DuplicateMinAgeDays = 7;
+        // F-099: default was 7 days. On a fresh library nothing has aged 7 days yet, so the
+        // scanner emitted zero matches and the "0 duplicates" summary was indistinguishable
+        // from "no dupes". Users hit it as "detection is broken". Default 0 = no age gate;
+        // users who want the churning-import buffer can dial it back up in Settings.
+        DuplicateMinAgeDays = 0;
         PostV12CleanupCompleted = false;
         SuspiciousFileFixMode = FixMode.DetectOnly;
         SuspiciousFileDisposal = DisposalMethod.RecycleBin;

@@ -1,0 +1,243 @@
+{
+    "Items":  [
+                  {
+                      "Name":  "Big Buck Test",
+                      "ServerId":  "ce9b4e96756c46f5ba727af77208bba3",
+                      "Id":  "7ee93d08ff649a9d1e258f09a92632dd",
+                      "Container":  "mkv",
+                      "MediaSources":  [
+                                           {
+                                               "Protocol":  "File",
+                                               "Id":  "7ee93d08ff649a9d1e258f09a92632dd",
+                                               "Path":  "C:\\dev\\mediadash-fixtures\\movies\\Big Buck Test (2020)\\Big Buck Test (2020) - 1080p.mkv",
+                                               "Type":  "Default",
+                                               "Container":  "mkv",
+                                               "Size":  5129419,
+                                               "Name":  "Big Buck Test (2020) - 1080p",
+                                               "IsRemote":  false,
+                                               "ETag":  "c504b0f6f7c7357fe12699c2592c4900",
+                                               "RunTimeTicks":  200230000,
+                                               "ReadAtNativeFramerate":  false,
+                                               "IgnoreDts":  false,
+                                               "IgnoreIndex":  false,
+                                               "GenPtsInput":  false,
+                                               "SupportsTranscoding":  true,
+                                               "SupportsDirectStream":  true,
+                                               "SupportsDirectPlay":  true,
+                                               "IsInfiniteStream":  false,
+                                               "UseMostCompatibleTranscodingProfile":  false,
+                                               "RequiresOpening":  false,
+                                               "RequiresClosing":  false,
+                                               "RequiresLooping":  false,
+                                               "SupportsProbing":  true,
+                                               "VideoType":  "VideoFile",
+                                               "MediaStreams":  [
+                                                                    {
+                                                                        "Codec":  "h264",
+                                                                        "TimeBase":  "1/1000",
+                                                                        "VideoRange":  "SDR",
+                                                                        "VideoRangeType":  "SDR",
+                                                                        "AudioSpatialFormat":  "None",
+                                                                        "DisplayTitle":  "1080p H264 SDR",
+                                                                        "NalLengthSize":  "4",
+                                                                        "IsInterlaced":  false,
+                                                                        "IsAVC":  true,
+                                                                        "BitRate":  1857410,
+                                                                        "BitDepth":  8,
+                                                                        "RefFrames":  1,
+                                                                        "IsDefault":  false,
+                                                                        "IsForced":  false,
+                                                                        "IsHearingImpaired":  false,
+                                                                        "Height":  1080,
+                                                                        "Width":  1920,
+                                                                        "AverageFrameRate":  24,
+                                                                        "RealFrameRate":  24,
+                                                                        "ReferenceFrameRate":  24,
+                                                                        "Profile":  "High",
+                                                                        "Type":  "Video",
+                                                                        "AspectRatio":  "16:9",
+                                                                        "Index":  0,
+                                                                        "IsExternal":  false,
+                                                                        "IsTextSubtitleStream":  false,
+                                                                        "SupportsExternalStream":  false,
+                                                                        "PixelFormat":  "yuv420p",
+                                                                        "Level":  40,
+                                                                        "IsAnamorphic":  false
+                                                                    },
+                                                                    {
+                                                                        "Codec":  "aac",
+                                                                        "Language":  "eng",
+                                                                        "TimeBase":  "1/1000",
+                                                                        "VideoRange":  "Unknown",
+                                                                        "VideoRangeType":  "Unknown",
+                                                                        "AudioSpatialFormat":  "None",
+                                                                        "LocalizedDefault":  "Default",
+                                                                        "LocalizedExternal":  "External",
+                                                                        "DisplayTitle":  "English - AAC - Mono",
+                                                                        "IsInterlaced":  false,
+                                                                        "ChannelLayout":  "mono",
+                                                                        "BitRate":  192000,
+                                                                        "Channels":  1,
+                                                                        "SampleRate":  44100,
+                                                                        "IsDefault":  false,
+                                                                        "IsForced":  false,
+                                                                        "IsHearingImpaired":  false,
+                                                                        "Profile":  "LC",
+                                                                        "Type":  "Audio",
+                                                                        "Index":  1,
+                                                                        "IsExternal":  false,
+                                                                        "IsTextSubtitleStream":  false,
+                                                                        "SupportsExternalStream":  false
+                                                                    }
+                                                                ],
+                                               "MediaAttachments":  [
+
+                                                                    ],
+                                               "Formats":  [
+
+                                                           ],
+                                               "Bitrate":  2049410,
+                                               "RequiredHttpHeaders":  {
+
+                                                                       },
+                                               "TranscodingSubProtocol":  "http",
+                                               "DefaultAudioStreamIndex":  1,
+                                               "HasSegments":  false
+                                           },
+                                           {
+                                               "Protocol":  "File",
+                                               "Id":  "e6557a69351eecdd723615d82b174f45",
+                                               "Path":  "C:\\dev\\mediadash-fixtures\\movies\\Big Buck Test (2020)\\Big Buck Test (2020) - 2160p.mkv",
+                                               "Type":  "Grouping",
+                                               "Container":  "mkv",
+                                               "Size":  7223967,
+                                               "Name":  "Big Buck Test (2020) - 2160p",
+                                               "IsRemote":  false,
+                                               "ETag":  "4ac4e69217b0b9035b4627dd8de02976",
+                                               "RunTimeTicks":  200380000,
+                                               "ReadAtNativeFramerate":  false,
+                                               "IgnoreDts":  false,
+                                               "IgnoreIndex":  false,
+                                               "GenPtsInput":  false,
+                                               "SupportsTranscoding":  true,
+                                               "SupportsDirectStream":  true,
+                                               "SupportsDirectPlay":  true,
+                                               "IsInfiniteStream":  false,
+                                               "UseMostCompatibleTranscodingProfile":  false,
+                                               "RequiresOpening":  false,
+                                               "RequiresClosing":  false,
+                                               "RequiresLooping":  false,
+                                               "SupportsProbing":  true,
+                                               "VideoType":  "VideoFile",
+                                               "MediaStreams":  [
+                                                                    {
+                                                                        "Codec":  "hevc",
+                                                                        "ColorSpace":  "bt709",
+                                                                        "TimeBase":  "1/1000",
+                                                                        "VideoRange":  "SDR",
+                                                                        "VideoRangeType":  "SDR",
+                                                                        "AudioSpatialFormat":  "None",
+                                                                        "DisplayTitle":  "480p HEVC SDR",
+                                                                        "IsInterlaced":  false,
+                                                                        "IsAVC":  false,
+                                                                        "BitRate":  563086,
+                                                                        "BitDepth":  8,
+                                                                        "RefFrames":  1,
+                                                                        "IsDefault":  false,
+                                                                        "IsForced":  false,
+                                                                        "IsHearingImpaired":  false,
+                                                                        "Height":  480,
+                                                                        "Width":  854,
+                                                                        "AverageFrameRate":  24,
+                                                                        "RealFrameRate":  24,
+                                                                        "ReferenceFrameRate":  24,
+                                                                        "Profile":  "Main",
+                                                                        "Type":  "Video",
+                                                                        "AspectRatio":  "16:9",
+                                                                        "Index":  0,
+                                                                        "IsExternal":  false,
+                                                                        "IsTextSubtitleStream":  false,
+                                                                        "SupportsExternalStream":  false,
+                                                                        "PixelFormat":  "yuv420p",
+                                                                        "Level":  156,
+                                                                        "IsAnamorphic":  true
+                                                                    },
+                                                                    {
+                                                                        "Codec":  "aac",
+                                                                        "Language":  "eng",
+                                                                        "TimeBase":  "1/1000",
+                                                                        "VideoRange":  "Unknown",
+                                                                        "VideoRangeType":  "Unknown",
+                                                                        "AudioSpatialFormat":  "None",
+                                                                        "LocalizedDefault":  "Default",
+                                                                        "LocalizedExternal":  "External",
+                                                                        "DisplayTitle":  "English - AAC - Mono",
+                                                                        "IsInterlaced":  false,
+                                                                        "IsAVC":  false,
+                                                                        "ChannelLayout":  "mono",
+                                                                        "BitRate":  192000,
+                                                                        "Channels":  1,
+                                                                        "SampleRate":  44100,
+                                                                        "IsDefault":  false,
+                                                                        "IsForced":  false,
+                                                                        "IsHearingImpaired":  false,
+                                                                        "Profile":  "LC",
+                                                                        "Type":  "Audio",
+                                                                        "Index":  1,
+                                                                        "IsExternal":  false,
+                                                                        "IsTextSubtitleStream":  false,
+                                                                        "SupportsExternalStream":  false,
+                                                                        "Level":  0
+                                                                    }
+                                                                ],
+                                               "MediaAttachments":  [
+
+                                                                    ],
+                                               "Formats":  [
+
+                                                           ],
+                                               "Bitrate":  2884106,
+                                               "RequiredHttpHeaders":  {
+
+                                                                       },
+                                               "TranscodingSubProtocol":  "http",
+                                               "DefaultAudioStreamIndex":  1,
+                                               "HasSegments":  false
+                                           }
+                                       ],
+                      "Path":  "C:\\dev\\mediadash-fixtures\\movies\\Big Buck Test (2020)\\Big Buck Test (2020) - 1080p.mkv",
+                      "ChannelId":  null,
+                      "RunTimeTicks":  200230000,
+                      "ProductionYear":  2020,
+                      "ProviderIds":  {
+
+                                      },
+                      "IsFolder":  false,
+                      "Type":  "Movie",
+                      "UserData":  {
+                                       "PlaybackPositionTicks":  0,
+                                       "PlayCount":  0,
+                                       "IsFavorite":  false,
+                                       "Played":  false,
+                                       "Key":  "7ee93d08-ff64-9a9d-1e25-8f09a92632dd",
+                                       "ItemId":  "7ee93d08ff649a9d1e258f09a92632dd"
+                                   },
+                      "VideoType":  "VideoFile",
+                      "ImageTags":  {
+                                        "Primary":  "d7e43c82debffcb6b1da9081e5b05e57"
+                                    },
+                      "BackdropImageTags":  [
+
+                                            ],
+                      "ImageBlurHashes":  {
+                                              "Primary":  {
+                                                              "d7e43c82debffcb6b1da9081e5b05e57":  "W~LXb?;Zs~z6ms^I%2oHj=nUafs,a}jsa}jsa}jsxus8bHnSjJsl"
+                                                          }
+                                          },
+                      "LocationType":  "FileSystem",
+                      "MediaType":  "Video"
+                  }
+              ],
+    "TotalRecordCount":  1,
+    "StartIndex":  0
+}

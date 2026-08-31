@@ -1,0 +1,120 @@
+{
+    "IsScanning":  false,
+    "IsFixing":  false,
+    "OpenIssueTotal":  0,
+    "FailedHistoryTotal":  15,
+    "FreeDiskBytes":  658004017152,
+    "TotalDiskBytes":  2047354073088,
+    "TotalPotentialSavings":  0,
+    "LifetimeBytesReclaimed":  332225452,
+    "LifetimeCounts":  [
+                           {
+                               "Type":  "Duplicate",
+                               "Count":  12,
+                               "PotentialSavings":  5129419
+                           },
+                           {
+                               "Type":  "Playability",
+                               "Count":  37,
+                               "PotentialSavings":  307660085
+                           },
+                           {
+                               "Type":  "Quality",
+                               "Count":  5,
+                               "PotentialSavings":  17774969
+                           },
+                           {
+                               "Type":  "SubtitleLanguage",
+                               "Count":  1,
+                               "PotentialSavings":  365
+                           },
+                           {
+                               "Type":  "AudioLanguage",
+                               "Count":  1,
+                               "PotentialSavings":  359030
+                           },
+                           {
+                               "Type":  "Stale",
+                               "Count":  1,
+                               "PotentialSavings":  700000
+                           },
+                           {
+                               "Type":  "MalwareRisk",
+                               "Count":  1,
+                               "PotentialSavings":  67
+                           },
+                           {
+                               "Type":  "OrphanedDebris",
+                               "Count":  6,
+                               "PotentialSavings":  601517
+                           }
+                       ],
+    "Counts":  [
+
+               ],
+    "PendingFixCount":  0,
+    "Drives":  [
+                   {
+                       "Root":  "C:\\",
+                       "FreeBytes":  658004017152,
+                       "TotalBytes":  2047354073088,
+                       "IsLibraryDrive":  true,
+                       "IsRecycleBinDrive":  true,
+                       "SmartHealth":  "healthy",
+                       "SmartMessage":  "Windows reports Lexar SSD NM790 2TB (hosting C:) is Healthy (WMI/MSFT_PhysicalDisk).",
+                       "SmartModel":  "Lexar SSD NM790 2TB",
+                       "SmartTemperatureCelsius":  47,
+                       "SmartTemperatureMaxCelsius":  90,
+                       "SmartWearPercent":  0
+                   }
+               ],
+    "System":  {
+                   "CpuPercent":  0,
+                   "SystemCpuPercent":  1.358695652173913,
+                   "RamUsedBytes":  401121280,
+                   "RamTotalBytes":  33457659904,
+                   "SystemRamUsedBytes":  16681934848,
+                   "SystemRamTotalBytes":  33457659904,
+                   "GpuPercent":  1.0158495903015137,
+                   "GpuSource":  "Windows PDH",
+                   "Gpus":  [
+                                {
+                                    "Index":  0,
+                                    "Name":  "GPU 0x00000000:0x000225EE",
+                                    "Percent":  1.0158495903015137,
+                                    "Source":  "Windows PDH"
+                                },
+                                {
+                                    "Index":  1,
+                                    "Name":  "GPU 0x00000000:0x00025107",
+                                    "Percent":  0,
+                                    "Source":  "Windows PDH"
+                                },
+                                {
+                                    "Index":  2,
+                                    "Name":  "GPU 0x00000000:0x0002515E",
+                                    "Percent":  0,
+                                    "Source":  "Windows PDH"
+                                }
+                            ],
+                   "CpuCoreCount":  16,
+                   "Platform":  "Windows",
+                   "SystemStatsAvailable":  true
+               },
+    "RecycleBinPath":  "C:\\Users\\crackruckles\\AppData\\Local\\jellyfin-v10\\data\\mediadash\\recycle",
+    "DataDirectory":  "C:\\Users\\crackruckles\\AppData\\Local\\jellyfin-v10\\data\\mediadash",
+    "RecycleBinCrossVolume":  false,
+    "RecycleBinBytes":  601608,
+    "RecycleBinFileCount":  3,
+    "RecycleBinRetentionDays":  30,
+    "LastFixRun":  {
+                       "FinishedAtUtc":  "2026-08-28T10:16:53.600188Z",
+                       "Attempted":  2,
+                       "Succeeded":  0,
+                       "Failed":  0,
+                       "TopFailureCount":  0
+                   },
+    "RedownloadWarnings":  [
+
+                           ]
+}

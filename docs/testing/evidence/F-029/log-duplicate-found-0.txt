@@ -1,0 +1,5 @@
+[2026-08-28 12:59:43.357 +08:00] [INF] [3] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Duplicate found 0 issues
+[2026-08-28 12:59:46.603 +08:00] [INF] [26] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Duplicate found 0 issues
+[2026-08-28 13:00:26.804 +08:00] [INF] [26] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Duplicate found 0 issues
+[2026-08-28 13:01:04.876 +08:00] [INF] [21] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Duplicate found 0 issues
+[2026-08-28 13:07:07.369 +08:00] [INF] [17] Jellyfin.Plugin.MediaDash.ScheduledTasks.ScanTask: MediaDash scanner Duplicate found 0 issues

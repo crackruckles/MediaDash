@@ -1,0 +1,35 @@
+[
+  {
+    "Id": 7329,
+    "ItemId": "7ee93d08ff649a9d1e258f09a92632dd",
+    "Type": "Ungrouped",
+    "Path": "C:\\dev\\mediadash-fixtures\\movies\\Big Buck Test (2020)",
+    "FileName": "Big Buck Test (2020)",
+    "SuggestedFix": "Group under Big Buck Test",
+    "DetailsJson": "{\"action\":\"MoveFolder\",\"source\":\"C:\\\\dev\\\\mediadash-fixtures\\\\movies\\\\Big Buck Test (2020)\",\"target\":\"C:\\\\dev\\\\mediadash-fixtures\\\\movies\\\\Big Buck Test\\\\Big Buck Test (2020)\",\"title\":\"Big Buck Test\",\"franchise\":true}",
+    "SizeSavings": 0,
+    "Status": "Detected",
+    "DetectedAtUtc": "2026-08-28T04:49:20.7692917Z",
+    "WasPreviouslyRestored": false
+  }
+]
+
+# DetailsJson decoded
+
+{
+  "action": "MoveFolder",
+  "source": "C:\\dev\\mediadash-fixtures\\movies\\Big Buck Test (2020)",
+  "target": "C:\\dev\\mediadash-fixtures\\movies\\Big Buck Test\\Big Buck Test (2020)",
+  "title": "Big Buck Test",
+  "franchise": true
+}
+
+# Doc claim (01-scanners.md §E.5)
+
+metadata.suggestedFolder → matches expected normalized folder name.
+
+# Reality
+
+No metadata.* wrapper. No suggestedFolder field. The suggested destination lives
+in DetailsJson.target (full absolute path, not a normalized name).
+Related to F-020 pattern.

@@ -1,0 +1,14 @@
+ ---> Microsoft.Data.Sqlite.SqliteException (0x80004005): SQLite Error 19: 'FOREIGN KEY constraint failed'.
+ ---> Microsoft.Data.Sqlite.SqliteException (0x80004005): SQLite Error 19: 'FOREIGN KEY constraint failed'.
+   at MediaBrowser.Providers.Manager.MetadataService`2.SaveItemAsync(MetadataResult`1 result, ItemUpdateType reason, Boolean reattachUserData, CancellationToken cancellationToken)
+   at MediaBrowser.Providers.Manager.MetadataService`2.<RefreshMetadata>g__SaveInternal|36_0(BaseItem item, MetadataRefreshOptions refreshOptions, ItemUpdateType updateType, Boolean isFirstRefresh, Boolean requiresRefresh, MetadataResult`1 metadataResult, CancellationToken cancellationToken)
+   at MediaBrowser.Providers.Manager.MetadataService`2.RefreshMetadata(BaseItem item, MetadataRefreshOptions refreshOptions, CancellationToken cancellationToken)
+System.Text.Json.JsonException: The JSON value could not be converted to Jellyfin.Plugin.MediaDash.Configuration.MediaSortSource. Path: $.MediaSortSource | LineNumber: 79 | BytePositionInLine: 34.
+System.Text.Json.JsonException: The JSON value could not be converted to Jellyfin.Plugin.MediaDash.Configuration.MediaSortSource. Path: $.MediaSortSource | LineNumber: 79 | BytePositionInLine: 32.
+System.Text.Json.JsonException: The JSON value could not be converted to Jellyfin.Plugin.MediaDash.Configuration.MediaSortSource. Path: $.MediaSortSource | LineNumber: 79 | BytePositionInLine: 33.
+ ---> System.InvalidOperationException: Instance validation error: '2' is not a valid value for Jellyfin.Plugin.MediaDash.Configuration.MediaSortSource.
+   at Microsoft.Xml.Serialization.GeneratedAssembly.XmlSerializationWriterPluginConfiguration.Write6_MediaSortSource(MediaSortSource v)
+ ---> System.InvalidOperationException: Instance validation error: '3' is not a valid value for Jellyfin.Plugin.MediaDash.Configuration.MediaSortSource.
+   at Microsoft.Xml.Serialization.GeneratedAssembly.XmlSerializationWriterPluginConfiguration.Write6_MediaSortSource(MediaSortSource v)
+ ---> System.InvalidOperationException: Instance validation error: '4' is not a valid value for Jellyfin.Plugin.MediaDash.Configuration.MediaSortSource.
+   at Microsoft.Xml.Serialization.GeneratedAssembly.XmlSerializationWriterPluginConfiguration.Write6_MediaSortSource(MediaSortSource v)

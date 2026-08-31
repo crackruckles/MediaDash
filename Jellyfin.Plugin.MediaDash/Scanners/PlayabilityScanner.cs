@@ -123,6 +123,16 @@ public sealed class PlayabilityScanner : ProbingScannerBase
             reason = "unreadable";
             detail = probe.Error?.Message ?? "The file could not be read as a media file.";
         }
+        else if (IsContainerExtensionMismatch(path, probe, out var mismatchDetail))
+        {
+            // F-213: ffmpeg happily demuxes any container regardless of the file extension.
+            // Users rename files (or downloads arrive with the wrong extension) and end up
+            // with `.mp3` files that are actually MKVs — Jellyfin then routes them to the
+            // audio pipeline where they may or may not play. Flag the mismatch so the user
+            // can rename to the correct extension.
+            reason = "container-extension-mismatch";
+            detail = mismatchDetail;
+        }
         else if (!IsAudioKind(item.GetBaseItemKind())
             && !probe.Streams.Any(s => string.Equals(s.CodecType, "video", StringComparison.OrdinalIgnoreCase)))
         {
@@ -220,5 +230,67 @@ public sealed class PlayabilityScanner : ProbingScannerBase
     private static long? TryParseLong(string? raw)
     {
         return long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : null;
+    }
+
+    /// <summary>
+    /// F-213: cross-checks ffprobe's reported container against the file extension. ffmpeg
+    /// silently demuxes any container regardless of extension, so a renamed / mis-arrived
+    /// `.mp3` that's actually an MKV gets routed to Jellyfin's audio pipeline and behaves
+    /// oddly. Flag mismatches so the user can rename to something honest.
+    /// </summary>
+    private static bool IsContainerExtensionMismatch(string path, FfprobeData probe, out string detail)
+    {
+        detail = string.Empty;
+        var ext = System.IO.Path.GetExtension(path).ToLowerInvariant().TrimStart('.');
+        var formatName = probe.Format?.FormatName?.ToLowerInvariant();
+        if (string.IsNullOrEmpty(ext) || string.IsNullOrEmpty(formatName))
+        {
+            return false;
+        }
+
+        // ffprobe reports format_name as a comma-separated list of matching demuxers
+        // (e.g. "matroska,webm", "mp4,mov,m4a,3gp,3g2,mj2", "mp3"). Any overlap between
+        // the extension and the reported list means we're fine.
+        var demuxers = formatName.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var extensionAliases = ext switch
+        {
+            "mkv" or "webm" => new[] { "matroska", "webm" },
+            "mp4" or "m4v" or "m4a" or "mov" or "3gp" or "3g2" => new[] { "mp4", "mov", "m4a", "3gp", "3g2", "mj2" },
+            "avi" => new[] { "avi" },
+            "wmv" or "asf" => new[] { "asf" },
+            "flv" => new[] { "flv" },
+            "ts" or "mts" or "m2ts" => new[] { "mpegts" },
+            "mpg" or "mpeg" or "vob" => new[] { "mpeg", "mpegvideo", "mpegps" },
+            "ogv" or "ogg" or "ogm" or "opus" => new[] { "ogg" },
+            "mp3" => new[] { "mp3" },
+            "aac" => new[] { "aac" },
+            "flac" => new[] { "flac" },
+            "wav" => new[] { "wav" },
+            "ac3" => new[] { "ac3" },
+            "dts" => new[] { "dts" },
+            "wma" => new[] { "asf" },
+            "aif" or "aiff" => new[] { "aiff" },
+            _ => Array.Empty<string>()
+        };
+
+        if (extensionAliases.Length == 0)
+        {
+            // Unknown extension — don't flag. Let the item pass; other detectors will catch
+            // truly broken files.
+            return false;
+        }
+
+        var overlap = extensionAliases.Any(alias => demuxers.Contains(alias));
+        if (overlap)
+        {
+            return false;
+        }
+
+        detail = string.Format(
+            CultureInfo.InvariantCulture,
+            "The file's extension is '.{0}' but its container is '{1}'. Playback may fail on strict clients. Rename to a matching extension (or re-encode into an actual .{0} container) to make the extension honest.",
+            ext,
+            formatName);
+        return true;
     }
 }

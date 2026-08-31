@@ -59,6 +59,14 @@ public sealed class IssueDto
     public DateTime DetectedAtUtc { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the user previously restored a file at this
+    /// (path, type). When true, MediaDash keeps the row Detected instead of auto-queuing it —
+    /// the UI renders a "You restored this before" badge so the user understands why the row
+    /// isn't scheduled for a fix run and can Approve or Dismiss it manually.
+    /// </summary>
+    public bool WasPreviouslyRestored { get; set; }
+
+    /// <summary>
     /// Maps a database issue to the DTO.
     /// </summary>
     /// <param name="issue">The issue.</param>

@@ -166,7 +166,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for build steps, style, safety invariants
 
 ## Reporting a bug
 
-Errors tab → **Copy diagnostics** → paste into a new [GitHub issue](https://github.com/crackruckles/MediaDash/issues/new). The dump includes plugin/Jellyfin/OS/runtime versions and every recorded error.
+Errors tab → **Report an issue** (top of the tab, with the bug icon) → the tracker opens in a new tab; paste the clipboard contents into the report. The dump includes plugin/Jellyfin/OS/runtime versions and every recorded error.
 
 ## License
 

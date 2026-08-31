@@ -117,10 +117,23 @@ public sealed partial class DuplicateScanner : IScanner
         // land. Both copies must be past the cutoff for the pair to be worth flagging.
         if (Config.DuplicateMinAgeDays > 0)
         {
+            var beforeAgeGate = duplicateGroups.Count;
             var cutoff = DateTime.UtcNow.AddDays(-Config.DuplicateMinAgeDays);
             duplicateGroups = duplicateGroups
                 .Where(g => g.Value.All(v => v.Item.DateCreated <= cutoff))
                 .ToList();
+            // F-099: users report "duplicate detection is broken on a fresh library". The age gate
+            // was blanking every match with no diagnostic. Say so out loud when the gate ate ≥ 1
+            // candidate group, so the user can trace "why did the scanner find nothing" straight
+            // to the setting.
+            var vetoed = beforeAgeGate - duplicateGroups.Count;
+            if (vetoed > 0)
+            {
+                _logger.LogInformation(
+                    "DuplicateScanner: {Vetoed} candidate group(s) were dropped by the MinAgeDays gate ({Days} days). Reduce or clear Settings → Duplicates → 'Wait before flagging' if you expected matches on freshly imported content.",
+                    vetoed,
+                    Config.DuplicateMinAgeDays);
+            }
         }
 
         var issues = new List<Issue>();
@@ -167,7 +180,15 @@ public sealed partial class DuplicateScanner : IScanner
             {
                 if (movie.ProviderIds.TryGetValue(provider, out var id) && !string.IsNullOrEmpty(id))
                 {
-                    return $"movie:{provider}:{id}".ToLowerInvariant();
+                    // F-097 / issue #3: Jellyfin's TMDB provider will auto-resolve two same-title films
+                    // (The Thing 1982 vs 2011, Fright Night, etc.) to the same tmdb id when the user
+                    // hasn't disambiguated by year. Grouping them collapses remakes at confidence 1.0
+                    // and users lose the real file to the recycle bin. Bake ProductionYear into the
+                    // key when we know it — two remakes with different years become different keys,
+                    // while two files of the SAME movie (which always share year) still collide.
+                    // Missing-year fixtures still work: they use the older year-less key.
+                    var yearSuffix = movie.ProductionYear is int py ? py.ToString(CultureInfo.InvariantCulture) : string.Empty;
+                    return $"movie:{provider}:{id}:{yearSuffix}".ToLowerInvariant();
                 }
             }
 
@@ -365,7 +386,8 @@ public sealed partial class DuplicateScanner : IScanner
                     Pixels = 0,
                     Codec = string.Empty,
                     Bitrate = 0,
-                    Resolution = "book"
+                    Resolution = "book",
+                    IsSymlink = fileInfo.Attributes.HasFlag(FileAttributes.ReparsePoint)
                 });
                 continue;
             }
@@ -398,7 +420,8 @@ public sealed partial class DuplicateScanner : IScanner
                 Bitrate = long.TryParse(stream.BitRate, NumberStyles.Integer, CultureInfo.InvariantCulture, out var b) ? b : 0,
                 Resolution = isAudioItem
                     ? (stream.CodecName ?? "audio")
-                    : $"{stream.Width}x{stream.Height}"
+                    : $"{stream.Width}x{stream.Height}",
+                IsSymlink = fileInfo2.Attributes.HasFlag(FileAttributes.ReparsePoint)
             });
         }
 
@@ -570,6 +593,17 @@ public sealed partial class DuplicateScanner : IScanner
 
     internal static List<Candidate> Rank(List<Candidate> candidates, string[] keeperPolicyOrder, string[] codecOrder)
     {
+        // F-098 guards, applied BEFORE the policy sort:
+        //   1. Symlinks/junctions never win keeper — the tiebreak would happily route a 0-byte
+        //      link to keeper and label the real file "safe to delete".
+        //   2. Zero-byte files never win keeper — a stub file (interrupted download, bad copy,
+        //      empty placeholder) beats every real file on the SIZE tiebreak. Push both classes
+        //      to the tail of the candidate list so the policy sort naturally picks something
+        //      real. If EVERY candidate is symlink/zero-byte, the group is uninteresting —
+        //      let it flow through so the caller can still surface it, but keeper is arbitrary.
+        var realCandidates = candidates.Where(c => !c.IsSymlink && c.Size > 0).ToList();
+        var pool = realCandidates.Count > 0 ? realCandidates : candidates;
+
         IOrderedEnumerable<Candidate>? ordered = null;
         foreach (var criterion in keeperPolicyOrder)
         {
@@ -582,10 +616,18 @@ public sealed partial class DuplicateScanner : IScanner
                 "SIZE" => c => c.Size,
                 _ => c => 0
             };
-            ordered = ordered is null ? candidates.OrderBy(selector) : ordered.ThenBy(selector);
+            ordered = ordered is null ? pool.OrderBy(selector) : ordered.ThenBy(selector);
         }
 
-        return (ordered ?? candidates.OrderBy(c => -c.Pixels)).ToList();
+        var ranked = (ordered ?? pool.OrderBy(c => -c.Pixels)).ToList();
+        // Re-append any excluded candidates at the end so upstream callers still see them
+        // (they'll be losers, marked for recycle, but the caller decides the final action).
+        if (realCandidates.Count > 0 && realCandidates.Count < candidates.Count)
+        {
+            ranked.AddRange(candidates.Where(c => c.IsSymlink || c.Size <= 0));
+        }
+
+        return ranked;
     }
 
     private static long CodecRank(string codec, string[] order)
@@ -621,5 +663,10 @@ public sealed partial class DuplicateScanner : IScanner
         public long Bitrate { get; init; }
 
         public string Resolution { get; init; } = string.Empty;
+
+        // F-098: True when the path resolves to a reparse point (symbolic link, junction).
+        // The Rank sort MUST never pick a symlink as keeper — the "smaller wins" tiebreak would
+        // otherwise route a 0-byte symlink to keeper and mark the real file "safe to delete".
+        public bool IsSymlink { get; init; }
     }
 }

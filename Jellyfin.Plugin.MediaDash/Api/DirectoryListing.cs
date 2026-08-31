@@ -23,6 +23,13 @@ public sealed class DirectoryListing
     /// </summary>
     public bool IsRecycleBin { get; set; }
 
+    /// <summary>
+    /// Gets or sets a value indicating whether this listing is inside the Jellyfin log directory. When
+    /// true, the UI switches to read-only mode (same rules as IsRecycleBin) — the shortcut exists so
+    /// admins can browse and download log files for bug reports without touching them.
+    /// </summary>
+    public bool IsLogsDir { get; set; }
+
     /// <summary>Gets or sets the entries in this directory.</summary>
     public IReadOnlyList<FileEntry> Entries { get; set; } = [];
 }

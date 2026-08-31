@@ -23,6 +23,13 @@ public static class SmartHealthProbe
     private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(3);
     private static readonly ConcurrentDictionary<string, CacheEntry> Cache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, byte> InFlight = new(StringComparer.OrdinalIgnoreCase);
+    // Per-device dedup for the smartctl error path — a drive that timed out, threw an IOException,
+    // or came back with a non-zero exit is going to keep doing that on every 10-min refresh.
+    // Suppress the second and Nth Errors-tab emission so the user sees the class once, not once per
+    // refresh × N drives × M error kinds. Reset on Jellyfin restart.
+    private static readonly ConcurrentDictionary<string, byte> SmartctlKnownFailing =
+        new(StringComparer.OrdinalIgnoreCase);
+
     private static int _smartctlMissing; // 0 = unknown / present, 1 = confirmed missing on PATH
 
     /// <summary>
@@ -153,7 +160,11 @@ public static class SmartHealthProbe
                 {
                 }
 
-                Diagnostics.Record("SmartHealth", "smartctl timed out on " + device + " — SMART health will show as Unknown until the next probe.");
+                if (SmartctlKnownFailing.TryAdd(device + ":timeout", 0))
+                {
+                    Diagnostics.Record("SmartHealth", "smartctl timed out on " + device + " — SMART health will show as Unknown until the next probe. Subsequent timeouts on this device are suppressed for the rest of the session.");
+                }
+
                 return new SmartHealthResult(SmartHealth.Unknown, "smartctl took longer than 3 s.");
             }
 
@@ -169,7 +180,11 @@ public static class SmartHealthProbe
         }
         catch (IOException ex)
         {
-            Diagnostics.Record("SmartHealth", "smartctl failed for " + device + ": " + ex.Message);
+            if (SmartctlKnownFailing.TryAdd(device + ":io", 0))
+            {
+                Diagnostics.Record("SmartHealth", "smartctl failed for " + device + ": " + ex.Message + " Subsequent IO errors on this device are suppressed for the rest of the session.");
+            }
+
             return new SmartHealthResult(SmartHealth.Unknown, "smartctl error: " + ex.Message);
         }
     }
@@ -275,9 +290,12 @@ public static class SmartHealthProbe
                 // Storage-health card already surfaces the setcap/--cap-add hint via the returned
                 // SmartHealthResult. Recording it to the persistent Errors tab as well is duplicate
                 // noise for a host-level config issue the plugin can't itself fix.
-                if (!isPermissionDenied)
+                // Every other non-zero exit is worth surfacing once per device per session — after that
+                // the row exists on the Errors tab and re-emitting it every 10 minutes just increments
+                // a counter the user already saw.
+                if (!isPermissionDenied && SmartctlKnownFailing.TryAdd(device + ":exit" + exit.GetInt32(), 0))
                 {
-                    Diagnostics.Record("SmartHealth", "smartctl exit_status=" + exit.GetInt32() + " on " + device + ": " + (firstMessage.Length > 0 ? firstMessage : "(no message)"));
+                    Diagnostics.Record("SmartHealth", "smartctl exit_status=" + exit.GetInt32() + " on " + device + ": " + (firstMessage.Length > 0 ? firstMessage : "(no message)") + " Subsequent identical failures on this device are suppressed for the rest of the session.");
                 }
 
                 return new SmartHealthResult(SmartHealth.Unknown, hint);

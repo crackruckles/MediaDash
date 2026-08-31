@@ -1,0 +1,24 @@
+Table: format_probe_cache
+Columns (PRAGMA table_info):
+  path         TEXT PK
+  size         INTEGER NOT NULL
+  mtime_utc    INTEGER NOT NULL
+  probed_at_utc INTEGER NOT NULL
+  ok           INTEGER NOT NULL
+  reason       TEXT
+
+Rows after fresh scan (2 total):
+  {"path":"C:\\dev\\mediadash-fixtures\\books\\good-book.epub","size":237,"ok":1,"reason":null}
+  {"path":"C:\\dev\\mediadash-fixtures\\comics\\good-comic.cbz","size":124,"ok":1,"reason":null}
+
+DTO fields the doc 04-A.2/A.3/B.5/C.4/C.5 claim exist but do NOT map to columns:
+  - duration
+  - video codec / audio codec
+  - all streams (FfprobeStreamInfo)
+  - channels, sampleRate, bitRate, language, title
+  - hearingImpaired
+  - pageCount, author, title, language (book)
+  - dimensions, pageCount, hasMetadataXml, series, issue (comic)
+
+Full ffprobe JSON is stored in a separate table `probe_cache.json` (raw ffprobe stdout, not parsed DTO).
+`format_probe_cache` only records a boolean ok/reason — evidently a lightweight pass/fail row.

@@ -1,0 +1,16 @@
+# After seeding fixtures and POST /Library/Refresh, sleep 15, POST /MediaDash/Reset, POST /MediaDash/Scan
+
+# Files on disk (confirmed):
+C:\dev\mediadash-fixtures\movies\Loose (2019).mkv               (2372373 bytes)
+C:\dev\mediadash-fixtures\movies\Nested (2019)\Nested (2019).mkv (2372373 bytes)
+
+# Jellyfin item search (via /Items?SearchTerm=...&IncludeItemTypes=Movie):
+Loose hits: 0
+Nested hits: 0
+
+# Neither fixture was indexed by Jellyfin core. F-019 pattern.
+
+# MediaDash Ungrouped scan result (item-scoped scanner, F-015):
+# Only the pre-existing Big Buck Test (2020) folder was flagged.
+# The Loose bare-mkv (which SHOULD be the primary E.4 detection) is invisible
+# to the scanner because the item was never created.

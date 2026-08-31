@@ -1,0 +1,11 @@
+HI Test (2024).mkv is NOT indexed by Jellyfin as a Movie item (F-019 blocker), so MediaDash's probe pipeline never touches it. File exists on disk with:
+  - stream 0: h264 video
+  - stream 1: aac audio
+  - stream 2: subrip subtitle (language=eng, no hearing_impaired disposition)
+  - stream 3: subrip subtitle (language=eng, title="English SDH", disposition.hearing_impaired=1)
+
+Direct ffprobe (bypassing MediaDash) confirms the disposition and title fields exist correctly.
+
+Consequence: A.4/A.5 (embedded SDH assertions) cannot be validated end-to-end through MediaDash's DB pipeline on this box. Same problem for Sub Heavy (2023).mkv which IS indexed but did not land in probe_cache after this scan (likely because it produced no issues so the probe was never triggered).
+
+Sub Heavy is present in decode_cache (checked_at_utc set) but not probe_cache. So MediaDash's probe path is selective — it doesn't cache all files, only ones the scanners reach.

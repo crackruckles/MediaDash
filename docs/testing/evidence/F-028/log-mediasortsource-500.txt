@@ -1,0 +1,12 @@
+3182:System.Text.Json.JsonException: The JSON value could not be converted to Jellyfin.Plugin.MediaDash.Configuration.MediaSortSource. Path: $.MediaSortSource | LineNumber: 79 | BytePositionInLine: 34.
+3183:   at System.Text.Json.ThrowHelper.ThrowJsonException(String message)
+3245:System.Text.Json.JsonException: The JSON value could not be converted to Jellyfin.Plugin.MediaDash.Configuration.MediaSortSource. Path: $.MediaSortSource | LineNumber: 79 | BytePositionInLine: 32.
+3246:   at System.Text.Json.ThrowHelper.ThrowJsonException(String message)
+3308:System.Text.Json.JsonException: The JSON value could not be converted to Jellyfin.Plugin.MediaDash.Configuration.MediaSortSource. Path: $.MediaSortSource | LineNumber: 79 | BytePositionInLine: 33.
+3309:   at System.Text.Json.ThrowHelper.ThrowJsonException(String message)
+3376: ---> System.InvalidOperationException: Instance validation error: '2' is not a valid value for Jellyfin.Plugin.MediaDash.Configuration.MediaSortSource.
+3377:   at Microsoft.Xml.Serialization.GeneratedAssembly.XmlSerializationWriterPluginConfiguration.Write6_MediaSortSource(MediaSortSource v)
+3419: ---> System.InvalidOperationException: Instance validation error: '3' is not a valid value for Jellyfin.Plugin.MediaDash.Configuration.MediaSortSource.
+3420:   at Microsoft.Xml.Serialization.GeneratedAssembly.XmlSerializationWriterPluginConfiguration.Write6_MediaSortSource(MediaSortSource v)
+3462: ---> System.InvalidOperationException: Instance validation error: '4' is not a valid value for Jellyfin.Plugin.MediaDash.Configuration.MediaSortSource.
+3463:   at Microsoft.Xml.Serialization.GeneratedAssembly.XmlSerializationWriterPluginConfiguration.Write6_MediaSortSource(MediaSortSource v)

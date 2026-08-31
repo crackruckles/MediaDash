@@ -1,0 +1,9 @@
+{
+    "PluginVersion":  "0.0.0.0",
+    "JellyfinVersion":  "10.11.11",
+    "Os":  "Microsoft Windows 10.0.26200",
+    "Framework":  ".NET 9.0.16",
+    "SubtitleProviders":  [
+
+                          ]
+}

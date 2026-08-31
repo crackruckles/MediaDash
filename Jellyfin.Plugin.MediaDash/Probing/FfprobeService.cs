@@ -230,8 +230,14 @@ public sealed class FfprobeService
 
     // ffmpeg quirk: "File ended prematurely" during decode is emitted to stderr but treated as clean EOF —
     // exit code stays 0, even with -xerror. That silently hides truncated files ("sort of plays") from
-    // the shallow decode check. Same story for "Truncating packet". If we see either marker in stderr,
-    // treat it as an error regardless of exit code.
+    // the shallow decode check. If we see this marker in stderr, treat it as an error regardless of exit code.
+    //
+    // We used to also treat "Truncating packet" as truncation, but multiple field reports (Reddit thread
+    // 2026-08 — friskyapple, oogoom, moonplaza, Commercial-Camp-8052) traced false-positive unplayable
+    // flags back to that warning on files that play fine in Jellyfin. "Truncating packet" fires on
+    // benign container quirks — MKV cluster boundaries, MPEG-TS packet alignment, MP4 mdat overlap — and
+    // is not a reliable signal on its own. Real truncation still fails via exit code (-xerror), the
+    // "File ended prematurely" marker below, and the bitrate-vs-size heuristic in PlayabilityScanner.
     internal static bool HasTruncationMarker(string? stderr)
     {
         if (string.IsNullOrEmpty(stderr))
@@ -239,8 +245,7 @@ public sealed class FfprobeService
             return false;
         }
 
-        return stderr.Contains("File ended prematurely", StringComparison.Ordinal)
-            || stderr.Contains("Truncating packet", StringComparison.Ordinal);
+        return stderr.Contains("File ended prematurely", StringComparison.Ordinal);
     }
 
     // ffmpeg's -stats output prints progress lines like:
