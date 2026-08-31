@@ -243,6 +243,30 @@ public sealed class FixTask : IScheduledTask
 
         _logger.LogInformation("MediaDash fix run: {Count} queued issues (dry-run: {DryRun})", queue.Count, config.DryRun);
 
+        // Transcode-companion routing (issue-XX): same file with a transcode-family issue
+        // (Quality / HeavyTranscode / FailedTranscode) queued alongside AudioLanguage and/or
+        // SubtitleLanguage. TranscodeFixer.BuildArgs already filters mapped audio + subtitle
+        // streams by the configured language allow-lists during the re-encode, so unwanted
+        // tracks are dropped incidentally — no separate TrackFixer pass is needed. Running one
+        // anyway would either (a) waste a full remux read if it ran first, or (b) fail with
+        // "nothing to remove" if it ran second. Instead, we claim the AudioLanguage /
+        // SubtitleLanguage issues as companions of the transcode issue and mark them Fixed
+        // when the transcode succeeds.
+        // transcodeCompanions maps the TRANSCODE issue id → its companion track issues on the
+        // same path. transcodeCompanionIds is every claimed track issue id — the main loop skips
+        // those, and the combined-pairs block below also excludes them so a track pair can't be
+        // routed twice.
+        var transcodeCompanions = BuildTranscodeCompanions(queue);
+        var transcodeCompanionIds = new HashSet<long>(transcodeCompanions.SelectMany(kv => kv.Value.Select(i => i.Id)));
+
+        if (transcodeCompanions.Count > 0)
+        {
+            _logger.LogInformation(
+                "Transcode-companion routing: {Files} file(s) have transcode + track issues queued — the transcode's re-encode already drops unwanted tracks, so {Companions} track issue(s) will be resolved by the transcode pass instead of a separate remux.",
+                transcodeCompanions.Count,
+                transcodeCompanionIds.Count);
+        }
+
         // Combined-pass detection: same file with BOTH AudioLanguage AND SubtitleLanguage queued.
         // The TrackFixer can drop both categories in ONE ffmpeg remux instead of two back-to-back
         // (which would read the source twice and produce two intermediate bin entries). Cuts wall
@@ -252,11 +276,15 @@ public sealed class FixTask : IScheduledTask
         // combinedPairs maps the AUDIO issue id → SUBTITLE partner issue on the same path.
         // combinedPartners is every SUBTITLE issue that's been paired — the main loop skips those
         // (they get handled as the audio side's companion, not on their own).
+        // Issues already claimed by transcodeCompanions above are excluded so the transcode
+        // routing wins the tie: the transcode will drop the tracks anyway, and running a combined
+        // remux first would just re-do work that's about to happen inside the transcode.
         var combinedPairs = new Dictionary<long, Issue>();
         var combinedPartners = new HashSet<long>();
         {
             var trackPairs = queue
-                .Where(i => i.Type == IssueType.AudioLanguage || i.Type == IssueType.SubtitleLanguage)
+                .Where(i => (i.Type == IssueType.AudioLanguage || i.Type == IssueType.SubtitleLanguage)
+                            && !transcodeCompanionIds.Contains(i.Id))
                 .GroupBy(i => i.Path, StringComparer.OrdinalIgnoreCase);
             foreach (var pathGroup in trackPairs)
             {
@@ -379,6 +407,17 @@ public sealed class FixTask : IScheduledTask
                 continue;
             }
 
+            // Transcode-companion: skip Audio/SubtitleLanguage issues whose file also has a
+            // transcode-family issue queued. The transcode's re-encode (see TranscodeFixer.BuildArgs)
+            // already drops unwanted tracks via the language allow-list, so running a separate
+            // TrackFixer pass is either wasted IO (if it runs first) or a "nothing to remove"
+            // failure (if it runs second). The transcode issue's own iteration below writes the
+            // companion's history row and flips its status via transcodeCompanions.
+            if (transcodeCompanionIds.Contains(issue.Id))
+            {
+                continue;
+            }
+
             var fixer = _fixers.FirstOrDefault(f => f.CanFix(issue.Type));
             if (fixer is null)
             {
@@ -449,6 +488,36 @@ public sealed class FixTask : IScheduledTask
                     if (!result.WasDryRun)
                     {
                         _db.UpdateIssueStatus(partner.Id, IssueStatus.Fixed);
+                    }
+                }
+
+                // Transcode-companion resolution: when a transcode-family issue with companion
+                // audio/subtitle-language issues succeeds, each companion was resolved
+                // implicitly by the re-encode's map-filter (TranscodeFixer.BuildArgs). Emit a
+                // history row per companion so the Issues-tab audit trail is complete, and flip
+                // the companion to Fixed. Matches the combined-pass symmetry above: history is
+                // written on any success (including dry-run), status flip only on real runs so
+                // the queue survives dry-run inspection.
+                if (result.Success && transcodeCompanions.TryGetValue(issue.Id, out var claimedCompanions))
+                {
+                    foreach (var companion in claimedCompanions)
+                    {
+                        _db.AddHistory(new HistoryEntry
+                        {
+                            IssueId = companion.Id,
+                            Type = companion.Type,
+                            Path = companion.Path,
+                            Action = "Resolved by transcode pass: " + result.Message,
+                            BytesFreed = 0,
+                            RecyclePath = result.RecyclePath,
+                            FixedAtUtc = DateTime.UtcNow,
+                            WasDryRun = result.WasDryRun,
+                            Success = true
+                        });
+                        if (!result.WasDryRun)
+                        {
+                            _db.UpdateIssueStatus(companion.Id, IssueStatus.Fixed);
+                        }
                     }
                 }
 
@@ -886,6 +955,55 @@ public sealed class FixTask : IScheduledTask
     //   Track (cheap remux) before Transcode (full re-encode).
     //   TrickplayOptimize last: BIF file must match the FINAL video hash post-encode, or Jellyfin regenerates it.
     // Anything unlisted falls after the ranked types (rank = int.MaxValue), preserving today's order there.
+
+    /// <summary>
+    /// Groups every queued transcode-family issue (Quality / HeavyTranscode / FailedTranscode)
+    /// with any AudioLanguage / SubtitleLanguage issue on the same path so those track issues
+    /// can be resolved as companions of the transcode. TranscodeFixer.BuildArgs already filters
+    /// mapped audio + subtitle streams by the configured language allow-lists during the
+    /// re-encode, so the unwanted tracks are dropped incidentally and no separate remux is
+    /// needed. Returns the transcode-issue-id → companion-list map; callers derive the
+    /// companion-id set from the values. If a path has multiple transcode-family issues (rare
+    /// but possible: Quality + FailedTranscode co-detected), the first by natural queue order
+    /// wins — the second stays a standalone entry and picks up the tracks on a later run if the
+    /// first left them behind.
+    /// </summary>
+    /// <param name="queue">The current fix-run queue after Off-type filtering and rank ordering.</param>
+    /// <returns>Map of transcode issue id → companion audio/subtitle issues on the same path.</returns>
+    internal static Dictionary<long, List<Issue>> BuildTranscodeCompanions(IReadOnlyList<Issue> queue)
+    {
+        var result = new Dictionary<long, List<Issue>>();
+        var pathGroups = queue
+            .Where(i => i.Type is IssueType.Quality
+                                  or IssueType.HeavyTranscode
+                                  or IssueType.FailedTranscode
+                                  or IssueType.AudioLanguage
+                                  or IssueType.SubtitleLanguage)
+            .GroupBy(i => i.Path, StringComparer.OrdinalIgnoreCase);
+        foreach (var pathGroup in pathGroups)
+        {
+            var transcode = pathGroup.FirstOrDefault(i => i.Type is IssueType.Quality
+                                                                   or IssueType.HeavyTranscode
+                                                                   or IssueType.FailedTranscode);
+            if (transcode is null)
+            {
+                continue;
+            }
+
+            var companions = pathGroup
+                .Where(i => i.Type is IssueType.AudioLanguage or IssueType.SubtitleLanguage)
+                .ToList();
+            if (companions.Count == 0)
+            {
+                continue;
+            }
+
+            result[transcode.Id] = companions;
+        }
+
+        return result;
+    }
+
     private static int FixerRank(Data.IssueType type)
     {
         // User override: if config.FixerOrder is set (via the Overview "Fix order" dialog), the

@@ -4,6 +4,14 @@ Release notes for every published version are on GitHub Releases: https://github
 
 The Jellyfin plugin catalog also shows the changelog for each version — open **Dashboard → Plugins → Catalog** in your Jellyfin server, or read `manifest.json` in this repo.
 
+## 1.0.7.4
+
+- fixed duplicate remuxes when a file needed both track cleanup and re-encoding
+
+594 / 594 tests green. One binary for Jellyfin 10.11 and 12.0.
+
+---
+
 ## 1.0.7.3
 
 - overhauled Recycle bin
