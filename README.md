@@ -76,30 +76,30 @@ Every fix type runs independently: **Off · Detect only · Ask me first · Autom
 ## Community impact
 
 <!-- STATS:START -->
-_Refreshes on the 1st of each month from installs with community stats enabled (on by default; untick in Settings → Safety to opt out). Reports use a **month-rotated anonymous ID** — no persistent install UUID is stored on disk or in the payload. See [docs/PRIVACY.md](docs/PRIVACY.md) for exactly what's collected._
+_Refreshes on the 1st of each month from opt-in installs. See [docs/PRIVACY.md](docs/PRIVACY.md) for exactly what's collected._
 
 | | Lifetime | This month |
 |---|---:|---:|
-| **Storage reclaimed** | 1.1 TB | 0.0 B |
-| Duplicate copies removed | 217 | 0 |
-| Broken files removed | 356 | 0 |
-| Oversized files re-encoded | 2,140 | 0 |
-| Unwanted subtitles stripped | 39 | 0 |
-| Unwanted audio stripped | 144 | 0 |
-| Misplaced files moved | 0 | 0 |
-| Missing subtitles downloaded | 0 | 0 |
-| Stale files retired | 0 | 0 |
-| Corrupt artwork repaired | 0 | 0 |
-| Suspicious files quarantined | 0 | 0 |
-| Ungrouped media grouped | 0 | 0 |
-| Trickplay thumbnails re-encoded | 0 | 0 |
-| Subtitle fonts stripped | 0 | 0 |
-| Orphaned debris removed | 0 | 0 |
-| Corrupt NFO deleted | 0 | 0 |
-| Heavy transcodes pre-encoded | 0 | 0 |
+| **Storage reclaimed** | 101.8 TB | 61.7 GB |
+| Duplicate copies removed | 38,503 | 0 |
+| Broken files removed | 43,974 | 9 |
+| Oversized files re-encoded | 20,370 | 26 |
+| Unwanted subtitles stripped | 181,231 | 109 |
+| Unwanted audio stripped | 69,201 | 116 |
+| Misplaced files moved | 6,128 | 0 |
+| Missing subtitles downloaded | 40,819 | 963 |
+| Stale files retired | 62 | 0 |
+| Corrupt artwork repaired | 1,959 | 0 |
+| Suspicious files quarantined | 3,932 | 0 |
+| Ungrouped media grouped | 54,965 | 13 |
+| Trickplay thumbnails re-encoded | 36,705 | 0 |
+| Subtitle fonts stripped | 6 | 0 |
+| Orphaned debris removed | 913,159 | 204 |
+| Corrupt NFO deleted | 79,247 | 0 |
+| Heavy transcodes pre-encoded | 579 | 4 |
 | Failed transcodes recovered | 0 | 0 |
-| Embedded cover art consolidated | 0 | 0 |
-| **Reporting installs** | 21 lifetime | 6 this month |
+| Embedded cover art consolidated | 14,318 | 0 |
+| **Reporting installs** | 2,077 lifetime | 679 this month |
 <!-- STATS:END -->
 
 ## Built to be trusted with your media
