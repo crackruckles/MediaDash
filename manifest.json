@@ -9,6 +9,22 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "1.0.7.5",
+        "changelog": "Fix window + Low system impact mode + HW-accelerated re-encodes + Show ignored issues + one-per-session fix-run alert + midnight scan default + Media Grouper collision guard + Errors badge accuracy",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v1.0.7.5/mediadash_1.0.7.5.zip",
+        "checksum": "3e9043a759f808ee011487c99c856b93",
+        "timestamp": "2026-09-06T05:42:36Z"
+      },
+      {
+        "version": "1.0.7.5",
+        "changelog": "Fix window + Low system impact mode + HW-accelerated re-encodes + Show ignored issues + one-per-session fix-run alert + midnight scan default + Media Grouper collision guard + Errors badge accuracy",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v1.0.7.5/mediadash_1.0.7.5.zip",
+        "checksum": "3e9043a759f808ee011487c99c856b93",
+        "timestamp": "2026-09-06T05:42:36Z"
+      },
+      {
         "version": "1.0.7.4",
         "changelog": "1.0.7.4 is a small follow-up to 1.0.7.3's combined audio + subtitle cleanup pass, closing the last case where MediaDash could ffmpeg the same file twice in one fix run.\n\nWhen a file had a queued re-encode AND queued track cleanup (unwanted audio or subtitle languages), it used to remux for the tracks first and then re-encode a second time. The re-encode already drops unwanted tracks by itself, so the first remux was wasted work — and if it didn't run first, it would fail with \"nothing to remove\" once the re-encode had finished. Now the fix run detects the overlap and lets the re-encode handle both jobs in one pass. Same recycle bin entry, one history row per issue, both track and quality issues flip to Fixed together.\n\nUser-visible impact: multi-language 4K remuxes that also need size reduction finish in half the time, and the Errors tab stops picking up spurious \"nothing to remove\" failures on files that were just re-encoded.\n\n594 / 594 tests green. One binary for Jellyfin 10.11 and 12.0.",
         "targetAbi": "12.0.0.0",
@@ -347,6 +363,7 @@
     ]
   }
 ]
+
 
 
 
