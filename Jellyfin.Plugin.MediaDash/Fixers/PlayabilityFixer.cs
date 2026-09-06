@@ -345,7 +345,56 @@ public sealed class PlayabilityFixer : IFixer
         return tempPath;
     }
 
-    private Task<string?> TryRung4Async(Issue i, FfprobeData p, IProgress<double>? pr, CancellationToken c) => Task.FromResult<string?>(null);
+    // Rung 4: last-resort full re-encode into MKV. Slow (hours per file for 4K sources) and
+    // only runs on the background scheduled scan. Uses conservative h264 + AAC targets so the
+    // output plays on the widest range of clients; user isn't asked which codec because if
+    // we're here the source is broken enough that survival trumps optimality.
+    // ponytail: h264/aac hardcoded; add a config knob only if a user files a preference (i-bl-05).
+    private async Task<string?> TryRung4Async(Issue issue, FfprobeData originalProbe, IProgress<double>? progress, CancellationToken cancellationToken)
+    {
+        var tempPath = TranscodeFixer.SidecarPath(issue.Path, "repair.tmp4", "mkv");
+        var args = new List<string>
+        {
+            "-err_detect", "ignore_err",
+            "-fflags", "+genpts+igndts",
+            "-i", issue.Path,
+            "-map", "0:v:0?",
+            "-map", "0:a?",
+            "-map", "0:s?",
+            "-c:v", "libx264",
+            "-preset", "medium",
+            "-crf", "20",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-c:s", "copy",
+            "-map_chapters", "0",
+            tempPath
+        };
+
+        double duration = 0;
+        if (double.TryParse(originalProbe.Format?.Duration, NumberStyles.Float, CultureInfo.InvariantCulture, out var d) && d > 0)
+        {
+            duration = d;
+        }
+
+        var error = await _ffmpeg.RunAsync(args, RepairRungTimeout, cancellationToken, progress, duration).ConfigureAwait(false);
+        if (error is not null)
+        {
+            _logger.LogInformation("Rung 4 re-encode failed for {Path}: {Error}", issue.Path, TranscodeFixer.Truncate(error));
+            TryDelete(tempPath);
+            return null;
+        }
+
+        var verifyError = await _verifier.VerifyAsync(originalProbe, issue.Path, tempPath, cancellationToken).ConfigureAwait(false);
+        if (verifyError is not null)
+        {
+            _logger.LogInformation("Rung 4 verify failed for {Path}: {Error}", issue.Path, verifyError);
+            TryDelete(tempPath);
+            return null;
+        }
+
+        return tempPath;
+    }
 
     // Exposed internal for direct unit-testing without spinning up a full fixer.
     internal static bool HasFreeSpace(string path, int multiplier)
