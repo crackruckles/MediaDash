@@ -14,6 +14,11 @@ namespace Jellyfin.Plugin.MediaDash.Tests;
 /// </summary>
 public class RecycleBinManifestRoundTripTests
 {
+    // Plugin runs on both Windows and Linux Jellyfin servers; a Linux plugin stores "/media/..."
+    // manifest lines and a Windows plugin stores "C:\media\...". Build inputs the platform-native
+    // way so Path.GetFileName can decompose them and the matcher behaves identically on both.
+    private static readonly string MediaRoot = OperatingSystem.IsWindows() ? @"C:\media" : "/media";
+
     [Fact]
     public void ReadOriginManifest_ReturnsEmpty_WhenManifestFileAbsent()
     {
@@ -42,21 +47,22 @@ public class RecycleBinManifestRoundTripTests
     [Fact]
     public void MatchManifestEntryToFile_PicksTheMatchingBasename()
     {
+        var song = Path.Combine(MediaRoot, "music", "Song.mp3");
         var manifest = new[]
         {
-            @"C:\media\movies\A Movie.mkv",
-            @"C:\media\music\Song.mp3",
-            @"C:\media\tv\S01E01.mkv"
+            Path.Combine(MediaRoot, "movies", "A Movie.mkv"),
+            song,
+            Path.Combine(MediaRoot, "tv", "S01E01.mkv")
         };
 
         var match = RecycleBin.MatchManifestEntryToFile(manifest, "Song.mp3");
-        Assert.Equal(@"C:\media\music\Song.mp3", match);
+        Assert.Equal(song, match);
     }
 
     [Fact]
     public void MatchManifestEntryToFile_ReturnsNull_WhenBasenameNotPresent()
     {
-        var manifest = new[] { @"C:\media\A.mkv", @"C:\media\B.mkv" };
+        var manifest = new[] { Path.Combine(MediaRoot, "A.mkv"), Path.Combine(MediaRoot, "B.mkv") };
         Assert.Null(RecycleBin.MatchManifestEntryToFile(manifest, "C.mkv"));
     }
 
@@ -65,14 +71,15 @@ public class RecycleBinManifestRoundTripTests
     {
         // Two library paths sharing a basename (e.g. "cover.jpg" in every music folder) — pick the
         // first-appended line. Ambiguity is an edge case; deterministic behavior beats surprise.
+        var first = Path.Combine(MediaRoot, "music", "Album A", "cover.jpg");
         var manifest = new[]
         {
-            @"C:\media\music\Album A\cover.jpg",
-            @"C:\media\music\Album B\cover.jpg"
+            first,
+            Path.Combine(MediaRoot, "music", "Album B", "cover.jpg")
         };
 
         var match = RecycleBin.MatchManifestEntryToFile(manifest, "cover.jpg");
-        Assert.Equal(@"C:\media\music\Album A\cover.jpg", match);
+        Assert.Equal(first, match);
     }
 
     [Fact]
@@ -90,8 +97,9 @@ public class RecycleBinManifestRoundTripTests
     public void MatchManifestEntryToFile_SkipsBlankLines()
     {
         // ReadOriginManifest strips blanks, but the matcher is defensive against a caller passing raw lines.
-        var manifest = new[] { string.Empty, @"C:\media\A.mkv" };
-        Assert.Equal(@"C:\media\A.mkv", RecycleBin.MatchManifestEntryToFile(manifest, "A.mkv"));
+        var a = Path.Combine(MediaRoot, "A.mkv");
+        var manifest = new[] { string.Empty, a };
+        Assert.Equal(a, RecycleBin.MatchManifestEntryToFile(manifest, "A.mkv"));
     }
 
     private sealed class BatchDir : IDisposable

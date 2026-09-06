@@ -167,10 +167,13 @@ public sealed class TrickplayOptimizeScannerTests
     public void ShouldWalkMediaFolder_TrueWhenSettingOff_ButProbeFindsLegacy()
     {
         // Setting says data-folder, but one item still has an old media-folder sibling. Must walk.
-        var expectedSibling = Path.Combine(@"D:\lib", "b.trickplay");
+        // Plugin ships on both Windows and Linux Jellyfin; SiblingTrickplayDir uses
+        // Path.GetDirectoryName which only splits on the platform separator, so build inputs natively.
+        var lib = OperatingSystem.IsWindows() ? @"D:\lib" : "/lib";
+        var expectedSibling = Path.Combine(lib, "b.trickplay");
         var walk = TrickplayOptimizeScanner.ShouldWalkMediaFolder(
             saveTrickplayWithMedia: false,
-            sampleVideoPaths: new[] { @"D:\lib\a.mkv", @"D:\lib\b.mkv", @"D:\lib\c.mkv" },
+            sampleVideoPaths: new[] { Path.Combine(lib, "a.mkv"), Path.Combine(lib, "b.mkv"), Path.Combine(lib, "c.mkv") },
             dirExists: p => string.Equals(p, expectedSibling, StringComparison.OrdinalIgnoreCase));
         Assert.True(walk);
     }

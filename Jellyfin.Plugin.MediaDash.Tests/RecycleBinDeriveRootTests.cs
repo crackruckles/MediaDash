@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using Jellyfin.Plugin.MediaDash.Fixers;
 using Xunit;
 
@@ -12,11 +13,16 @@ namespace Jellyfin.Plugin.MediaDash.Tests;
 /// </summary>
 public class RecycleBinDeriveRootTests
 {
+    // Plugin runs on both Windows and Linux Jellyfin servers; Path.GetDirectoryName only splits on
+    // the platform's separator, so build test paths natively for whichever OS the tests run on.
+    private static readonly string BinRoot = OperatingSystem.IsWindows() ? @"C:\OldBin" : "/OldBin";
+    private const string CanonicalBatch = "20260827-120000-000-a1b2c3d4";
+
     [Fact]
     public void ReturnsRoot_ForCanonicalRecyclePath()
     {
-        var recyclePath = @"C:\OldBin\20260827-120000-000-a1b2c3d4\Movie.mkv";
-        Assert.Equal(@"C:\OldBin", RecycleBin.DeriveBinRoot(recyclePath));
+        var recyclePath = Path.Combine(BinRoot, CanonicalBatch, "Movie.mkv");
+        Assert.Equal(BinRoot, RecycleBin.DeriveBinRoot(recyclePath));
     }
 
     [Fact]
@@ -52,8 +58,8 @@ public class RecycleBinDeriveRootTests
     {
         // Robust against a history row written with a trailing separator (some cross-platform
         // Path.Join implementations do this on directory targets).
-        var withSlash = @"C:\OldBin\20260827-120000-000-a1b2c3d4\Movie.mkv\";
-        Assert.Equal(@"C:\OldBin", RecycleBin.DeriveBinRoot(withSlash));
+        var withSlash = Path.Combine(BinRoot, CanonicalBatch, "Movie.mkv") + Path.DirectorySeparatorChar;
+        Assert.Equal(BinRoot, RecycleBin.DeriveBinRoot(withSlash));
     }
 
     [Fact]
@@ -74,8 +80,8 @@ public class RecycleBinDeriveRootTests
     public void HandlesBatchShapeWithUppercaseHex()
     {
         // Uri.IsHexDigit accepts both cases; the shape check should accept an uppercase-hex GUID.
-        var upper = @"C:\OldBin\20260827-120000-000-A1B2C3D4\Movie.mkv";
-        Assert.Equal(@"C:\OldBin", RecycleBin.DeriveBinRoot(upper));
+        var upper = Path.Combine(BinRoot, "20260827-120000-000-A1B2C3D4", "Movie.mkv");
+        Assert.Equal(BinRoot, RecycleBin.DeriveBinRoot(upper));
     }
 
     [Fact]
