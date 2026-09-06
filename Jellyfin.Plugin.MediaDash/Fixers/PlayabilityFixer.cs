@@ -229,7 +229,78 @@ public sealed class PlayabilityFixer : IFixer
         return tempPath;
     }
 
-    private Task<string?> TryRung2Async(Issue i, FfprobeData p, CancellationToken c) => Task.FromResult<string?>(null);
+    // Rung 2: per-stream decode check via ffprobe, drop the streams that error.
+    // Safety hard-stop: refuse if the drop would leave 0 audio or 0 video streams.
+    private async Task<string?> TryRung2Async(Issue issue, FfprobeData originalProbe, CancellationToken cancellationToken)
+    {
+        if (originalProbe.Streams is null || originalProbe.Streams.Count == 0)
+        {
+            return null;
+        }
+
+        var brokenIndexes = new List<int>();
+        foreach (var stream in originalProbe.Streams)
+        {
+            var decodeError = await _ffprobe.DecodeStreamAsync(issue.Path, stream.Index, cancellationToken).ConfigureAwait(false);
+            if (decodeError is not null)
+            {
+                brokenIndexes.Add(stream.Index);
+            }
+        }
+
+        if (brokenIndexes.Count == 0)
+        {
+            return null;
+        }
+
+        // Safety: never leave zero video or zero audio streams. Refuse the whole rung; caller falls to rung 3.
+        var survivingVideo = originalProbe.Streams.Any(s => string.Equals(s.CodecType, "video", StringComparison.OrdinalIgnoreCase) && !brokenIndexes.Contains(s.Index));
+        var survivingAudio = originalProbe.Streams.Any(s => string.Equals(s.CodecType, "audio", StringComparison.OrdinalIgnoreCase) && !brokenIndexes.Contains(s.Index));
+        if (!survivingVideo || !survivingAudio)
+        {
+            _logger.LogDebug("Rung 2 refused for {Path}: dropping would leave 0 video or 0 audio streams.", issue.Path);
+            return null;
+        }
+
+        var ext = Path.GetExtension(issue.Path).TrimStart('.');
+        if (string.IsNullOrEmpty(ext))
+        {
+            return null;
+        }
+
+        var tempPath = TranscodeFixer.SidecarPath(issue.Path, "repair.tmp2", ext);
+        var args = new List<string>
+        {
+            "-err_detect", "ignore_err",
+            "-i", issue.Path,
+            "-map", "0",
+        };
+        foreach (var idx in brokenIndexes)
+        {
+            args.Add("-map");
+            args.Add("-0:" + idx.ToString(CultureInfo.InvariantCulture));
+        }
+
+        args.AddRange(["-c", "copy", tempPath]);
+
+        var error = await _ffmpeg.RunAsync(args, RepairRungTimeout, cancellationToken).ConfigureAwait(false);
+        if (error is not null)
+        {
+            _logger.LogDebug("Rung 2 remux failed for {Path}: {Error}", issue.Path, TranscodeFixer.Truncate(error));
+            TryDelete(tempPath);
+            return null;
+        }
+
+        var verifyError = await _verifier.VerifyAsync(originalProbe, issue.Path, tempPath, cancellationToken).ConfigureAwait(false);
+        if (verifyError is not null)
+        {
+            _logger.LogDebug("Rung 2 verify failed for {Path}: {Error}", issue.Path, verifyError);
+            TryDelete(tempPath);
+            return null;
+        }
+
+        return tempPath;
+    }
 
     private Task<string?> TryRung3Async(Issue i, FfprobeData p, CancellationToken c) => Task.FromResult<string?>(null);
 

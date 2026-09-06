@@ -145,6 +145,26 @@ public sealed class FfprobeService
         return result;
     }
 
+    /// <summary>
+    /// Decodes a single stream index to /dev/null to check whether it errors. Used by
+    /// PlayabilityFixer's rung-2 (drop broken streams) to pick which streams to leave out
+    /// of the remux. Whole-file exit-code check — no cache, no time-shortfall heuristic:
+    /// broken streams are typically all-broken or all-fine, not partially truncated.
+    /// </summary>
+    /// <param name="path">Full path of the file.</param>
+    /// <param name="streamIndex">Zero-based ffprobe stream index.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The decode error output, or null when the stream decodes cleanly.</returns>
+    public async Task<string?> DecodeStreamAsync(string path, int streamIndex, CancellationToken cancellationToken)
+    {
+        var idx = streamIndex.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return await RunFfmpegDecodeAsync(
+            ["-i", path, "-map", "0:" + idx, "-f", "null", "-"],
+            expectedSeconds: 0,
+            tolerantContainer: true,
+            cancellationToken).ConfigureAwait(false);
+    }
+
     private async Task<string?> RunFfmpegDecodeAsync(string[] args, double expectedSeconds, bool tolerantContainer, CancellationToken cancellationToken)
     {
         var encoderPath = _mediaEncoder.EncoderPath;
