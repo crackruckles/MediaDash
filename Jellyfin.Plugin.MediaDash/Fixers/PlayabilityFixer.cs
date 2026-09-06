@@ -302,7 +302,48 @@ public sealed class PlayabilityFixer : IFixer
         return tempPath;
     }
 
-    private Task<string?> TryRung3Async(Issue i, FfprobeData p, CancellationToken c) => Task.FromResult<string?>(null);
+    // Rung 3: repack into MKV (universal container). Changes the file extension —
+    // Jellyfin re-indexes the file and watch history for the title resets.
+    // SwapRepairedAsync uses extensionChanged: true so the output lands at
+    // Path.ChangeExtension(original, ".mkv") and both paths are reported to the library monitor.
+    private async Task<string?> TryRung3Async(Issue issue, FfprobeData originalProbe, CancellationToken cancellationToken)
+    {
+        // Same-container coerce is meaningless — that's rung 1's job.
+        if (string.Equals(Path.GetExtension(issue.Path), ".mkv", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var tempPath = TranscodeFixer.SidecarPath(issue.Path, "repair.tmp3", "mkv");
+        var args = new List<string>
+        {
+            "-err_detect", "ignore_err",
+            "-fflags", "+genpts+igndts",
+            "-i", issue.Path,
+            "-map", "0",
+            "-c", "copy",
+            "-avoid_negative_ts", "make_zero",
+            tempPath
+        };
+
+        var error = await _ffmpeg.RunAsync(args, RepairRungTimeout, cancellationToken).ConfigureAwait(false);
+        if (error is not null)
+        {
+            _logger.LogDebug("Rung 3 mkv-coerce failed for {Path}: {Error}", issue.Path, TranscodeFixer.Truncate(error));
+            TryDelete(tempPath);
+            return null;
+        }
+
+        var verifyError = await _verifier.VerifyAsync(originalProbe, issue.Path, tempPath, cancellationToken).ConfigureAwait(false);
+        if (verifyError is not null)
+        {
+            _logger.LogDebug("Rung 3 verify failed for {Path}: {Error}", issue.Path, verifyError);
+            TryDelete(tempPath);
+            return null;
+        }
+
+        return tempPath;
+    }
 
     private Task<string?> TryRung4Async(Issue i, FfprobeData p, IProgress<double>? pr, CancellationToken c) => Task.FromResult<string?>(null);
 
