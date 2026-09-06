@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MediaDash Roadmap</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root {
+    --bg: #1a1c20;
+    --panel: #23262c;
+    --card: #2d3138;
+    --card-hover: #353a42;
+    --border: #3d424b;
+    --text: #e6e8eb;
+    --muted: #8a919c;
+    --accent: #6ea8ff;
+    --bug: #e06868;
+    --feat: #6ea8ff;
+    --drop: #2f7a44;
+    --danger: #c94a4a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg); color: var(--text);
+    font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    overflow: hidden;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 20px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  header h1 { margin: 0; font-size: 16px; font-weight: 600; flex-shrink: 0; }
+  .status {
+    flex: 1; color: var(--muted); font-size: 12px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .status .path { color: var(--text); font-family: ui-monospace, Consolas, monospace; }
+  .status .indicator { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-right: 6px; vertical-align: 1px; }
+  .status.saved .indicator { background: #4a9955; }
+  .status.saving .indicator { background: #d8a44a; animation: pulse 0.8s ease-in-out infinite; }
+  .status.error .indicator { background: var(--danger); }
+  @keyframes pulse { 50% { opacity: 0.4; } }
+  button {
+    background: var(--card); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 6px 12px; font: inherit; cursor: pointer;
+  }
+  button:hover { background: var(--card-hover); }
+  button.primary { background: var(--accent); color: #0a0f1a; border-color: var(--accent); font-weight: 500; }
+  button.primary:hover { filter: brightness(1.1); }
+  button.danger { color: var(--danger); }
+  button.danger:hover { background: var(--danger); color: #fff; }
+  .banner {
+    padding: 10px 20px; background: #3a2a2a; color: #ffb0b0; border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .banner.hidden { display: none; }
+  #board {
+    display: flex; gap: 12px; padding: 16px; overflow-x: auto; overflow-y: hidden;
+    height: calc(100% - 55px); align-items: stretch;
+  }
+  .column {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+    min-width: 280px; max-width: 320px; flex: 0 0 auto;
+    display: flex; flex-direction: column; max-height: 100%;
+  }
+  .column.drop-target { border-color: var(--drop); background: #253028; }
+  .col-header {
+    padding: 10px 12px; display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .col-name {
+    flex: 1; font-weight: 600; font-size: 14px; cursor: pointer;
+    padding: 2px 4px; border-radius: 3px;
+  }
+  .col-name:hover { background: var(--card); }
+  .col-name.editing { background: var(--card); }
+  .col-name input {
+    background: transparent; color: inherit; border: none; font: inherit; font-weight: 600;
+    width: 100%; outline: none;
+  }
+  .col-count { color: var(--muted); font-size: 12px; }
+  .col-menu {
+    background: transparent; border: none; color: var(--muted); padding: 2px 6px;
+    cursor: pointer; border-radius: 3px; font-size: 16px; line-height: 1;
+  }
+  .col-menu:hover { background: var(--card); color: var(--text); }
+  .col-items {
+    padding: 8px; overflow-y: auto; flex: 1;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .col-add {
+    padding: 8px; border-top: 1px solid var(--border);
+  }
+  .col-add button {
+    width: 100%; text-align: left; color: var(--muted); border-style: dashed;
+  }
+  .col-add button:hover { color: var(--text); }
+  .item {
+    background: var(--card); border: 1px solid var(--border); border-radius: 5px;
+    padding: 8px 10px; cursor: grab; position: relative;
+    transition: background 0.1s;
+  }
+  .item:hover { background: var(--card-hover); }
+  .item.dragging { opacity: 0.4; }
+  .item .title {
+    font-weight: 500; word-wrap: break-word; padding-right: 20px;
+  }
+  .item .chip {
+    display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 10px;
+    margin-right: 6px; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: 1px;
+  }
+  .chip.bug { background: rgba(224,104,104,0.2); color: var(--bug); border: 1px solid rgba(224,104,104,0.4); }
+  .chip.feature { background: rgba(110,168,255,0.2); color: var(--feat); border: 1px solid rgba(110,168,255,0.4); }
+  .item .del {
+    position: absolute; top: 4px; right: 6px; background: none; border: none;
+    color: var(--muted); font-size: 14px; padding: 0 4px; cursor: pointer;
+    opacity: 0; transition: opacity 0.1s; line-height: 1;
+  }
+  .item:hover .del { opacity: 1; }
+  .item .del:hover { color: var(--danger); }
+  .item.expanded { cursor: default; background: var(--card-hover); }
+  .item.expanded .del { opacity: 1; }
+  .item .edit-title, .item .edit-notes {
+    width: 100%; background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 3px;
+    padding: 4px 6px; font: inherit; margin-top: 6px; outline: none;
+  }
+  .item .edit-notes { resize: vertical; min-height: 60px; font-family: inherit; }
+  .item .edit-row { display: flex; gap: 6px; margin-top: 8px; align-items: center; }
+  .item .edit-row label { color: var(--muted); font-size: 12px; }
+  .item .edit-row select {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 3px; padding: 3px 6px; font: inherit;
+  }
+  .item .edit-actions { display: flex; gap: 6px; margin-top: 8px; justify-content: flex-end; }
+  .item .edit-actions button { padding: 3px 10px; font-size: 12px; }
+  .empty-hint {
+    color: var(--muted); text-align: center; padding: 20px 12px; font-size: 12px;
+  }
+  .welcome {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(26,28,32,0.95); z-index: 10;
+  }
+  .welcome.hidden { display: none; }
+  .welcome .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 32px; max-width: 500px; text-align: center;
+  }
+  .welcome h2 { margin: 0 0 8px; }
+  .welcome p { color: var(--muted); margin: 8px 0 20px; }
+  .welcome .actions { display: flex; gap: 8px; justify-content: center; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Roadmap</h1>
+  <div class="status" id="status">
+    <span class="indicator"></span>
+    <span id="statusText">Not connected. </span>
+    <span class="path" id="filepath"></span>
+  </div>
+  <button id="pickFile">Choose file…</button>
+  <button id="downloadJson" title="Download current state as JSON">Download</button>
+  <button class="primary" id="addVersion">+ Version</button>
+</header>
+
+<div class="banner hidden" id="unsupportedBanner">
+  Your browser doesn't support the File System Access API. Use Chrome or Edge for autosave; you can still use this page with the Download button as a manual export.
+</div>
+
+<div id="board"></div>
+
+<div class="welcome" id="welcome">
+  <div class="card">
+    <h2>MediaDash Roadmap</h2>
+    <p>Pick a JSON file to save your roadmap. Every change autosaves to it. If the file is empty or new, it seeds with the current MediaDash version buckets.</p>
+    <div class="actions">
+      <button class="primary" id="welcomePickNew">New file…</button>
+      <button id="welcomeOpen">Open existing…</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ---------- State ----------
+
+/** @type {{versions: {id:string,name:string,order:number}[], items: {id:string,title:string,notes:string,kind:string,versionId:string,createdAt:string,updatedAt:string}[]}} */
+let state = { versions: [], items: [] };
+let fileHandle = null;
+let saveTimer = null;
+const SAVE_DEBOUNCE_MS = 500;
+const supportsFS = 'showSaveFilePicker' in window && 'showOpenFilePicker' in window;
+
+// ---------- Seed ----------
+
+function seedState() {
+  const now = new Date().toISOString();
+  return {
+    versions: [
+      { id: 'backlog',   name: 'Backlog',  order: 0 },
+      { id: 'v-1-0-7-5', name: '1.0.7.5',  order: 1 },
+      { id: 'v-1-0-7-6', name: '1.0.7.6',  order: 2 },
+      { id: 'v-1-0-8-0', name: '1.0.8.0',  order: 3 }
+    ],
+    items: [],
+    _seededAt: now
+  };
+}
+
+// ---------- Persistence ----------
+
+async function loadFromHandle(handle) {
+  const file = await handle.getFile();
+  const text = await file.text();
+  fileHandle = handle; // set before saveNow() so the empty-file seed actually writes
+  if (!text.trim()) {
+    state = seedState();
+    await saveNow();
+  } else {
+    try {
+      const parsed = JSON.parse(text);
+      state = normalizeState(parsed);
+    } catch (e) {
+      alert('Could not parse the JSON file: ' + e.message + '\n\nStarting fresh; original file will be overwritten on next change.');
+      state = seedState();
+    }
+  }
+  updateStatus('saved', handle.name);
+  hideWelcome();
+  render();
+}
+
+function normalizeState(raw) {
+  const s = { versions: [], items: [] };
+  if (Array.isArray(raw.versions) && raw.versions.length > 0) {
+    s.versions = raw.versions
+      .filter(v => v && typeof v.id === 'string' && typeof v.name === 'string')
+      .map((v, i) => ({ id: v.id, name: v.name, order: typeof v.order === 'number' ? v.order : i }));
+  } else {
+    s.versions = seedState().versions;
+  }
+  if (Array.isArray(raw.items)) {
+    const validVersionIds = new Set(s.versions.map(v => v.id));
+    s.items = raw.items
+      .filter(it => it && typeof it.id === 'string' && typeof it.title === 'string')
+      .map(it => ({
+        id: it.id,
+        title: it.title,
+        notes: typeof it.notes === 'string' ? it.notes : '',
+        kind: it.kind === 'bug' ? 'bug' : 'feature',
+        versionId: validVersionIds.has(it.versionId) ? it.versionId : s.versions[0].id,
+        createdAt: it.createdAt || new Date().toISOString(),
+        updatedAt: it.updatedAt || new Date().toISOString()
+      }));
+  }
+  return s;
+}
+
+function scheduleSave() {
+  if (saveTimer) clearTimeout(saveTimer);
+  updateStatus('saving');
+  saveTimer = setTimeout(() => { saveTimer = null; saveNow(); }, SAVE_DEBOUNCE_MS);
+}
+
+async function saveNow() {
+  if (!fileHandle) return;
+  try {
+    const writable = await fileHandle.createWritable();
+    await writable.write(JSON.stringify(state, null, 2));
+    await writable.close();
+    updateStatus('saved', fileHandle.name);
+  } catch (e) {
+    console.error('Save failed', e);
+    updateStatus('error', 'Save failed: ' + e.message);
+  }
+}
+
+// ---------- Status UI ----------
+
+function updateStatus(kind, detail) {
+  const el = document.getElementById('status');
+  const txt = document.getElementById('statusText');
+  const path = document.getElementById('filepath');
+  el.className = 'status ' + kind;
+  if (kind === 'saved') { txt.textContent = 'Saved to '; path.textContent = detail || ''; }
+  else if (kind === 'saving') { txt.textContent = 'Saving…'; path.textContent = fileHandle ? fileHandle.name : ''; }
+  else if (kind === 'error') { txt.textContent = detail; path.textContent = ''; }
+  else { txt.textContent = 'Not connected. '; path.textContent = ''; }
+}
+
+function hideWelcome() { document.getElementById('welcome').classList.add('hidden'); }
+function showWelcome() { document.getElementById('welcome').classList.remove('hidden'); }
+
+// ---------- Rendering ----------
+
+function render() {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  const sortedVersions = [...state.versions].sort((a, b) => a.order - b.order);
+  for (const v of sortedVersions) {
+    board.appendChild(renderColumn(v));
+  }
+}
+
+function renderColumn(version) {
+  const col = document.createElement('div');
+  col.className = 'column';
+  col.dataset.versionId = version.id;
+
+  const items = state.items.filter(i => i.versionId === version.id);
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'col-header';
+  const name = document.createElement('div');
+  name.className = 'col-name';
+  name.textContent = version.name;
+  name.title = 'Click to rename';
+  name.onclick = () => startRenameColumn(version.id, name);
+  const count = document.createElement('span');
+  count.className = 'col-count';
+  count.textContent = items.length;
+  const menu = document.createElement('button');
+  menu.className = 'col-menu';
+  menu.textContent = '⋯';
+  menu.title = 'Delete column';
+  menu.onclick = (e) => { e.stopPropagation(); confirmDeleteColumn(version.id); };
+  header.appendChild(name);
+  header.appendChild(count);
+  header.appendChild(menu);
+  col.appendChild(header);
+
+  // Items
+  const list = document.createElement('div');
+  list.className = 'col-items';
+  if (items.length === 0) {
+    const hint = document.createElement('div');
+    hint.className = 'empty-hint';
+    hint.textContent = 'No items yet';
+    list.appendChild(hint);
+  } else {
+    for (const it of items) list.appendChild(renderItem(it));
+  }
+  col.appendChild(list);
+
+  // Add button
+  const addWrap = document.createElement('div');
+  addWrap.className = 'col-add';
+  const addBtn = document.createElement('button');
+  addBtn.textContent = '+ Add item';
+  addBtn.onclick = () => addItem(version.id);
+  addWrap.appendChild(addBtn);
+  col.appendChild(addWrap);
+
+  // Drop target
+  col.ondragover = (e) => { e.preventDefault(); col.classList.add('drop-target'); };
+  col.ondragleave = (e) => {
+    // Only clear when the pointer leaves the column entirely — dragleave fires on children too.
+    if (e.currentTarget.contains(e.relatedTarget)) return;
+    col.classList.remove('drop-target');
+  };
+  col.ondrop = (e) => {
+    e.preventDefault();
+    col.classList.remove('drop-target');
+    const itemId = e.dataTransfer.getData('text/plain');
+    moveItem(itemId, version.id);
+  };
+
+  return col;
+}
+
+function renderItem(item) {
+  const el = document.createElement('div');
+  el.className = 'item';
+  el.dataset.itemId = item.id;
+  el.draggable = true;
+  el.ondragstart = (e) => {
+    e.dataTransfer.setData('text/plain', item.id);
+    e.dataTransfer.effectAllowed = 'move';
+    el.classList.add('dragging');
+  };
+  el.ondragend = () => el.classList.remove('dragging');
+  el.onclick = (e) => {
+    if (e.target.closest('button, input, textarea, select')) return;
+    toggleExpanded(el, item);
+  };
+
+  const title = document.createElement('div');
+  title.className = 'title';
+  const chip = document.createElement('span');
+  chip.className = 'chip ' + item.kind;
+  chip.textContent = item.kind;
+  title.appendChild(chip);
+  title.appendChild(document.createTextNode(item.title));
+  el.appendChild(title);
+
+  const del = document.createElement('button');
+  del.className = 'del';
+  del.textContent = '×';
+  del.title = 'Delete item';
+  del.onclick = (e) => { e.stopPropagation(); deleteItem(item.id); };
+  el.appendChild(del);
+
+  return el;
+}
+
+function toggleExpanded(el, item) {
+  if (el.classList.contains('expanded')) {
+    collapseItem(el, item);
+    return;
+  }
+  el.classList.add('expanded');
+  el.draggable = false;
+  // Clear the collapsed content and rebuild in edit mode.
+  el.innerHTML = '';
+
+  const del = document.createElement('button');
+  del.className = 'del';
+  del.textContent = '×';
+  del.onclick = (e) => { e.stopPropagation(); deleteItem(item.id); };
+  el.appendChild(del);
+
+  const titleInput = document.createElement('input');
+  titleInput.className = 'edit-title';
+  titleInput.type = 'text';
+  titleInput.value = item.title;
+  titleInput.placeholder = 'Title';
+  el.appendChild(titleInput);
+
+  const notes = document.createElement('textarea');
+  notes.className = 'edit-notes';
+  notes.value = item.notes;
+  notes.placeholder = 'Notes (optional)';
+  el.appendChild(notes);
+
+  const row = document.createElement('div');
+  row.className = 'edit-row';
+  const kindLabel = document.createElement('label');
+  kindLabel.textContent = 'Kind:';
+  const kindSel = document.createElement('select');
+  ['feature', 'bug'].forEach(k => {
+    const o = document.createElement('option');
+    o.value = k; o.textContent = k;
+    if (item.kind === k) o.selected = true;
+    kindSel.appendChild(o);
+  });
+  row.appendChild(kindLabel);
+  row.appendChild(kindSel);
+  el.appendChild(row);
+
+  const actions = document.createElement('div');
+  actions.className = 'edit-actions';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.onclick = (e) => { e.stopPropagation(); render(); };
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'primary';
+  saveBtn.textContent = 'Save';
+  saveBtn.onclick = (e) => {
+    e.stopPropagation();
+    updateItem(item.id, {
+      title: titleInput.value.trim() || item.title,
+      notes: notes.value,
+      kind: kindSel.value
+    });
+  };
+  actions.appendChild(cancelBtn);
+  actions.appendChild(saveBtn);
+  el.appendChild(actions);
+
+  titleInput.focus();
+  titleInput.select();
+}
+
+function collapseItem(el, item) {
+  el.classList.remove('expanded');
+  el.draggable = true;
+  render();
+}
+
+// ---------- Mutations ----------
+
+function newId() {
+  if (crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+}
+
+function addItem(versionId) {
+  const title = prompt('New item title:');
+  if (!title || !title.trim()) return;
+  const now = new Date().toISOString();
+  state.items.push({
+    id: newId(),
+    title: title.trim(),
+    notes: '',
+    kind: 'feature',
+    versionId,
+    createdAt: now,
+    updatedAt: now
+  });
+  scheduleSave();
+  render();
+}
+
+function updateItem(id, changes) {
+  const it = state.items.find(x => x.id === id);
+  if (!it) return;
+  Object.assign(it, changes, { updatedAt: new Date().toISOString() });
+  scheduleSave();
+  render();
+}
+
+function moveItem(id, versionId) {
+  const it = state.items.find(x => x.id === id);
+  if (!it || it.versionId === versionId) return;
+  it.versionId = versionId;
+  it.updatedAt = new Date().toISOString();
+  scheduleSave();
+  render();
+}
+
+function deleteItem(id) {
+  const it = state.items.find(x => x.id === id);
+  if (!it) return;
+  if (!confirm('Delete "' + it.title + '"?')) return;
+  state.items = state.items.filter(x => x.id !== id);
+  scheduleSave();
+  render();
+}
+
+function addVersion() {
+  const name = prompt('New version name (e.g. 1.1.0):');
+  if (!name || !name.trim()) return;
+  const trimmed = name.trim();
+  const id = 'v-' + trimmed.replace(/[^\w]+/g, '-').toLowerCase();
+  if (state.versions.some(v => v.id === id)) {
+    alert('A version with that name already exists.');
+    return;
+  }
+  const maxOrder = Math.max(...state.versions.map(v => v.order), -1);
+  state.versions.push({ id, name: trimmed, order: maxOrder + 1 });
+  scheduleSave();
+  render();
+}
+
+function startRenameColumn(versionId, nameEl) {
+  const v = state.versions.find(x => x.id === versionId);
+  if (!v) return;
+  nameEl.classList.add('editing');
+  const input = document.createElement('input');
+  input.value = v.name;
+  nameEl.innerHTML = '';
+  nameEl.appendChild(input);
+  input.focus();
+  input.select();
+  const commit = () => {
+    const newName = input.value.trim();
+    if (newName && newName !== v.name) {
+      v.name = newName;
+      scheduleSave();
+    }
+    render();
+  };
+  input.onblur = commit;
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') { commit(); }
+    else if (e.key === 'Escape') { render(); }
+  };
+}
+
+function confirmDeleteColumn(versionId) {
+  const v = state.versions.find(x => x.id === versionId);
+  if (!v) return;
+  if (v.id === 'backlog') {
+    alert('Backlog cannot be deleted — it is the fallback for items whose version is removed.');
+    return;
+  }
+  const affected = state.items.filter(i => i.versionId === versionId).length;
+  const msg = affected > 0
+    ? `Delete column "${v.name}"?\n\n${affected} item(s) will move to Backlog.`
+    : `Delete column "${v.name}"?`;
+  if (!confirm(msg)) return;
+  // Ensure a Backlog exists to receive orphaned items.
+  let backlog = state.versions.find(x => x.id === 'backlog');
+  if (!backlog) {
+    backlog = { id: 'backlog', name: 'Backlog', order: -1 };
+    state.versions.push(backlog);
+  }
+  for (const it of state.items) {
+    if (it.versionId === versionId) {
+      it.versionId = 'backlog';
+      it.updatedAt = new Date().toISOString();
+    }
+  }
+  state.versions = state.versions.filter(x => x.id !== versionId);
+  scheduleSave();
+  render();
+}
+
+// ---------- File picker ----------
+
+async function pickNewFile() {
+  if (!supportsFS) { downloadCurrent(); return; }
+  try {
+    const handle = await window.showSaveFilePicker({
+      suggestedName: 'roadmap.json',
+      types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
+    });
+    state = seedState();
+    fileHandle = handle;
+    await saveNow();
+    hideWelcome();
+    render();
+  } catch (e) {
+    if (e.name !== 'AbortError') alert('Could not create file: ' + e.message);
+  }
+}
+
+async function pickExistingFile() {
+  if (!supportsFS) { alert('File System Access API not supported in this browser.'); return; }
+  try {
+    const [handle] = await window.showOpenFilePicker({
+      types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
+    });
+    // Ask for read+write permission upfront so autosave doesn't prompt later.
+    const perm = await handle.requestPermission({ mode: 'readwrite' });
+    if (perm !== 'granted') { alert('Read/write permission is required for autosave.'); return; }
+    await loadFromHandle(handle);
+  } catch (e) {
+    if (e.name !== 'AbortError') alert('Could not open file: ' + e.message);
+  }
+}
+
+function downloadCurrent() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'roadmap.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ---------- Wire up ----------
+
+document.getElementById('pickFile').onclick = pickExistingFile;
+document.getElementById('downloadJson').onclick = downloadCurrent;
+document.getElementById('addVersion').onclick = addVersion;
+document.getElementById('welcomePickNew').onclick = pickNewFile;
+document.getElementById('welcomeOpen').onclick = pickExistingFile;
+
+if (!supportsFS) {
+  document.getElementById('unsupportedBanner').classList.remove('hidden');
+  document.getElementById('pickFile').disabled = true;
+  document.getElementById('welcomeOpen').disabled = true;
+  document.getElementById('welcomePickNew').textContent = 'Start (download only)';
+  document.getElementById('welcomePickNew').onclick = () => {
+    state = seedState();
+    hideWelcome();
+    render();
+  };
+}
+
+// Warn on unload if there are unsaved changes queued.
+window.addEventListener('beforeunload', (e) => {
+  if (saveTimer) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+</script>
+
+</body>
+</html>

@@ -115,6 +115,7 @@ public class PluginConfiguration : BasePluginConfiguration
         // ffmpeg pinned every core on a Debian/Docker VM and locked up SSH.
         ScanCpuThreads = 0;
         ScanBelowNormalPriority = true;
+        LowSystemImpactMode = false;
         // Empty = use FixTask's built-in D2 ordering. Populated with IssueType names via the
         // Overview "Fix order" dialog when the user has customised the fix order.
         FixerOrder = [];
@@ -225,6 +226,22 @@ public class PluginConfiguration : BasePluginConfiguration
     /// way whenever someone is using the server.
     /// </summary>
     public bool PauseDuringPlayback { get; set; }
+
+    /// <summary>
+    /// Gets or sets the start time-of-day (24-hour <c>HH:mm</c>) of the window during which the fix
+    /// task is allowed to run. Empty (with <see cref="FixWindowEnd"/> also empty) means no window —
+    /// existing behaviour, run any time. When set, scheduled fix runs starting outside the window
+    /// return immediately, and a run whose window closes mid-fix is cancelled and requeued.
+    /// End earlier than Start means the window crosses midnight (e.g. 22:00 → 05:00).
+    /// Manual "Run fixes now" clicks bypass the window, matching the idle-check bypass.
+    /// </summary>
+    public string FixWindowStart { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the end time-of-day (24-hour <c>HH:mm</c>) of the fix-run window. See
+    /// <see cref="FixWindowStart"/> for semantics.
+    /// </summary>
+    public string FixWindowEnd { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets a value indicating whether MediaDash reports aggregated, anonymous per-run statistics
@@ -353,6 +370,20 @@ public class PluginConfiguration : BasePluginConfiguration
     /// default — the small speed penalty on an idle host is worth the responsiveness on a busy one.
     /// </summary>
     public bool ScanBelowNormalPriority { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to run ffmpeg at 1x realtime speed (ffmpeg's
+    /// <c>-re</c> input flag) to minimise CPU / disk peaks on machines that double as a media
+    /// server and a daily driver. Off by default.
+    /// Effect: encodes take roughly as long as the input's duration (a 45-minute episode encodes
+    /// in ~45 minutes instead of ~5), and remux disk reads spread across the same duration
+    /// instead of spiking. Combines with <see cref="ScanBelowNormalPriority"/> for the full
+    /// "yield to interactive work" story.
+    /// Trade-off worth telling the user about: with <see cref="FixWindowStart"/> /
+    /// <see cref="FixWindowEnd"/> set to a short overnight window, a slow encode can be
+    /// cancelled at window close and requeued for the next run.
+    /// </summary>
+    public bool LowSystemImpactMode { get; set; }
 
     /// <summary>
     /// Gets or sets the user-defined fixer execution order (see the "Fix order" dialog on Overview).

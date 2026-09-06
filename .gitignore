@@ -17,3 +17,7 @@ _audit_cookies.txt
 
 # Claude Code IDE state
 .claude/
+.gstack/
+
+# E2E sweep artifacts — per-run logs, DB dumps, config snapshots. Regenerated on every run.
+tools/comprehensive-test/test-results/

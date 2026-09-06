@@ -1,0 +1,355 @@
+{
+  "versions": [
+    {
+      "id": "backlog",
+      "name": "Backlog",
+      "order": 0
+    },
+    {
+      "id": "v-1-0-7-5",
+      "name": "1.0.7.5 - bug fix",
+      "order": 1
+    },
+    {
+      "id": "v-1-0-8-0",
+      "name": "1.0.8.0 - feature release",
+      "order": 3
+    },
+    {
+      "id": "v-1-0-8-1",
+      "name": "1.0.8.2",
+      "order": 4
+    },
+    {
+      "id": "v-1-0-8-2",
+      "name": "1.0.9.0",
+      "order": 5
+    }
+  ],
+  "items": [
+    {
+      "id": "i-175-01",
+      "title": "Fix window (schedule fixes to specific hours)",
+      "notes": "New setting under Safety/Scheduling. Auto-fix only runs inside the configured hours; outside them fixes stay queued.",
+      "kind": "feature",
+      "versionId": "v-1-0-7-5",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-05T13:00:00Z"
+    },
+    {
+      "id": "i-175-02",
+      "title": "Low system impact mode",
+      "notes": "Throttles ffmpeg via -re + BelowNormal process priority. Cap effective throughput at 1x realtime so a busy encode doesn't hog the daily-driver machine.",
+      "kind": "feature",
+      "versionId": "v-1-0-7-5",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-05T13:00:00Z"
+    },
+    {
+      "id": "i-175-03",
+      "title": "Fix run progress shows items remaining / total",
+      "notes": "Replaces the misleading time estimate. Simpler, more truthful.",
+      "kind": "bug",
+      "versionId": "v-1-0-7-5",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-05T14:43:57.329Z"
+    },
+    {
+      "id": "i-175-04",
+      "title": "Blu-ray remuxes rejected for duration mismatch",
+      "notes": "3-layer verify ladder in OutputVerifier: duration, then nb_frames, then packet-count walk. Rescues Spider-Verse AV1, Lion King 2019, and similar remuxes where the source container reports unreliable metadata.",
+      "kind": "bug",
+      "versionId": "v-1-0-7-5",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-05T13:00:00Z"
+    },
+    {
+      "id": "i-175-05",
+      "title": "Fix runs now check every 30 minutes (was 15)",
+      "notes": "Halves scheduler wake-up cost on idle libraries.",
+      "kind": "bug",
+      "versionId": "v-1-0-7-5",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-05T14:43:52.123Z"
+    },
+    {
+      "id": "i-175-06",
+      "title": "Delete button per row on Recycle bin tab",
+      "notes": "New MediaDashController endpoint + row action in configPage.html. Lets users permanently remove individual bin entries without waiting for retention.",
+      "kind": "feature",
+      "versionId": "v-1-0-7-5",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-05T13:00:00Z"
+    },
+    {
+      "id": "i-175-07",
+      "title": "Recycle bin listing crash when batch auto-purged mid-request",
+      "notes": "Broaden try/catch around ReadOriginManifest and directory enumeration in RecycleBin.ListContents.",
+      "kind": "bug",
+      "versionId": "v-1-0-7-5",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-05T13:00:00Z"
+    },
+    {
+      "id": "i-175-08",
+      "title": "Recently Added timestamps drifting on cross-drive moves",
+      "notes": "MediaSorterFixer / MediaGrouperFixer now capture CreationTimeUtc + LastWriteTimeUtc pre-move and restore post-move. Stops Jellyfin from re-flagging every organised file as new.",
+      "kind": "bug",
+      "versionId": "v-1-0-7-5",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-05T13:00:00Z"
+    },
+    {
+      "id": "i-175-09",
+      "title": "Retry loop on files/folders with a name collision at the target",
+      "notes": "Reconciled 2026-09-06: fix is real. Two targetExists guards land in MediaGrouperScanner.cs at :170 (movies / franchise sweep) and :262 (BuildTvIssue). Both git-blame to 1.0.7.5 WIP with no equivalent in v1.0.7.4 or v1.0.7. CHANGELOG bullet rewritten to name Media Grouper and cite the Yellowstone (2018) user report.",
+      "kind": "bug",
+      "versionId": "v-1-0-7-5",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-06T05:00:00Z"
+    },
+    {
+      "id": "i-175-10",
+      "title": "Clear stale unplayable false-positives from earlier versions",
+      "notes": "MediaDashDb schema v6 migration: DELETE FROM issues WHERE type = Playability. Also purges decode_cache. One-time cleanup on upgrade.",
+      "kind": "bug",
+      "versionId": "v-1-0-7-5",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-05T13:00:00Z"
+    },
+    {
+      "id": "i-175-11",
+      "title": "Overview respects library selection",
+      "notes": "GetLibraryStats filters by EnabledLibraries. Only the filter ships in 1.0.7.5 — the WIP LibraryStat enrichment (HDR/BitDepth/AudioChannels/Kind/languages) and its UI components (sparkbar/chip/seg-pill/waffle/ring) were reverted before ship because they'd been merged from a test library breakdown that wasn't ready for release. Revisit as part of i-180-01 Library tab redesign.",
+      "kind": "bug",
+      "versionId": "v-1-0-7-5",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-06T05:00:00Z"
+    },
+    {
+      "id": "i-175-12",
+      "title": "Files tab errors when config isn't ready",
+      "notes": "FileBrowserController: broaden the catch from IOException/UnauthorizedAccessException to Exception so early-startup config-not-loaded states don't crash the tab.",
+      "kind": "bug",
+      "versionId": "v-1-0-7-5",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-05T13:00:00Z"
+    },
+    {
+      "id": "i-175-13",
+      "title": "Trickplay folders re-appearing on Issues tab and re-running every scan",
+      "notes": "TrickplayOptimizeScanner: check MediaDashDb.GetLastSuccessfulFixUtc against a cutoff so sprites already handled by a prior fix don't re-flag. Only re-flags what Jellyfin regenerates.",
+      "kind": "bug",
+      "versionId": "v-1-0-7-5",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-05T13:00:00Z"
+    },
+    {
+      "id": "i-175-14",
+      "title": "Fix scheduled task getting resurrected after users delete it",
+      "notes": "Settings → Save no longer re-registers the trigger. Explicit 'Reset scheduled task' button still works.",
+      "kind": "bug",
+      "versionId": "v-1-0-7-5",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-05T13:00:00Z"
+    },
+    {
+      "id": "i-175-15",
+      "title": "HW-accelerated re-encodes running with software decode",
+      "notes": "TranscodeFixer.BuildArgs never emitted -hwaccel. Added whitelist {h264, hevc, vp9, av1} for NVENC/QSV/VAAPI with GPU-resident scale filters (scale_cuda / scale_qsv / scale_vaapi). AMF and VideoToolbox stay on SW decode (no scale_d3d11 / scale_vt filter in this ffmpeg build; HW decode is a net loss without GPU-resident scale). Bench validated on 4K HEVC.",
+      "kind": "bug",
+      "versionId": "v-1-0-7-5",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-05T13:00:00Z"
+    },
+    {
+      "id": "i-180-01",
+      "title": "Library tab + Overview redesign",
+      "notes": "Move breakdown cards off Overview onto a new Library tab. Overview gets a compact library strip. Library tab: editorial cards per library (sparkbar, chip strip, ring gauge, seg-pill, waffle grid, backdrop of most-watched item, drill-down modal). Server: extend LibraryStat + MostPlayedItem + new /LibraryItems endpoint.",
+      "kind": "feature",
+      "versionId": "v-1-0-8-0",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-05T13:00:00Z"
+    },
+    {
+      "id": "i-180-02",
+      "title": "Audio conversion scanner + fixer",
+      "notes": "AudioConversionScanner/Fixer. Four detection triggers (immersive downgrade, channel ceiling, bitrate ceiling, sample-rate ceiling), setup wizard with 5 preset ladders (TV/Soundbar/Surround/Home theatre/Custom), combined-pass integration with Track + Transcode fixers. Full plan in project_mediadash_audio_scanner memory.",
+      "kind": "feature",
+      "versionId": "v-1-0-8-0",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-05T13:00:00Z"
+    },
+    {
+      "id": "i-180-03",
+      "title": "Media organiser (replaces Ungrouped + Misplaced)",
+      "notes": "Draft spec: docs/superpowers/specs/2026-09-01-media-organiser-design.md. §5.2.1 carries the reboot-disambiguation rule (parent-of-parent folder → PremiereDate → plain SeriesName) to prevent GitHub #43 regression. Standalone repro at tools/comprehensive-test/simulate-doctor-who/.",
+      "kind": "feature",
+      "versionId": "v-1-0-8-0",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-05T13:00:00Z"
+    },
+    {
+      "id": "i-180-04",
+      "title": "Playability repair ladder",
+      "notes": "Four-rung repair in PlayabilityFixer before delete: quick remux → drop broken streams → change container to MKV → re-encode. Each rung has its own toggle in a Repair broken files settings card, all default on. Spec: docs/superpowers/specs/2026-09-05-playability-repair-design.md. Plan: docs/superpowers/plans/2026-09-05-playability-repair.md.",
+      "kind": "feature",
+      "versionId": "v-1-0-8-0",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-05T13:00:00Z"
+    },
+    {
+      "id": "i-180-05",
+      "title": "Subtitle extract to sidecar files",
+      "notes": "New SubtitleExtractScanner/Fixer with combined-pass integration (2/3-companion cases in TrackFixer.FixCombinedAsync, companion-aware TranscodeFixer.BuildArgs). Extracts text subs (subrip/srt/ass/ssa/webvtt/mov_text) matching AllowedSubtitleLanguages to Jellyfin-named sidecars, removes from container. Image subs stay in container. Spec: docs/superpowers/specs/2026-09-05-subtitle-extract-design.md. Plan: docs/superpowers/plans/2026-09-05-subtitle-extract.md.",
+      "kind": "feature",
+      "versionId": "v-1-0-8-0",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-05T13:00:00Z"
+    },
+    {
+      "id": "i-bl-02",
+      "title": "Extend HW-decode whitelist for legacy codecs (mpeg2, vc1)",
+      "notes": "Deferred from HW-decode fix. Legacy codecs are rare in oversized library files (they're already small). Add if a user's library has legacy content that would benefit.",
+      "kind": "feature",
+      "versionId": "v-1-0-8-1",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-05T14:12:47.243Z"
+    },
+    {
+      "id": "i-bl-03",
+      "title": "AMF + VideoToolbox HW decode when GPU-resident scale filters land",
+      "notes": "Deferred from HW-decode fix. Revisit when ffmpeg ships stable scale_d3d11 / scale_vt. Bench showed d3d11va decode is currently a net loss on downscale workloads because of the extra GPU↔CPU copy.",
+      "kind": "feature",
+      "versionId": "backlog",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-05T13:00:00Z"
+    },
+    {
+      "id": "i-bl-05",
+      "title": "Configurable rung-4 encoder target in repair ladder",
+      "notes": "Deferred from repair spec §8. Currently hardcoded to h264/aac in MKV. Add a knob only if a user files a specific preference.",
+      "kind": "feature",
+      "versionId": "backlog",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-05T13:00:00Z"
+    },
+    {
+      "id": "i-bl-06",
+      "title": "Repair-ladder rung 5: audio re-encode",
+      "notes": "Deferred from repair spec §8. Belongs to the audio-conversion scanner's territory. If that scanner ships in the same bundle, wire the two so repair can hand off audio-only damage.",
+      "kind": "feature",
+      "versionId": "backlog",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-05T13:00:00Z"
+    },
+    {
+      "id": "i-bl-07",
+      "title": "Repair statistics on Overview tab",
+      "notes": "Deferred from repair spec §8. 'N files repaired this month, X GB saved from deletion.' Needs a new counter in SQLite state.",
+      "kind": "feature",
+      "versionId": "v-1-0-8-1",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-05T14:13:13.087Z"
+    },
+    {
+      "id": "i-bl-08",
+      "title": "Reconcile bullet 9 (retry loop on name collision) or drop it",
+      "notes": "Done 2026-09-06. Bullet kept, not dropped — see i-175-09 for the attribution (MediaGrouperScanner.cs targetExists guards at :170 and :262). CHANGELOG rewrite names the scanner + user report so the mapping is greppable.",
+      "kind": "bug",
+      "versionId": "v-1-0-7-5",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-06T05:00:00Z"
+    },
+    {
+      "id": "i-bl-09",
+      "title": "Second bullet for richer LibraryStat breakdowns",
+      "notes": "Obsolete 2026-09-06. Enrichment reverted from 1.0.7.5 before ship (see i-175-11) because the WIP breakdown had been merged from a test library that wasn't release-ready. Revisit as part of i-180-01 Library tab redesign if those breakdowns want to reappear.",
+      "kind": "feature",
+      "versionId": "backlog",
+      "createdAt": "2026-09-05T13:00:00Z",
+      "updatedAt": "2026-09-06T05:00:00Z"
+    },
+    {
+      "id": "2d2e24da-197a-4485-9045-68ce3152da85",
+      "title": "Seperate Re-encode resolutions for Different libraries\r\n #30",
+      "notes": "",
+      "kind": "feature",
+      "versionId": "v-1-0-8-2",
+      "createdAt": "2026-09-05T12:52:45.214Z",
+      "updatedAt": "2026-09-05T14:13:43.323Z"
+    },
+    {
+      "id": "9481c302-fc30-4d45-950b-8a7d304d42e5",
+      "title": "Explain why file can't be played",
+      "notes": "",
+      "kind": "feature",
+      "versionId": "v-1-0-8-1",
+      "createdAt": "2026-09-05T13:00:28.327Z",
+      "updatedAt": "2026-09-05T14:13:47.991Z"
+    },
+    {
+      "id": "bb59c42f-6e70-4d9e-8ef2-7d49fda0bbda",
+      "title": "User Setting, Purge all audio tracks except the main on and then remove all subtitles except the selected language.",
+      "notes": "",
+      "kind": "feature",
+      "versionId": "v-1-0-8-2",
+      "createdAt": "2026-09-05T13:38:19.622Z",
+      "updatedAt": "2026-09-05T14:13:59.151Z"
+    },
+    {
+      "id": "d58754bb-ad8b-4e49-b99f-11869b6ae6fb",
+      "title": "Re enable auto mode for duplicate file finder - may need rework and extensive testing.",
+      "notes": "",
+      "kind": "feature",
+      "versionId": "v-1-0-8-1",
+      "createdAt": "2026-09-05T13:39:06.896Z",
+      "updatedAt": "2026-09-05T13:39:06.896Z"
+    },
+    {
+      "id": "i-175-16",
+      "title": "Errors tab badge showed 999+ when the tab listed far fewer rows",
+      "notes": "refresh()'s piggyback poll summed dedup occurrences via /Errors; loadErrors used /Errors/Count row count. A single hot spammy error (SMART noise, ffmpeg-timeout) inflated the badge past 999 while the tab itself listed one row. Piggyback path now uses /Errors/Count so both paths agree.",
+      "kind": "bug",
+      "versionId": "v-1-0-7-5",
+      "createdAt": "2026-09-06T05:00:00Z",
+      "updatedAt": "2026-09-06T05:00:00Z"
+    },
+    {
+      "id": "i-175-17",
+      "title": "Show ignored toggle on Issues tab + per-row + bulk Unignore",
+      "notes": "Adds a pill toggle in the Issues filter row (amber active tint). When on, loadIssues fetches ?status=Dismissed. Per-row Unignore reuses the existing /Issues/{id}/Revert endpoint via undoRowAction. Bulk 'Unignore all N shown' turns green (mdRevertMode) and posts /Issues/Bulk with a new Action=\"Revert\" branch backed by MediaDashDb.BulkRevertDismissedIssues (Dismissed → Detected, guarded by source status). Row-button CSS added for .mdUnignore and .mdUndoAction so both match the plugin's row pill vocabulary; mdBinDelete pill on Recycle bin tab also brought into line with mdBinRestore. Issue badge count skipped while viewing Dismissed so the badge still tracks open work.",
+      "kind": "feature",
+      "versionId": "v-1-0-7-5",
+      "createdAt": "2026-09-06T05:00:00Z",
+      "updatedAt": "2026-09-06T05:00:00Z"
+    },
+    {
+      "id": "i-175-18",
+      "title": "Fix-run alert stacked one modal per scheduled run when page left open",
+      "notes": "Dashboard.alert('Fix run finished with failures') fired every time LastFixRun.FinishedAtUtc advanced. On a page left open across N scheduled runs, users got N modals. Now: page-scoped counters (fixRunsSincePageLoad / fixSucceededSincePageLoad / fixFailedSincePageLoad) roll up every observed completion, and fixAlertShown gates the alert to ONE per page session. Message aggregates all runs since page load with a 'reload to be alerted about future runs' hint.",
+      "kind": "bug",
+      "versionId": "v-1-0-7-5",
+      "createdAt": "2026-09-06T05:00:00Z",
+      "updatedAt": "2026-09-06T05:00:00Z"
+    },
+    {
+      "id": "i-175-19",
+      "title": "Scheduled scan default trigger moved from 02:00 to midnight",
+      "notes": "ScanTask.GetDefaultTriggers TimeOfDayTicks changed from FromHours(2) to Zero. Fresh installs only — existing installs keep whatever time users have set. Rationale: a daily rescan only needs to catch a day's changes since the last sweep, so overnight is enough. Idle-check still defers if a viewer arrives at 00:00, and manual Scan now bypasses everything.",
+      "kind": "bug",
+      "versionId": "v-1-0-7-5",
+      "createdAt": "2026-09-06T05:00:00Z",
+      "updatedAt": "2026-09-06T05:00:00Z"
+    },
+    {
+      "id": "i-175-20",
+      "title": "Fix task silently skips when there's nothing to fix",
+      "notes": "Added explicit early-exit in FixTask.ExecuteAsync after the auto-queue phase: if queue.Count == 0, log at Debug and return before touching Plugin.LastFixRun. Kills the Info-log spam every 30 min on idle libraries and stops the client's fix-run alert from firing on empty runs (LastFixRun.FinishedAtUtc no longer advances on a no-op). Verified live: manual Fix with empty queue returns 204 but FinishedAtUtc doesn't advance. 30-min interval trigger kept — user opted to keep the existing schedule shape, just gate real work on 'scanner produced something'.",
+      "kind": "bug",
+      "versionId": "v-1-0-7-5",
+      "createdAt": "2026-09-06T05:00:00Z",
+      "updatedAt": "2026-09-06T05:00:00Z"
+    }
+  ]
+}

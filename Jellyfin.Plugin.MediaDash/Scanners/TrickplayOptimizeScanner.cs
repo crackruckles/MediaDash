@@ -40,16 +40,19 @@ public sealed class TrickplayOptimizeScanner : IScanner
 
     private readonly IApplicationPaths _appPaths;
     private readonly ILibraryManager _libraryManager;
+    private readonly Data.MediaDashDb _db;
     private readonly ILogger<TrickplayOptimizeScanner> _logger;
 
     /// <summary>Initializes a new instance of the <see cref="TrickplayOptimizeScanner"/> class.</summary>
     /// <param name="appPaths">Jellyfin's application paths (used to locate the trickplay data dir).</param>
     /// <param name="libraryManager">Used to resolve trickplay-folder GUIDs back to item names for the Issue label.</param>
+    /// <param name="db">Plugin DB, queried for the last-successful-fix timestamp per trickplay folder — used as a rescan cutoff so sprites the fixer legitimately couldn't shrink don't re-flag every session.</param>
     /// <param name="logger">The logger.</param>
-    public TrickplayOptimizeScanner(IApplicationPaths appPaths, ILibraryManager libraryManager, ILogger<TrickplayOptimizeScanner> logger)
+    public TrickplayOptimizeScanner(IApplicationPaths appPaths, ILibraryManager libraryManager, Data.MediaDashDb db, ILogger<TrickplayOptimizeScanner> logger)
     {
         _appPaths = appPaths;
         _libraryManager = libraryManager;
+        _db = db;
         _logger = logger;
     }
 
@@ -123,7 +126,8 @@ public sealed class TrickplayOptimizeScanner : IScanner
 
         void TryAddIssue(string dir, Guid itemId, string displayName)
         {
-            var (jpgCount, jpgBytes) = MeasureConvertibleJpgs(dir);
+            var cutoff = _db.GetLastSuccessfulFixUtc(IssueType.LargeTrickplay, dir);
+            var (jpgCount, jpgBytes) = MeasureConvertibleJpgs(dir, cutoff);
             if (jpgCount == 0 || jpgBytes < minBytes)
             {
                 return;
@@ -302,8 +306,9 @@ public sealed class TrickplayOptimizeScanner : IScanner
     /// skipped so a re-scan doesn't re-flag them. Exposed internal for direct unit-testing.
     /// </summary>
     /// <param name="trickplayDir">Full path to the item's trickplay directory.</param>
+    /// <param name="cutoffUtc">Last successful-fix UTC timestamp for this folder from history, or null when none. Files with <c>LastWriteTimeUtc &lt;= cutoffUtc</c> are treated as already processed and skipped.</param>
     /// <returns>Convertible file count and total bytes.</returns>
-    internal static (int Count, long Bytes) MeasureConvertibleJpgs(string trickplayDir)
+    internal static (int Count, long Bytes) MeasureConvertibleJpgs(string trickplayDir, DateTime? cutoffUtc = null)
     {
         var count = 0;
         long bytes = 0;
@@ -326,7 +331,18 @@ public sealed class TrickplayOptimizeScanner : IScanner
 
             try
             {
-                bytes += new FileInfo(file).Length;
+                var fi = new FileInfo(file);
+                // Files at-or-before the last successful-fix timestamp were handled by a prior fixer
+                // pass. Without this, folders containing sprites the fixer intentionally left alone
+                // (tiny tiles that grow as WebP) re-flag every scan and the auto-queue re-runs the
+                // fixer forever. Jellyfin trickplay regeneration produces newer mtimes, so a
+                // legitimately-new folder still gets flagged.
+                if (cutoffUtc is { } cutoff && fi.LastWriteTimeUtc <= cutoff)
+                {
+                    continue;
+                }
+
+                bytes += fi.Length;
                 count++;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

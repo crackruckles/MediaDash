@@ -103,6 +103,25 @@ public sealed class MediaGrouperFixer : IFixer
             return Task.FromResult(FixResult.DryRun(actionText, 0));
         }
 
+        // Capture file timestamps before the move so we can restore them if .NET falls back to
+        // cross-volume copy+delete (which resets CreationTime). Same reasoning as MediaSorterFixer;
+        // Jellyfin's Recently Added reads DateCreated, which is initially populated from CreationTime.
+        // Folder moves are refused cross-volume above, so only the file branch needs restoration.
+        DateTime srcCreatedUtc = DateTime.UtcNow, srcModifiedUtc = DateTime.UtcNow;
+        if (!isFolder)
+        {
+            try
+            {
+                var srcInfo = new FileInfo(source);
+                srcCreatedUtc = srcInfo.CreationTimeUtc;
+                srcModifiedUtc = srcInfo.LastWriteTimeUtc;
+            }
+            catch (IOException)
+            {
+                // Best-effort.
+            }
+        }
+
         try
         {
             Directory.CreateDirectory(targetParent);
@@ -132,6 +151,19 @@ public sealed class MediaGrouperFixer : IFixer
         catch (IOException ex)
         {
             return Task.FromResult(FixResult.Fail("Move failed: " + ex.Message));
+        }
+
+        if (!isFolder)
+        {
+            try
+            {
+                File.SetCreationTimeUtc(target, srcCreatedUtc);
+                File.SetLastWriteTimeUtc(target, srcModifiedUtc);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Best-effort — see MediaSorterFixer for reasoning.
+            }
         }
 
         _libraryMonitor.ReportFileSystemChanged(source);

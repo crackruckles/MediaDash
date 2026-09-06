@@ -51,6 +51,16 @@ public sealed class FfprobeStreamInfo
     public string? Duration { get; set; }
 
     /// <summary>
+    /// Gets or sets the number of frames the container declares for this stream, when known.
+    /// Populated free from the container header on MP4 and many MKVs. Absent on MPEG-TS, live streams
+    /// and some remuxed MKVs. When present, it's a definitive invariant across <c>-c copy</c> remuxes
+    /// (video wasn't re-encoded → same frames). Used by <see cref="Fixers.OutputVerifier"/> to rescue
+    /// files whose container-level duration is unreliable.
+    /// </summary>
+    [JsonPropertyName("nb_frames")]
+    public string? NbFrames { get; set; }
+
+    /// <summary>
     /// Gets or sets the stream tags; the <c>language</c> tag carries the ISO 639-2 language code.
     /// </summary>
     [JsonPropertyName("tags")]

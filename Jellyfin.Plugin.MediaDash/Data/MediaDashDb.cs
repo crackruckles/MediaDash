@@ -17,7 +17,10 @@ public sealed class MediaDashDb
     // v1: -xerror + exit-code-only in the decode check (2026-07-20) — previous stderr-noise-as-error entries invalidated.
     // v3: history.acknowledged column for redownload-warning acknowledgement (2026-08-17).
     // v4: issues.confidence column for the duplicate confidence ladder (2026-08-22).
-    private const int SchemaVersion = 5;
+    // v5: restored_paths table for auto-fix veto after user restore (2026-08-25).
+    // v6: purge decode_cache after HasTruncationMarker "Truncating packet" fix (2026-08-31) — cached
+    //     stderr from pre-fix ffmpeg runs poisoned every scan into re-flagging the same file.
+    private const int SchemaVersion = 6;
 
     // Sentinel used in restored_paths.type when the restore came from a manifest-only bin entry
     // (RecycleBin/Items/Restore). We don't know which IssueType triggered the original recycle in
@@ -307,6 +310,24 @@ public sealed class MediaDashDb
                 )
                 """;
             create.ExecuteNonQuery();
+        }
+
+        if (current < 6)
+        {
+            // HasTruncationMarker used to treat "Truncating packet" ffmpeg warnings as truncation
+            // (v1.0.7.2 and earlier). Cached decode-error strings from those runs poisoned every
+            // subsequent scan into re-flagging the same MP4/M2TS/AVI file — path+size+mtime unchanged
+            // so the cache hit returned the stale error. Wipe the cache once so v1.0.7.3+ scanners
+            // get a fresh probe on every file. Also drop already-Queued Playability rows so users
+            // aren't stuck approving fake reports on their next fix run.
+            using var clearDecode = connection.CreateCommand();
+            clearDecode.CommandText = "DELETE FROM decode_cache";
+            clearDecode.ExecuteNonQuery();
+            using var clearQueued = connection.CreateCommand();
+#pragma warning disable CA2100 // (int)enum is a compile-time constant, not user input.
+            clearQueued.CommandText = "DELETE FROM issues WHERE type = " + (int)IssueType.Playability;
+#pragma warning restore CA2100
+            clearQueued.ExecuteNonQuery();
         }
 
         using var setVersion = connection.CreateCommand();
@@ -741,6 +762,44 @@ public sealed class MediaDashDb
     }
 
     /// <summary>
+    /// Bulk un-ignore: moves Dismissed rows back to Detected so they re-appear on the Issues tab.
+    /// Only touches rows currently in Dismissed — Fixed/Queued/Detected are left alone so a stale
+    /// client snapshot can't un-fix or duplicate work.
+    /// </summary>
+    /// <param name="ids">Issue ids to revert.</param>
+    /// <returns>Number of rows actually updated.</returns>
+    public int BulkRevertDismissedIssues(IReadOnlyList<long> ids)
+    {
+        if (ids.Count == 0)
+        {
+            return 0;
+        }
+
+        const int chunkSize = 500;
+        using var connection = Open();
+        var total = 0;
+        for (var offset = 0; offset < ids.Count; offset += chunkSize)
+        {
+            var count = Math.Min(chunkSize, ids.Count - offset);
+            using var cmd = connection.CreateCommand();
+            var placeholders = string.Join(",", Enumerable.Range(0, count).Select(i => "@id" + i.ToString(CultureInfo.InvariantCulture)));
+#pragma warning disable CA2100, CA3001 // placeholder list is machine-composed from an int range, ids are bound as parameters
+            cmd.CommandText = "UPDATE issues SET status = @detected WHERE id IN (" + placeholders + ") AND status = @dismissed";
+#pragma warning restore CA2100, CA3001
+            cmd.Parameters.AddWithValue("@detected", (int)IssueStatus.Detected);
+            cmd.Parameters.AddWithValue("@dismissed", (int)IssueStatus.Dismissed);
+            for (var i = 0; i < count; i++)
+            {
+                cmd.Parameters.AddWithValue("@id" + i.ToString(CultureInfo.InvariantCulture), ids[offset + i]);
+            }
+
+            total += cmd.ExecuteNonQuery();
+        }
+
+        return total;
+    }
+
+    /// <summary>
     /// Re-points every issue whose stored path is exactly <paramref name="oldPath"/>, or lives under
     /// <paramref name="oldPath"/> as a directory prefix, to the equivalent location under
     /// <paramref name="newPath"/>. Call this after a move-style fixer completes so other queued issues
@@ -992,6 +1051,26 @@ public sealed class MediaDashDb
             Success = reader.GetInt32(10) != 0,
             Acknowledged = reader.GetInt32(11) != 0
         };
+    }
+
+    /// <summary>
+    /// Returns the most recent successful, non-dry-run <c>fixed_at_utc</c> for a given issue type and
+    /// path, or null when there's no such row. Used by <see cref="Scanners.TrickplayOptimizeScanner"/>
+    /// as a rescan cutoff so folders where the fixer intentionally left small "won't-shrink" sprites
+    /// don't get re-flagged forever.
+    /// </summary>
+    /// <param name="type">The issue type.</param>
+    /// <param name="path">The exact path recorded on the history row (trickplay folder for LargeTrickplay).</param>
+    /// <returns>UTC timestamp of the newest matching row, or null when none.</returns>
+    public DateTime? GetLastSuccessfulFixUtc(IssueType type, string path)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT MAX(fixed_at_utc) FROM history WHERE type = @type AND path = @path AND success = 1 AND dry_run = 0";
+        cmd.Parameters.AddWithValue("@type", (int)type);
+        cmd.Parameters.AddWithValue("@path", path);
+        var raw = cmd.ExecuteScalar();
+        return raw is long ticks and > 0 ? new DateTime(ticks, DateTimeKind.Utc) : null;
     }
 
     /// <summary>

@@ -147,6 +147,11 @@ public sealed class ScanTask : IScheduledTask
         var config = Plugin.Instance!.Configuration;
         var scanners = _scanners.Where(s => config.GetFixMode(s.Type) != Configuration.FixMode.Off).ToList();
         _logger.LogInformation("MediaDash scan starting: {ItemCount} items, {ScannerCount} scanners ({SkippedCount} skipped as Off)", items.Count, scanners.Count, _scanners.Count() - scanners.Count);
+        // Publish the run counts so the dashboard can render "N / M scanners done" alongside the
+        // progress bar (same shape as fix runs' "N / M items left"). Cleared to null in the finally
+        // below so the caption doesn't linger after the run finishes.
+        Plugin.ScanScannersTotal = scanners.Count;
+        Plugin.ScanScannersDone = 0;
         try
         {
             for (var i = 0; i < scanners.Count; i++)
@@ -183,12 +188,15 @@ public sealed class ScanTask : IScheduledTask
                 var pathsForReplace = scanner.AlwaysUnscoped ? null : scannedPaths;
                 _db.ReplaceDetectedIssues(scanner.Type, issues, pathsForReplace);
                 _logger.LogInformation("MediaDash scanner {Type} found {Count} issues", scanner.Type, issues.Count);
+                Plugin.ScanScannersDone = i + 1;
             }
         }
         finally
         {
             Plugin.CurrentActivity = null;
             Plugin.CurrentActivityLabel = null;
+            Plugin.ScanScannersDone = null;
+            Plugin.ScanScannersTotal = null;
         }
 
         // Refresh the redownload-warning list. Compares each recent successful re-encode against the
@@ -265,12 +273,16 @@ public sealed class ScanTask : IScheduledTask
     /// <inheritdoc />
     public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
     {
+        // Midnight local time. The daily rescan only needs to catch a day's worth of change since
+        // the last scan, so a single overnight sweep is enough; the idle-check gate keeps it from
+        // fighting an actual viewer if one appears at 00:00. Users can still hit Scan now for a
+        // manual pass, or edit the trigger from Dashboard → Scheduled Tasks.
         return
         [
             new TaskTriggerInfo
             {
                 Type = TaskTriggerInfoType.DailyTrigger,
-                TimeOfDayTicks = TimeSpan.FromHours(2).Ticks
+                TimeOfDayTicks = TimeSpan.Zero.Ticks
             }
         ];
     }

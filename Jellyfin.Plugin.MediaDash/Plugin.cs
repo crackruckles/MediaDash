@@ -62,6 +62,21 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     public static string? CurrentActivityLabel { get; set; }
 
     /// <summary>
+    /// Gets or sets the number of scanners that have completed in the currently-running scan run,
+    /// or null when idle. Set by <see cref="ScheduledTasks.ScanTask"/> so the dashboard can render
+    /// "N / M scanners done" alongside the progress bar (same shape as fix runs' items ratio).
+    /// Cleared to null at scan end. Best-effort readout only — not load-bearing.
+    /// </summary>
+    public static int? ScanScannersDone { get; set; }
+
+    /// <summary>
+    /// Gets or sets the total number of scanners that will run in the currently-running scan,
+    /// or null when idle. Captured at scan start after Off-type filtering. Together with
+    /// <see cref="ScanScannersDone"/> drives the client-side "N / M scanners done" caption.
+    /// </summary>
+    public static int? ScanScannersTotal { get; set; }
+
+    /// <summary>
     /// Gets or sets the summary of the most-recently-completed fix run. The dashboard compares
     /// <see cref="Api.FixRunSummary.FinishedAtUtc"/> to what it last saw and pops an alert whenever a fresh
     /// run finished with failures — otherwise a fast all-failed run just flashes the progress bar and vanishes.

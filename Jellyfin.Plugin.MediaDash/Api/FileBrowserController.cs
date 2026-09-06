@@ -133,9 +133,12 @@ public class FileBrowserController : ControllerBase
                     });
                 }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            catch (Exception ex)
             {
                 // Recycle bin root inaccessible — skip the shortcut, root listing still works.
+                // Broad catch: this is a non-critical navigation shortcut; anything Plugin.Configuration
+                // or the RecycleBin resolver throws (NRE during startup race, InvalidOperationException on
+                // partial config) must NOT 500 the entire Files/List root.
                 Diagnostics.Record("FileBrowser.List", "Could not add recycle-bin shortcut to file browser root: " + ex.Message + ".");
             }
 
@@ -159,8 +162,10 @@ public class FileBrowserController : ControllerBase
                     });
                 }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            catch (Exception ex)
             {
+                // Same reasoning as the recycle-bin shortcut above: non-critical, catch broad so any
+                // IApplicationPaths implementation quirk doesn't 500 the root listing.
                 Diagnostics.Record("FileBrowser.List", "Could not add logs shortcut to file browser root: " + ex.Message + ".");
             }
 

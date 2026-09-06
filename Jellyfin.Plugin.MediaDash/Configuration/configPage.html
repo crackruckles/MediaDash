@@ -1038,8 +1038,6 @@
             #MediaDashConfigPage .mdLegend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 12.5px; color: var(--md-body); }
             #MediaDashConfigPage .mdLegendChip { display: inline-flex; align-items: center; gap: 6px; }
             #MediaDashConfigPage .mdLegendSwatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: 0 0 auto; }
-            #MediaDashConfigPage .mdLibDonutRow { display: flex; gap: 16px; align-items: center; }
-            #MediaDashConfigPage .mdLibDonutRow svg { flex: 0 0 auto; }
 
             /* Overview: library drive storage rows (one segmented bar per drive). */
             #MediaDashConfigPage .mdDriveGrid {
@@ -1134,6 +1132,8 @@
             /* ── Fade animations ─────────────────────────────────────── */
             #MediaDashConfigPage .mdFade { animation: mdFadeIn .35s ease; }
             @keyframes mdFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+            @keyframes mdSpin { to { transform: rotate(360deg); } }
+            #MediaDashConfigPage .mdSpin { display:inline-block; animation: mdSpin 1s linear infinite; }
 
             /* ── File-manager tab ───────────────────────────────────── */
             #MediaDashConfigPage #mdFileDrop {
@@ -1299,6 +1299,27 @@
                 background: color-mix(in srgb, #ef4444 26%, transparent) !important;
             }
             #MediaDashConfigPage #mdClearAllIssues.mdApproveAllBtn .material-icons { color: #ef4444; }
+            /* Unignore mode: same pill, recolored green — the action is constructive, not destructive. */
+            #MediaDashConfigPage #mdClearAllIssues.mdApproveAllBtn.mdRevertMode {
+                background: color-mix(in srgb, #22c55e 16%, transparent) !important;
+                color: #22c55e !important;
+                border-color: color-mix(in srgb, #22c55e 55%, transparent) !important;
+            }
+            #MediaDashConfigPage #mdClearAllIssues.mdApproveAllBtn.mdRevertMode:not(:disabled):hover {
+                background: color-mix(in srgb, #22c55e 26%, transparent) !important;
+            }
+            #MediaDashConfigPage #mdClearAllIssues.mdApproveAllBtn.mdRevertMode .material-icons { color: #22c55e; }
+            /* "Show ignored" toggle in Active mode — amber to match the History/Ignore tone
+               so the user can tell at a glance they've left the open-issue view. */
+            #MediaDashConfigPage #mdToggleIgnored.mdApproveAllBtn.mdToggleActive {
+                background: color-mix(in srgb, #f59e0b 18%, transparent) !important;
+                color: #f59e0b !important;
+                border-color: color-mix(in srgb, #f59e0b 55%, transparent) !important;
+            }
+            #MediaDashConfigPage #mdToggleIgnored.mdApproveAllBtn.mdToggleActive:not(:disabled):hover {
+                background: color-mix(in srgb, #f59e0b 28%, transparent) !important;
+            }
+            #MediaDashConfigPage #mdToggleIgnored.mdApproveAllBtn.mdToggleActive .material-icons { color: #f59e0b; }
 
             /* ── Settings tab ──────────────────────────────────────────── */
             #MediaDashConfigPage #mdTab-settings {
@@ -2282,6 +2303,19 @@
             #MediaDashConfigPage #mdBinEmpty:hover {
                 background: var(--md-dest-hover) !important;
             }
+            /* Per-row Delete sits next to Restore — same pill shape (mdBinRestore), destructive tone. */
+            #MediaDashConfigPage .mdBinDelete {
+                display: inline-flex; align-items: center; gap: 6px;
+                background: var(--md-dest-fill) !important;
+                border: 1px solid var(--md-dest-border) !important;
+                color: var(--md-dest-ink) !important;
+                border-radius: 999px !important;
+                padding: 0 14px !important;
+                height: 34px; min-height: 34px !important;
+                font: 600 13px Figtree, sans-serif !important;
+            }
+            #MediaDashConfigPage .mdBinDelete:hover { background: var(--md-dest-hover) !important; }
+            #MediaDashConfigPage .mdBinDelete .material-icons { font-size: 17px !important; }
             /* Tab header: title + description on the left, right-side summary widget. */
             #MediaDashConfigPage .mdTabHeader {
                 display: flex; align-items: flex-start; justify-content: space-between;
@@ -2527,7 +2561,8 @@
                 background: var(--md-panel-hover) !important;
                 color: var(--md-ink) !important;
             }
-            #MediaDashConfigPage .mdIssueCard .mdRestore {
+            #MediaDashConfigPage .mdIssueCard .mdRestore,
+            #MediaDashConfigPage .mdIssueCard .mdUndoAction {
                 background: var(--md-neutral) !important;
                 border: 1px solid var(--md-border-btn) !important;
                 color: var(--md-ink) !important;
@@ -2535,6 +2570,24 @@
                 padding: 8px 16px !important;
                 min-height: 40px;
             }
+            #MediaDashConfigPage .mdIssueCard .mdUndoAction:hover {
+                background: var(--md-panel-hover) !important;
+            }
+            /* Unignore: constructive filled pill — same shape as Approve but green so it reads
+               as "put this back on the list" not "same as Approve". */
+            #MediaDashConfigPage .mdIssueCard .mdUnignore {
+                background: color-mix(in srgb, #22c55e 20%, transparent) !important;
+                border: 1px solid color-mix(in srgb, #22c55e 55%, transparent) !important;
+                color: #16a34a !important;
+                border-radius: 999px !important;
+                padding: 8px 16px !important;
+                font-weight: 700 !important;
+                min-height: 40px;
+            }
+            #MediaDashConfigPage .mdIssueCard .mdUnignore:not(:disabled):hover {
+                background: color-mix(in srgb, #22c55e 30%, transparent) !important;
+            }
+            #MediaDashConfigPage .mdIssueCard .mdUnignore .material-icons { color: #16a34a; }
             #MediaDashConfigPage .mdIssueCard .mdOpenInJellyfin {
                 background: transparent !important;
                 border: 1px solid var(--md-border-btn) !important;
@@ -3205,6 +3258,13 @@
                                 </label>
                                 <div class="fieldDescription">Scheduled scans and fixes wait until nobody is watching anything and nobody has used Jellyfin for 15 minutes. Manual "Scan now" / "Run fixes now" always run immediately.</div>
                             </div>
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label class="emby-checkbox-label">
+                                    <input id="mdWizLowImpact" type="checkbox" is="emby-checkbox" />
+                                    <span>This machine is also used for daily work (browsing, gaming, etc.)</span>
+                                </label>
+                                <div class="fieldDescription">Turns on Low system impact mode so fix runs won't pin your disk or CPU. Encodes take longer in exchange — a 45-minute episode encodes in about 45 minutes instead of five. Leave off for headless / dedicated-server setups where you want maximum speed.</div>
+                            </div>
                             <div class="inputContainer" style="max-width:14em;margin-top:.6em;">
                                 <label class="inputLabel inputLabelUnfocused" for="mdWizRetention">Recycle bin retention (days)</label>
                                 <input id="mdWizRetention" type="number" min="1" max="365" is="emby-input" />
@@ -3357,11 +3417,12 @@
                                 <span class="material-icons mdIssueSearchIcon">search</span>
                                 <input id="mdIssueFilter" type="search" placeholder="Filter by filename" autocomplete="off" />
                             </div>
+                            <button is="emby-button" type="button" id="mdToggleIgnored" class="raised mdApproveAllBtn" title="Switch between open issues and the ones you have previously ignored, so you can bring them back if you change your mind."><span class="material-icons" id="mdToggleIgnoredIcon">visibility_off</span><span id="mdToggleIgnoredLabel">Show ignored</span></button>
                             <button is="emby-button" type="button" id="mdApproveAll" class="raised mdApproveAllBtn" style="display:none;">
                                 <span class="material-icons">done_all</span><span class="mdApproveAllLabel"></span>
                             </button>
                             <button is="emby-button" type="button" id="mdClearAllIssues" class="raised mdApproveAllBtn" style="display:none;" title="Ignore every issue currently listed — they won't be reported again. Files on disk are untouched.">
-                                <span class="material-icons">delete_sweep</span><span id="mdClearAllLabel"></span>
+                                <span class="material-icons" id="mdClearAllIcon">delete_sweep</span><span id="mdClearAllLabel"></span>
                             </button>
                         </div>
                         <div id="mdApproveAllNote" class="mdIssueApproveNote"></div>
@@ -3543,7 +3604,14 @@
                                         <input id="mdPausePlayback" type="checkbox" is="emby-checkbox" />
                                         <span data-i18n="settings.safety.idle">Only run when the server is idle</span>
                                     </label>
-                                    <div class="fieldDescription" data-i18n="settings.safety.idleHint">Fixes fire opportunistically every 15 minutes and skip whenever anyone is watching or has been active in the last 15 minutes.</div>
+                                    <div class="fieldDescription" data-i18n="settings.safety.idleHint">Fixes fire opportunistically every 30 minutes and skip whenever anyone is watching or has been active in the last 15 minutes.</div>
+                                </div>
+                                <div class="checkboxContainer checkboxContainer-withDescription" style="margin:0;" title="Runs ffmpeg at 1x realtime so it doesn't hog CPU or disk on machines that double as a daily driver. Trade-off: encodes take roughly as long as the input duration (a 45-minute episode encodes in ~45 minutes).">
+                                    <label class="emby-checkbox-label">
+                                        <input id="mdLowImpact" type="checkbox" is="emby-checkbox" />
+                                        <span data-i18n="settings.safety.lowImpact">Low system impact mode</span>
+                                    </label>
+                                    <div class="fieldDescription" data-i18n="settings.safety.lowImpactHint">Throttles ffmpeg to 1x realtime so encodes don't spike CPU or disk on machines that are also your daily driver. Encodes will take much longer — a 45-minute episode encodes in about 45 minutes.</div>
                                 </div>
                                 <div class="checkboxContainer checkboxContainer-withDescription" style="margin:0;" title="Sends per-run counts (per-type success + bytes freed) and version strings to the community stats board, tagged with a month-rotated anonymous ID (SHA-256 of Jellyfin's SystemId + this year-month — nothing persistent stored). No paths, no filenames, no usernames. See docs/PRIVACY.md for the exact fields.">
                                     <label class="emby-checkbox-label">
@@ -3552,6 +3620,20 @@
                                     </label>
                                     <div class="fieldDescription" data-i18n="settings.safety.analyticsHint">Fix counts and bytes freed, tagged with a month-rotated anonymous ID that changes on the 1st of every month — no persistent install ID is stored on disk. No paths, no filenames, no usernames. See <a href="https://github.com/crackruckles/MediaDash/blob/main/docs/PRIVACY.md" target="_blank" rel="noopener">docs/PRIVACY.md</a>.</div>
                                 </div>
+                            </div>
+                            <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--md-border);">
+                                <div style="font-weight:600;margin-bottom:8px;">Fix window <span style="font-weight:400;color:var(--md-ink-muted);font-size:.9em;">— restrict when scheduled fix runs are allowed</span></div>
+                                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 32px;">
+                                    <div class="selectContainer" style="margin:0;">
+                                        <label class="selectLabel" for="mdFixWindowStart">Start</label>
+                                        <select is="emby-select" id="mdFixWindowStart" class="emby-select-withcolor emby-select"></select>
+                                    </div>
+                                    <div class="selectContainer" style="margin:0;">
+                                        <label class="selectLabel" for="mdFixWindowEnd">End</label>
+                                        <select is="emby-select" id="mdFixWindowEnd" class="emby-select-withcolor emby-select"></select>
+                                    </div>
+                                </div>
+                                <div class="fieldDescription" style="margin-top:6px;">Leave both on "Any time" to run any time (default). Pick both to restrict scheduled runs to a window — e.g. 22:00–05:00 for overnight only. A run whose window closes mid-fix is cancelled and requeued for the next window. "Run fixes now" ignores the window.</div>
                             </div>
                             <div class="fieldDescription" style="margin-top:14px;">Scan and fix schedules can also be changed in Dashboard → Scheduled Tasks ("Scan libraries for issues" and "Apply approved fixes").</div>
                         </section>
@@ -3751,6 +3833,14 @@
                 ctxIgnoreMedia: 'Ignore all {0} issues',
                 ctxConfirm: 'Ignore {0} issue(s)? They won’t be reported again by future scans.',
                 ctxNothing: 'No matching open issues.',
+                showIgnored: 'Show ignored',
+                showOpen: 'Show open issues',
+                noIgnored: 'No ignored issues. Anything you dismiss on this tab shows up here so you can bring it back.',
+                unignore: 'Unignore',
+                unignoreHint: 'Move this issue back to the open list. Future scans will report it again.',
+                unignored: 'Moved back to the open list.',
+                unignoreAll: 'Unignore all {0} shown',
+                unignoreAllConfirm: 'Move {0} ignored issue(s) back to the open list? Future scans will report them again.',
                 page: 'Page {0} of {1}',
                 restore: 'Restore',
                 restoredAs: 'Restored as {0} (a file already existed at the original path — both copies are kept).',
@@ -4398,29 +4488,26 @@
                 return svg;
             }
 
+
             // ---------- Overview ----------
 
             var busy = { scan: false, fix: false };
             var lastStatus = null;
-            // Progress-run start markers for ETA calculation. Set on the first poll where progress > 0
-            // (avoids the initial "3%" placeholder throwing off the projection). Cleared when idle.
-            var progressStart = { scanMs: 0, scanBase: 0, fixMs: 0, fixBase: 0 };
-
-            function computeEta(startMs, startPct, currentPct) {
-                if (!startMs || currentPct <= startPct + 1) {
-                    return '';
-                }
-                var elapsedMs = Date.now() - startMs;
-                var gained = currentPct - startPct;
-                var msPerPct = elapsedMs / gained;
-                var remainingMs = Math.round(msPerPct * (100 - currentPct));
-                if (remainingMs < 30000) return ' · finishing shortly';
-                if (remainingMs < 60000) return ' · under a minute left';
-                if (remainingMs < 3600000) return ' · about ' + Math.round(remainingMs / 60000) + ' min left';
-                var hours = remainingMs / 3600000;
-                if (hours < 10) return ' · about ' + hours.toFixed(1) + ' hr left';
-                return ' · about ' + Math.round(hours) + ' hr left';
-            }
+            // Cumulative fix-run totals since this page load. Every completed run that the poll
+            // observes rolls into these counters. The dashboard alert fires ONCE per page session
+            // (fixAlertShown) with the running totals — subsequent runs update the counters silently
+            // so the user isn't stacked with one modal per scheduled run. Page reload clears state.
+            var fixRunsSincePageLoad = 0;
+            var fixSucceededSincePageLoad = 0;
+            var fixFailedSincePageLoad = 0;
+            var fixAlertShown = false;
+            // Progress-run start markers. `fixPendingBase` snapshots the fix queue depth at run
+            // start so the fix status can render "5 / 20 items left" instead of an ETA — users
+            // found the elapsed-time projection unhelpful when a single Blu-ray transcode
+            // dominated the wall time. The scan run uses server-provided ScanScannersDone /
+            // ScanScannersTotal directly (no client capture needed) since those numbers are
+            // published from the scan-task main loop. Both fields cleared when the run ends.
+            var progressStart = { fixPendingBase: 0 };
 
             function pctColor(p) {
                 return p >= 90 ? '#ef4444' : p >= 70 ? '#f59e0b' : '#00a4dc';
@@ -4826,30 +4913,40 @@
                 updateTabBadge('#mdIssueBadge', issueTotal);
                 updateTabBadge('#mdHistoryBadge', s.FailedHistoryTotal || 0);
                 // Detect a just-finished fix run — the server sets s.LastFixRun.FinishedAtUtc on completion.
-                // If the timestamp is new since the last poll and any fix failed, pop a dashboard alert.
-                // Fast all-fail runs (e.g. permission denied on every file) finish in under a second, so the
-                // progress bar just flashes; the alert is the only reliable "the button did something" signal.
+                // Every new completion rolls into the page-session accumulators; the alert only fires
+                // ONCE per session so a user who leaves the page open across several scheduled runs
+                // gets one cumulative summary instead of a modal per run. Fast all-fail runs (e.g.
+                // permission denied on every file) finish in under a second, so the progress bar just
+                // flashes; the (once-only) alert is still the reliable "the button did something" signal.
                 // Guard on lastStatus itself — not on prevFinishedAt !== undefined. lastStatus starts as
                 // null on page load, which short-circuited prevFinishedAt to null, and null !== undefined
                 // is true — so the alert fired on every page open whenever the most-recent completed run
                 // had failures, even mid-flight of a new run.
                 var prevFinishedAt = lastStatus && lastStatus.LastFixRun && lastStatus.LastFixRun.FinishedAtUtc;
                 var curr = s.LastFixRun;
-                if (lastStatus !== null && curr && curr.FinishedAtUtc !== prevFinishedAt && (curr.Failed || 0) > 0) {
-                    var reason = curr.TopFailureReason || 'unknown';
-                    var count = curr.TopFailureCount || curr.Failed;
-                    var msg = 'Fix run finished: ' + (curr.Succeeded || 0) + ' succeeded, ' + curr.Failed + ' failed.\n\n'
-                        + 'Most common reason (' + count + '× of ' + curr.Failed + '): ' + reason + '.\n\n'
-                        + 'See the Errors tab for the specific files.';
-                    if (reason === 'Permission denied') {
-                        msg += '\n\nFix on the host: give the user Jellyfin runs as (typically "jellyfin" on Linux) read+write on your library folders. Example: sudo chown -R jellyfin:jellyfin /mnt/media && sudo find /mnt/media -type d -exec chmod g+rwx {} +';
-                    } else if (reason === 'Not enough free disk space') {
-                        msg += '\n\nFree some space on the target drive, then click "Retry all fixes" on the Errors tab.';
-                    }
-                    if (window.Dashboard && Dashboard.alert) {
-                        Dashboard.alert({ title: 'Fix run finished with failures', message: msg });
-                    } else {
-                        alert(msg);
+                if (lastStatus !== null && curr && curr.FinishedAtUtc && curr.FinishedAtUtc !== prevFinishedAt) {
+                    fixRunsSincePageLoad++;
+                    fixSucceededSincePageLoad += (curr.Succeeded || 0);
+                    fixFailedSincePageLoad += (curr.Failed || 0);
+                    if (!fixAlertShown && fixFailedSincePageLoad > 0) {
+                        fixAlertShown = true;
+                        var reason = curr.TopFailureReason || 'unknown';
+                        var runsPhrase = fixRunsSincePageLoad === 1
+                            ? 'Fix run finished: '
+                            : 'Fix runs since you opened this page (' + fixRunsSincePageLoad + '): ';
+                        var msg = runsPhrase + fixSucceededSincePageLoad + ' succeeded, ' + fixFailedSincePageLoad + ' failed.\n\n'
+                            + 'Most common reason in the latest run: ' + reason + '.\n\n'
+                            + 'See the Errors tab for the specific files. Reload the page to be alerted about future runs.';
+                        if (reason === 'Permission denied') {
+                            msg += '\n\nFix on the host: give the user Jellyfin runs as (typically "jellyfin" on Linux) read+write on your library folders. Example: sudo chown -R jellyfin:jellyfin /mnt/media && sudo find /mnt/media -type d -exec chmod g+rwx {} +';
+                        } else if (reason === 'Not enough free disk space') {
+                            msg += '\n\nFree some space on the target drive, then click "Retry all fixes" on the Errors tab.';
+                        }
+                        if (window.Dashboard && Dashboard.alert) {
+                            Dashboard.alert({ title: 'Fix run finished with failures', message: msg });
+                        } else {
+                            alert(msg);
+                        }
                     }
                 }
                 lastStatus = s;
@@ -4879,35 +4976,54 @@
                 if (s.IsScanning) {
                     busy.scan = true;
                     var scanPct = s.ScanProgress || 0;
-                    if (!progressStart.scanMs && scanPct > 0) {
-                        progressStart.scanMs = Date.now();
-                        progressStart.scanBase = scanPct;
-                    }
-                    state.textContent = fmt(STR.scanRunning, Math.round(scanPct)) + computeEta(progressStart.scanMs, progressStart.scanBase, scanPct);
-                    setProgress(true, scanPct);
+                    // Mirror the fix branch below: derive both the percent text and the progress bar
+                    // fill from the server's scanner-count (N done / M total) so the whole progress
+                    // cluster tells one story. Falls back to the server-side ScanProgress while
+                    // ScanScannersTotal is null (very first poll before ScanTask has published).
+                    var scannersDone = s.ScanScannersDone || 0;
+                    var scannersTotal = s.ScanScannersTotal || 0;
+                    var scanItemsPct = scannersTotal > 0
+                        ? Math.round(scannersDone / scannersTotal * 100)
+                        : Math.round(scanPct);
+                    var scanItemsPart = scannersTotal > 0
+                        ? ' · ' + scannersDone + ' / ' + scannersTotal + ' scanners done'
+                        : '';
+                    state.textContent = fmt(STR.scanRunning, scanItemsPct) + scanItemsPart;
+                    setProgress(true, scanItemsPct);
                     schedulePoll();
                 } else if (s.IsFixing) {
                     busy.fix = true;
                     var fixPct = s.FixProgress || 0;
-                    if (!progressStart.fixMs && fixPct > 0) {
-                        progressStart.fixMs = Date.now();
-                        progressStart.fixBase = fixPct;
-                    }
                     var remaining = s.PendingFixCount || 0;
-                    var itemsPart = remaining > 0 ? ' · ' + remaining + ' item' + (remaining === 1 ? '' : 's') + ' left' : '';
-                    state.textContent = fmt(STR.fixRunning, Math.round(fixPct)) + itemsPart + computeEta(progressStart.fixMs, progressStart.fixBase, fixPct);
-                    setProgress(true, fixPct);
+                    // Snapshot the queue depth on the first poll we see a real remaining count so
+                    // the ratio has a stable denominator. If new issues get auto-queued mid-run,
+                    // bump the denominator so we never show "22 / 20 left".
+                    if (!progressStart.fixPendingBase && remaining > 0) {
+                        progressStart.fixPendingBase = remaining;
+                    } else if (remaining > progressStart.fixPendingBase) {
+                        progressStart.fixPendingBase = remaining;
+                    }
+                    // Both the percent text and the progress bar derive from the same items ratio
+                    // as the "N / M items left" caption so the whole progress cluster tells one
+                    // story. Falls back to the server's FixProgress on the very first poll before
+                    // a denominator is captured, so the bar isn't stuck at 0% for the first tick.
+                    var itemsDone = Math.max(0, progressStart.fixPendingBase - remaining);
+                    var itemsPct = progressStart.fixPendingBase > 0
+                        ? Math.round(itemsDone / progressStart.fixPendingBase * 100)
+                        : Math.round(fixPct);
+                    var itemsPart = progressStart.fixPendingBase > 0
+                        ? ' · ' + remaining + ' / ' + progressStart.fixPendingBase + ' items left'
+                        : (remaining > 0 ? ' · ' + remaining + ' item' + (remaining === 1 ? '' : 's') + ' left' : '');
+                    state.textContent = fmt(STR.fixRunning, itemsPct) + itemsPart;
+                    setProgress(true, itemsPct);
                     schedulePoll();
                 } else if (busy.scan) {
-                    progressStart.scanMs = 0;
-                    progressStart.scanBase = 0;
                     busy.scan = false;
                     setProgress(false);
                     state.textContent = fmt(STR.scanDone, s.OpenIssueTotal);
                 } else if (busy.fix) {
                     busy.fix = false;
-                    progressStart.fixMs = 0;
-                    progressStart.fixBase = 0;
+                    progressStart.fixPendingBase = 0;
                     setProgress(false);
                     state.textContent = STR.fixDone;
                     if (view.querySelector('#mdTab-history').style.display !== 'none') loadHistory();
@@ -5163,13 +5279,21 @@
             var issuePage = 1;
             var ISSUE_PAGE_SIZE = 100;
             var issueLangFilter = ''; // AudioLanguage sub-filter (empty = all langs)
+            // When true, the Issues tab shows previously-ignored (Dismissed) issues instead of the
+            // open list. Per-row actions become "Unignore" (POST /Issues/{id}/Revert) and the
+            // Clear-all button becomes a bulk-Revert.
+            var showingDismissedIssues = false;
 
             function renderIssues(list) {
                 lastIssueList = list;
                 // Keep the tab badge in lock-step with the actual list length so it can't disagree
                 // with the "All: N" totals pill or the visible cards. Server's Status.OpenIssueTotal
-                // is only used as a first-paint fallback in renderStatus.
-                updateTabBadge('#mdIssueBadge', (list || []).length);
+                // is only used as a first-paint fallback in renderStatus. Skip when viewing Dismissed —
+                // the Issues badge is meant to signal open work, not the ignore pile.
+                if (!showingDismissedIssues) {
+                    updateTabBadge('#mdIssueBadge', (list || []).length);
+                }
+
                 renderIssueTotals();
                 renderIssueLangFilter();
                 renderIssuesFiltered();
@@ -5295,13 +5419,24 @@
 
                 if (list.length > 0) {
                     clearAllBtn.style.display = '';
-                    view.querySelector('#mdClearAllLabel').textContent = fmt(STR.clearAll || 'Clear all {0} shown', list.length);
+                    if (showingDismissedIssues) {
+                        clearAllBtn.classList.add('mdRevertMode');
+                        view.querySelector('#mdClearAllIcon').textContent = 'restore_from_trash';
+                        view.querySelector('#mdClearAllLabel').textContent = fmt(STR.unignoreAll || 'Unignore all {0} shown', list.length);
+                        // Approve-all makes no sense on ignored rows — hide it in this view.
+                        approveAllBtn.style.display = 'none';
+                    } else {
+                        clearAllBtn.classList.remove('mdRevertMode');
+                        view.querySelector('#mdClearAllIcon').textContent = 'delete_sweep';
+                        view.querySelector('#mdClearAllLabel').textContent = fmt(STR.clearAll || 'Clear all {0} shown', list.length);
+                    }
                 } else {
                     clearAllBtn.style.display = 'none';
                 }
 
                 if (!list.length) {
-                    el.innerHTML = '<div class="fieldDescription" style="margin-top:1em;">' + esc(STR.noIssues) + '</div>';
+                    var empty = showingDismissedIssues ? (STR.noIgnored || 'No ignored issues.') : STR.noIssues;
+                    el.innerHTML = '<div class="fieldDescription" style="margin-top:1em;">' + esc(empty) + '</div>';
                     pager.style.display = 'none';
                     return;
                 }
@@ -5336,7 +5471,12 @@
                     // and the hint wraps under the body — otherwise the flex column expands to fit
                     // multi-line hint text and squeezes the body to 0px.
                     var actionButtons, actionHint;
-                    if (isQueued) {
+                    var isDismissed = i.Status === 'Dismissed';
+                    if (isDismissed) {
+                        actionButtons = verifyBtn +
+                            '<button is="emby-button" type="button" class="raised mdUnignore" data-id="' + i.Id + '" style="font-size:80%;"><span class="material-icons" style="font-size:1em;vertical-align:-2px;margin-right:.25em;">restore_from_trash</span><span>' + esc(STR.unignore || 'Unignore') + '</span></button>';
+                        actionHint = '<strong>' + esc(STR.unignore || 'Unignore') + ':</strong> ' + esc(STR.unignoreHint || 'Move this issue back to the open list.');
+                    } else if (isQueued) {
                         actionButtons = verifyBtn +
                             '<button is="emby-button" type="button" class="raised mdUndoAction" data-id="' + i.Id + '" style="font-size:80%;" title="' + esc(STR.undoActionHint) + '"><span class="material-icons" style="font-size:1em;vertical-align:-2px;margin-right:.25em;">undo</span><span>' + esc(STR.undoAction) + '</span></button>' +
                             '<button is="emby-button" type="button" class="raised mdDismiss" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(STR.dismiss) + '</span></button>';
@@ -5369,7 +5509,7 @@
                     } else {
                         pathBlock = '<div class="fieldDescription mdIssuePath" data-path="' + esc(i.Path) + '" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" title="Click to open this folder in the Files tab">' + esc(i.Path) + '</div>';
                     }
-                    html += '<div class="mdCard mdIssueCard mdFade" style="--md-issue-accent:' + t.color + ';' + (isQueued ? 'opacity:.72;' : '') + '" data-issue="' + i.Id + '">' +
+                    html += '<div class="mdCard mdIssueCard mdFade" style="--md-issue-accent:' + t.color + ';' + ((isQueued || isDismissed) ? 'opacity:.72;' : '') + '" data-issue="' + i.Id + '">' +
                         '<div class="mdIssueLayout">' +
                             '<div class="mdIssueDisc"><span class="material-icons">' + esc(t.icon || 'info') + '</span></div>' +
                             '<div class="mdIssueBody">' +
@@ -5401,6 +5541,11 @@
                     b.addEventListener('click', function () { rowAction(b, 'Dismiss', STR.dismissed); });
                 });
                 el.querySelectorAll('.mdUndoAction').forEach(function (b) {
+                    b.addEventListener('click', function () { undoRowAction(b); });
+                });
+                // Un-ignore reuses the /Issues/{id}/Revert endpoint via undoRowAction — same guard,
+                // same reload path, so a mis-click on a Dismissed row lands the same as the Queued undo.
+                el.querySelectorAll('.mdUnignore').forEach(function (b) {
                     b.addEventListener('click', function () { undoRowAction(b); });
                 });
                 el.querySelectorAll('.mdIssuePath').forEach(function (p) {
@@ -7049,6 +7194,24 @@
                 });
             }
 
+            // Build the 48 half-hour slots (00:00, 00:30, …, 23:30) plus a leading "Any time" option
+            // whose value is empty — the backend treats empty start OR end as "no window". Idempotent:
+            // populates once per select, further calls no-op.
+            function populateFixWindowSelects() {
+                ['#mdFixWindowStart', '#mdFixWindowEnd'].forEach(function (sel) {
+                    var el = view.querySelector(sel);
+                    if (!el || el.options.length > 0) return;
+                    var html = '<option value="">Any time</option>';
+                    for (var h = 0; h < 24; h++) {
+                        for (var m = 0; m < 60; m += 30) {
+                            var v = (h < 10 ? '0' : '') + h + ':' + (m === 0 ? '00' : '30');
+                            html += '<option value="' + v + '">' + v + '</option>';
+                        }
+                    }
+                    el.innerHTML = html;
+                });
+            }
+
             function loadBinInfo() {
                 api('RecycleBin').then(function (b) {
                     view.querySelector('#mdBinInfo').textContent = b.FileCount > 0
@@ -7079,6 +7242,10 @@
                             } else {
                                 restoreBtn = '<span class="mdBinNoHistory" title="' + esc(hint) + '">no origin</span>';
                             }
+
+                            var deleteBtn = f.BinPath
+                                ? '<button is="emby-button" type="button" class="raised mdBinDelete" data-bin-path="' + esc(f.BinPath) + '" data-file-name="' + esc(f.FileName) + '" title="Permanently delete this file. Cannot be undone." style="margin-left:.4em;"><span class="material-icons">delete_forever</span><span>Delete</span></button>'
+                                : '';
 
                             var fromPath = f.OriginalPath
                                 ? '<div class="mdBinRowFrom" title="' + esc(f.OriginalPath) + '">from ' + esc(f.OriginalPath) + '</div>'
@@ -7122,7 +7289,7 @@
                                 '</div>' +
                                 '<div class="mdBinRowSize">' + esc(bytes(f.SizeBytes)) + '</div>' +
                                 '<div class="mdBinRowDate">' + esc(recycledAt.toLocaleDateString()) + '</div>' +
-                                '<div class="mdBinRowAction">' + restoreBtn + '<span class="mdBinRowMsg"></span></div>' +
+                                '<div class="mdBinRowAction">' + restoreBtn + deleteBtn + '<span class="mdBinRowMsg"></span></div>' +
                                 '</div>';
                         });
                     }
@@ -7154,6 +7321,36 @@
                                 msg.style.color = '#ef4444';
                                 msg.textContent = fmt(STR.restoreFailed, errorMessage(err));
                                 rb.disabled = false;
+                            });
+                        });
+                    });
+                    listEl.querySelectorAll('.mdBinDelete').forEach(function (db) {
+                        db.addEventListener('click', function () {
+                            var binPath = db.getAttribute('data-bin-path');
+                            var fileName = db.getAttribute('data-file-name') || 'this file';
+                            if (!window.confirm('Permanently delete "' + fileName + '"?\n\nThis cannot be undone. The file will NOT be recoverable from the recycle bin or history.')) return;
+                            var row = db.closest('.mdBinRow');
+                            var rb = row.querySelector('.mdBinRestore');
+                            var msg = row.querySelector('.mdBinRowMsg');
+                            db.disabled = true;
+                            if (rb) rb.disabled = true;
+                            msg.style.color = '#ef4444';
+                            msg.textContent = 'Deleting…';
+                            ApiClient.ajax({
+                                type: 'POST',
+                                url: ApiClient.getUrl('MediaDash/RecycleBin/Items/Delete'),
+                                data: JSON.stringify({ BinPath: binPath }),
+                                contentType: 'application/json'
+                            }).then(function () {
+                                msg.textContent = 'Deleted.';
+                                row.style.opacity = '0.5';
+                                db.style.display = 'none';
+                                if (rb) rb.style.display = 'none';
+                                loadBinInfo();
+                            }, function (err) {
+                                msg.textContent = 'Delete failed: ' + errorMessage(err);
+                                db.disabled = false;
+                                if (rb) rb.disabled = false;
                             });
                         });
                     });
@@ -7220,7 +7417,11 @@
                     view.querySelector('#mdKeeperPolicy').value = keeperPresetFromConfig(c.KeeperPolicyOrder);
                     view.querySelector('#mdDryRun').checked = c.DryRun;
                     view.querySelector('#mdPausePlayback').checked = c.PauseDuringPlayback;
+                    view.querySelector('#mdLowImpact').checked = !!c.LowSystemImpactMode;
                     view.querySelector('#mdAnalytics').checked = !!c.AnalyticsEnabled;
+                    populateFixWindowSelects();
+                    view.querySelector('#mdFixWindowStart').value = c.FixWindowStart || '';
+                    view.querySelector('#mdFixWindowEnd').value = c.FixWindowEnd || '';
                     FIX_TYPES.forEach(function (t) {
                         var mode = c[t.mode];
                         // Duplicate: Automatic is disabled while the confidence-ladder rework
@@ -7357,6 +7558,9 @@
 
                     c.DryRun = view.querySelector('#mdDryRun').checked;
                     c.PauseDuringPlayback = view.querySelector('#mdPausePlayback').checked;
+                    c.LowSystemImpactMode = view.querySelector('#mdLowImpact').checked;
+                    c.FixWindowStart = view.querySelector('#mdFixWindowStart').value || '';
+                    c.FixWindowEnd = view.querySelector('#mdFixWindowEnd').value || '';
                     applyAnalyticsToggle(c, view.querySelector('#mdAnalytics').checked);
                     FIX_TYPES.forEach(function (t) {
                         c[t.mode] = view.querySelector('#mdMode' + t.key).value;
@@ -7460,10 +7664,13 @@
                         c.RecycleBinPauseFixesAtGb = info.SuggestedPauseCapGb;
                     }
 
+                    // Do NOT post('Schedule/Apply') here. That endpoint hard-writes the fix trigger back
+                    // to the interval default, which resurrects a trigger the user has intentionally
+                    // deleted from Dashboard → Scheduled Tasks. Trigger seeding is owned by
+                    // ScheduleMigrator (first-boot) and the explicit "Reset scheduled task" button.
                     ApiClient.updatePluginConfiguration(PLUGIN_ID, c).then(function (result) {
                         view.querySelector('#mdSaveMsg').textContent = STR.saved;
                         Dashboard.processPluginConfigurationUpdateResult(result);
-                        post('Schedule/Apply');
                         refresh();
                         markSettingsClean();
                     });
@@ -7473,7 +7680,6 @@
                     ApiClient.updatePluginConfiguration(PLUGIN_ID, c).then(function (result) {
                         view.querySelector('#mdSaveMsg').textContent = STR.saved;
                         Dashboard.processPluginConfigurationUpdateResult(result);
-                        post('Schedule/Apply');
                         refresh();
                         markSettingsClean();
                     });
@@ -7756,6 +7962,10 @@
                 // Idle-guard checkbox defaults to ON when entering the wizard, regardless of what the
                 // user may have saved previously — the walkthrough is the recommended-defaults moment.
                 view.querySelector('#mdWizPausePlayback').checked = true;
+                // Off by default in the wizard — most Jellyfin installs run headless, so we don't
+                // want to slow encodes 10× for users who never had a problem. The label asks
+                // "is this machine also used for daily work" so a Yes flips it explicitly.
+                view.querySelector('#mdWizLowImpact').checked = !!c.LowSystemImpactMode;
                 view.querySelector('#mdWizRetention').value = c.RecycleBinRetentionDays || 30;
                 view.querySelector('#mdWizBinPath').value = c.RecycleBinPath || '';
                 var staleOn = c.StaleFixMode && c.StaleFixMode !== 'Off';
@@ -7867,6 +8077,7 @@
                     case 13:
                         c.DryRun = view.querySelector('#mdWizDryRun').checked;
                         c.PauseDuringPlayback = view.querySelector('#mdWizPausePlayback').checked;
+                        c.LowSystemImpactMode = view.querySelector('#mdWizLowImpact').checked;
                         var days = parseInt(view.querySelector('#mdWizRetention').value, 10);
                         if (!isNaN(days) && days > 0) c.RecycleBinRetentionDays = days;
                         c.RecycleBinPath = view.querySelector('#mdWizBinPath').value.trim();
@@ -8178,9 +8389,11 @@
             // ---------- Common ----------
 
             function loadIssues() {
-                // ponytail: always fetch the full open-issue list — the type filter is applied client-side by
-                // renderIssuesFiltered so the totals row can show counts for every type simultaneously.
-                api('Issues?openOnly=true').then(renderIssues);
+                // ponytail: always fetch the full list for the current view — the type filter is applied
+                // client-side by renderIssuesFiltered so the totals row can show counts for every type
+                // simultaneously. The Dismissed view uses the same rendering path.
+                var url = showingDismissedIssues ? 'Issues?status=Dismissed' : 'Issues?openOnly=true';
+                api(url).then(renderIssues);
             }
 
             function loadHistory() {
@@ -8231,9 +8444,12 @@
                 if (activeTab && activeTab.getAttribute('data-tab') === 'errors') {
                     loadErrors();
                 } else if (refreshCold) {
-                    api('Errors').then(function (errs) {
-                        var total = (errs || []).reduce(function (sum, e) { return sum + (e.Count || 1); }, 0);
-                        updateErrorBadge(total);
+                    // Errors/Count returns the persisted row count — the same number loadErrors
+                    // sets the badge to. Summing (e.Count || 1) over /Errors here counted dedup
+                    // occurrences, which pushed the badge to "999+" for any single hot error
+                    // (SMART noise, ffmpeg-timeout spam) while the Errors tab only listed one row.
+                    api('Errors/Count').then(function (r) {
+                        updateErrorBadge((r && r.Total) || 0);
                     }, function () { });
                 }
                 // Recycle-bin size banner. Threshold is user-configurable (Settings → Recycle bin);
@@ -8366,6 +8582,7 @@
                             'Files stay recyclable and history-restorable, they just live in one place. Cross-volume moves may take a while.';
                         if (!window.confirm(msg)) return;
                         goBtn.disabled = true;
+                        goBtn.innerHTML = '<span class="material-icons mdSpin" style="font-size:1.1em;vertical-align:-3px;margin-right:.3em;">progress_activity</span><span>Consolidating…</span>';
                         consolidateAllOtherBins(list, goBtn);
                     });
                 }, function () {
@@ -8377,8 +8594,17 @@
                 // Sequential so we can report per-source outcomes cleanly; parallelism buys nothing
                 // on a filesystem move-heavy workload.
                 var remaining = list.slice();
+                var total = list.length;
                 var totalMoved = 0, totalSkipped = 0, totalBytes = 0;
                 var warnings = [];
+                function updateBtnLabel() {
+                    if (!btn) return;
+                    var done = total - remaining.length;
+                    var label = total > 1
+                        ? 'Consolidating ' + (done + 1) + ' of ' + total + '…'
+                        : 'Consolidating…';
+                    btn.innerHTML = '<span class="material-icons mdSpin" style="font-size:1.1em;vertical-align:-3px;margin-right:.3em;">progress_activity</span><span>' + label + '</span>';
+                }
                 function next() {
                     var src = remaining.shift();
                     if (!src) {
@@ -8391,6 +8617,7 @@
                         return;
                     }
 
+                    updateBtnLabel();
                     ApiClient.ajax({
                         type: 'POST',
                         url: ApiClient.getUrl('MediaDash/RecycleBin/Consolidate'),
@@ -8554,16 +8781,37 @@
                         setTimeout(function () { if (msg.textContent.indexOf('Diagnostics copied') === 0) msg.textContent = ''; }, 8000);
                     };
                     if (navigator.clipboard && navigator.clipboard.writeText) {
-                        navigator.clipboard.writeText(blob).then(done, function () { promptFallback(blob, msg); });
+                        navigator.clipboard.writeText(blob).then(done, function () {
+                            if (execCommandCopy(blob)) { done(); } else { promptFallback(blob, msg); }
+                        });
+                    } else if (execCommandCopy(blob)) {
+                        done();
                     } else {
                         promptFallback(blob, msg);
                     }
                 });
             }
 
+            // Legacy copy path used when navigator.clipboard is unavailable or blocked (HTTP origin,
+            // permissions policy, etc.). execCommand('copy') is deprecated but still ubiquitous and
+            // works on any origin as long as the call sits inside a user gesture — which it does here
+            // (the click handler that triggered the report). Returns true on success.
+            function execCommandCopy(text) {
+                var ta = document.createElement('textarea');
+                ta.value = text;
+                ta.setAttribute('readonly', '');
+                ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;';
+                document.body.appendChild(ta);
+                ta.select();
+                var ok = false;
+                try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+                document.body.removeChild(ta);
+                return ok;
+            }
+
             function promptFallback(text, msg) {
-                // Fallback for browsers that block programmatic clipboard writes (older Firefox, permission denied,
-                // insecure origin). Dump into a prompt() so the user can Ctrl+A / Ctrl+C by hand.
+                // Last-resort fallback when both clipboard paths refuse. Dump into a prompt() so the
+                // user can Ctrl+A / Ctrl+C by hand.
                 msg.textContent = 'Clipboard blocked — the text is in the prompt below, copy it manually.';
                 window.prompt('Copy this and paste into your GitHub issue:', text);
             }
@@ -9200,9 +9448,33 @@
                     });
                     view.querySelector('#mdClearAllIssues').addEventListener('click', function () {
                         if (!lastFilteredIssues.length) return;
-                        if (!window.confirm(fmt(STR.clearAllConfirm || 'Ignore all {0} issue(s)?', lastFilteredIssues.length))) return;
                         var ids = lastFilteredIssues.map(function (i) { return i.Id; });
-                        bulkIssueAction(ids, 'Dismiss').then(function () { loadIssues(); refresh(true); });
+                        if (showingDismissedIssues) {
+                            if (!window.confirm(fmt(STR.unignoreAllConfirm || 'Unignore {0} issue(s)?', ids.length))) return;
+                            bulkIssueAction(ids, 'Revert').then(function () { loadIssues(); refresh(true); });
+                        } else {
+                            if (!window.confirm(fmt(STR.clearAllConfirm || 'Ignore all {0} issue(s)?', ids.length))) return;
+                            bulkIssueAction(ids, 'Dismiss').then(function () { loadIssues(); refresh(true); });
+                        }
+                    });
+                    view.querySelector('#mdToggleIgnored').addEventListener('click', function () {
+                        showingDismissedIssues = !showingDismissedIssues;
+                        // Reset paging + type filter — dismissed and open sets are disjoint so a stale
+                        // filter would just show "no results" for the other view.
+                        issuePage = 1;
+                        view.querySelector('#mdTypeFilter').value = '';
+                        var btn = view.querySelector('#mdToggleIgnored');
+                        btn.classList.toggle('mdToggleActive', showingDismissedIssues);
+                        view.querySelector('#mdToggleIgnoredLabel').textContent = showingDismissedIssues
+                            ? (STR.showOpen || 'Show open issues')
+                            : (STR.showIgnored || 'Show ignored');
+                        view.querySelector('#mdToggleIgnoredIcon').textContent = showingDismissedIssues
+                            ? 'visibility'
+                            : 'visibility_off';
+                        // Force a fresh render — the fingerprint is content-based, not mode-based.
+                        var listEl = view.querySelector('#mdIssueList');
+                        if (listEl) listEl.removeAttribute('data-fingerprint');
+                        loadIssues();
                     });
                     installIssueContextMenu();
 

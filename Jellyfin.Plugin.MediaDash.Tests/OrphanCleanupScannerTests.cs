@@ -62,6 +62,9 @@ public sealed class OrphanCleanupScannerTests
     [InlineData("Foo.en.cc.srt")]
     [InlineData("Foo.forced.srt")]
     [InlineData("Foo.en.forced.srt")]
+    [InlineData("Foo.en.dialog.srt")]   // Field report: dialog-tagged
+    [InlineData("Foo.en.dialogue.srt")] // British spelling; also seen in the wild
+    [InlineData("Foo.en.dialog.forced.srt")]
     [InlineData("Foo.default.srt")]
     [InlineData("Foo.foreign.srt")]
     [InlineData("Foo.sign.srt")]

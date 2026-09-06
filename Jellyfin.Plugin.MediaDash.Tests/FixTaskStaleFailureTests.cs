@@ -9,6 +9,9 @@ public class FixTaskStaleFailureTests
     [InlineData("The file no longer exists; re-scan to refresh the list.")]
     [InlineData("The source no longer exists; re-scan to refresh the list.")]
     [InlineData("Nothing to remove any more — the file may have changed since the scan. Re-scan to refresh.")]
+    [InlineData("The file plays fine now — nothing was removed. Re-scan to clear this issue.")]
+    [InlineData("An item with the same name already exists at '/mnt/media/Complete/TV/Yellowstone/Yellowstone (2018)' — rename or remove it, or move this one manually.")]
+    [InlineData("A file with the same name already exists at '/mnt/media/target.mkv' — nothing was moved. Rename or remove the existing file, or move this one manually.")]
     public void IsStaleFailure_KnownStalePatterns_ReturnTrue(string message)
     {
         // These are the exact strings the fixers emit when scan-time state no longer matches disk.

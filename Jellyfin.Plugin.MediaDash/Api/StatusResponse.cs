@@ -85,6 +85,20 @@ public sealed class StatusResponse
     public int PendingFixCount { get; set; }
 
     /// <summary>
+    /// Gets or sets the number of scanners that have completed in the currently-running scan,
+    /// or null when no scan is running. Together with <see cref="ScanScannersTotal"/> drives the
+    /// dashboard's "N / M scanners done" caption (same shape as the fix run's items ratio).
+    /// </summary>
+    public int? ScanScannersDone { get; set; }
+
+    /// <summary>
+    /// Gets or sets the total number of scanners that will run in the currently-running scan,
+    /// or null when no scan is running. Captured after Off-type filtering, so it reflects what
+    /// this specific run will actually do.
+    /// </summary>
+    public int? ScanScannersTotal { get; set; }
+
+    /// <summary>
     /// Gets or sets per-drive free/total bytes for each drive that hosts a library folder.
     /// </summary>
     public IReadOnlyList<DriveUsage> Drives { get; set; } = [];

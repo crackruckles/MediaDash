@@ -260,7 +260,7 @@ public sealed class TrackFixer : IFixer
                     return FixResult.Fail("Rebuilding the file failed; the original is untouched. Details: " + TranscodeFixer.Truncate(error));
                 }
 
-                var verifyError = await _verifier.VerifyAsync(probe, tempPath, cancellationToken).ConfigureAwait(false);
+                var verifyError = await _verifier.VerifyAsync(probe, issue.Path, tempPath, cancellationToken).ConfigureAwait(false);
                 if (verifyError is not null)
                 {
                     return FixResult.Fail("The rebuilt file failed verification; the original is untouched. Details: " + verifyError);

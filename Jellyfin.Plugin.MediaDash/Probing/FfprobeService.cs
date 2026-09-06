@@ -280,6 +280,92 @@ public sealed class FfprobeService
         return (h * 3600.0) + (mm * 60.0) + ss;
     }
 
+    /// <summary>
+    /// Counts video packets in a file by asking ffprobe to walk the whole container. Slow (seconds
+    /// to tens of seconds on a Blu-ray remux) but definitive: for a <c>-c copy</c> operation the video
+    /// packet stream is byte-for-byte identical between input and output, so packet counts must match.
+    /// The <see cref="Fixers.OutputVerifier"/> uses this to rescue verification on files whose
+    /// container-level duration is unreliable (e.g. Blu-ray rips where <c>Format.Duration</c> was
+    /// derived from a removed audio track — see issue #39).
+    /// Returns null if ffprobe couldn't be executed, timed out, or the file has no video stream.
+    /// </summary>
+    /// <param name="path">Full path of the file to probe.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The count of video packets, or null on failure.</returns>
+    public async Task<long?> CountVideoPacketsAsync(string path, CancellationToken cancellationToken)
+    {
+        var probePath = _mediaEncoder.ProbePath;
+        if (string.IsNullOrEmpty(probePath) || !File.Exists(path))
+        {
+            return null;
+        }
+
+        using var process = new Process();
+        process.StartInfo.FileName = probePath;
+        process.StartInfo.UseShellExecute = false;
+        process.StartInfo.CreateNoWindow = true;
+        process.StartInfo.RedirectStandardOutput = true;
+        process.StartInfo.RedirectStandardError = true;
+        process.StartInfo.ArgumentList.Add("-threads");
+        process.StartInfo.ArgumentList.Add(ResolveScanThreads());
+        // -select_streams v:0 restricts to the first video stream; -count_packets makes ffprobe
+        // walk the whole container to enumerate packets (this is the slow bit). -show_entries
+        // stream=nb_read_packets narrows output to the value we want, and -of csv=p=0 strips
+        // formatting so stdout is just the count as a single integer on one line.
+        foreach (var arg in new[]
+        {
+            "-v", "error",
+            "-select_streams", "v:0",
+            "-count_packets",
+            "-show_entries", "stream=nb_read_packets",
+            "-of", "csv=p=0",
+            path
+        })
+        {
+            process.StartInfo.ArgumentList.Add(arg);
+        }
+
+        // Give it 5 minutes — a 40GB Blu-ray remux can take a few minutes to walk on a spinning HDD.
+        // Well past normal probe budget but this only fires on the failure-recovery path, not every scan.
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(TimeSpan.FromMinutes(5));
+
+        try
+        {
+            process.Start();
+            TryLowerPriority(process);
+            var stdoutTask = process.StandardOutput.ReadToEndAsync(timeoutCts.Token);
+            var stderrTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
+            await process.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false);
+            var stdout = (await stdoutTask.ConfigureAwait(false)).Trim();
+            await stderrTask.ConfigureAwait(false);
+            if (process.ExitCode != 0 || string.IsNullOrEmpty(stdout))
+            {
+                return null;
+            }
+
+            return long.TryParse(stdout, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var count) && count > 0
+                ? count
+                : null;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning("ffprobe packet count timed out on {Path}", path);
+            TryKill(process);
+            return null;
+        }
+        catch (OperationCanceledException)
+        {
+            TryKill(process);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ffprobe packet count failed on {Path}", path);
+            return null;
+        }
+    }
+
     private FfprobeData? Deserialize(string json, string path)
     {
         try

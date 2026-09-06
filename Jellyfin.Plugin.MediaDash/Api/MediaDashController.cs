@@ -226,6 +226,8 @@ public class MediaDashController : ControllerBase
                 PotentialSavings = s.PotentialSavings
             }).ToList(),
             PendingFixCount = queuedCount + autoQueueableCount,
+            ScanScannersDone = Plugin.ScanScannersDone,
+            ScanScannersTotal = Plugin.ScanScannersTotal,
             Drives = drives,
             CurrentActivity = Plugin.CurrentActivity,
             CurrentActivityLabel = Plugin.CurrentActivityLabel,
@@ -556,7 +558,7 @@ public class MediaDashController : ControllerBase
     /// and the context-menu "ignore all in this folder / of this type / etc." actions — the client
     /// computes the id list, the server just applies the status.
     /// </summary>
-    /// <param name="request">Ids and target action ("Approve" or "Dismiss").</param>
+    /// <param name="request">Ids and target action ("Approve", "Dismiss", or "Revert").</param>
     /// <returns>The number of issues updated.</returns>
     [HttpPost("Issues/Bulk")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -575,6 +577,13 @@ public class MediaDashController : ControllerBase
             return BadRequest("Too many IDs (max 50000 per request).");
         }
 
+        // Revert (bulk un-ignore) takes a different path — source status filter is Dismissed, not
+        // Detected/Queued — so branch before the target lookup.
+        if (string.Equals(request.Action, "Revert", StringComparison.OrdinalIgnoreCase))
+        {
+            return _db.BulkRevertDismissedIssues(request.Ids);
+        }
+
         IssueStatus target;
         if (string.Equals(request.Action, "Approve", StringComparison.OrdinalIgnoreCase))
         {
@@ -586,7 +595,7 @@ public class MediaDashController : ControllerBase
         }
         else
         {
-            return BadRequest("Action must be 'Approve' or 'Dismiss'.");
+            return BadRequest("Action must be 'Approve', 'Dismiss', or 'Revert'.");
         }
 
         // Guarded transition — only Detected/Queued rows are touched. Prevents a stale client
@@ -1088,6 +1097,9 @@ public class MediaDashController : ControllerBase
     public ActionResult<IReadOnlyList<LibraryStat>> GetLibraryStats()
     {
         var idLookup = Scanners.VirtualFolderIdentity.BuildIdLookup(_libraryManager);
+        // Honour Settings → Libraries → Which libraries to scan. Empty list = all (existing
+        // ScanTask semantic); non-empty = restrict the Overview breakdown to the user's chosen set.
+        var enabledLibraries = Plugin.Instance!.Configuration.EnabledLibraries ?? Array.Empty<string>();
         var folders = _libraryManager.GetVirtualFolders()
             .Where(f => Scanners.VirtualFolderIdentity.GetId(f, idLookup) is not null)
             .Select(f => new
@@ -1098,6 +1110,8 @@ public class MediaDashController : ControllerBase
                     .Select(l => Path.TrimEndingDirectorySeparator(l) + Path.DirectorySeparatorChar)
                     .ToList()
             })
+            .Where(f => enabledLibraries.Length == 0
+                || enabledLibraries.Contains(f.Id, StringComparer.OrdinalIgnoreCase))
             .ToList();
 
         if (folders.Count == 0)
@@ -1494,6 +1508,57 @@ public class MediaDashController : ControllerBase
         row.RestoredTo = targetPath;
         row.Suffixed = suffixed;
         return row;
+    }
+
+    /// <summary>
+    /// Permanently deletes a single recycled file, identified by bin path. The path is whitelisted
+    /// against <see cref="Fixers.RecycleBin.ListContents"/> so callers can't pass an arbitrary host
+    /// path. Irreversible — the UI confirms with the user before calling.
+    /// </summary>
+    /// <param name="request">Body naming the bin path to delete.</param>
+    /// <returns>200 on success; 400 when the body lacks BinPath; 404 when the path isn't a known bin entry.</returns>
+    [HttpPost("RecycleBin/Items/Delete")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Security",
+        "CA3003:Review code for file path injection vulnerabilities",
+        Justification = "BinPath is whitelisted against ListContents() before deletion — arbitrary host paths cannot pass the equality check.")]
+    public ActionResult DeleteBinItem([FromBody] BinDeleteRequest request)
+    {
+        if (string.IsNullOrEmpty(request.BinPath))
+        {
+            return BadRequest("Missing 'BinPath'. Send the value from RecycleBinItem.BinPath (GET /MediaDash/RecycleBin/Items).");
+        }
+
+        var entry = _recycleBin.ListContents().FirstOrDefault(e =>
+            string.Equals(e.BinPath, request.BinPath, StringComparison.OrdinalIgnoreCase));
+        if (entry.BinPath is null)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            _recycleBin.DeleteFile(entry.BinPath);
+        }
+        catch (FileNotFoundException)
+        {
+            // Already gone (raced a purge / another delete). Treat as success — the caller wanted it gone.
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Diagnostics.Record("RecycleBin.DeletePermissionDenied", "Could not delete '" + entry.BinPath + "': " + ex.Message);
+            return StatusCode(StatusCodes.Status500InternalServerError, "Permission denied deleting the file. Check the Jellyfin user has write access to the recycle bin folder.");
+        }
+        catch (IOException ex)
+        {
+            Diagnostics.Record("RecycleBin.DeleteIOError", "Could not delete '" + entry.BinPath + "': " + ex.Message);
+            return StatusCode(StatusCodes.Status500InternalServerError, "Could not delete the file: " + ex.Message);
+        }
+
+        return Ok();
     }
 
     /// <summary>

@@ -157,6 +157,22 @@ public sealed class MediaSorterFixer : IFixer
             ? Path.Combine(targetDir, Path.GetFileNameWithoutExtension(targetPath) + ".mediadash.tmp" + Path.GetExtension(targetPath))
             : null;
 
+        // Capture source timestamps BEFORE the move so we can restore them on the target — .NET's
+        // cross-volume File.Move does copy+delete which resets CreationTime, and Jellyfin's
+        // Recently Added row reads DateCreated (initially populated from CreationTime/LastWriteTime).
+        // Same-volume rename preserves both times naturally; restoring is a no-op in that case.
+        DateTime srcCreatedUtc = DateTime.UtcNow, srcModifiedUtc = DateTime.UtcNow;
+        try
+        {
+            var srcInfo = new FileInfo(issue.Path);
+            srcCreatedUtc = srcInfo.CreationTimeUtc;
+            srcModifiedUtc = srcInfo.LastWriteTimeUtc;
+        }
+        catch (IOException)
+        {
+            // Best-effort — stale value falls back to DateTime.UtcNow initialiser.
+        }
+
         try
         {
             if (isCrossVolume && stagingPath is not null)
@@ -191,6 +207,17 @@ public sealed class MediaSorterFixer : IFixer
             // the audit trail loses the failure entirely.
             return Task.FromResult(FixResult.Fail(
                 "Couldn't move '" + Path.GetFileName(issue.Path) + "' → '" + targetPath + "': " + ex.Message));
+        }
+
+        try
+        {
+            File.SetCreationTimeUtc(targetPath, srcCreatedUtc);
+            File.SetLastWriteTimeUtc(targetPath, srcModifiedUtc);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Best-effort — don't fail the move over a timestamp restore. If it fails, Recently Added
+            // may show the moved item as "new" only if Jellyfin re-imports; existing DB DateCreated persists.
         }
 
         _libraryMonitor.ReportFileSystemChanged(issue.Path);

@@ -82,6 +82,41 @@ public sealed class TrickplayOptimizeScannerTests
     }
 
     [Fact]
+    public void MeasureConvertibleJpgs_CutoffSuppressesOlderJpgs()
+    {
+        // The rescan-loop fix: the scanner passes the last successful FixedAtUtc from history as the
+        // cutoff. Any pre-existing real JPG at or before the cutoff was handled by a prior fixer pass
+        // (either shrunk in place, or intentionally left as unshrinkable). Only .jpg files newer than
+        // the cutoff count — that's Jellyfin regenerating trickplay after the video changed.
+        var dir = Path.Combine(Path.GetTempPath(), "trickplay-cutoff-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var oldJpg = Path.Combine(dir, "0.jpg");
+            File.WriteAllBytes(oldJpg, JpgMagic);
+            File.SetLastWriteTimeUtc(oldJpg, DateTime.UtcNow.AddMinutes(-10));
+
+            var cutoff = DateTime.UtcNow.AddMinutes(-5);
+
+            var newJpg = Path.Combine(dir, "1.jpg");
+            File.WriteAllBytes(newJpg, JpgMagic);
+            File.SetLastWriteTimeUtc(newJpg, DateTime.UtcNow);
+
+            var (count, bytes) = TrickplayOptimizeScanner.MeasureConvertibleJpgs(dir, cutoff);
+            Assert.Equal(1, count);
+            Assert.Equal(JpgMagic.Length, bytes);
+
+            // Null cutoff (no prior fix) means "count everything" — the pre-marker behaviour.
+            var (countAll, _) = TrickplayOptimizeScanner.MeasureConvertibleJpgs(dir);
+            Assert.Equal(2, countAll);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
     public void MeasureConvertibleJpgs_MissingDirReturnsZero()
     {
         var missing = Path.Combine(Path.GetTempPath(), "trickplay-nope-" + Guid.NewGuid().ToString("N"));

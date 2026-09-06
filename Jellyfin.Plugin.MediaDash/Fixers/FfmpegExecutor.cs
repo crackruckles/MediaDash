@@ -92,7 +92,16 @@ public sealed class FfmpegExecutor
             process.StartInfo.ArgumentList.Add("-nostats");
         }
 
-        foreach (var arg in args)
+        // Low system impact mode: throttle ffmpeg to native input rate via `-re`, which caps
+        // effective throughput at 1x realtime. Turns a 5-minute encode of a 45-minute episode
+        // into a 45-minute encode with much lower CPU peaks — the whole point for users whose
+        // media server is also their daily-driver desktop. Applies to remuxes too (input read
+        // throttles instead of spiking disk IO); no-op on ffmpeg calls with no `-i`.
+        var effectiveArgs = (Plugin.Instance?.Configuration?.LowSystemImpactMode ?? false)
+            ? InjectRealtimeThrottle(args)
+            : args;
+
+        foreach (var arg in effectiveArgs)
         {
             process.StartInfo.ArgumentList.Add(arg);
         }
@@ -100,7 +109,7 @@ public sealed class FfmpegExecutor
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(timeout);
 
-        _logger.LogInformation("Running ffmpeg {Args}", string.Join(' ', args));
+        _logger.LogInformation("Running ffmpeg {Args}", string.Join(' ', effectiveArgs));
         try
         {
             process.Start();
@@ -224,6 +233,54 @@ public sealed class FfmpegExecutor
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Prepends ffmpeg's <c>-re</c> flag right before the first <c>-i</c> in the caller's arg list,
+    /// throttling input reads to native frame rate. Idempotent: if the caller already passed
+    /// <c>-re</c>, returns the input unchanged. No-op when there is no <c>-i</c> (e.g. probe-only
+    /// or filter-only invocations) since <c>-re</c> is meaningful only against an input.
+    /// Internal for direct unit testing.
+    /// </summary>
+    /// <param name="args">The caller's ffmpeg arguments.</param>
+    /// <returns>A new list with <c>-re</c> inserted, or the original list when insertion is a no-op.</returns>
+    internal static IReadOnlyList<string> InjectRealtimeThrottle(IReadOnlyList<string> args)
+    {
+        for (var i = 0; i < args.Count; i++)
+        {
+            if (string.Equals(args[i], "-re", StringComparison.Ordinal))
+            {
+                return args;
+            }
+        }
+
+        var iIndex = -1;
+        for (var i = 0; i < args.Count; i++)
+        {
+            if (string.Equals(args[i], "-i", StringComparison.Ordinal))
+            {
+                iIndex = i;
+                break;
+            }
+        }
+
+        if (iIndex < 0)
+        {
+            return args;
+        }
+
+        var result = new List<string>(args.Count + 1);
+        for (var i = 0; i < args.Count; i++)
+        {
+            if (i == iIndex)
+            {
+                result.Add("-re");
+            }
+
+            result.Add(args[i]);
+        }
+
+        return result;
     }
 
     // ffmpeg-encoding fixers (Transcode, Track, TrickplayOptimize, EmbeddedCoverArt) are the CPU-heavy

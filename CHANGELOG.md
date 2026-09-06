@@ -4,6 +4,33 @@ Release notes for every published version are on GitHub Releases: https://github
 
 The Jellyfin plugin catalog also shows the changelog for each version — open **Dashboard → Plugins → Catalog** in your Jellyfin server, or read `manifest.json` in this repo.
 
+## 1.0.7.5 (unreleased)
+
+- added Fix window setting (only run scheduled fixes between hours you choose)
+- added Low system impact mode (throttles ffmpeg so it doesn't hog CPU or disk on daily-driver machines)
+- fix run progress now shows items remaining / total instead of a time estimate
+- fixed Blu-ray remuxes rejected for duration mismatch when the source container had unreliable metadata (Spider-Verse AV1, Lion King 2019 and similar)
+- fix runs now check every 30 minutes (was 15)
+- added Delete button per row on the Recycle bin tab
+- fixed Recycle bin listing crash when a batch auto-purged mid-request
+- fixed Recently Added timestamps drifting on files moved between drives
+- fixed Media Grouper re-emitting the same Ungrouped issue every scan when the target folder was already occupied (the Group fix would then fail "same name already exists" every fix run — user report: Yellowstone (2018) duplicated at both root and inside the canonical series folder)
+- cleared stale "unplayable" false-positives left over from earlier versions
+- Overview now respects your library selection
+- fixed Files tab errors when part of the config isn't ready yet
+- fixed already-converted trickplay folders re-appearing on the Issues tab and re-running every scan (the scanner now skips sprites already handled by an earlier fix, and re-flags only what Jellyfin regenerates)
+- fixed the fix scheduled task getting put back after users delete it from Dashboard → Scheduled Tasks (Settings → Save no longer resurrects the trigger; the explicit "Reset scheduled task" button still works)
+- fixed hardware-accelerated re-encodes running with software decode (NVENC / QSV / VAAPI encoders now decode on GPU too when the source is h264, hevc, vp9, or av1; falls back to CPU decode on any failure, and legacy input codecs use today's software-decode path unchanged). AMF and VideoToolbox stay on software decode: ffmpeg has no GPU-resident scale filter for their pixel formats, so hardware decode would force a GPU↔CPU copy per frame for the downscale step and end up slower than software decode on the same workload.
+- fixed Errors tab badge showing "999+" while the tab itself listed only a handful of rows (the every-3s refresh was summing dedup occurrences instead of the persisted row count, so a single hot spammy error inflated the badge)
+- added "Show ignored" toggle on the Issues tab so previously-dismissed issues are visible again, with per-row Unignore and a bulk "Unignore all shown" (individual dismiss was already reversible via Undo; there was no way to see or un-dismiss anything after leaving the tab)
+- fixed "Fix run finished with failures" dashboard alert stacking one modal per scheduled fix run when the page was left open — the alert now fires ONCE per page session and its message aggregates every completed run since the page loaded (reload to be alerted about future runs)
+- scheduled scan now runs daily at midnight (was 2 AM) so it only has to catch a day's worth of changes; idle-check still defers if a viewer arrives at 00:00. Existing installs keep whatever time you set — only the fresh-install default changed.
+- scheduled fix now silently skips when nothing is queued (was Info-logging every 30 min even when there was nothing to do). Fix run still fires every 30 min inside the fix window when idle, but only does real work when the scanner has produced something to fix.
+
+625 / 625 tests green. One binary for Jellyfin 10.11 and 12.0.
+
+---
+
 ## 1.0.7.4
 
 - fixed duplicate remuxes when a file needed both track cleanup and re-encoding

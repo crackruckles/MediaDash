@@ -29,6 +29,17 @@ public sealed class TranscodeFixer : IFixer
 {
     private static readonly TimeSpan TranscodeTimeout = TimeSpan.FromHours(6);
 
+    // Codecs known to be broadly HW-decodable across modern (2016+) GPUs on every current
+    // encoder family. Whitelist match doesn't guarantee THIS specific GPU has the decoder;
+    // ffmpeg's init will fail and the existing full-SW retry (see FixAsync line ~163-183)
+    // catches the miss with a full-software second pass.
+    // ponytail: extend to mpeg2/vc1/mpeg4 only if legacy-content users request it — those
+    // codecs are rare in "oversized" library files (they're already small).
+    private static readonly HashSet<string> HwDecodeCodecs = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "h264", "hevc", "vp9", "av1"
+    };
+
     private readonly FfprobeService _ffprobe;
     private readonly FfmpegExecutor _ffmpeg;
     private readonly OutputVerifier _verifier;
@@ -187,7 +198,7 @@ public sealed class TranscodeFixer : IFixer
                 return FixResult.Fail("Re-encoding failed; the original is untouched. Details: " + Truncate(error));
             }
 
-            var verifyError = await _verifier.VerifyAsync(probe, tempPath, cancellationToken).ConfigureAwait(false);
+            var verifyError = await _verifier.VerifyAsync(probe, issue.Path, tempPath, cancellationToken).ConfigureAwait(false);
             if (verifyError is not null)
             {
                 return FixResult.Fail("The re-encoded file failed verification; the original is untouched. Details: " + verifyError);
@@ -424,7 +435,42 @@ public sealed class TranscodeFixer : IFixer
         return "/dev/dri/renderD128";
     }
 
-    private static List<string> BuildArgs(
+    // Returns (hwaccel type, hwaccel_output_format), or (null, null) when the family should not
+    // get HW decode at all. Only families with a GPU-resident scale filter (scale_cuda, scale_qsv,
+    // scale_vaapi) benefit — the rest have to hwdownload frames for the scale step, which costs a
+    // GPU↔CPU copy the SW-decode path doesn't pay. On any downscale-bound workload (i.e. most Quality
+    // fixes) the extra copy exceeds the CPU savings — bench on 4K HEVC → 720p AMF, 2026-09-05, showed
+    // -hwaccel d3d11va + h264_amf was 8% slower than plain SW-decode + h264_amf on this build.
+    // ponytail: revisit AMF + VideoToolbox when ffmpeg ships scale_d3d11 / scale_vt as stable filters.
+    private static (string? HwaccelType, string? OutputFormat) HwDecodeSpec(string hardwareEncoder)
+    {
+        if (hardwareEncoder.EndsWith("_nvenc", StringComparison.Ordinal))
+        {
+            return ("cuda", "cuda");
+        }
+
+        if (hardwareEncoder.EndsWith("_qsv", StringComparison.Ordinal))
+        {
+            return ("qsv", "qsv");
+        }
+
+        if (hardwareEncoder.EndsWith("_vaapi", StringComparison.Ordinal))
+        {
+            return ("vaapi", "vaapi");
+        }
+
+        if (hardwareEncoder.EndsWith("_amf", StringComparison.Ordinal)
+            || hardwareEncoder.EndsWith("_videotoolbox", StringComparison.Ordinal))
+        {
+            // No GPU-resident scale on this pipeline → HW decode is a net loss on any downscale.
+            // Keep today's HW-encode-only behavior (SW decode fed to the HW encoder).
+            return (null, null);
+        }
+
+        throw new ArgumentException("Unknown hardware encoder family: " + hardwareEncoder, nameof(hardwareEncoder));
+    }
+
+    internal static List<string> BuildArgs(
         string inputPath,
         string tempPath,
         FfprobeData probe,
@@ -444,11 +490,39 @@ public sealed class TranscodeFixer : IFixer
             _ => "libx265"
         };
 
+        // Full-HW pipeline only when the input codec is on the whitelist AND we have a HW encoder
+        // selected. Anything else runs SW decode + (HW or SW) encode as before — the whitelist is
+        // the only gate; the retry ladder in FixAsync catches per-GPU capability misses.
+        var useHwDecode = hardwareEncoder is not null && !string.IsNullOrEmpty(video.CodecName)
+            && HwDecodeCodecs.Contains(video.CodecName);
+
+        // hwOutputFormat is non-null only when the family keeps frames GPU-resident through filter+encode.
+        // AMF and VideoToolbox use HW decode but land frames in system memory (see HwDecodeSpec), so
+        // downstream code that treats "on GPU" specially must check hwOutputFormat, not useHwDecode.
+        string? hwaccelType = null;
+        string? hwOutputFormat = null;
+        if (useHwDecode)
+        {
+            (hwaccelType, hwOutputFormat) = HwDecodeSpec(hardwareEncoder!);
+        }
+
         var args = new List<string>();
         if (vaapiDevice is not null)
         {
-            // Global VAAPI device init must come before -i so the encoder + filter chain can hwupload to it.
+            // Global VAAPI device init must come before -i so decode, filter chain, and encode share the device.
             args.AddRange(["-vaapi_device", vaapiDevice]);
+        }
+
+        if (hwaccelType is not null)
+        {
+            // -hwaccel alone would let ffmpeg decode on GPU then download every frame to system memory
+            // (same throughput as pure CPU decode). -hwaccel_output_format keeps frames GPU-resident
+            // when the family supports it.
+            args.AddRange(["-hwaccel", hwaccelType]);
+            if (hwOutputFormat is not null)
+            {
+                args.AddRange(["-hwaccel_output_format", hwOutputFormat]);
+            }
         }
 
         args.AddRange(["-i", inputPath, "-map", "0:" + video.Index.ToString(CultureInfo.InvariantCulture)]);
@@ -532,11 +606,13 @@ public sealed class TranscodeFixer : IFixer
                 "-maxrate", (targetBits * 3 / 2).ToString(CultureInfo.InvariantCulture),
                 "-bufsize", (targetBits * 2).ToString(CultureInfo.InvariantCulture)
             ]);
-            if (encoder.StartsWith("h264", StringComparison.Ordinal) && vaapiDevice is null)
+            if (encoder.StartsWith("h264", StringComparison.Ordinal) && vaapiDevice is null && hwOutputFormat is null)
             {
                 // h264 hardware encoders are 8-bit; normalize input so 10-bit sources don't abort the encoder.
-                // Skipped for VAAPI: frames are already nv12-on-GPU via the hwupload filter below, and
-                // -pix_fmt would try to force a CPU format on a hardware surface and fail.
+                // Skipped for VAAPI (frames are already nv12-on-GPU via the hwupload filter below), and for
+                // GPU-resident full-HW paths (scale_cuda / scale_qsv handle format on GPU — a CPU -pix_fmt
+                // would force an unwanted download). AMF and VideoToolbox still need the CPU -pix_fmt: they
+                // use HW decode but their frames land in system memory.
                 args.AddRange(["-pix_fmt", "yuv420p"]);
             }
         }
@@ -564,10 +640,39 @@ public sealed class TranscodeFixer : IFixer
             }
         }
 
-        if (vaapiDevice is not null)
+        if (useHwDecode)
         {
-            // VAAPI encoders require frames on the GPU as vaapi surfaces. format=nv12 normalises 10-bit sources
-            // for hwupload; scale_vaapi keeps the downscale on-GPU so we don't round-trip through system memory.
+            // Full-HW pipeline: frames arrive as GPU surfaces (via -hwaccel_output_format), stay on
+            // GPU through the family-specific scale filter, and go straight to the HW encoder.
+            var w = needsDownscale ? "-2" : "iw";
+            var h = needsDownscale ? config.MaxResolutionHeight.ToString(CultureInfo.InvariantCulture) : "ih";
+            var pixFmt = encoder.StartsWith("h264", StringComparison.Ordinal) ? "yuv420p" : "nv12";
+
+            if (hardwareEncoder!.EndsWith("_nvenc", StringComparison.Ordinal))
+            {
+                args.AddRange(["-vf", "scale_cuda=w=" + w + ":h=" + h + ":format=" + pixFmt]);
+            }
+            else if (hardwareEncoder.EndsWith("_qsv", StringComparison.Ordinal))
+            {
+                args.AddRange(["-vf", "scale_qsv=w=" + w + ":h=" + h + ":format=" + pixFmt]);
+            }
+            else if (hardwareEncoder.EndsWith("_vaapi", StringComparison.Ordinal))
+            {
+                // VAAPI encoders take nv12 for both h264 and hevc; keep format explicit to avoid driver defaults.
+                args.AddRange(["-vf", "scale_vaapi=w=" + w + ":h=" + h + ":format=nv12"]);
+            }
+            else if (needsDownscale)
+            {
+                // AMF / VideoToolbox: HW decode without GPU-resident frames — implicit hwdownload happens
+                // between decode and this CPU scale filter. Skip the filter entirely on no-downscale
+                // (nothing needs converting when the frame is already in system memory at target size).
+                args.AddRange(["-vf", "scale=-2:" + config.MaxResolutionHeight.ToString(CultureInfo.InvariantCulture)]);
+            }
+        }
+        else if (vaapiDevice is not null)
+        {
+            // SW decode → VAAPI encode: frames arrive in system memory, so upload then GPU-scale.
+            // format=nv12 normalises 10-bit sources for hwupload.
             var vf = needsDownscale
                 ? "format=nv12,hwupload,scale_vaapi=w=-2:h=" + config.MaxResolutionHeight.ToString(CultureInfo.InvariantCulture)
                 : "format=nv12,hwupload";

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -53,7 +54,7 @@ public sealed class FixTask : IScheduledTask
     // sidecars). Below the floor, further fixes risk driving the disk to 0 free bytes mid-write.
     internal const long BinVolumeMinFreeBytes = 3L * 1024 * 1024 * 1024;
 
-    internal static readonly TimeSpan FixInterval = TimeSpan.FromMinutes(15);
+    internal static readonly TimeSpan FixInterval = TimeSpan.FromMinutes(30);
 
     private readonly MediaDashDb _db;
     private readonly IEnumerable<IFixer> _fixers;
@@ -105,6 +106,14 @@ public sealed class FixTask : IScheduledTask
     /// </summary>
     internal static string? PauseReason { get; set; }
 
+    /// <summary>
+    /// Gets or sets a value indicating whether we've already emitted the "consider Low system
+    /// impact mode" hint this plugin lifetime. Prevents diagnostic-spam on every mid-run pause
+    /// for a user who already saw the hint. Reset only when the plugin reloads (Jellyfin restart
+    /// / plugin upgrade). Exposed internal so tests can reset it between cases.
+    /// </summary>
+    internal static bool LowImpactHintEmitted { get; set; }
+
     /// <inheritdoc />
     public string Name => I18n.I18nCatalog.GetHtml(System.Globalization.CultureInfo.CurrentUICulture.Name, "task.fix.name", "Apply approved fixes");
 
@@ -132,6 +141,36 @@ public sealed class FixTask : IScheduledTask
             progress.Report(100);
             return;
         }
+
+        // Time-of-day window. Empty strings = no window (existing behaviour). Manual runs bypass,
+        // matching the idle-check bypass — the user's explicit "Run fixes now" click is a stronger
+        // signal than the schedule. When inside the window we compute how much of it is left and
+        // arm a CancellationTokenSource to fire at close — this cancels the currently-running
+        // fixer via the token that already threads through FixAsync (see linked source below).
+        TimeSpan? windowRemaining = null;
+        if (!isManualRun && TryParseWindow(config.FixWindowStart, config.FixWindowEnd, out var winStart, out var winEnd))
+        {
+            var now = TimeOnly.FromDateTime(DateTime.Now);
+            var check = WindowStatus(now, winStart, winEnd);
+            if (!check.Inside)
+            {
+                _logger.LogInformation("Skipping fix run: outside the configured fix window ({Start}–{End}). Queued issues stay queued for the next run inside the window.", config.FixWindowStart, config.FixWindowEnd);
+                progress.Report(100);
+                return;
+            }
+
+            windowRemaining = check.TimeUntilClose;
+        }
+
+        // Wrap the incoming token with a linked source so we can cancel it when the window closes
+        // without touching Jellyfin's task-scheduler token. Everything below uses the linked token.
+        using var windowCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        if (windowRemaining is { } remaining && remaining > TimeSpan.Zero)
+        {
+            windowCts.CancelAfter(remaining);
+        }
+
+        cancellationToken = windowCts.Token;
 
         // Recycle-bin size cap. Non-zero limit AND real (non-dry-run) mode: refuse to fix until the
         // user empties the bin so we don't blow past the cap they set. Dry-run doesn't add bytes,
@@ -240,6 +279,18 @@ public sealed class FixTask : IScheduledTask
             .OrderBy(i => FixerRank(i.Type))
             .ThenBy(GetFileSizeOrZero)
             .ToList();
+
+        // Nothing to fix — the scanner hasn't produced anything actionable since we last drained,
+        // and auto-queue above found nothing new. Silent skip so a page-left-open user doesn't see
+        // "fix run finished" chatter every 30 min when the queue is empty. Manual "Run fixes now"
+        // still surfaces the "Nothing to fix yet" hint in the UI because isManualRun bypasses the
+        // idle/window gates and reaches this point regardless.
+        if (queue.Count == 0)
+        {
+            _logger.LogDebug("Skipping fix run: no queued issues to fix.");
+            progress.Report(100);
+            return;
+        }
 
         _logger.LogInformation("MediaDash fix run: {Count} queued issues (dry-run: {DryRun})", queue.Count, config.DryRun);
 
@@ -357,6 +408,12 @@ public sealed class FixTask : IScheduledTask
 
             if (config.PauseDuringPlayback && !IgnoreActivityForCurrentRun && IdleCheck.IsServerBusy(_sessionManager))
             {
+                // Discoverability hint for the reported "MediaDash pinned my HDD" class: if we're
+                // pausing mid-run because a user showed up, and Low system impact mode is OFF, this
+                // is the exact machine profile the setting was built for. One nudge per plugin
+                // lifetime — spamming a user who's already dismissed it is worse than silence.
+                TryEmitLowImpactHint(config.LowSystemImpactMode);
+
                 if (isManualRun)
                 {
                     // Manual run: the user is standing at the dashboard waiting for this to finish, so pause
@@ -554,7 +611,7 @@ public sealed class FixTask : IScheduledTask
                     _logger.LogWarning("Fix failed for {Path}: {Message}", issue.Path, result.Message);
 
                     // Stale failure: the file was renamed/rebuilt/removed by an external tool (Sonarr, Radarr,
-                    // manual edit) between the scan and this fix run. Retrying every 15 minutes won't help —
+                    // manual edit) between the scan and this fix run. Retrying every 30 minutes won't help —
                     // move the issue out of Queued so the loop stops. Next scan re-detects if still applicable.
                     // F-206: only advance status when NOT in dry-run. During dry-run the row must stay Queued
                     // so the user can re-approve after inspecting; flipping to Fixed silently loses the queue.
@@ -809,6 +866,75 @@ public sealed class FixTask : IScheduledTask
         return code == 112 || code == 39 || code == 28;
     }
 
+    /// <summary>
+    /// Parses the configured fix-window strings. Both empty returns false (no window). Any invalid
+    /// or partial pair also returns false — the window opts in only when both endpoints are valid.
+    /// </summary>
+    /// <param name="start">Start of the window in 24-hour <c>HH:mm</c> format, or empty.</param>
+    /// <param name="end">End of the window in 24-hour <c>HH:mm</c> format, or empty.</param>
+    /// <param name="startTime">Parsed start when the return value is true.</param>
+    /// <param name="endTime">Parsed end when the return value is true.</param>
+    /// <returns>True when both endpoints parsed cleanly; false otherwise (caller should skip the window check).</returns>
+    internal static bool TryParseWindow(string start, string end, out TimeOnly startTime, out TimeOnly endTime)
+    {
+        startTime = default;
+        endTime = default;
+        if (string.IsNullOrWhiteSpace(start) || string.IsNullOrWhiteSpace(end))
+        {
+            return false;
+        }
+
+        return TimeOnly.TryParseExact(start, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out startTime)
+            && TimeOnly.TryParseExact(end, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out endTime);
+    }
+
+    /// <summary>
+    /// Given a time-of-day and a window, reports whether we're inside it and — if so — how long
+    /// until the window closes. Overnight windows (end &lt; start) wrap through midnight.
+    /// start == end degenerates to "always inside" so a user who sets the same time on both sides
+    /// gets a 24/7 window rather than a "never" window (safer default of the two).
+    /// </summary>
+    /// <param name="now">The current time-of-day.</param>
+    /// <param name="start">Window start.</param>
+    /// <param name="end">Window end.</param>
+    /// <returns>Whether <paramref name="now"/> is inside the window, and how long remains until it closes.</returns>
+    internal static (bool Inside, TimeSpan TimeUntilClose) WindowStatus(TimeOnly now, TimeOnly start, TimeOnly end)
+    {
+        if (start == end)
+        {
+            return (true, TimeSpan.FromDays(1));
+        }
+
+        bool inside;
+        TimeSpan timeUntilClose;
+        if (start < end)
+        {
+            inside = now >= start && now < end;
+            timeUntilClose = inside ? end - now : TimeSpan.Zero;
+        }
+        else
+        {
+            // Overnight: window is [start..24:00) ∪ [00:00..end)
+            inside = now >= start || now < end;
+            if (!inside)
+            {
+                timeUntilClose = TimeSpan.Zero;
+            }
+            else if (now >= start)
+            {
+                // Same-day portion: close is tomorrow's `end`
+                timeUntilClose = (TimeOnly.MaxValue - now) + TimeSpan.FromTicks(1) + (end - TimeOnly.MinValue);
+            }
+            else
+            {
+                // Post-midnight portion: close is today's `end`
+                timeUntilClose = end - now;
+            }
+        }
+
+        return (inside, timeUntilClose);
+    }
+
     // Failures that mean "the underlying state moved between scan and fix". Retrying is guaranteed to
     // hit the same wall until a fresh scan re-detects (or doesn't). Exposed internal for direct testing.
     internal static bool IsStaleFailure(string message)
@@ -819,7 +945,11 @@ public sealed class FixTask : IScheduledTask
         }
 
         return message.Contains("no longer exists", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("Nothing to remove any more", StringComparison.OrdinalIgnoreCase);
+            || message.Contains("Nothing to remove any more", StringComparison.OrdinalIgnoreCase)
+            // Playability re-verify saw the file healed since scan — same intent as "state changed", stop the 15-min retry loop.
+            || message.Contains("plays fine now", StringComparison.OrdinalIgnoreCase)
+            // MediaGrouper / MediaSorter target conflict — needs manual resolution, retrying never helps.
+            || message.Contains("same name already exists", StringComparison.OrdinalIgnoreCase);
     }
 
     // Reads free space on the bin volume; returns true when it's below the floor. Reason string is
@@ -955,6 +1085,29 @@ public sealed class FixTask : IScheduledTask
     //   Track (cheap remux) before Transcode (full re-encode).
     //   TrickplayOptimize last: BIF file must match the FINAL video hash post-encode, or Jellyfin regenerates it.
     // Anything unlisted falls after the ranked types (rank = int.MaxValue), preserving today's order there.
+
+    /// <summary>
+    /// Emits the "consider Low system impact mode" diagnostic hint iff the setting is currently
+    /// OFF and we haven't already emitted the hint this plugin lifetime. Returns true if the
+    /// hint was emitted on this call, false if it was already emitted or the setting is on.
+    /// Called from the mid-run per-file activity check — that's the exact signal that this
+    /// machine is being used for daily work while a fix runs.
+    /// </summary>
+    /// <param name="lowSystemImpactMode">The current LowSystemImpactMode config value.</param>
+    /// <returns>True if the hint was recorded on this call.</returns>
+    internal static bool TryEmitLowImpactHint(bool lowSystemImpactMode)
+    {
+        if (lowSystemImpactMode || LowImpactHintEmitted)
+        {
+            return false;
+        }
+
+        Api.Diagnostics.Record(
+            "FixTask.LowImpactHint",
+            "Fix run paused because someone started using the server. If MediaDash's ffmpeg is making this machine unresponsive (spinning HDDs pinned at 100 %, general lag), turn on Settings → Safety → Low system impact mode. Encodes take longer in exchange but the disk and CPU stay usable for daily work.");
+        LowImpactHintEmitted = true;
+        return true;
+    }
 
     /// <summary>
     /// Groups every queued transcode-family issue (Quality / HeavyTranscode / FailedTranscode)

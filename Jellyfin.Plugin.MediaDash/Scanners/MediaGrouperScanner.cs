@@ -166,6 +166,12 @@ public sealed partial class MediaGrouperScanner : IScanner
                 var sourceLeaf = Path.GetFileName(Path.TrimEndingDirectorySeparator(member.SourcePath))!;
                 var targetPath = Path.Combine(expectedRoot, sourceLeaf);
 
+                // Target already occupied — skip. Same reasoning as BuildTvIssue.
+                if (isFolderMove ? Directory.Exists(targetPath) : File.Exists(targetPath))
+                {
+                    continue;
+                }
+
                 issues.Add(new Issue
                 {
                     Type = IssueType.Ungrouped,
@@ -245,6 +251,17 @@ public sealed partial class MediaGrouperScanner : IScanner
             source = parentNormalized;
             target = Path.Combine(expectedRoot, Path.GetFileName(parentNormalized)!);
             action = "MoveFolder";
+        }
+
+        // Target already occupied — the fixer would fail with "same name already exists" every fix run
+        // (user report: Yellowstone (2018) folder duplicated at both root and inside canonical series folder).
+        // Skip emission; the user has a manual conflict we can't safely resolve.
+        var targetExists = string.Equals(action, "MoveFolder", StringComparison.Ordinal)
+            ? Directory.Exists(target)
+            : File.Exists(target);
+        if (targetExists)
+        {
+            return null;
         }
 
         return new Issue

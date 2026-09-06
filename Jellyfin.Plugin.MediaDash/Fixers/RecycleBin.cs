@@ -310,6 +310,18 @@ public sealed class RecycleBin
     }
 
     /// <summary>
+    /// Permanently deletes a single file from the bin. Caller must have verified the path against
+    /// <see cref="ListContents"/> — the whitelist is the safety boundary, symmetric with <see cref="Restore"/>.
+    /// </summary>
+    /// <param name="recyclePath">Full path to the recycled file inside a bin batch folder.</param>
+    public void DeleteFile(string recyclePath)
+    {
+        _ = _legacyAdopted.Value;
+        File.Delete(recyclePath);
+        _logger.LogInformation("Permanently deleted bin file {Recycle}", recyclePath);
+    }
+
+    /// <summary>
     /// Gets the current number of files and total bytes held in the bin.
     /// </summary>
     /// <returns>File count and total size.</returns>
@@ -386,8 +398,25 @@ public sealed class RecycleBin
 
         foreach (var dir in Directory.GetDirectories(Root).Where(IsOwnedBatchDirectory).OrderByDescending(d => d, StringComparer.Ordinal))
         {
-            var manifestOrigins = ReadOriginManifest(dir);
-            foreach (var file in Directory.EnumerateFiles(dir))
+            // Batch folder can vanish between GetDirectories snapshot and enumeration (concurrent
+            // Purge / EmptyAll / Consolidate / external rm). ReadOriginManifest and EnumerateFiles
+            // both throw DirectoryNotFoundException at first-touch — outside the per-file try/catch
+            // below — so wrap the per-batch iteration here. Field report: `GET /RecycleBin/Items`
+            // 500'd with "Could not find a part of the path '.../20260819-162509-677-...'" after the
+            // batch was auto-purged mid-request.
+            string[] manifestOrigins;
+            IEnumerable<string> files;
+            try
+            {
+                manifestOrigins = ReadOriginManifest(dir);
+                files = Directory.EnumerateFiles(dir);
+            }
+            catch (DirectoryNotFoundException)
+            {
+                continue;
+            }
+
+            foreach (var file in files)
             {
                 if (PathsEqual(file, Path.Combine(dir, OwnershipMarkerFileName))
                     || PathsEqual(file, Path.Combine(dir, OriginManifestFileName)))
