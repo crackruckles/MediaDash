@@ -6145,6 +6145,40 @@
                             '<span class="mdFieldHint mdInsetRowHint">Test-plays start, middle and end (30s each). Slower first scan; cached after.</span>' +
                         '</label>' +
                         '</div>' +
+                        '<div class="mdFieldGrid mdFieldGrid-1" style="margin-top:12px;">' +
+                            '<div class="mdField">' +
+                                '<label style="font-size:13px;font-weight:600;">Repair broken files before deleting</label>' +
+                                '<span class="mdFieldHint">Steps run in order and stop at the first one that produces a working file. Untick a step to skip it.</span>' +
+                                '<label class="mdInsetRow--stack" style="cursor:pointer;margin-top:8px;">' +
+                                    '<span class="mdInsetRowMain">' +
+                                        '<input id="mdRepairRemux" type="checkbox" class="mdInsetCheck" />' +
+                                        '<span style="font-size:13px;font-weight:600;">1. Quick remux</span>' +
+                                    '</span>' +
+                                    '<span class="mdFieldHint mdInsetRowHint">Fix container damage without re-encoding.</span>' +
+                                '</label>' +
+                                '<label class="mdInsetRow--stack" style="cursor:pointer;">' +
+                                    '<span class="mdInsetRowMain">' +
+                                        '<input id="mdRepairDropStreams" type="checkbox" class="mdInsetCheck" />' +
+                                        '<span style="font-size:13px;font-weight:600;">2. Drop broken streams</span>' +
+                                    '</span>' +
+                                    '<span class="mdFieldHint mdInsetRowHint">Remove tracks that fail to decode. Keeps at least one video and one audio track.</span>' +
+                                '</label>' +
+                                '<label class="mdInsetRow--stack" style="cursor:pointer;">' +
+                                    '<span class="mdInsetRowMain">' +
+                                        '<input id="mdRepairContainerCoerce" type="checkbox" class="mdInsetCheck" />' +
+                                        '<span style="font-size:13px;font-weight:600;">3. Change container to MKV</span>' +
+                                    '</span>' +
+                                    '<span class="mdFieldHint mdInsetRowHint">Repack into MKV. <strong>Jellyfin will treat the file as new and watch history for the title will reset.</strong></span>' +
+                                '</label>' +
+                                '<label class="mdInsetRow--stack" style="cursor:pointer;">' +
+                                    '<span class="mdInsetRowMain">' +
+                                        '<input id="mdRepairReencode" type="checkbox" class="mdInsetCheck" />' +
+                                        '<span style="font-size:13px;font-weight:600;">4. Re-encode video</span>' +
+                                    '</span>' +
+                                    '<span class="mdFieldHint mdInsetRowHint">Last resort. Can take hours per file, runs in the background.</span>' +
+                                '</label>' +
+                            '</div>' +
+                        '</div>' +
                         '<span class="mdFieldHint">Broken-file removal always waits for approval, even in Automatic.</span>';
                 }
                 if (key === 'Quality') {
@@ -7467,6 +7501,10 @@
                     view.querySelector('#mdBinWarnThreshold').value = (c.RecycleBinWarnThresholdGb != null ? c.RecycleBinWarnThresholdGb : 10);
                     view.querySelector('#mdBinPauseAt').value = (c.RecycleBinPauseFixesAtGb != null ? c.RecycleBinPauseFixesAtGb : 0);
                     view.querySelector('#mdThorough').checked = c.ThoroughPlayabilityCheck;
+                    view.querySelector('#mdRepairRemux').checked = c.RepairAttemptRemux !== false;
+                    view.querySelector('#mdRepairDropStreams').checked = c.RepairAttemptDropStreams !== false;
+                    view.querySelector('#mdRepairContainerCoerce').checked = c.RepairAttemptContainerCoerce !== false;
+                    view.querySelector('#mdRepairReencode').checked = c.RepairAttemptReencode !== false;
                     view.querySelector('#mdSubIgnoreRate').checked = c.SubtitleIgnoreRateLimit !== false;
                     view.querySelector('#mdSubHearingImpaired').checked = !!c.SubtitleHearingImpairedMode;
                     view.querySelector('#mdEditions').checked = c.TreatEditionsAsDuplicates;
@@ -7604,6 +7642,10 @@
                     var pauseGb = parseInt(view.querySelector('#mdBinPauseAt').value, 10);
                     c.RecycleBinPauseFixesAtGb = isNaN(pauseGb) ? 0 : Math.max(0, pauseGb);
                     c.ThoroughPlayabilityCheck = view.querySelector('#mdThorough').checked;
+                    c.RepairAttemptRemux = view.querySelector('#mdRepairRemux').checked;
+                    c.RepairAttemptDropStreams = view.querySelector('#mdRepairDropStreams').checked;
+                    c.RepairAttemptContainerCoerce = view.querySelector('#mdRepairContainerCoerce').checked;
+                    c.RepairAttemptReencode = view.querySelector('#mdRepairReencode').checked;
                     c.SubtitleIgnoreRateLimit = view.querySelector('#mdSubIgnoreRate').checked;
                     c.SubtitleHearingImpairedMode = view.querySelector('#mdSubHearingImpaired').checked;
                     c.TreatEditionsAsDuplicates = view.querySelector('#mdEditions').checked;
