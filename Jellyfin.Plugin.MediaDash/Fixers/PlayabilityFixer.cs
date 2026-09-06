@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -20,6 +21,8 @@ namespace Jellyfin.Plugin.MediaDash.Fixers;
 public sealed class PlayabilityFixer : IFixer
 {
     private readonly FfprobeService _ffprobe;
+    private readonly FfmpegExecutor _ffmpeg;
+    private readonly OutputVerifier _verifier;
     private readonly LibraryGuard _guard;
     private readonly RecycleBin _recycleBin;
     private readonly ILibraryMonitor _libraryMonitor;
@@ -29,18 +32,24 @@ public sealed class PlayabilityFixer : IFixer
     /// Initializes a new instance of the <see cref="PlayabilityFixer"/> class.
     /// </summary>
     /// <param name="ffprobe">The probe service.</param>
+    /// <param name="ffmpeg">The ffmpeg executor (repair ladder).</param>
+    /// <param name="verifier">The output verifier (repair ladder).</param>
     /// <param name="guard">The library path guard.</param>
     /// <param name="recycleBin">The recycle bin.</param>
     /// <param name="libraryMonitor">Instance of the <see cref="ILibraryMonitor"/> interface.</param>
     /// <param name="logger">The logger.</param>
     public PlayabilityFixer(
         FfprobeService ffprobe,
+        FfmpegExecutor ffmpeg,
+        OutputVerifier verifier,
         LibraryGuard guard,
         RecycleBin recycleBin,
         ILibraryMonitor libraryMonitor,
         ILogger<PlayabilityFixer> logger)
     {
         _ffprobe = ffprobe;
+        _ffmpeg = ffmpeg;
+        _verifier = verifier;
         _guard = guard;
         _recycleBin = recycleBin;
         _libraryMonitor = libraryMonitor;
@@ -68,6 +77,24 @@ public sealed class PlayabilityFixer : IFixer
         if (!stillBroken)
         {
             return FixResult.Fail("The file plays fine now — nothing was removed. Re-scan to clear this issue.");
+        }
+
+        // Repair ladder — try to salvage before deleting. Skips out to today's delete path on
+        // pre-flight fail, all-rungs-disabled, or all-rungs-fail. Dry-run also skips: there's no
+        // way to preview a "the file WOULD have been repaired" outcome accurately.
+        // ponytail: double-probe with IsStillBrokenAsync; refactor to share the probe if a
+        // real profile shows it matters. Two probes on a stat'd file is cheap next to the fix work.
+        if (!config.DryRun)
+        {
+            var repairProbe = await _ffprobe.ProbeAsync(issue.Path, cancellationToken).ConfigureAwait(false);
+            if (repairProbe is not null)
+            {
+                var repair = await TryRepairAsync(issue, repairProbe, progress, cancellationToken).ConfigureAwait(false);
+                if (repair is not null)
+                {
+                    return repair;
+                }
+            }
         }
 
         var size = new FileInfo(issue.Path).Length;
@@ -102,6 +129,133 @@ public sealed class PlayabilityFixer : IFixer
             BytesFreed = size,
             RecyclePath = recyclePath
         };
+    }
+
+    /// <summary>
+    /// Attempts to repair a broken file. Returns a Success FixResult if any rung produced a
+    /// verified replacement; null when the caller should fall through to today's delete path.
+    /// Each rung is gated by its own config toggle; a rung that produces no verified output
+    /// hands off to the next.
+    /// </summary>
+    private async Task<FixResult?> TryRepairAsync(
+        Issue issue,
+        FfprobeData originalProbe,
+        IProgress<double>? progress,
+        CancellationToken cancellationToken)
+    {
+        var config = Plugin.Instance!.Configuration;
+
+        // All four disabled = feature turned off. Skip pre-flight and just fall through.
+        if (!config.RepairAttemptRemux && !config.RepairAttemptDropStreams
+            && !config.RepairAttemptContainerCoerce && !config.RepairAttemptReencode)
+        {
+            return null;
+        }
+
+        // Pre-flight: enough free space on target volume for repair.
+        // 3× source when re-encode is on (temp + safety), 2× otherwise (temp swap only).
+        if (!HasFreeSpace(issue.Path, config.RepairAttemptReencode ? 3 : 2))
+        {
+            _logger.LogInformation("Playability repair skipped for {Path}: insufficient free disk.", issue.Path);
+            return null;
+        }
+
+        string? outPath;
+        if (config.RepairAttemptRemux && (outPath = await TryRung1Async(issue, originalProbe, cancellationToken).ConfigureAwait(false)) is not null)
+        {
+            return await SwapRepairedAsync(issue, outPath, "quick remux", extensionChanged: false, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (config.RepairAttemptDropStreams && (outPath = await TryRung2Async(issue, originalProbe, cancellationToken).ConfigureAwait(false)) is not null)
+        {
+            return await SwapRepairedAsync(issue, outPath, "dropped broken streams", extensionChanged: false, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (config.RepairAttemptContainerCoerce && (outPath = await TryRung3Async(issue, originalProbe, cancellationToken).ConfigureAwait(false)) is not null)
+        {
+            return await SwapRepairedAsync(issue, outPath, "container changed to .mkv (Jellyfin watch history reset)", extensionChanged: true, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (config.RepairAttemptReencode && (outPath = await TryRung4Async(issue, originalProbe, progress, cancellationToken).ConfigureAwait(false)) is not null)
+        {
+            return await SwapRepairedAsync(issue, outPath, "video re-encoded", extensionChanged: true, cancellationToken).ConfigureAwait(false);
+        }
+
+        return null;
+    }
+
+    // Rung stubs — replaced with real implementations in Tasks 4-7.
+    private Task<string?> TryRung1Async(Issue i, FfprobeData p, CancellationToken c) => Task.FromResult<string?>(null);
+
+    private Task<string?> TryRung2Async(Issue i, FfprobeData p, CancellationToken c) => Task.FromResult<string?>(null);
+
+    private Task<string?> TryRung3Async(Issue i, FfprobeData p, CancellationToken c) => Task.FromResult<string?>(null);
+
+    private Task<string?> TryRung4Async(Issue i, FfprobeData p, IProgress<double>? pr, CancellationToken c) => Task.FromResult<string?>(null);
+
+    // Exposed internal for direct unit-testing without spinning up a full fixer.
+    internal static bool HasFreeSpace(string path, int multiplier)
+    {
+        try
+        {
+            var fi = new FileInfo(path);
+            var drive = new DriveInfo(Path.GetPathRoot(fi.FullName) ?? "/");
+            return drive.AvailableFreeSpace >= fi.Length * multiplier;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private async Task<FixResult> SwapRepairedAsync(
+        Issue issue,
+        string repairedTempPath,
+        string rungLabel,
+        bool extensionChanged,
+        CancellationToken cancellationToken)
+    {
+        var finalPath = extensionChanged
+            ? Path.ChangeExtension(issue.Path, ".mkv")
+            : issue.Path;
+
+        var recyclePath = _recycleBin.MoveToBin(issue.Path);
+        File.Move(repairedTempPath, finalPath, overwrite: false);
+        _libraryMonitor.ReportFileSystemChanged(issue.Path);
+        if (extensionChanged)
+        {
+            _libraryMonitor.ReportFileSystemChanged(finalPath);
+        }
+
+        var message = $"repaired {Path.GetFileName(issue.Path)} ({rungLabel})";
+        _logger.LogInformation("Playability repair: {Message}", message);
+        await Task.CompletedTask.ConfigureAwait(false);
+        return new FixResult
+        {
+            Success = true,
+            Message = message,
+            BytesFreed = 0,
+            RecyclePath = recyclePath
+        };
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (IOException)
+        {
+            // Best-effort cleanup; leftover sidecars get swept next FfmpegExecutor.RunAsync call.
+        }
     }
 
     private async Task<bool> IsStillBrokenAsync(Issue issue, CancellationToken cancellationToken)
