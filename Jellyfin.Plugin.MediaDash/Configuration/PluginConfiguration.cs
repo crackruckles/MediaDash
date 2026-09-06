@@ -44,6 +44,10 @@ public class PluginConfiguration : BasePluginConfiguration
         SubtitleDisposal = DisposalMethod.RecycleBin;
         AudioDisposal = DisposalMethod.RecycleBin;
         PlayabilityDisposal = DisposalMethod.RecycleBin;
+        RepairAttemptRemux = true;
+        RepairAttemptDropStreams = true;
+        RepairAttemptContainerCoerce = true;
+        RepairAttemptReencode = true;
         RecycleBinPath = string.Empty;
         RecycleBinRetentionDays = 30;
         RecycleBinWarnThresholdGb = 10;
@@ -167,6 +171,18 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets where removed unplayable files go.
     /// </summary>
     public DisposalMethod PlayabilityDisposal { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether rung 1 (quick remux) is attempted before deletion.</summary>
+    public bool RepairAttemptRemux { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether rung 2 (drop broken streams) is attempted before deletion.</summary>
+    public bool RepairAttemptDropStreams { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether rung 3 (container coercion to MKV) is attempted before deletion. Container change causes Jellyfin to re-index the file and reset watch history.</summary>
+    public bool RepairAttemptContainerCoerce { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether rung 4 (full video re-encode) is attempted before deletion. Can take hours per file; runs on the background scheduled scan.</summary>
+    public bool RepairAttemptReencode { get; set; }
 
     /// <summary>
     /// Gets or sets where files removed by duplicate fixes go.
