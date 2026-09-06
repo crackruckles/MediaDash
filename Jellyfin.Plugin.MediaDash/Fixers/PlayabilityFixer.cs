@@ -20,6 +20,8 @@ namespace Jellyfin.Plugin.MediaDash.Fixers;
 /// </summary>
 public sealed class PlayabilityFixer : IFixer
 {
+    private static readonly TimeSpan RepairRungTimeout = TimeSpan.FromHours(6);
+
     private readonly FfprobeService _ffprobe;
     private readonly FfmpegExecutor _ffmpeg;
     private readonly OutputVerifier _verifier;
@@ -184,8 +186,48 @@ public sealed class PlayabilityFixer : IFixer
         return null;
     }
 
-    // Rung stubs — replaced with real implementations in Tasks 4-7.
-    private Task<string?> TryRung1Async(Issue i, FfprobeData p, CancellationToken c) => Task.FromResult<string?>(null);
+    // Rung 1: error-tolerant remux, same container. Recovers bad index, wrong duration,
+    // missing moov atom, EOF truncation. Cheapest rung — always attempted first when enabled.
+    // ponytail: single remux pass; add multi-attempt with -analyzeduration hints only if
+    // real fixtures show recoverable files that this misses.
+    private async Task<string?> TryRung1Async(Issue issue, FfprobeData originalProbe, CancellationToken cancellationToken)
+    {
+        var ext = Path.GetExtension(issue.Path).TrimStart('.');
+        if (string.IsNullOrEmpty(ext))
+        {
+            return null;
+        }
+
+        var tempPath = TranscodeFixer.SidecarPath(issue.Path, "repair.tmp1", ext);
+        var args = new List<string>
+        {
+            "-err_detect", "ignore_err",
+            "-fflags", "+genpts+igndts",
+            "-i", issue.Path,
+            "-map", "0",
+            "-c", "copy",
+            "-avoid_negative_ts", "make_zero",
+            tempPath
+        };
+
+        var error = await _ffmpeg.RunAsync(args, RepairRungTimeout, cancellationToken).ConfigureAwait(false);
+        if (error is not null)
+        {
+            _logger.LogDebug("Rung 1 remux failed for {Path}: {Error}", issue.Path, TranscodeFixer.Truncate(error));
+            TryDelete(tempPath);
+            return null;
+        }
+
+        var verifyError = await _verifier.VerifyAsync(originalProbe, issue.Path, tempPath, cancellationToken).ConfigureAwait(false);
+        if (verifyError is not null)
+        {
+            _logger.LogDebug("Rung 1 verify failed for {Path}: {Error}", issue.Path, verifyError);
+            TryDelete(tempPath);
+            return null;
+        }
+
+        return tempPath;
+    }
 
     private Task<string?> TryRung2Async(Issue i, FfprobeData p, CancellationToken c) => Task.FromResult<string?>(null);
 
