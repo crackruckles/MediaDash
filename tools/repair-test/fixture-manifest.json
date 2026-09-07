@@ -1,0 +1,64 @@
+﻿{
+    "fixtures":  [
+                     {
+                         "postExists":  "rung1-bad-index.mkv",
+                         "name":  "rung1-bad-index.mkv",
+                         "preBroken":  true,
+                         "targetRung":  1
+                     },
+                     {
+                         "postExists":  "rung1-truncated-mp4.mp4",
+                         "name":  "rung1-truncated-mp4.mp4",
+                         "preBroken":  true,
+                         "targetRung":  1
+                     },
+                     {
+                         "postExists":  "rung1-noaudio-header.mkv",
+                         "name":  "rung1-noaudio-header.mkv",
+                         "preBroken":  true,
+                         "targetRung":  1
+                     },
+                     {
+                         "postExists":  "rung2-broken-sub.mkv",
+                         "name":  "rung2-broken-sub.mkv",
+                         "preBroken":  true,
+                         "targetRung":  2
+                     },
+                     {
+                         "postExists":  "rung2-broken-second-audio.mkv",
+                         "name":  "rung2-broken-second-audio.mkv",
+                         "preBroken":  true,
+                         "targetRung":  2
+                     },
+                     {
+                         "postExists":  "rung3-hevc-in-avi.mkv",
+                         "name":  "rung3-hevc-in-avi.avi",
+                         "preBroken":  true,
+                         "targetRung":  3
+                     },
+                     {
+                         "postExists":  "rung3-flv-with-junk.mkv",
+                         "name":  "rung3-flv-with-junk.flv",
+                         "preBroken":  true,
+                         "targetRung":  3
+                     },
+                     {
+                         "postExists":  "rung4-bitstream-damage.mkv",
+                         "name":  "rung4-bitstream-damage.mkv",
+                         "preBroken":  true,
+                         "targetRung":  4
+                     },
+                     {
+                         "postExists":  "rung4-heavy-noise.mkv",
+                         "name":  "rung4-heavy-noise.mkv",
+                         "preBroken":  true,
+                         "targetRung":  4
+                     },
+                     {
+                         "postExists":  "neg-healthy.mkv",
+                         "name":  "neg-healthy.mkv",
+                         "preBroken":  false,
+                         "targetRung":  0
+                     }
+                 ]
+}
