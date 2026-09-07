@@ -162,25 +162,30 @@ public sealed class PlayabilityFixer : IFixer
             return null;
         }
 
+        FixResult? swap;
         string? outPath;
-        if (config.RepairAttemptRemux && (outPath = await TryRung1Async(issue, originalProbe, cancellationToken).ConfigureAwait(false)) is not null)
+        if (config.RepairAttemptRemux && (outPath = await TryRung1Async(issue, originalProbe, cancellationToken).ConfigureAwait(false)) is not null
+            && (swap = await TrySwapRepairedAsync(issue, outPath, "quick remux", extensionChanged: false, cancellationToken).ConfigureAwait(false)) is not null)
         {
-            return await SwapRepairedAsync(issue, outPath, "quick remux", extensionChanged: false, cancellationToken).ConfigureAwait(false);
+            return swap;
         }
 
-        if (config.RepairAttemptDropStreams && (outPath = await TryRung2Async(issue, originalProbe, cancellationToken).ConfigureAwait(false)) is not null)
+        if (config.RepairAttemptDropStreams && (outPath = await TryRung2Async(issue, originalProbe, cancellationToken).ConfigureAwait(false)) is not null
+            && (swap = await TrySwapRepairedAsync(issue, outPath, "dropped broken streams", extensionChanged: false, cancellationToken).ConfigureAwait(false)) is not null)
         {
-            return await SwapRepairedAsync(issue, outPath, "dropped broken streams", extensionChanged: false, cancellationToken).ConfigureAwait(false);
+            return swap;
         }
 
-        if (config.RepairAttemptContainerCoerce && (outPath = await TryRung3Async(issue, originalProbe, cancellationToken).ConfigureAwait(false)) is not null)
+        if (config.RepairAttemptContainerCoerce && (outPath = await TryRung3Async(issue, originalProbe, cancellationToken).ConfigureAwait(false)) is not null
+            && (swap = await TrySwapRepairedAsync(issue, outPath, "container changed to .mkv (Jellyfin watch history reset)", extensionChanged: true, cancellationToken).ConfigureAwait(false)) is not null)
         {
-            return await SwapRepairedAsync(issue, outPath, "container changed to .mkv (Jellyfin watch history reset)", extensionChanged: true, cancellationToken).ConfigureAwait(false);
+            return swap;
         }
 
-        if (config.RepairAttemptReencode && (outPath = await TryRung4Async(issue, originalProbe, progress, cancellationToken).ConfigureAwait(false)) is not null)
+        if (config.RepairAttemptReencode && (outPath = await TryRung4Async(issue, originalProbe, progress, cancellationToken).ConfigureAwait(false)) is not null
+            && (swap = await TrySwapRepairedAsync(issue, outPath, "video re-encoded", extensionChanged: true, cancellationToken).ConfigureAwait(false)) is not null)
         {
-            return await SwapRepairedAsync(issue, outPath, "video re-encoded", extensionChanged: true, cancellationToken).ConfigureAwait(false);
+            return swap;
         }
 
         return null;
@@ -218,7 +223,7 @@ public sealed class PlayabilityFixer : IFixer
             return null;
         }
 
-        var verifyError = await _verifier.VerifyAsync(originalProbe, issue.Path, tempPath, cancellationToken).ConfigureAwait(false);
+        var verifyError = await VerifyRepairedAsync(originalProbe, issue.Path, tempPath, cancellationToken).ConfigureAwait(false);
         if (verifyError is not null)
         {
             _logger.LogDebug("Rung 1 verify failed for {Path}: {Error}", issue.Path, verifyError);
@@ -291,7 +296,7 @@ public sealed class PlayabilityFixer : IFixer
             return null;
         }
 
-        var verifyError = await _verifier.VerifyAsync(originalProbe, issue.Path, tempPath, cancellationToken).ConfigureAwait(false);
+        var verifyError = await VerifyRepairedAsync(originalProbe, issue.Path, tempPath, cancellationToken).ConfigureAwait(false);
         if (verifyError is not null)
         {
             _logger.LogDebug("Rung 2 verify failed for {Path}: {Error}", issue.Path, verifyError);
@@ -334,7 +339,7 @@ public sealed class PlayabilityFixer : IFixer
             return null;
         }
 
-        var verifyError = await _verifier.VerifyAsync(originalProbe, issue.Path, tempPath, cancellationToken).ConfigureAwait(false);
+        var verifyError = await VerifyRepairedAsync(originalProbe, issue.Path, tempPath, cancellationToken).ConfigureAwait(false);
         if (verifyError is not null)
         {
             _logger.LogDebug("Rung 3 verify failed for {Path}: {Error}", issue.Path, verifyError);
@@ -385,7 +390,7 @@ public sealed class PlayabilityFixer : IFixer
             return null;
         }
 
-        var verifyError = await _verifier.VerifyAsync(originalProbe, issue.Path, tempPath, cancellationToken).ConfigureAwait(false);
+        var verifyError = await VerifyRepairedAsync(originalProbe, issue.Path, tempPath, cancellationToken).ConfigureAwait(false);
         if (verifyError is not null)
         {
             _logger.LogInformation("Rung 4 verify failed for {Path}: {Error}", issue.Path, verifyError);
@@ -394,6 +399,31 @@ public sealed class PlayabilityFixer : IFixer
         }
 
         return tempPath;
+    }
+
+    // Verify a repair-rung output. OutputVerifier.VerifyAsync checks stream counts / duration /
+    // frame-or-packet parity — but a permissive ffmpeg remux can produce a file that passes those
+    // and STILL fails to decode (rung 1 remuxing HEVC-in-AVI back to HEVC-in-AVI, or copying
+    // past bit-flipped packets). Decode-sample the output; if the same PlayabilityScanner check
+    // that flagged the input would flag the output, this rung didn't actually repair anything.
+    // Spec §4.2 mandates this second gate — the plan collapsed it into OutputVerifier by mistake.
+    private async Task<string?> VerifyRepairedAsync(FfprobeData originalProbe, string originalPath, string outputPath, CancellationToken cancellationToken)
+    {
+        var structural = await _verifier.VerifyAsync(originalProbe, originalPath, outputPath, cancellationToken).ConfigureAwait(false);
+        if (structural is not null)
+        {
+            return structural;
+        }
+
+        var outputProbe = await _ffprobe.ProbeAsync(outputPath, cancellationToken).ConfigureAwait(false);
+        var duration = 0d;
+        if (outputProbe?.Format?.Duration is not null)
+        {
+            _ = double.TryParse(outputProbe.Format.Duration, NumberStyles.Float, CultureInfo.InvariantCulture, out duration);
+        }
+
+        var decodeError = await _ffprobe.DecodeCheckAsync(outputPath, duration, cancellationToken).ConfigureAwait(false);
+        return decodeError;
     }
 
     // Exposed internal for direct unit-testing without spinning up a full fixer.
@@ -415,7 +445,9 @@ public sealed class PlayabilityFixer : IFixer
         }
     }
 
-    private async Task<FixResult> SwapRepairedAsync(
+    // Returns null when the swap is refused (target collision on extension change) — caller
+    // falls through to the next rung. Non-null result means the swap committed and the fix is done.
+    private async Task<FixResult?> TrySwapRepairedAsync(
         Issue issue,
         string repairedTempPath,
         string rungLabel,
@@ -426,8 +458,41 @@ public sealed class PlayabilityFixer : IFixer
             ? Path.ChangeExtension(issue.Path, ".mkv")
             : issue.Path;
 
+        // Collision guard: extension change would land on top of an unrelated existing file
+        // (e.g. left over from an earlier repair run, or a user file that happens to share
+        // the target name). Refuse BEFORE touching the original — otherwise we recycle the
+        // source, hit File.Move's "already exists", and leak the temp with nothing at the
+        // final path. Same-extension path is the source itself, guaranteed present, no clash.
+        if (extensionChanged && File.Exists(finalPath))
+        {
+            _logger.LogInformation(
+                "Playability repair refused for {Path}: target {Final} already exists — falling through to next rung.",
+                issue.Path,
+                finalPath);
+            TryDelete(repairedTempPath);
+            return null;
+        }
+
+        // Capture source stamps BEFORE we recycle the original — Jellyfin's Recently Added
+        // reads them at library-monitor time, so a repaired file inheriting Now() would drift
+        // just like the pre-fix bug in MediaSorter/MediaGrouper (i-175-08).
+        var srcCreatedUtc = File.GetCreationTimeUtc(issue.Path);
+        var srcModifiedUtc = File.GetLastWriteTimeUtc(issue.Path);
+
         var recyclePath = _recycleBin.MoveToBin(issue.Path);
         File.Move(repairedTempPath, finalPath, overwrite: false);
+        try
+        {
+            File.SetCreationTimeUtc(finalPath, srcCreatedUtc);
+            File.SetLastWriteTimeUtc(finalPath, srcModifiedUtc);
+        }
+        catch (IOException ex)
+        {
+            // Non-fatal: some network shares can't set file times. Log drift so the Recently
+            // Added anomaly is traceable; don't fail the fix — the file is already repaired.
+            _logger.LogInformation("PlayabilityFixer: could not restore source timestamps on '{Path}': {Message}", finalPath, ex.Message);
+        }
+
         _libraryMonitor.ReportFileSystemChanged(issue.Path);
         if (extensionChanged)
         {
