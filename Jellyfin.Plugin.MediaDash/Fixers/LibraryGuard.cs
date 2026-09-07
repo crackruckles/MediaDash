@@ -101,6 +101,37 @@ public sealed class LibraryGuard
     }
 
     /// <summary>
+    /// Checks whether a folder is itself a configured library root. Sweep-style deletes must
+    /// refuse to touch a library root — treating it as an "empty per-movie folder" would try to
+    /// recycle every movie underneath.
+    /// </summary>
+    /// <param name="folder">The folder to check.</param>
+    /// <returns>True when the folder matches one of Jellyfin's virtual folder locations.</returns>
+    public bool IsLibraryRoot(string folder)
+    {
+        string normalized;
+        try
+        {
+            normalized = Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder));
+        }
+        catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
+        {
+            return false;
+        }
+
+        foreach (var loc in _libraryManager.GetVirtualFolders().SelectMany(f => f.Locations))
+        {
+            var locNorm = Path.TrimEndingDirectorySeparator(Path.GetFullPath(loc));
+            if (string.Equals(locNorm, normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Walks every configured library root and deletes any MediaDash sidecar file
     /// (<c>*.mediadash.tmp*</c>, <c>*.mediadash.new*</c>, or the hash-fallback variants).
     /// Intended to run at end of a fix cycle when no encode is active — anything present is orphaned

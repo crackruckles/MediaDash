@@ -1,11 +1,14 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.MediaDash.Configuration;
 using Jellyfin.Plugin.MediaDash.Data;
+using Jellyfin.Plugin.MediaDash.Scanners;
 using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Logging;
 
@@ -132,6 +135,14 @@ public sealed class DuplicateFixer : IFixer
             File.Delete(issue.Path);
         }
 
+        // Sidecar + empty-folder sweep. The removed video usually lives in its own per-title
+        // folder alongside .nfo, poster/backdrop/clearlogo/thumb artwork, and sometimes external
+        // subs. Leaving those behind orphans the folder — Jellyfin re-indexes it as an empty movie
+        // record every scan (user report: Star Wars - Despecialized (1977)/ left with 5 sidecars
+        // and the folder itself after the .iso was recycled).
+        var additionalRecycled = new List<RecycledSidecar>();
+        SweepDedicatedFolderSidecars(issue.Path, keeperPath, disposal, additionalRecycled);
+
         _libraryMonitor.ReportFileSystemChanged(issue.Path);
         _logger.LogInformation("Duplicate fix: {Action} (confidence {Confidence}, details {Details})", actionText, issue.Confidence, issue.DetailsJson);
         return Task.FromResult(new FixResult
@@ -139,7 +150,125 @@ public sealed class DuplicateFixer : IFixer
             Success = true,
             Message = actionText,
             BytesFreed = size,
-            RecyclePath = recyclePath
+            RecyclePath = recyclePath,
+            AdditionalRecycled = additionalRecycled
         });
+    }
+
+    // Recycles remaining sidecars and prunes the containing folder ONLY when the folder is a
+    // dedicated per-title folder (contains no other video/audio, no sub-directories, is not itself
+    // a library root, and does not also house the keeper). Anything ambiguous is left alone —
+    // false-positive sweep of a mixed folder would take out unrelated media.
+    private void SweepDedicatedFolderSidecars(string videoPath, string keeperPath, DisposalMethod disposal, List<RecycledSidecar> additionalRecycled)
+    {
+        var folder = Path.GetDirectoryName(videoPath);
+        if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
+        {
+            return;
+        }
+
+        if (!_guard.IsInsideLibrary(folder) || _guard.IsLibraryRoot(folder))
+        {
+            return;
+        }
+
+        // Co-mingled: keeper lives in the same folder. Sweeping would take out the keeper's own
+        // sidecars — bail.
+        var keeperFolder = Path.GetDirectoryName(keeperPath);
+        if (!string.IsNullOrEmpty(keeperFolder)
+            && string.Equals(
+                Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder)),
+                Path.TrimEndingDirectorySeparator(Path.GetFullPath(keeperFolder)),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        // Any sub-directory (extras/, featurettes/, etc.) means the folder still holds content
+        // that isn't ours to touch. Refuse.
+        try
+        {
+            if (Directory.EnumerateDirectories(folder).Any())
+            {
+                return;
+            }
+        }
+        catch (IOException)
+        {
+            return;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return;
+        }
+
+        List<string> remainingFiles;
+        try
+        {
+            remainingFiles = Directory.EnumerateFiles(folder).ToList();
+        }
+        catch (IOException)
+        {
+            return;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return;
+        }
+
+        // Any leftover video or audio file means this isn't a dedicated per-title folder — refuse
+        // the sweep. Better to leave sidecars than take out the other movie.
+        foreach (var f in remainingFiles)
+        {
+            var ext = Path.GetExtension(f);
+            if (MediaFormats.Video.Contains(ext) || MediaFormats.Audio.Contains(ext))
+            {
+                return;
+            }
+        }
+
+        foreach (var f in remainingFiles)
+        {
+            try
+            {
+                if (disposal == DisposalMethod.RecycleBin)
+                {
+                    var binPath = _recycleBin.MoveToBin(f);
+                    additionalRecycled.Add(new RecycledSidecar
+                    {
+                        OriginalPath = f,
+                        RecyclePath = binPath,
+                        Action = "Recycled sidecar from duplicate's dedicated folder (" + Path.GetFileName(videoPath) + ")"
+                    });
+                }
+                else
+                {
+                    File.Delete(f);
+                }
+            }
+            catch (IOException ex)
+            {
+                Api.Diagnostics.Record("DuplicateFixer.SidecarSweep", "Failed to sweep '" + f + "': " + ex.Message);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                Api.Diagnostics.Record("DuplicateFixer.SidecarSweep", "Access denied sweeping '" + f + "': " + ex.Message);
+            }
+        }
+
+        try
+        {
+            Directory.Delete(folder, recursive: false);
+        }
+        catch (IOException ex)
+        {
+            // Folder wasn't empty after sweep — a race, or a hidden file we didn't enumerate.
+            // Not fatal: the video is recycled, sidecars are recycled, folder just persists.
+            Api.Diagnostics.Record("DuplicateFixer.FolderPrune", "Could not remove '" + folder + "' after sweep: " + ex.Message);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Api.Diagnostics.Record("DuplicateFixer.FolderPrune", "Access denied removing '" + folder + "': " + ex.Message);
+        }
     }
 }
