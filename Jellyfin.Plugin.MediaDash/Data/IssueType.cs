@@ -57,5 +57,8 @@ public enum IssueType
     FailedTranscode = 16,
 
     /// <summary>A music or audiobook folder whose audio files carry an embedded cover image but no folder-level <c>cover.jpg</c> / <c>folder.jpg</c> exists. Extracting a shared folder cover once (and optionally stripping the redundant per-file copies) is a big disk-space win and makes Jellyfin use the folder image directly.</summary>
-    EmbeddedCoverArt = 17
+    EmbeddedCoverArt = 17,
+
+    /// <summary>Not scanner-generated. Records a manual delete performed via MediaDash's Files tab so the Recycle bin tab can label the entry correctly (previously mislabelled any manifest-only bin entry — including older-version auto-fix recycles that predate the history-write path — as a manual delete).</summary>
+    ManualDelete = 18
 }

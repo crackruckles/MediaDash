@@ -35,6 +35,7 @@ public static class RecycleReasonMapper
         IssueType.HeavyTranscode => "Re-encoded for direct-play",
         IssueType.FailedTranscode => "Re-encoded (previous attempt failed)",
         IssueType.EmbeddedCoverArt => "Extracted folder cover art",
+        IssueType.ManualDelete => "Manual delete via Files tab",
         _ => "MediaDash fix",
     };
 

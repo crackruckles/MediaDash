@@ -1285,14 +1285,17 @@ public class MediaDashController : ControllerBase
                 }
                 else if (!string.IsNullOrEmpty(e.OriginalPath))
                 {
-                    // Manifest-only: no HistoryEntry, but the batch's origin sidecar remembers the
-                    // source path. Frontend restores via BinPath instead of HistoryId. Manual delete
-                    // via the Files tab is the common trigger — hence the "Manual delete" reason.
+                    // Manifest-only: origin sidecar remembers the source path but no HistoryEntry
+                    // joined to this bin path. Post-1.0.8.0 this only happens to older-version
+                    // auto-fix recycles that predate the history-write path — the Files-tab Delete
+                    // endpoint now writes an IssueType.ManualDelete history row so real manual
+                    // deletes land in the history-match branch above. Wording stays neutral so a
+                    // user upgrading from an old build isn't accused of manual deletes they never made.
                     item.OriginalPath = e.OriginalPath;
                     item.BinPath = e.BinPath;
                     item.Provenance = RecycleProvenance.Manifest;
-                    item.Reason = "Manual delete via Files tab";
-                    item.ActionText = "Sent to the recycle bin from the Files tab. Not tied to any MediaDash fix.";
+                    item.Reason = "Recycled by MediaDash — origin not recorded";
+                    item.ActionText = "Recycled by an older MediaDash build that didn't record which fix removed it. Restore uses the origin sidecar to send it back.";
                     item.RestoreHint = RecycleReasonMapper.RestoreHintFor(RecycleProvenance.Manifest, e.OriginalPath);
                 }
                 else

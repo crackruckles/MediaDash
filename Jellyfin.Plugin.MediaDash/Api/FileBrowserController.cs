@@ -59,6 +59,7 @@ public class FileBrowserController : ControllerBase
     private readonly ILibraryMonitor _libraryMonitor;
     private readonly ILibraryManager _libraryManager;
     private readonly IApplicationPaths _appPaths;
+    private readonly Data.MediaDashDb _db;
     private readonly ILogger<FileBrowserController> _logger;
 
     /// <summary>
@@ -69,14 +70,16 @@ public class FileBrowserController : ControllerBase
     /// <param name="libraryMonitor">Instance of the <see cref="ILibraryMonitor"/> interface.</param>
     /// <param name="libraryManager">Instance of the <see cref="ILibraryManager"/> interface.</param>
     /// <param name="appPaths">Instance of the <see cref="IApplicationPaths"/> interface; used to locate the Jellyfin log directory for the read-only shortcut.</param>
+    /// <param name="db">Plugin state DB; used to record a history row per manual delete so the Recycle bin tab labels the entry correctly.</param>
     /// <param name="logger">Logger.</param>
-    public FileBrowserController(LibraryGuard guard, RecycleBin recycleBin, ILibraryMonitor libraryMonitor, ILibraryManager libraryManager, IApplicationPaths appPaths, ILogger<FileBrowserController> logger)
+    public FileBrowserController(LibraryGuard guard, RecycleBin recycleBin, ILibraryMonitor libraryMonitor, ILibraryManager libraryManager, IApplicationPaths appPaths, Data.MediaDashDb db, ILogger<FileBrowserController> logger)
     {
         _guard = guard;
         _recycleBin = recycleBin;
         _libraryMonitor = libraryMonitor;
         _libraryManager = libraryManager;
         _appPaths = appPaths;
+        _db = db;
         _logger = logger;
     }
 
@@ -649,9 +652,16 @@ public class FileBrowserController : ControllerBase
             return forbid;
         }
 
+        string binPath;
+        long size = 0;
         try
         {
-            _recycleBin.MoveToBin(full);
+            if (System.IO.File.Exists(full))
+            {
+                size = new System.IO.FileInfo(full).Length;
+            }
+
+            binPath = _recycleBin.MoveToBin(full);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -661,6 +671,25 @@ public class FileBrowserController : ControllerBase
         {
             return StatusCode(StatusCodes.Status500InternalServerError, "Delete failed: " + ex.Message);
         }
+
+        // Record a history row so the Recycle bin tab's join labels this entry as "Manual delete
+        // via Files tab" (via RecycleReasonMapper). Without this row the entry falls into the
+        // manifest-only fallback branch, which the older code also labelled as manual — but that
+        // branch ALSO catches older-version auto-fix recycles whose fixer paths didn't yet write
+        // history rows, mislabelling them as manual. Splitting the two lets the manifest-only
+        // fallback drop the misleading "manual" wording (see MediaDashController.GetRecycleBinItems).
+        _db.AddHistory(new Data.HistoryEntry
+        {
+            IssueId = 0,
+            Type = Data.IssueType.ManualDelete,
+            Path = full,
+            Action = "Manual delete via Files tab",
+            BytesFreed = size,
+            RecyclePath = binPath,
+            FixedAtUtc = DateTime.UtcNow,
+            WasDryRun = false,
+            Success = true
+        });
 
         _libraryMonitor.ReportFileSystemChanged(full);
         _logger.LogInformation("File browser recycled {Path}", full);
