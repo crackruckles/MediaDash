@@ -4,6 +4,14 @@ Release notes for every published version are on GitHub Releases: https://github
 
 The Jellyfin plugin catalog also shows the changelog for each version — open **Dashboard → Plugins → Catalog** in your Jellyfin server, or read `manifest.json` in this repo.
 
+## 1.0.8.0 (unreleased)
+
+- added Repair broken files ladder: before deleting an unplayable file, MediaDash now tries to salvage it in four steps — quick remux, drop broken streams, change container to .mkv, re-encode video. Each step is toggleable under Settings → MediaDash → Files that won't play → Repair broken files; all four are on by default. Container-change step resets Jellyfin watch history for the affected title.
+- Files that won't play row action is now "Repair / Remove file" (was "Remove file") with hover tooltip clarifying that repair is attempted first and removal only happens if every enabled step fails.
+- fixed the fix scheduler retrying "outside your library" refusals every 30 minutes forever — when a fixer refuses because the target's library was renamed or removed, the issue is now retired instead of piling on the Errors tab. Re-adding the library re-emits the issue on the next scan.
+
+---
+
 ## 1.0.7.5 (unreleased)
 
 - added Fix window setting (only run scheduled fixes between hours you choose)
