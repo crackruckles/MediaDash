@@ -949,7 +949,14 @@ public sealed class FixTask : IScheduledTask
             // Playability re-verify saw the file healed since scan — same intent as "state changed", stop the 15-min retry loop.
             || message.Contains("plays fine now", StringComparison.OrdinalIgnoreCase)
             // MediaGrouper / MediaSorter target conflict — needs manual resolution, retrying never helps.
-            || message.Contains("same name already exists", StringComparison.OrdinalIgnoreCase);
+            || message.Contains("same name already exists", StringComparison.OrdinalIgnoreCase)
+            // LibraryGuard refused: library was renamed / removed / paths drifted after the scan
+            // enqueued the issue. Every fixer's refusal message contains one of these two phrases
+            // (grep for LibraryGuard.IsInsideLibrary call sites). Without this, the fix scheduler
+            // retries every 30 min and spams the Errors tab with a fresh row per attempt. If the
+            // library is later re-added, a fresh scan re-emits the issue (Fixed rows don't suppress).
+            || message.Contains("outside your library", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("not inside a configured library", StringComparison.OrdinalIgnoreCase);
     }
 
     // Reads free space on the bin volume; returns true when it's below the floor. Reason string is

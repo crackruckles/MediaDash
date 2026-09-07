@@ -12,6 +12,17 @@ public class FixTaskStaleFailureTests
     [InlineData("The file plays fine now — nothing was removed. Re-scan to clear this issue.")]
     [InlineData("An item with the same name already exists at '/mnt/media/Complete/TV/Yellowstone/Yellowstone (2018)' — rename or remove it, or move this one manually.")]
     [InlineData("A file with the same name already exists at '/mnt/media/target.mkv' — nothing was moved. Rename or remove the existing file, or move this one manually.")]
+    // Library was renamed / removed / paths drifted between scan and fix. Every fixer's LibraryGuard
+    // refusal contains one of these two phrases — retrying every 30 min spams the Errors tab.
+    [InlineData("The file is outside your library folders; MediaDash will not touch it.")]
+    [InlineData("The source is outside your library folders; MediaDash will not touch it.")]
+    [InlineData("The folder is outside your library folders; MediaDash will not touch it.")]
+    [InlineData("Refused: NFO is not inside a configured library — /mnt/x/y.nfo")]
+    [InlineData("Refused: subtitle is not inside a configured library — /mnt/x/y.srt")]
+    [InlineData("Refused: folder is not inside a configured library — /mnt/x/y")]
+    [InlineData("Refused: trickplay folder is not inside a configured library — /mnt/x/y-trickplay")]
+    [InlineData("Refused: subtitle sits outside your library folders — /mnt/x/y.srt")]
+    [InlineData("Refused: the recorded better copy '/mnt/x/y.mkv' is outside your library folders.")]
     public void IsStaleFailure_KnownStalePatterns_ReturnTrue(string message)
     {
         // These are the exact strings the fixers emit when scan-time state no longer matches disk.
