@@ -406,6 +406,41 @@ public sealed class FixTask : IScheduledTask
                 break;
             }
 
+            // Re-check the user-configured size cap between items. The start-of-run check refuses
+            // to begin over the cap, but a run started under the cap can push over it after a few
+            // large recycles. Without this, the cap is a one-time filter instead of a live limit.
+            // User bug report: recycle bin blew past the cap because fixes kept running after each
+            // recycle added GB.
+            if (pauseGb > 0 && !config.DryRun)
+            {
+                var midBinBytes = 0L;
+                try
+                {
+                    midBinBytes = _recycleBin.GetContents().SizeBytes;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    // Read failure is not fatal; skip the mid-run check for this iteration.
+                    _logger.LogDebug(ex, "Could not measure recycle bin size mid-run; skipping cap check.");
+                    midBinBytes = 0;
+                }
+
+                var midCapBytes = (long)pauseGb * 1024L * 1024L * 1024L;
+                if (midBinBytes >= midCapBytes)
+                {
+                    var msg = "Paused mid-run: recycle bin crossed the " + pauseGb + " GB cap (now "
+                        + (midBinBytes / (1024L * 1024L * 1024L)) + " GB). Empty it from the Recycle bin tab to resume.";
+                    _logger.LogInformation("Pausing fix run mid-queue: {Msg}", msg);
+                    Api.Diagnostics.Record("FixTask.RecycleBinFull", msg);
+                    if (isManualRun)
+                    {
+                        PauseReason = msg;
+                    }
+
+                    break;
+                }
+            }
+
             if (config.PauseDuringPlayback && !IgnoreActivityForCurrentRun && IdleCheck.IsServerBusy(_sessionManager))
             {
                 // Discoverability hint for the reported "MediaDash pinned my HDD" class: if we're
