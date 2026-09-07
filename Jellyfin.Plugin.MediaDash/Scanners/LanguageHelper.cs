@@ -32,6 +32,16 @@ public static class LanguageHelper
         ["wel"] = "cym"
     };
 
+    // Macrolanguage equivalence groups. A user who allows "nor" (Norwegian) should have their
+    // "nob" (Bokmål) and "nno" (Nynorsk) tracks kept too — most Norwegian media is tagged with
+    // the specific variant, so a "nor"-only allowed list would silently delete everything.
+    // Every code in a group matches every other code in the same group in IsAllowed().
+    // Add more groups here when users report similar false-positives (Chinese cmn/yue, etc.).
+    private static readonly IReadOnlyList<HashSet<string>> EquivalenceGroups =
+    [
+        new(StringComparer.OrdinalIgnoreCase) { "nor", "nob", "nno" }
+    ];
+
     /// <summary>
     /// Normalizes a language tag to a lowercase ISO 639-2/T code. Null, empty and unknown map to "und".
     /// </summary>
@@ -90,7 +100,26 @@ public static class LanguageHelper
 
         foreach (var entry in allowed)
         {
-            if (string.Equals(Normalize(entry), normalized, StringComparison.Ordinal))
+            var allowedNorm = Normalize(entry);
+            if (string.Equals(allowedNorm, normalized, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (SameEquivalenceGroup(allowedNorm, normalized))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool SameEquivalenceGroup(string a, string b)
+    {
+        foreach (var group in EquivalenceGroups)
+        {
+            if (group.Contains(a) && group.Contains(b))
             {
                 return true;
             }

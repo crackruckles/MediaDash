@@ -46,4 +46,26 @@ public class LanguageHelperTests
         Assert.False(LanguageHelper.IsAllowed("fra", ["eng"]));
         Assert.False(LanguageHelper.IsAllowed("jpn", ["eng", "spa"]));
     }
+
+    [Theory]
+    // Norwegian macrolanguage: a user with "nor" allowed should keep Bokmål (nob) and Nynorsk (nno)
+    // tracks — most Norwegian media is tagged with the specific variant. Symmetric: a user with
+    // "nob" or "nno" allowed should also keep generic "nor" tracks.
+    [InlineData("nob", new[] { "nor" })]
+    [InlineData("nno", new[] { "nor" })]
+    [InlineData("nor", new[] { "nob" })]
+    [InlineData("nor", new[] { "nno" })]
+    [InlineData("nob", new[] { "nno" })]
+    public void IsAllowed_TreatsNorwegianVariantsAsEquivalent(string track, string[] allowed)
+    {
+        Assert.True(LanguageHelper.IsAllowed(track, allowed));
+    }
+
+    [Fact]
+    public void IsAllowed_NorwegianDoesNotBleedIntoUnrelatedLanguages()
+    {
+        // Sanity: equivalence group is scoped. "nor" must not match unrelated codes.
+        Assert.False(LanguageHelper.IsAllowed("swe", ["nor"]));
+        Assert.False(LanguageHelper.IsAllowed("dan", ["nob"]));
+    }
 }
