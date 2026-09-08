@@ -384,6 +384,33 @@
       "updatedAt": "2026-09-08T02:35:00Z"
     },
     {
+      "id": "i-bl-12-rung4a-audio-reencode",
+      "title": "Repair ladder rung 4a: audio-only re-encode (before full video re-encode)",
+      "notes": "Insert a cheaper rung between rung 3 (container coerce) and rung 4 (full video re-encode). When per-stream decode (already used by rung 2's DecodeStreamAsync) shows video streams pass decode but audio fails, re-encode ONLY the audio: `-c:v copy -c:a aac -b:a 192k`. Minutes instead of hours for audio-only damage — many real-world 'unplayable' files are just one broken audio track.\n\nGate: only fires if rung 2 (drop broken streams) refused because dropping audio would leave zero audio streams (i.e. the ONE audio track is broken and can't be dropped). New config toggle RepairAttemptAudioReencode, default on.\n\nVerify uses the existing VerifyRepairedAsync (structural + decode-check), same as every other rung. Reuse SwapRepairedAsync so timestamp preservation (i-175-08) applies automatically.",
+      "kind": "feature",
+      "versionId": "backlog",
+      "createdAt": "2026-09-08T03:20:00Z",
+      "updatedAt": "2026-09-08T03:20:00Z"
+    },
+    {
+      "id": "i-bl-13-repair-only-row-action",
+      "title": "Split 'Repair / Remove file' into two row actions",
+      "notes": "Users want per-file control: sometimes 'try to repair, but if it fails DON'T delete — leave the file so I can inspect it myself'. Current button collapses both into one path (repair fallback → delete). Split into:\n\n(a) Repair — tries the enabled rungs; on all-fail, does NOT recycle. Row stays as Detected with a 'repair attempted, no rung succeeded' hint. Non-destructive.\n(b) Remove file — legacy delete-only path, bypasses the ladder entirely.\n\nBulk buttons mirror the split: 'Repair all N shown' and 'Remove all N shown'. Confirm modal wording adjusted per action so users can't accidentally delete via a button they thought was safe.\n\nImplementation: DuplicateFixer's-style branching in PlayabilityFixer.FixAsync gated by a new query param or issue-level intent flag. Row-action JS in configPage.html adds the second button.",
+      "kind": "feature",
+      "versionId": "backlog",
+      "createdAt": "2026-09-08T03:20:00Z",
+      "updatedAt": "2026-09-08T03:20:00Z"
+    },
+    {
+      "id": "i-bl-14-repair-preview",
+      "title": "Repair preview / dry-run: which rung would fire, without touching the file",
+      "notes": "User-facing tool for building confidence before enabling auto-repair. Adds a 'Preview repair' row action on Playability issues that runs every enabled rung's PROBE + BUILD-ARGS pass but stops short of executing ffmpeg. Reports:\n\n* which rungs would attempt for this file (based on config toggles + rung-specific pre-checks like 'rung 3 skips .mkv sources')\n* rough estimate of runtime per rung (rung 1/2/3: seconds; rung 4: minutes to hours per source duration)\n* rung 4 encoder target (h264 / aac / MKV) so users know what the recoded output would look like\n* if all rungs would fail their pre-checks, warn 'no rung would run — file would fall through to delete'\n\nImplementation: extract the pre-check + arg-build logic from each TryRungN into a public PreviewRungN method. TryRungN calls PreviewRungN + then executes. Preview endpoint at /MediaDash/Issues/{id}/PreviewRepair returns a JSON summary. Zero filesystem writes, safe to click anytime.\n\nComplements Dry-run mode (which is global) with a per-file probe.",
+      "kind": "feature",
+      "versionId": "backlog",
+      "createdAt": "2026-09-08T03:20:00Z",
+      "updatedAt": "2026-09-08T03:20:00Z"
+    },
+    {
       "id": "i-bl-11-space-cliff-warning",
       "title": "Space-cliff warning: banner when a library drive approaches its performance cliff",
       "notes": "Early-warning banner (Overview + Maintenance) when a library drive crosses its filesystem-specific performance cliff. Users usually don't notice until fixes start failing with ENOSPC or playback stutters. Complements the existing recycle-bin cap (which only pauses fixes) with a proactive read that fires BEFORE anything breaks.\n\nThresholds:\n(a) NTFS: warn at 90% used. Free space fragmentation on NTFS gets sharply worse past ~90%, and Windows' MFT reservation can starve at ~95%.\n(b) ext4 / XFS: warn at 90%. Ext4 reserves 5% for root by default; past ~90% used the remaining free extents fragment fast.\n(c) ZFS / btrfs: warn at 85%. CoW allocators need copious free extents to avoid write amplification; performance degrades sharply beyond 80–85%.\n(d) exFAT / FAT32 (rare in library folders): warn at 90%. No reserved area, but write throughput collapses when free extents shrink.\n\nDetect filesystem via DriveInfo.DriveFormat + Linux /proc/mounts. Reuse RecycleBin.FindDriveForPath as the drive resolver so it lines up with the recycle-bin pause math. One banner per drive per threshold crossing; dismissible for 7 days per drive so it doesn't nag while a user is intentionally close to the cap. Never block fixes; the recycle-bin cap already owns the hard stop.",
