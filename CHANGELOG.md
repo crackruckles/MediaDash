@@ -14,6 +14,7 @@ The Jellyfin plugin catalog also shows the changelog for each version — open *
 - fixed the recycle bin blowing past its configured size cap during a single fix run — the cap now re-checks between items, not only at run start. When it trips mid-run, the remaining queue defers to the next window and the pause reason is shown on the Overview.
 - fixed the Recycle bin tab mislabelling older-version auto-fix recycles as "Manual delete via Files tab". A real Files-tab delete now writes a history row (new IssueType `ManualDelete`) so the label is accurate; entries with no history row read "Recycled by MediaDash — origin not recorded" instead of a false accusation.
 - fixed Duplicate fix leaving the removed copy's per-title folder plus .nfo / poster / backdrop / clearlogo / thumb sidecars behind. When the video's folder is dedicated (no other media, no sub-directories, keeper elsewhere, not a library root), MediaDash now sweeps the remaining sidecars into the recycle bin and prunes the empty folder. Restore is per-sidecar from the Recycle bin tab. Co-mingled folders are left untouched.
+- added "Keep TMDB / TVDB ID in the canonical name" setting under Files wasting space. When "Rename re-encoded files to a canonical name" is on, the renamed output preserves an existing `[tmdbid-N]` (movies) or `[tvdbid-N]` (episodes) tag from the source filename — Sonarr / Radarr default naming survives the re-encode. Falls back to Jellyfin's provider IDs when the source has no tag. Off by default.
 
 ---
 

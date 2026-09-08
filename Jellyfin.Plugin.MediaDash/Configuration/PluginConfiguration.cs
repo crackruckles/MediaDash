@@ -72,6 +72,7 @@ public class PluginConfiguration : BasePluginConfiguration
         PicturesTargetPath = string.Empty;
         MediaSortSource = MediaSortSource.JellyfinMetadata;
         RenameAfterTranscode = false;
+        PreserveExternalIdInFilename = false;
         MissingSubtitlesFixMode = FixMode.DetectOnly;
         SubtitleIgnoreRateLimit = true;
         SubtitleHearingImpairedMode = false;
@@ -505,6 +506,16 @@ public class PluginConfiguration : BasePluginConfiguration
     /// (Movie: <c>Name (Year) - {height}p.{ext}</c>; TV: <c>SeriesName - S{ss:00}E{ee:00} - {height}p.{ext}</c>).
     /// </summary>
     public bool RenameAfterTranscode { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether canonical rename should carry over an existing
+    /// <c>[tmdbid-...]</c> tag (movies) or <c>[tvdbid-...]</c> tag (episodes) from the source
+    /// filename into the renamed output. Matches the Sonarr / Radarr default naming convention
+    /// so users who rely on ID-in-filename tooling keep the IDs after a MediaDash re-encode.
+    /// Falls back to Jellyfin's ProviderIds (BaseItem.ProviderIds) if the source filename
+    /// doesn't carry the tag but Jellyfin's metadata does.
+    /// </summary>
+    public bool PreserveExternalIdInFilename { get; set; }
 
     /// <summary>
     /// Gets or sets how the missing-subtitle scanner acts. Fixes call Jellyfin's ISubtitleManager to download

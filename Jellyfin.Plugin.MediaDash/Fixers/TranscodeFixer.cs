@@ -263,7 +263,7 @@ public sealed class TranscodeFixer : IFixer
             {
                 // Rename is best-effort: any failure (missing metadata, collision, permission) keeps the
                 // re-encoded file under its original basename, which is a safe fallback.
-                var renamed = TryRenameToCanonical(targetPath, issue.ItemId, video.Height ?? 0, targetContainer);
+                var renamed = TryRenameToCanonical(targetPath, issue.ItemId, video.Height ?? 0, targetContainer, issue.Path);
                 if (renamed is not null)
                 {
                     finalPath = renamed;
@@ -722,7 +722,7 @@ public sealed class TranscodeFixer : IFixer
         return Path.Combine(dir, "mediadash." + marker + "." + hash + extSuffix);
     }
 
-    private string? TryRenameToCanonical(string currentPath, Guid itemId, int height, string extension)
+    private string? TryRenameToCanonical(string currentPath, Guid itemId, int height, string extension, string sourcePath)
     {
         var item = itemId == Guid.Empty ? null : _libraryManager.GetItemById(itemId);
         if (item is null)
@@ -730,7 +730,8 @@ public sealed class TranscodeFixer : IFixer
             return null;
         }
 
-        var canonical = RenameTemplate.Build(item, height, extension);
+        var preserveId = Plugin.Instance?.Configuration.PreserveExternalIdInFilename ?? false;
+        var canonical = RenameTemplate.Build(item, height, extension, sourcePath, preserveId);
         if (canonical is null)
         {
             return null;

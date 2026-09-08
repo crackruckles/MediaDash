@@ -3882,8 +3882,8 @@
                     },
                     Playability: {
                         title: "Files that won't play", hint: 'These files are broken or unreadable.', color: '#eab308', icon: 'play_disabled',
-                        action: 'Remove file', actionHint: 'Queues removal for the next fix run (re-checked as broken before anything is removed).', approveAll: 'Remove all {0} broken files shown',
-                        doRecycle: 'Remove the broken file — recoverable from the recycle bin', doPermanent: 'Remove the broken file — permanently'
+                        action: 'Repair / Remove file', actionHint: 'Tries to repair the file first. If it can\'t be repaired, the file is removed.', approveAll: 'Repair / Remove all {0} broken files shown',
+                        doRecycle: 'Try to repair; if it can\'t be repaired, remove the file (recoverable from the recycle bin)', doPermanent: 'Try to repair; if it can\'t be repaired, remove the file permanently'
                     },
                     Quality: {
                         title: 'Files wasting space', hint: 'Bigger than your chosen quality ceiling.', color: '#3b82f6', icon: 'compress',
@@ -5483,7 +5483,7 @@
                         actionHint = '<span class="material-icons" style="font-size:15px;vertical-align:middle;color:var(--md-primary);">schedule</span> Queued for next fix run — click "Run fixes now" on Overview. Change your mind? Click Undo.';
                     } else {
                         actionButtons = verifyBtn +
-                            '<button is="emby-button" type="button" class="raised button-submit mdApprove" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(t.action || STR.approve) + '</span></button>' +
+                            '<button is="emby-button" type="button" class="raised button-submit mdApprove" data-id="' + i.Id + '" style="font-size:80%;" title="' + esc(t.actionHint || '') + '"><span>' + esc(t.action || STR.approve) + '</span></button>' +
                             '<button is="emby-button" type="button" class="raised mdDismiss" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(STR.dismiss) + '</span></button>';
                         // Label each half of the hint with the button it describes so the two
                         // sentences don't run together and read as one confusing description of a
@@ -6279,6 +6279,11 @@
                                     '<input id="mdRenameAfterTranscode" type="checkbox" class="mdInsetCheck" />' +
                                     '<span style="font-size:13px;font-weight:600;flex:0 0 auto;">Rename re-encoded files to a canonical name</span>' +
                                     '<span class="mdFieldHint" style="margin:0;flex:1;">Movie (Year) - 1080p.mkv style.</span>' +
+                                '</label>' +
+                                '<label class="mdInsetRow" style="cursor:pointer;" title="When renaming, keep an existing [tmdbid-NNNN] (movies) or [tvdbid-NNNN] (episodes) tag from the source filename so Sonarr / Radarr-style filename metadata survives the re-encode. Falls back to Jellyfin\'s provider IDs when the source has no tag.">' +
+                                    '<input id="mdPreserveExternalIdInFilename" type="checkbox" class="mdInsetCheck" />' +
+                                    '<span style="font-size:13px;font-weight:600;flex:0 0 auto;">Keep TMDB / TVDB ID in the canonical name</span>' +
+                                    '<span class="mdFieldHint" style="margin:0;flex:1;">Movie (Year) - 1080p [tmdbid-12345].mkv; only takes effect when the rename option above is on.</span>' +
                                 '</label>' +
                             '</div>' +
                         '</details>';
@@ -7496,6 +7501,7 @@
                     view.querySelector('#mdPicturesTarget').value = c.PicturesTargetPath || '';
                     view.querySelector('#mdMediaSortSource').value = c.MediaSortSource || 'JellyfinMetadata';
                     view.querySelector('#mdRenameAfterTranscode').checked = !!c.RenameAfterTranscode;
+                    view.querySelector('#mdPreserveExternalIdInFilename').checked = !!c.PreserveExternalIdInFilename;
                     view.querySelector('#mdBinPath').value = c.RecycleBinPath || '';
                     view.querySelector('#mdRetention').value = c.RecycleBinRetentionDays;
                     view.querySelector('#mdBinWarnThreshold').value = (c.RecycleBinWarnThresholdGb != null ? c.RecycleBinWarnThresholdGb : 10);
@@ -7635,6 +7641,7 @@
                     c.PicturesTargetPath = view.querySelector('#mdPicturesTarget').value.trim();
                     c.MediaSortSource = view.querySelector('#mdMediaSortSource').value;
                     c.RenameAfterTranscode = view.querySelector('#mdRenameAfterTranscode').checked;
+                    c.PreserveExternalIdInFilename = view.querySelector('#mdPreserveExternalIdInFilename').checked;
                     c.RecycleBinPath = view.querySelector('#mdBinPath').value.trim();
                     c.RecycleBinRetentionDays = parseInt(view.querySelector('#mdRetention').value, 10) || 30;
                     var warnGb = parseInt(view.querySelector('#mdBinWarnThreshold').value, 10);
