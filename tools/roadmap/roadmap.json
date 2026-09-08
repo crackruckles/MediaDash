@@ -382,6 +382,15 @@
       "versionId": "v-1-0-7-6",
       "createdAt": "2026-09-08T02:35:00Z",
       "updatedAt": "2026-09-08T02:35:00Z"
+    },
+    {
+      "id": "i-bl-10-monthly-defrag",
+      "title": "Explore: monthly disk defrag for library drives",
+      "notes": "Explore idea. Scheduled monthly optimize pass on each library drive. Prerequisites to scope before building: (a) SKIP SSDs — TRIM only, defrag actively harms them; detect via drive.MediaType / smartctl. (b) Windows uses defrag.exe (built-in, admin) or Optimize-Volume; Linux ext4 has e4defrag (marginal value on modern filesystems; XFS/btrfs handle differently). (c) MUST respect fix window + Low system impact mode — defrag is disk-bound for hours. (d) Cancellable and resumable; a fix run should never block on it. (e) Opt-in ONLY, per-drive toggle; never touch a drive silently. (f) Skip while media is playing (reuse IdleCheck). (g) Report last-run + estimated benefit like the trickplay optimizer does. Open questions: is this ever worth it on a media library that's mostly sequential large files? Real signal probably comes from users on aged HDDs with heavy churn (Sonarr/Radarr rewrites); measure fragmentation delta first before shipping the whole thing.",
+      "kind": "feature",
+      "versionId": "backlog",
+      "createdAt": "2026-09-08T02:45:00Z",
+      "updatedAt": "2026-09-08T02:45:00Z"
     }
   ]
 }
