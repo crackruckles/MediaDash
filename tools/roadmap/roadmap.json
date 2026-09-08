@@ -24,6 +24,11 @@
       "id": "v-1-0-8-2",
       "name": "1.0.9.0",
       "order": 5
+    },
+    {
+      "id": "v-1-0-7-6",
+      "name": "1.0.7.6",
+      "order": 6
     }
   ],
   "items": [
@@ -194,9 +199,9 @@
       "title": "Playability repair ladder",
       "notes": "Four-rung repair in PlayabilityFixer before delete: quick remux → drop broken streams → change container to MKV → re-encode. Each rung has its own toggle in a Repair broken files settings card, all default on. Spec: docs/superpowers/specs/2026-09-05-playability-repair-design.md. Plan: docs/superpowers/plans/2026-09-05-playability-repair.md.",
       "kind": "feature",
-      "versionId": "v-1-0-8-0",
+      "versionId": "v-1-0-7-6",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-05T13:00:00Z"
+      "updatedAt": "2026-09-07T12:04:41.532Z"
     },
     {
       "id": "i-180-05",
@@ -350,6 +355,33 @@
       "versionId": "v-1-0-7-5",
       "createdAt": "2026-09-06T05:00:00Z",
       "updatedAt": "2026-09-06T05:00:00Z"
+    },
+    {
+      "id": "d04791b1-2625-4da9-bba7-dfa816ae71f5",
+      "title": "Auto delete feature for stale content",
+      "notes": "Big user warnings",
+      "kind": "feature",
+      "versionId": "v-1-0-8-2",
+      "createdAt": "2026-09-06T07:12:14.617Z",
+      "updatedAt": "2026-09-06T07:12:23.858Z"
+    },
+    {
+      "id": "eab4479a-1ef8-4061-ab97-2e364ccf45a8",
+      "title": "Recycle bin size limits ignored",
+      "notes": "Recycle bin went over the predefined size limit but fixes kept being applied #52",
+      "kind": "bug",
+      "versionId": "v-1-0-7-6",
+      "createdAt": "2026-09-07T12:04:57.178Z",
+      "updatedAt": "2026-09-07T12:05:15.862Z"
+    },
+    {
+      "id": "i-176-pre-release-sweep",
+      "title": "Pre-release sweep: refine repair function + full local/GitHub cleanup",
+      "notes": "Before cutting 1.0.7.6, do: (1) refine the Playability repair ladder — tune fixture strictness so scanner/validate disagreements shrink, tighten rung 4 fallback messaging, review verify decode-cache interaction; (2) full local repo cleanup — flip stale CHANGELOG '1.0.7.5 (unreleased)' header (it shipped 2026-09-06 per manifest.json), sweep uncommitted plan/spec docs under docs/superpowers/, review roadmap.json for done-but-open items, run tests suite green (currently 643/643); (3) GitHub cleanup — triage open issues for anything already fixed on main, close/label duplicates, check CI branch is green, ensure release notes template is ready. Nothing gets pushed until this is done.",
+      "kind": "bug",
+      "versionId": "v-1-0-7-6",
+      "createdAt": "2026-09-08T02:35:00Z",
+      "updatedAt": "2026-09-08T02:35:00Z"
     }
   ]
 }
