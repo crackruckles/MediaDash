@@ -142,6 +142,29 @@ public sealed class FixTask : IScheduledTask
             return;
         }
 
+        // Manual-scan review grace. A user who just clicked "Scan" is presumed to be on the Issues
+        // tab actively reviewing. Skip the opportunistic scheduled fix pass while ScanTask says
+        // the last manual scan is still inside its ten-minute grace, otherwise auto-fix mutates
+        // rows out from under the reviewer. isManualRun (explicit "Run fixes now") bypasses —
+        // the user's opt-in is a stronger signal than the grace. Scheduled scans don't set the
+        // timestamp, so this is a no-op for auto-only users. Producer is ScanTask.ExecuteAsync;
+        // shape tests in ScanTaskManualScanGraceTests.
+        if (!isManualRun && ScanTask.ManualScanCompletedUtc is { } lastManualScan)
+        {
+            var elapsed = DateTime.UtcNow - lastManualScan;
+            if (elapsed < ScanTask.ManualScanReviewGrace)
+            {
+                var graceRemaining = ScanTask.ManualScanReviewGrace - elapsed;
+                _logger.LogInformation(
+                    "Skipping fix run: manual scan finished {Elapsed:0} min ago, still inside the {Grace:0}-min review grace ({Remaining:0} min left). Queued issues stay queued.",
+                    elapsed.TotalMinutes,
+                    ScanTask.ManualScanReviewGrace.TotalMinutes,
+                    graceRemaining.TotalMinutes);
+                progress.Report(100);
+                return;
+            }
+        }
+
         // Time-of-day window. Empty strings = no window (existing behaviour). Manual runs bypass,
         // matching the idle-check bypass — the user's explicit "Run fixes now" click is a stronger
         // signal than the schedule. When inside the window we compute how much of it is left and
