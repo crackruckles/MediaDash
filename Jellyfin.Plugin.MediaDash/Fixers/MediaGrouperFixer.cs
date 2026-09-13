@@ -48,15 +48,31 @@ public sealed class MediaGrouperFixer : IFixer
     {
         var config = Plugin.Instance!.Configuration;
 
-        string action;
-        string source;
-        string target;
+        string action = string.Empty;
+        string source = string.Empty;
+        string target = string.Empty;
         try
         {
             using var details = JsonDocument.Parse(issue.DetailsJson);
-            action = details.RootElement.TryGetProperty("action", out var a) ? a.GetString() ?? string.Empty : string.Empty;
-            source = details.RootElement.TryGetProperty("source", out var s) ? s.GetString() ?? string.Empty : string.Empty;
-            target = details.RootElement.TryGetProperty("target", out var t) ? t.GetString() ?? string.Empty : string.Empty;
+            // Phase 1: guard root + per-property shape. TryGetProperty on non-object and
+            // GetString on non-string both throw InvalidOperationException, not JsonException.
+            if (details.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                if (details.RootElement.TryGetProperty("action", out var a) && a.ValueKind == JsonValueKind.String)
+                {
+                    action = a.GetString() ?? string.Empty;
+                }
+
+                if (details.RootElement.TryGetProperty("source", out var s) && s.ValueKind == JsonValueKind.String)
+                {
+                    source = s.GetString() ?? string.Empty;
+                }
+
+                if (details.RootElement.TryGetProperty("target", out var t) && t.ValueKind == JsonValueKind.String)
+                {
+                    target = t.GetString() ?? string.Empty;
+                }
+            }
         }
         catch (JsonException)
         {

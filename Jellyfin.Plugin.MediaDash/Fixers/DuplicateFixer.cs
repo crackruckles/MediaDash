@@ -47,15 +47,21 @@ public sealed class DuplicateFixer : IFixer
     {
         var config = Plugin.Instance!.Configuration;
 
-        string? keeperPath;
+        string? keeperPath = null;
         try
         {
             using var details = JsonDocument.Parse(issue.DetailsJson);
-            keeperPath = details.RootElement.TryGetProperty("keeperPath", out var kp) ? kp.GetString() : null;
+            // Phase 1: guard root shape + property type. TryGetProperty on non-object or
+            // GetString on non-string throws InvalidOperationException, not JsonException.
+            if (details.RootElement.ValueKind == JsonValueKind.Object
+                && details.RootElement.TryGetProperty("keeperPath", out var kp)
+                && kp.ValueKind == JsonValueKind.String)
+            {
+                keeperPath = kp.GetString();
+            }
         }
         catch (JsonException)
         {
-            keeperPath = null;
         }
 
         if (string.IsNullOrEmpty(keeperPath))

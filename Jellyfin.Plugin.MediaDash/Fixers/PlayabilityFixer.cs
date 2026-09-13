@@ -602,12 +602,52 @@ public sealed class PlayabilityFixer : IFixer
         }
     }
 
-    private static string? TryGetReason(string detailsJson)
+    private static string? TryGetReason(string detailsJson) => TryGetString(detailsJson, "reason");
+
+    /// <summary>Test-only wrapper around <c>TryGetReason</c> so the F-015 guard is directly pinnable without spinning up a fixer instance.</summary>
+    /// <param name="detailsJson">The issue DetailsJson.</param>
+    /// <returns>The reason, or null on any malformed shape.</returns>
+    internal static string? TryGetReasonForTest(string detailsJson) => TryGetReason(detailsJson);
+
+    /// <summary>Reads the friendly one-liner the scanner wrote into <c>detail</c>. Returns null when absent, malformed, or blank. Public/internal for tests.</summary>
+    /// <param name="detailsJson">The issue DetailsJson.</param>
+    /// <returns>The trimmed detail string, trailing period stripped, or null.</returns>
+    internal static string? TryGetDetail(string detailsJson)
     {
+        var raw = TryGetString(detailsJson, "detail");
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        var trimmed = raw.Trim();
+        return trimmed.EndsWith('.') ? trimmed[..^1] : trimmed;
+    }
+
+    private static string? TryGetString(string detailsJson, string property)
+    {
+        if (string.IsNullOrWhiteSpace(detailsJson))
+        {
+            return null;
+        }
+
         try
         {
             using var details = JsonDocument.Parse(detailsJson);
-            return details.RootElement.TryGetProperty("reason", out var r) ? r.GetString() : null;
+            // F-015: guard root shape + property shape. TryGetProperty on non-object and
+            // GetString on non-string both throw InvalidOperationException, which
+            // catch (JsonException) doesn't match.
+            if (details.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            if (!details.RootElement.TryGetProperty(property, out var el) || el.ValueKind != JsonValueKind.String)
+            {
+                return null;
+            }
+
+            return el.GetString();
         }
         catch (JsonException)
         {

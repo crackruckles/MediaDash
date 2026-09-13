@@ -66,15 +66,21 @@ public sealed class MediaSorterFixer : IFixer
             return Task.FromResult(FixResult.Fail("The file is outside your library folders; MediaDash will not touch it."));
         }
 
-        string? targetPath;
+        string? targetPath = null;
         try
         {
             using var details = JsonDocument.Parse(issue.DetailsJson);
-            targetPath = details.RootElement.TryGetProperty("targetPath", out var t) ? t.GetString() : null;
+            // Phase 1: guard root + property shape (InvalidOperationException isn't caught by
+            // JsonException — see F-015/F-016).
+            if (details.RootElement.ValueKind == JsonValueKind.Object
+                && details.RootElement.TryGetProperty("targetPath", out var t)
+                && t.ValueKind == JsonValueKind.String)
+            {
+                targetPath = t.GetString();
+            }
         }
         catch (JsonException)
         {
-            targetPath = null;
         }
 
         if (string.IsNullOrEmpty(targetPath))

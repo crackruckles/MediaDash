@@ -158,9 +158,15 @@ public sealed class MissingSubtitleFixer : IFixer
         try
         {
             using var doc = JsonDocument.Parse(issue.DetailsJson);
-            if (doc.RootElement.TryGetProperty("missingLanguages", out var arr) && arr.ValueKind == JsonValueKind.Array)
+            // Phase 1: guard root shape (TryGetProperty on non-object throws IOE, not
+            // JsonException). Also filter each array element on ValueKind == String — GetString
+            // on non-string entries would throw and abort the LINQ pipeline mid-materialise.
+            if (doc.RootElement.ValueKind == JsonValueKind.Object
+                && doc.RootElement.TryGetProperty("missingLanguages", out var arr)
+                && arr.ValueKind == JsonValueKind.Array)
             {
                 return arr.EnumerateArray()
+                    .Where(e => e.ValueKind == JsonValueKind.String)
                     .Select(e => e.GetString())
                     .Where(s => !string.IsNullOrWhiteSpace(s))
                     .Select(s => s!)

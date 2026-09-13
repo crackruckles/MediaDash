@@ -80,7 +80,18 @@ public sealed class OrphanCleanupFixer : IFixer
         try
         {
             using var doc = JsonDocument.Parse(detailsJson);
-            return doc.RootElement.TryGetProperty("kind", out var el) ? el.GetString() : null;
+            // Phase 1: guard root + property shape (F-015/F-016 pattern).
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            if (!doc.RootElement.TryGetProperty("kind", out var el) || el.ValueKind != JsonValueKind.String)
+            {
+                return null;
+            }
+
+            return el.GetString();
         }
         catch (JsonException)
         {
