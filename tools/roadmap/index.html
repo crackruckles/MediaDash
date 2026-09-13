@@ -102,11 +102,26 @@
   .col-add button:hover { color: var(--text); }
   .item {
     background: var(--card); border: 1px solid var(--border); border-radius: 5px;
-    padding: 8px 10px; cursor: grab; position: relative;
+    padding: 8px 10px 8px 32px; cursor: grab; position: relative;
     transition: background 0.1s;
   }
   .item:hover { background: var(--card-hover); }
   .item.dragging { opacity: 0.4; }
+  .item.completed { opacity: 0.55; }
+  .item.completed .title { text-decoration: line-through; color: var(--muted); }
+  .item .tick {
+    position: absolute; top: 8px; left: 8px;
+    width: 16px; height: 16px; border-radius: 3px;
+    border: 1.5px solid var(--muted); background: transparent;
+    cursor: pointer; padding: 0; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    color: transparent; font-size: 12px; font-weight: 700;
+    transition: border-color 0.1s, background 0.1s;
+  }
+  .item .tick:hover { border-color: var(--accent); }
+  .item.completed .tick {
+    background: #4a9955; border-color: #4a9955; color: #fff;
+  }
   .item .title {
     font-weight: 500; word-wrap: break-word; padding-right: 20px;
   }
@@ -258,7 +273,10 @@ function normalizeState(raw) {
         kind: it.kind === 'bug' ? 'bug' : 'feature',
         versionId: validVersionIds.has(it.versionId) ? it.versionId : s.versions[0].id,
         createdAt: it.createdAt || new Date().toISOString(),
-        updatedAt: it.updatedAt || new Date().toISOString()
+        updatedAt: it.updatedAt || new Date().toISOString(),
+        // completedAt is null for open items, ISO timestamp when ticked done. Preserved
+        // verbatim so existing files without the field load as open.
+        completedAt: typeof it.completedAt === 'string' ? it.completedAt : null
       }));
   }
   return s;
@@ -315,7 +333,19 @@ function renderColumn(version) {
   col.className = 'column';
   col.dataset.versionId = version.id;
 
-  const items = state.items.filter(i => i.versionId === version.id);
+  // Sort: open items first (createdAt order), completed items at bottom (by completedAt desc
+  // so most-recently-ticked sits at the top of the completed group — matches "what did I just do").
+  const items = state.items
+    .filter(i => i.versionId === version.id)
+    .sort((a, b) => {
+      const aDone = a.completedAt ? 1 : 0;
+      const bDone = b.completedAt ? 1 : 0;
+      if (aDone !== bDone) return aDone - bDone;
+      if (aDone) return (b.completedAt || '').localeCompare(a.completedAt || '');
+      return 0;
+    });
+  const openCount = items.filter(i => !i.completedAt).length;
+  const doneCount = items.length - openCount;
 
   // Header
   const header = document.createElement('div');
@@ -327,7 +357,9 @@ function renderColumn(version) {
   name.onclick = () => startRenameColumn(version.id, name);
   const count = document.createElement('span');
   count.className = 'col-count';
-  count.textContent = items.length;
+  // Show "3 / 7" when at least one is done — communicates progress without adding a whole progress bar.
+  count.textContent = doneCount > 0 ? (openCount + ' / ' + items.length) : items.length;
+  count.title = doneCount > 0 ? (openCount + ' open, ' + doneCount + ' done') : (items.length + ' item(s)');
   const menu = document.createElement('button');
   menu.className = 'col-menu';
   menu.textContent = '⋯';
@@ -379,7 +411,7 @@ function renderColumn(version) {
 
 function renderItem(item) {
   const el = document.createElement('div');
-  el.className = 'item';
+  el.className = 'item' + (item.completedAt ? ' completed' : '');
   el.dataset.itemId = item.id;
   el.draggable = true;
   el.ondragstart = (e) => {
@@ -392,6 +424,15 @@ function renderItem(item) {
     if (e.target.closest('button, input, textarea, select')) return;
     toggleExpanded(el, item);
   };
+
+  const tick = document.createElement('button');
+  tick.className = 'tick';
+  tick.textContent = '✓'; // check mark — hidden by CSS unless .completed
+  tick.title = item.completedAt
+    ? 'Completed ' + new Date(item.completedAt).toLocaleDateString() + ' — click to reopen'
+    : 'Mark as complete';
+  tick.onclick = (e) => { e.stopPropagation(); toggleComplete(item.id); };
+  el.appendChild(tick);
 
   const title = document.createElement('div');
   title.className = 'title';
@@ -410,6 +451,15 @@ function renderItem(item) {
   el.appendChild(del);
 
   return el;
+}
+
+function toggleComplete(id) {
+  const it = state.items.find(x => x.id === id);
+  if (!it) return;
+  it.completedAt = it.completedAt ? null : new Date().toISOString();
+  it.updatedAt = new Date().toISOString();
+  scheduleSave();
+  render();
 }
 
 function toggleExpanded(el, item) {

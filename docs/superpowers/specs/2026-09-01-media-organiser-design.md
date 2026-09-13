@@ -109,7 +109,10 @@ Priority order — first match wins:
 
 ### 4.4 Collision handling
 
-If the computed target already exists (some other file at that path), the scanner **does not emit** — it logs a `MediaOrganiser.Collision` diagnostic. Auto-emitting would create a queued issue whose fix can never succeed; better to surface the manual conflict once and let the user resolve.
+Two distinct collision cases — both refuse to emit and log a diagnostic instead of queuing an issue that could never safely succeed:
+
+1. **Physical target collision.** If the computed target already exists on disk (some other file at that path), log `MediaOrganiser.Collision` naming source + target. Fixer can never succeed; better to surface the manual conflict once.
+2. **Cross-source series collision.** If two proposals in the same scan target the same series folder from different source parent-of-parent folders (see 5.2.1), log `MediaOrganiser.RebootCollisionRefused` naming both sources. This is the safety net when reboot disambiguation misses (e.g. two folders both bare "Doctor Who" with no year signal on disk and no `PremiereDate` in Jellyfin).
 
 ---
 
@@ -134,11 +137,36 @@ Following Jellyfin's documented conventions (`https://jellyfin.org/docs/general/
 {TvRoot}/{SafeSeries}/Season {NN}/{SafeSeries} S{NN}E{NN}.{ext}
 ```
 
-- `SafeSeries` = `SanitiseComponent(episode.SeriesName)`.
+- `SafeSeries` = `ResolveSafeSeries(episode)` (see 5.2.1 — NOT the plain scrub of `episode.SeriesName`).
 - `NN` = zero-padded 2-digit season / episode number.
 - **Multi-episode files**: if `episode.IndexNumberEnd` is set and > `IndexNumber`, filename becomes `{SafeSeries} S{NN}E{NN}-E{NN}.{ext}` (Jellyfin's recognised range form).
 - **Specials** (season 0): folder is `Season 00`, filename `Show S00E01.mkv`.
-- Example: `/media/tv/Breaking Bad/Season 03/Breaking Bad S03E07.mkv`.
+- Example: `/media/tv/Breaking Bad (2008)/Season 03/Breaking Bad (2008) S03E07.mkv`.
+
+### 5.2.1 Reboot disambiguation (`ResolveSafeSeries`)
+
+The legacy `MediaGrouperScanner` used `SanitiseComponent(episode.SeriesName)` verbatim — the code path behind GitHub issue #43 (Doctor Who reboots + Silo (2023) year-strip, reported by @hesourman and confirmed by @Vaygrim). See the standalone reproduction at `tools/comprehensive-test/simulate-doctor-who/` for a live demo.
+
+**Backport status:** the resolver below was backported to `MediaGrouperScanner.ResolveSafeSeriesName` in the 1.0.7.6 bugfix (see CHANGELOG). The Media Organiser MUST reuse the same rule order — moving the pure function into `CanonicalNaming.ResolveSafeSeries` and delegating from both call sites keeps them in lock-step so a fix or edge-case discovered in one doesn't drift from the other. Regression coverage lives in `MediaGrouperRebootTests` and any Media Organiser layer-1 tests must include the same InlineData rows plus the cross-source collision-refused case.
+
+**Problem:** Jellyfin's default TVDb match collapses `Doctor Who (1963)`, `Doctor Who (2005)`, `Doctor Who (2024)` into a single Series entity with `SeriesName = "Doctor Who"`. If the organiser trusts `SeriesName` alone, all three reboots propose to merge into one `Doctor Who/` folder, colliding every `Season NN/` subfolder across reboot years — destructive.
+
+**Rule:** `ResolveSafeSeries` picks the first strategy that produces a non-ambiguous name, in order:
+
+1. **On-disk disambiguation** (highest priority — preserves what the user already did):
+   - Read the source's parent-of-parent folder name (e.g. `Doctor Who (2005)` for `.../tv/Doctor Who (2005)/Season 01/E01.mkv`).
+   - If it matches `^(.+?)\s*\((\d{4})\)\s*$`, use `SanitiseComponent(parentName)` as `SafeSeries`. Done.
+   - This preserves the user's manual disambiguation even when Jellyfin's metadata collapses.
+
+2. **Jellyfin-metadata disambiguation** (fallback when parent folder is bare):
+   - If `episode.Series.PremiereDate` is populated, `SafeSeries = SanitiseComponent(episode.SeriesName) + " (" + Year + ")"`.
+   - Matches Jellyfin's own recommended folder-naming convention.
+
+3. **Plain fallback** (last resort — only when neither year signal exists):
+   - `SafeSeries = SanitiseComponent(episode.SeriesName)`.
+   - Log a `MediaOrganiser.UndisambiguatedSeries` diagnostic naming the file, so the user knows they may hit the collapse if they later add a reboot.
+
+**Cross-source collision guard (belt-and-braces):** even after `ResolveSafeSeries`, if two proposals in a single scan would target the same series folder from different source parent folders (measured by canonical `Path.GetFullPath` on the parent-of-parent), refuse to emit both. Emit a `MediaOrganiser.RebootCollisionRefused` diagnostic naming both sources and let the user resolve manually. This is the safety net for edge cases the rule above misses (e.g. two folders on disk that both bare "Doctor Who" with no year signal).
 
 ### 5.3 Anime Episode
 
@@ -170,6 +198,16 @@ Deliberately omitted for the 100% bar:
 - Audio/subtitle language codes on the primary file (sidecar `.en.srt` naming stays as-is)
 
 Rationale: the canonical target must be deterministic given `(item.Id, config)`. Anything that changes across metadata refreshes would cause re-detection loops.
+
+### 5.6 Provider ID tag preservation (opt-in)
+
+Files wasting space already exposes the **"Keep TMDB / TVDB ID in the canonical name"** setting (added for the Transcode fixer's canonical rename — see CHANGELOG). When that setting is ticked, the organiser MUST honour it too: the canonical filename gains a trailing `[tmdbid-N]` (movies) or `[tvdbid-N]` (episodes) tag, matching Sonarr / Radarr default naming so those tools don't re-flag the file as unknown after an organiser rename.
+
+- **Movie**: `{SafeName} ({Year}) [tmdbid-{N}].{ext}` — folder stays `{SafeName} ({Year})/`.
+- **Episode**: `{SafeSeries} S{NN}E{NN} [tvdbid-{N}].{ext}` (or `[tmdbid-{N}]` if that's the provider Jellyfin actually resolved).
+- **Source of the ID**: prefer an existing `[tmdbid-N]` / `[tvdbid-N]` tag already in the source filename (Sonarr / Radarr users). Fall back to `item.ProviderIds` from Jellyfin. If neither yields an ID, emit the plain canonical name (no dangling `[tmdbid-]` marker) and log `MediaOrganiser.MissingProviderId` naming the file.
+- **Determinism guard**: adding the tag must keep `ComputeTargetPath` idempotent — running the organiser twice with the setting on must not toggle the tag on and off. The tag is part of the canonical target when the setting is on, and part of what `SanitiseComponent` strips when the setting is off (so turning the setting off cleanly re-canonicalises away the tag on next run).
+- **Regression test**: a fixture Sonarr-style `.mkv` (`Show S01E01 [tvdbid-12345].mkv`) survives an organiser rename with the setting on; without the setting, the tag is dropped. Both paths asserted in the Layer 3 corpus.
 
 ---
 
@@ -328,6 +366,10 @@ Pure functions in `CanonicalNaming`:
 - `MoviePath` / `EpisodePath` / `AnimePath`: table-driven for representative inputs.
 - **Property**: `ComputeTargetPath(alreadyOrganisedItem)` returns its current path (no drift).
 - Multi-episode range formatting: `S01E01-E02`, `S01E10-E15`, `S00E01-E02` (specials range).
+- **Reboot disambiguation** (GitHub issue #43 regression guard):
+  - `ResolveSafeSeries` on three episodes with `SeriesName = "Doctor Who"` and parent-of-parent = `Doctor Who (1963)` / `(2005)` / `(2024)` produces three distinct `SafeSeries` values.
+  - Same three episodes with parent-of-parent bare "Doctor Who" (no year on disk) and `PremiereDate.Year = 1963` for all three → `MediaOrganiser.RebootCollisionRefused` diagnostic, no proposals emitted.
+  - Standalone reproduction available at `tools/comprehensive-test/simulate-doctor-who/` — run before every ship to prove the property holds.
 
 ### 9.2 Layer 2 — Fuzz tests
 
@@ -355,6 +397,7 @@ Fuzz batch: 10,000 iterations per property, seeded for reproducibility.
 **Integration on the running Jellyfin dev server**:
 
 - Fresh fixture library: 20+ real files across Movies (5), TV (10 spanning 2 seasons), Anime (5), plus 3 external subtitle sidecars and 2 `.nfo` files.
+- **Reboot corpus:** 3 x `Doctor Who ({year})/Season 01/S01E01.mkv` (`1963`, `2005`, `2024`) — reproduces GitHub #43. Set Jellyfin's TV metadata to default (no per-year separation) so all three collapse to `SeriesName = "Doctor Who"`.
 - Set watched state on 5 items, favorites on 3, ratings on 2 (via Jellyfin API before the run).
 - Run scanner + fixer end-to-end.
 - **Assertions**:
@@ -362,6 +405,7 @@ Fuzz batch: 10,000 iterations per property, seeded for reproducibility.
   - Userdata preserved: watched flag on the 5 → still true; favorites on the 3 → still true; ratings on the 2 → still equal.
   - Post-run library validation completes; dashboard reflects new paths.
   - Zero duplicate items in the Jellyfin DB.
+  - **Reboot preservation**: after the fixer runs, each of the three Doctor Who reboot folders still exists as a distinct series folder (`Doctor Who (1963)/`, `Doctor Who (2005)/`, `Doctor Who (2024)/`). No episode from one reboot has been merged into another. This is the regression check for issue #43.
   - Restore-from-History reverses every move cleanly (loop: organise → assert new paths → restore → assert original paths, userdata intact throughout).
 
 **Cross-volume test**:

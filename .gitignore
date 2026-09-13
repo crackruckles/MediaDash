@@ -21,3 +21,8 @@ _audit_cookies.txt
 
 # E2E sweep artifacts — per-run logs, DB dumps, config snapshots. Regenerated on every run.
 tools/comprehensive-test/test-results/
+
+# Repair-test fixtures + torture harness cache. Regenerated on demand by regenerate.ps1 /
+# torture-test.ps1 (BBB downloaded from test-videos.co.uk).
+tools/repair-test/fixtures/
+tools/repair-test/torture/

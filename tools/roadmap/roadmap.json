@@ -39,7 +39,8 @@
       "kind": "feature",
       "versionId": "v-1-0-7-5",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-05T13:00:00Z"
+      "updatedAt": "2026-09-09T04:00:21.425Z",
+      "completedAt": "2026-09-09T04:00:21.425Z"
     },
     {
       "id": "i-175-02",
@@ -48,7 +49,8 @@
       "kind": "feature",
       "versionId": "v-1-0-7-5",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-05T13:00:00Z"
+      "updatedAt": "2026-09-09T04:00:22.889Z",
+      "completedAt": "2026-09-09T04:00:22.889Z"
     },
     {
       "id": "i-175-03",
@@ -57,7 +59,8 @@
       "kind": "bug",
       "versionId": "v-1-0-7-5",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-05T14:43:57.329Z"
+      "updatedAt": "2026-09-09T04:00:22.097Z",
+      "completedAt": "2026-09-09T04:00:22.097Z"
     },
     {
       "id": "i-175-04",
@@ -66,7 +69,8 @@
       "kind": "bug",
       "versionId": "v-1-0-7-5",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-05T13:00:00Z"
+      "updatedAt": "2026-09-09T04:00:23.097Z",
+      "completedAt": "2026-09-09T04:00:23.097Z"
     },
     {
       "id": "i-175-05",
@@ -75,7 +79,8 @@
       "kind": "bug",
       "versionId": "v-1-0-7-5",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-05T14:43:52.123Z"
+      "updatedAt": "2026-09-09T04:00:23.305Z",
+      "completedAt": "2026-09-09T04:00:23.305Z"
     },
     {
       "id": "i-175-06",
@@ -84,7 +89,8 @@
       "kind": "feature",
       "versionId": "v-1-0-7-5",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-05T13:00:00Z"
+      "updatedAt": "2026-09-09T04:00:23.505Z",
+      "completedAt": "2026-09-09T04:00:23.505Z"
     },
     {
       "id": "i-175-07",
@@ -93,7 +99,8 @@
       "kind": "bug",
       "versionId": "v-1-0-7-5",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-05T13:00:00Z"
+      "updatedAt": "2026-09-09T04:00:23.681Z",
+      "completedAt": "2026-09-09T04:00:23.681Z"
     },
     {
       "id": "i-175-08",
@@ -102,7 +109,8 @@
       "kind": "bug",
       "versionId": "v-1-0-7-5",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-05T13:00:00Z"
+      "updatedAt": "2026-09-09T04:00:23.841Z",
+      "completedAt": "2026-09-09T04:00:23.841Z"
     },
     {
       "id": "i-175-09",
@@ -111,7 +119,8 @@
       "kind": "bug",
       "versionId": "v-1-0-7-5",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-06T05:00:00Z"
+      "updatedAt": "2026-09-09T04:00:24.025Z",
+      "completedAt": "2026-09-09T04:00:24.025Z"
     },
     {
       "id": "i-175-10",
@@ -120,7 +129,8 @@
       "kind": "bug",
       "versionId": "v-1-0-7-5",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-05T13:00:00Z"
+      "updatedAt": "2026-09-09T04:00:24.185Z",
+      "completedAt": "2026-09-09T04:00:24.185Z"
     },
     {
       "id": "i-175-11",
@@ -129,7 +139,8 @@
       "kind": "bug",
       "versionId": "v-1-0-7-5",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-06T05:00:00Z"
+      "updatedAt": "2026-09-09T04:00:24.353Z",
+      "completedAt": "2026-09-09T04:00:24.353Z"
     },
     {
       "id": "i-175-12",
@@ -138,7 +149,8 @@
       "kind": "bug",
       "versionId": "v-1-0-7-5",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-05T13:00:00Z"
+      "updatedAt": "2026-09-09T04:00:24.577Z",
+      "completedAt": "2026-09-09T04:00:24.577Z"
     },
     {
       "id": "i-175-13",
@@ -147,7 +159,8 @@
       "kind": "bug",
       "versionId": "v-1-0-7-5",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-05T13:00:00Z"
+      "updatedAt": "2026-09-09T04:00:24.761Z",
+      "completedAt": "2026-09-09T04:00:24.761Z"
     },
     {
       "id": "i-175-14",
@@ -156,7 +169,8 @@
       "kind": "bug",
       "versionId": "v-1-0-7-5",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-05T13:00:00Z"
+      "updatedAt": "2026-09-09T04:00:24.921Z",
+      "completedAt": "2026-09-09T04:00:24.921Z"
     },
     {
       "id": "i-175-15",
@@ -165,7 +179,8 @@
       "kind": "bug",
       "versionId": "v-1-0-7-5",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-05T13:00:00Z"
+      "updatedAt": "2026-09-09T04:00:25.089Z",
+      "completedAt": "2026-09-09T04:00:25.089Z"
     },
     {
       "id": "i-180-01",
@@ -174,7 +189,8 @@
       "kind": "feature",
       "versionId": "v-1-0-8-0",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-05T13:00:00Z"
+      "updatedAt": "2026-09-05T13:00:00Z",
+      "completedAt": null
     },
     {
       "id": "i-180-02",
@@ -183,16 +199,18 @@
       "kind": "feature",
       "versionId": "v-1-0-8-0",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-05T13:00:00Z"
+      "updatedAt": "2026-09-05T13:00:00Z",
+      "completedAt": null
     },
     {
       "id": "i-180-03",
       "title": "Media organiser (replaces Ungrouped + Misplaced)",
-      "notes": "Draft spec: docs/superpowers/specs/2026-09-01-media-organiser-design.md. §5.2.1 carries the reboot-disambiguation rule (parent-of-parent folder → PremiereDate → plain SeriesName) to prevent GitHub #43 regression. Standalone repro at tools/comprehensive-test/simulate-doctor-who/.",
+      "notes": "Draft spec: docs/superpowers/specs/2026-09-01-media-organiser-design.md. §5.2.1 carries the reboot-disambiguation rule (parent-of-parent folder → PremiereDate → plain SeriesName) to prevent GitHub #43 regression. Standalone repro at tools/comprehensive-test/simulate-doctor-who/. Backported to legacy MediaGrouperScanner.ResolveSafeSeriesName in 1.0.7.6 (see MediaGrouperRebootTests, 11 InlineData cases including Doctor Who 1963/2005/2024 + Silo (2023) from @Vaygrim's comment). Organiser MUST reuse the same rule — extract the pure function into CanonicalNaming.ResolveSafeSeries and delegate from both call sites so a fix or edge case discovered in one doesn't drift from the other.",
       "kind": "feature",
       "versionId": "v-1-0-8-0",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-05T13:00:00Z"
+      "updatedAt": "2026-09-10T00:00:00Z",
+      "completedAt": null
     },
     {
       "id": "i-180-04",
@@ -201,7 +219,8 @@
       "kind": "feature",
       "versionId": "v-1-0-7-6",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-07T12:04:41.532Z"
+      "updatedAt": "2026-09-08T14:52:17.460Z",
+      "completedAt": "2026-09-08T15:30:00Z"
     },
     {
       "id": "i-180-05",
@@ -210,7 +229,8 @@
       "kind": "feature",
       "versionId": "v-1-0-8-0",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-05T13:00:00Z"
+      "updatedAt": "2026-09-05T13:00:00Z",
+      "completedAt": null
     },
     {
       "id": "i-bl-02",
@@ -219,7 +239,8 @@
       "kind": "feature",
       "versionId": "v-1-0-8-1",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-05T14:12:47.243Z"
+      "updatedAt": "2026-09-05T14:12:47.243Z",
+      "completedAt": null
     },
     {
       "id": "i-bl-03",
@@ -228,7 +249,8 @@
       "kind": "feature",
       "versionId": "backlog",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-05T13:00:00Z"
+      "updatedAt": "2026-09-05T13:00:00Z",
+      "completedAt": null
     },
     {
       "id": "i-bl-05",
@@ -237,7 +259,8 @@
       "kind": "feature",
       "versionId": "backlog",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-05T13:00:00Z"
+      "updatedAt": "2026-09-05T13:00:00Z",
+      "completedAt": null
     },
     {
       "id": "i-bl-06",
@@ -246,16 +269,18 @@
       "kind": "feature",
       "versionId": "backlog",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-05T13:00:00Z"
+      "updatedAt": "2026-09-05T13:00:00Z",
+      "completedAt": null
     },
     {
       "id": "i-bl-07",
       "title": "Repair statistics on Overview tab",
-      "notes": "Deferred from repair spec §8. 'N files repaired this month, X GB saved from deletion.' Needs a new counter in SQLite state.",
+      "notes": "Shipped 2026-09-08 in 1.0.7.6 (unreleased): 'Broken files repaired' footer on the Overview 'Reclaimed since install' panel — reads MediaDashDb.GetRepairSuccessCount (action LIKE 'repaired%' over the last 30 days + lifetime). Themed to match binFooterHtml pattern (same margin/border/mono-number style). 'X GB saved from deletion' deliberately deferred — repair FixResult sets BytesFreed=0 so summing yields 0; a reliable GB figure needs a new HistoryEntry.SavedBytes column (schema migration follow-up).",
       "kind": "feature",
-      "versionId": "v-1-0-8-1",
+      "versionId": "v-1-0-7-6",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-05T14:13:13.087Z"
+      "updatedAt": "2026-09-08T15:45:00Z",
+      "completedAt": "2026-09-08T15:45:00Z"
     },
     {
       "id": "i-bl-08",
@@ -264,7 +289,8 @@
       "kind": "bug",
       "versionId": "v-1-0-7-5",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-06T05:00:00Z"
+      "updatedAt": "2026-09-09T04:00:25.249Z",
+      "completedAt": "2026-09-09T04:00:25.249Z"
     },
     {
       "id": "i-bl-09",
@@ -273,7 +299,8 @@
       "kind": "feature",
       "versionId": "backlog",
       "createdAt": "2026-09-05T13:00:00Z",
-      "updatedAt": "2026-09-06T05:00:00Z"
+      "updatedAt": "2026-09-06T05:00:00Z",
+      "completedAt": null
     },
     {
       "id": "2d2e24da-197a-4485-9045-68ce3152da85",
@@ -282,16 +309,18 @@
       "kind": "feature",
       "versionId": "v-1-0-8-2",
       "createdAt": "2026-09-05T12:52:45.214Z",
-      "updatedAt": "2026-09-05T14:13:43.323Z"
+      "updatedAt": "2026-09-05T14:13:43.323Z",
+      "completedAt": null
     },
     {
       "id": "9481c302-fc30-4d45-950b-8a7d304d42e5",
       "title": "Explain why file can't be played",
-      "notes": "",
+      "notes": "Shipped 2026-09-08 in 1.0.7.6 (unreleased): Issues tab now renders a 'Why:' line from PlayabilityScanner's DetailsJson.detail (no-video / no-audio / no-duration / size-truncated / decode-error / container-extension-mismatch); PlayabilityFixer action text and History-tab / bin-restore message include the reason too. Data was already captured, wire-up in configPage.html + PlayabilityFixer.cs (new TryGetDetail helper + 4 unit tests).",
       "kind": "feature",
-      "versionId": "v-1-0-8-1",
+      "versionId": "v-1-0-7-6",
       "createdAt": "2026-09-05T13:00:28.327Z",
-      "updatedAt": "2026-09-05T14:13:47.991Z"
+      "updatedAt": "2026-09-08T15:30:00Z",
+      "completedAt": "2026-09-08T15:30:00Z"
     },
     {
       "id": "bb59c42f-6e70-4d9e-8ef2-7d49fda0bbda",
@@ -300,7 +329,8 @@
       "kind": "feature",
       "versionId": "v-1-0-8-2",
       "createdAt": "2026-09-05T13:38:19.622Z",
-      "updatedAt": "2026-09-05T14:13:59.151Z"
+      "updatedAt": "2026-09-05T14:13:59.151Z",
+      "completedAt": null
     },
     {
       "id": "d58754bb-ad8b-4e49-b99f-11869b6ae6fb",
@@ -309,7 +339,8 @@
       "kind": "feature",
       "versionId": "v-1-0-8-1",
       "createdAt": "2026-09-05T13:39:06.896Z",
-      "updatedAt": "2026-09-05T13:39:06.896Z"
+      "updatedAt": "2026-09-05T13:39:06.896Z",
+      "completedAt": null
     },
     {
       "id": "i-175-16",
@@ -318,7 +349,8 @@
       "kind": "bug",
       "versionId": "v-1-0-7-5",
       "createdAt": "2026-09-06T05:00:00Z",
-      "updatedAt": "2026-09-06T05:00:00Z"
+      "updatedAt": "2026-09-09T04:00:25.409Z",
+      "completedAt": "2026-09-09T04:00:25.409Z"
     },
     {
       "id": "i-175-17",
@@ -327,7 +359,8 @@
       "kind": "feature",
       "versionId": "v-1-0-7-5",
       "createdAt": "2026-09-06T05:00:00Z",
-      "updatedAt": "2026-09-06T05:00:00Z"
+      "updatedAt": "2026-09-09T04:00:25.601Z",
+      "completedAt": "2026-09-09T04:00:25.601Z"
     },
     {
       "id": "i-175-18",
@@ -336,7 +369,8 @@
       "kind": "bug",
       "versionId": "v-1-0-7-5",
       "createdAt": "2026-09-06T05:00:00Z",
-      "updatedAt": "2026-09-06T05:00:00Z"
+      "updatedAt": "2026-09-09T04:00:25.769Z",
+      "completedAt": "2026-09-09T04:00:25.769Z"
     },
     {
       "id": "i-175-19",
@@ -345,7 +379,8 @@
       "kind": "bug",
       "versionId": "v-1-0-7-5",
       "createdAt": "2026-09-06T05:00:00Z",
-      "updatedAt": "2026-09-06T05:00:00Z"
+      "updatedAt": "2026-09-09T04:00:25.945Z",
+      "completedAt": "2026-09-09T04:00:25.945Z"
     },
     {
       "id": "i-175-20",
@@ -354,7 +389,8 @@
       "kind": "bug",
       "versionId": "v-1-0-7-5",
       "createdAt": "2026-09-06T05:00:00Z",
-      "updatedAt": "2026-09-06T05:00:00Z"
+      "updatedAt": "2026-09-09T04:00:26.218Z",
+      "completedAt": "2026-09-09T04:00:26.218Z"
     },
     {
       "id": "d04791b1-2625-4da9-bba7-dfa816ae71f5",
@@ -363,7 +399,8 @@
       "kind": "feature",
       "versionId": "v-1-0-8-2",
       "createdAt": "2026-09-06T07:12:14.617Z",
-      "updatedAt": "2026-09-06T07:12:23.858Z"
+      "updatedAt": "2026-09-06T07:12:23.858Z",
+      "completedAt": null
     },
     {
       "id": "eab4479a-1ef8-4061-ab97-2e364ccf45a8",
@@ -372,43 +409,48 @@
       "kind": "bug",
       "versionId": "v-1-0-7-6",
       "createdAt": "2026-09-07T12:04:57.178Z",
-      "updatedAt": "2026-09-07T12:05:15.862Z"
+      "updatedAt": "2026-09-07T12:05:15.862Z",
+      "completedAt": "2026-09-08T15:30:00Z"
     },
     {
       "id": "i-176-pre-release-sweep",
       "title": "Pre-release sweep: refine repair function + full local/GitHub cleanup",
-      "notes": "Before cutting 1.0.7.6, do: (1) refine the Playability repair ladder — tune fixture strictness so scanner/validate disagreements shrink, tighten rung 4 fallback messaging, review verify decode-cache interaction; (2) full local repo cleanup — flip stale CHANGELOG '1.0.7.5 (unreleased)' header (it shipped 2026-09-06 per manifest.json), sweep uncommitted plan/spec docs under docs/superpowers/, review roadmap.json for done-but-open items, run tests suite green (currently 643/643); (3) GitHub cleanup — triage open issues for anything already fixed on main, close/label duplicates, check CI branch is green, ensure release notes template is ready. Nothing gets pushed until this is done.",
+      "notes": "Before cutting 1.0.7.6, do: (1) refine the Playability repair ladder — tune fixture strictness so scanner/validate disagreements shrink, tighten rung 4 fallback messaging, review verify decode-cache interaction; (2) full local repo cleanup — flip stale CHANGELOG '1.0.7.5 (unreleased)' header (it shipped 2026-09-06 per manifest.json), sweep uncommitted plan/spec docs under docs/superpowers/, review roadmap.json for done-but-open items, run tests suite green (currently 643/643); (3) GitHub cleanup — triage open issues for anything already fixed on main, close/label duplicates, check CI branch is green, ensure release notes template is ready. Nothing gets pushed until this is done.\n\nProgress 2026-09-08: CHANGELOG 1.0.7.5 header flipped to '(released 2026-09-06)'. Test suite green at 654/654 (up from 643 baseline in note, delta = 4 new PlayabilityFixerDetailReasonTests + other adds). Roadmap done-item sweep in progress via new tick feature. Still outstanding: (1) repair ladder refinement audit, (2) uncommitted plan/spec doc sweep under docs/superpowers/, (3) GitHub open-issue triage.",
       "kind": "bug",
       "versionId": "v-1-0-7-6",
       "createdAt": "2026-09-08T02:35:00Z",
-      "updatedAt": "2026-09-08T02:35:00Z"
+      "updatedAt": "2026-09-08T15:45:00Z",
+      "completedAt": null
     },
     {
       "id": "i-bl-12-rung4a-audio-reencode",
       "title": "Repair ladder rung 4a: audio-only re-encode (before full video re-encode)",
       "notes": "Insert a cheaper rung between rung 3 (container coerce) and rung 4 (full video re-encode). When per-stream decode (already used by rung 2's DecodeStreamAsync) shows video streams pass decode but audio fails, re-encode ONLY the audio: `-c:v copy -c:a aac -b:a 192k`. Minutes instead of hours for audio-only damage — many real-world 'unplayable' files are just one broken audio track.\n\nGate: only fires if rung 2 (drop broken streams) refused because dropping audio would leave zero audio streams (i.e. the ONE audio track is broken and can't be dropped). New config toggle RepairAttemptAudioReencode, default on.\n\nVerify uses the existing VerifyRepairedAsync (structural + decode-check), same as every other rung. Reuse SwapRepairedAsync so timestamp preservation (i-175-08) applies automatically.",
       "kind": "feature",
-      "versionId": "backlog",
+      "versionId": "v-1-0-7-6",
       "createdAt": "2026-09-08T03:20:00Z",
-      "updatedAt": "2026-09-08T03:20:00Z"
+      "updatedAt": "2026-09-08T14:57:02.036Z",
+      "completedAt": null
     },
     {
       "id": "i-bl-13-repair-only-row-action",
       "title": "Split 'Repair / Remove file' into two row actions",
       "notes": "Users want per-file control: sometimes 'try to repair, but if it fails DON'T delete — leave the file so I can inspect it myself'. Current button collapses both into one path (repair fallback → delete). Split into:\n\n(a) Repair — tries the enabled rungs; on all-fail, does NOT recycle. Row stays as Detected with a 'repair attempted, no rung succeeded' hint. Non-destructive.\n(b) Remove file — legacy delete-only path, bypasses the ladder entirely.\n\nBulk buttons mirror the split: 'Repair all N shown' and 'Remove all N shown'. Confirm modal wording adjusted per action so users can't accidentally delete via a button they thought was safe.\n\nImplementation: DuplicateFixer's-style branching in PlayabilityFixer.FixAsync gated by a new query param or issue-level intent flag. Row-action JS in configPage.html adds the second button.",
       "kind": "feature",
-      "versionId": "backlog",
+      "versionId": "v-1-0-7-6",
       "createdAt": "2026-09-08T03:20:00Z",
-      "updatedAt": "2026-09-08T03:20:00Z"
+      "updatedAt": "2026-09-08T14:54:06.923Z",
+      "completedAt": null
     },
     {
       "id": "i-bl-14-repair-preview",
       "title": "Repair preview / dry-run: which rung would fire, without touching the file",
       "notes": "User-facing tool for building confidence before enabling auto-repair. Adds a 'Preview repair' row action on Playability issues that runs every enabled rung's PROBE + BUILD-ARGS pass but stops short of executing ffmpeg. Reports:\n\n* which rungs would attempt for this file (based on config toggles + rung-specific pre-checks like 'rung 3 skips .mkv sources')\n* rough estimate of runtime per rung (rung 1/2/3: seconds; rung 4: minutes to hours per source duration)\n* rung 4 encoder target (h264 / aac / MKV) so users know what the recoded output would look like\n* if all rungs would fail their pre-checks, warn 'no rung would run — file would fall through to delete'\n\nImplementation: extract the pre-check + arg-build logic from each TryRungN into a public PreviewRungN method. TryRungN calls PreviewRungN + then executes. Preview endpoint at /MediaDash/Issues/{id}/PreviewRepair returns a JSON summary. Zero filesystem writes, safe to click anytime.\n\nComplements Dry-run mode (which is global) with a per-file probe.",
       "kind": "feature",
-      "versionId": "backlog",
+      "versionId": "v-1-0-7-6",
       "createdAt": "2026-09-08T03:20:00Z",
-      "updatedAt": "2026-09-08T03:20:00Z"
+      "updatedAt": "2026-09-08T14:54:02.097Z",
+      "completedAt": null
     },
     {
       "id": "i-bl-15-salvage-report",
@@ -417,25 +459,47 @@
       "kind": "feature",
       "versionId": "backlog",
       "createdAt": "2026-09-08T03:35:00Z",
-      "updatedAt": "2026-09-08T03:35:00Z"
+      "updatedAt": "2026-09-08T03:35:00Z",
+      "completedAt": null
     },
     {
       "id": "i-bl-11-space-cliff-warning",
       "title": "Space-cliff warning: banner when a library drive approaches its performance cliff",
       "notes": "Early-warning banner (Overview + Maintenance) when a library drive crosses its filesystem-specific performance cliff. Users usually don't notice until fixes start failing with ENOSPC or playback stutters. Complements the existing recycle-bin cap (which only pauses fixes) with a proactive read that fires BEFORE anything breaks.\n\nThresholds:\n(a) NTFS: warn at 90% used. Free space fragmentation on NTFS gets sharply worse past ~90%, and Windows' MFT reservation can starve at ~95%.\n(b) ext4 / XFS: warn at 90%. Ext4 reserves 5% for root by default; past ~90% used the remaining free extents fragment fast.\n(c) ZFS / btrfs: warn at 85%. CoW allocators need copious free extents to avoid write amplification; performance degrades sharply beyond 80–85%.\n(d) exFAT / FAT32 (rare in library folders): warn at 90%. No reserved area, but write throughput collapses when free extents shrink.\n\nDetect filesystem via DriveInfo.DriveFormat + Linux /proc/mounts. Reuse RecycleBin.FindDriveForPath as the drive resolver so it lines up with the recycle-bin pause math. One banner per drive per threshold crossing; dismissible for 7 days per drive so it doesn't nag while a user is intentionally close to the cap. Never block fixes; the recycle-bin cap already owns the hard stop.",
       "kind": "feature",
-      "versionId": "backlog",
+      "versionId": "v-1-0-8-1",
       "createdAt": "2026-09-08T03:05:00Z",
-      "updatedAt": "2026-09-08T03:05:00Z"
+      "updatedAt": "2026-09-08T14:53:50.705Z",
+      "completedAt": null
+    },
+    {
+      "id": "i-bl-16-plugin-data-growth-controls",
+      "title": "Plugin-data volume protection: history retention, cache TTLs, VACUUM, and free-space floor for the DB drive",
+      "notes": "Long-term operational health for users whose Jellyfin data volume is small (Docker containers with 32 GB mounts, home installs on the C: system SSD, cheap VPS deployments). Right now MediaDash protects the recycle-bin volume with a 3 GB free-space floor (FixTask.BinVolumeMinFreeBytes) and auto-purges the bin after RecycleBinRetentionDays. It does NOT protect the plugin-data volume — which is where mediadash.db + all the caches live — and several DB tables grow unbounded. Real-world worst case: 200 K-item library + 3 years of usage → ~1 GB DB, plus orphan rows for every file ever renamed/moved/deleted. On a small drive this contributes to Jellyfin OOM-style failures when the volume fills.\n\nCurrent state (checked against MediaDashDb.cs on main):\n(a) `history` — one row per fix action, ~265 bytes/row, NO pruning anywhere. Users running weekly fixes on a big library accumulate hundreds of K rows over years.\n(b) `probe_cache` + `format_probe_cache` — one row per file scanned, ~4.4 KB/row (full ffprobe JSON). Cleared only by the manual 'Reset scan state' button. Orphan rows accumulate every time a user renames/moves/deletes a library file.\n(c) `decode_cache` — one row per file that ran thorough playability. ~1 KB/row. Same orphan problem.\n(d) `file_hashes` — one row per file with a hash computed. Same orphan problem.\n(e) `restored_paths` — grows only on manual restore, tiny in practice.\n(f) `diagnostics` — ALREADY trimmed to maxRows on every insert (MediaDashDb.cs:1494). Reference implementation to mirror.\n(g) No `VACUUM` anywhere in the codebase. SQLite doesn't reclaim space on `DELETE` — even if pruning existed, the .db file wouldn't shrink.\n\nScope:\n\n(1) history retention. New config `HistoryRetentionDays` (default 90) + `HistoryMaxRows` (default 10 000, whichever cap hits first). Prune runs in FixTask's post-run maintenance pass alongside `_recycleBin.Purge`. Deleted rows dereference recycle-bin entries — must NOT delete a history row that still points at a bin entry that hasn't been purged (otherwise the bin listing shows 'no history' and Restore breaks). Order matters: bin purge first (drops files + history rows for expired retention), then history prune (drops rows older than HistoryRetentionDays where restore is impossible), then VACUUM.\n\n(2) probe / format-probe / decode / file-hash cache orphan sweep. During the FixTask post-run maintenance pass, for each cache table run `DELETE FROM <table> WHERE path NOT IN (SELECT path FROM issues) AND NOT EXISTS (a quick File.Exists check via a batched IN clause)`. Rationale: File.Exists is per-row expensive; better to enumerate all cache paths, batch-check existence in C#, and issue one `DELETE ... WHERE path IN (...)` with the missing paths. Cap the sweep at N ms per maintenance run so it stays bounded on huge caches.\n\n(3) Cache TTL. Even for files that still exist, probe cache rows > 6 months old are near-worthless (metadata refresh happens naturally on the next probe when size/mtime changes). New config `ProbeCacheRetentionDays` (default 180, 0 = disabled). Also pruned in the post-run maintenance pass.\n\n(4) Periodic VACUUM. Run once per maintenance pass if the DB has grown > 2× since last VACUUM, tracked via a new `plugin_state` row (`last_vacuum_at_utc`, `last_vacuum_size_bytes`). VACUUM holds a write lock and can take seconds on a large DB — must run inside the same fix-window + IdleCheck gates that the fixers use so it can't stall a busy server. Guard with an explicit timeout so a corrupt DB doesn't hang the maintenance pass forever.\n\n(5) Plugin-data volume free-space floor. Mirror `IsBinVolumeCriticallyFull` but for the DB's drive. Same 3 GB threshold, applied to `_db.DataPath`'s drive. When it trips: pause scans + fixes with the same PauseReason machinery. This is the direct answer to 'can the DB crash Jellyfin' — even if history + caches grew unboundedly, the floor catches it before Jellyfin runs out of headroom.\n\n(6) Overview surface. Extend the existing Overview 'Recycle bin' + 'Storage' cards to show the plugin-data-volume free space, the DB file size, and last-VACUUM info. Users on small drives get one glance instead of digging into `%LOCALAPPDATA%\\jellyfin\\data\\mediadash\\`. When the retention prune or orphan sweep runs, surface a single-line 'Maintenance: pruned N history rows, N orphan cache rows, VACUUM reclaimed N MB' on the Overview activity ticker so users see it's working (silent maintenance is invisible until it isn't).\n\nMigration:\n- No schema changes for existing tables (all writes use `IF NOT EXISTS` on the columns being added — none here since pruning uses existing columns).\n- Add `plugin_state` rows for the retention/VACUUM bookkeeping. Empty on upgrade — first maintenance pass populates.\n- First run after upgrade WILL prune years of accumulated history / orphan rows on affected installs. Emit a single info-level log + a one-shot Overview toast so users understand why their DB just dropped from 1 GB to 100 MB.\n\nTests:\n- Unit: history prune preserves rows still linked to bin entries; orphan sweep drops only non-existent paths; VACUUM triggers on 2× growth; free-space floor pauses scans + fixes when tripped.\n- Integration: full 200 K-row synthetic DB, run the maintenance pass, assert final row counts + DB size are within expected bounds.\n- Real-world: run once on a real user's several-years-old DB (once someone volunteers) — measure before/after size + startup time.\n\nNon-goals (kept out on purpose):\n- No user-facing 'delete all history' button beyond the retention setting. Users who want a hard reset can hit 'Reset scan state' (already exists) or delete `mediadash.db` while the plugin is stopped.\n- No per-item history archival to a separate file — nice for auditors, over-engineered for the primary use case.\n- Don't prune diagnostics further — the existing maxRows trim already handles it.",
+      "kind": "feature",
+      "versionId": "v-1-0-8-1",
+      "createdAt": "2026-09-11T02:35:00Z",
+      "updatedAt": "2026-09-11T02:35:00Z",
+      "completedAt": null
     },
     {
       "id": "i-bl-10-monthly-defrag",
       "title": "Explore: monthly drive-health maintenance for library drives",
       "notes": "Explore idea. Scheduled monthly maintenance pass on each library drive to prevent long-term slowdown / bit-rot. Not just defrag — a bundle of preventive actions picked per drive type:\n\n(1) HDD defrag — Windows defrag.exe / Optimize-Volume, Linux ext4 e4defrag (marginal on modern filesystems; XFS/btrfs handle themselves).\n(2) SSD TRIM — Optimize-Volume on Windows, fstrim on Linux. This is what SSDs actually need; defrag on SSD is HARMFUL.\n(3) Stale-content refresh — force-rewrite files untouched for N months (default 12+) to refresh flash cells (SSD bit-rot mitigation) / spinning-disk sectors before they degrade. Read into RAM, verify hash, rewrite in place. Skip if a cached hash already matches this month's read.\n(4) SMART preemptive scan — reuse the existing SmartHealth reader to flag drives approaching reallocated-sector / pending-sector thresholds BEFORE they fail. Surface as a Maintenance card banner.\n(5) Read-verify sweep (optional, slow) — sequentially read every library file, log any files where read errors surface (bad sectors that reallocation hasn't caught yet). Complements the hash cache used elsewhere in the plugin.\n(6) NTFS-specific: chkdsk /scan (read-only, no lock) once a year to surface metadata corruption early.\n\nPrerequisites to scope before building:\n(a) Detect drive type (SSD vs HDD) — drive.MediaType / smartctl / MSFT_PhysicalDisk. Wrong action on wrong drive = harm.\n(b) MUST respect fix window + Low system impact mode + IdleCheck. Every action is disk-bound for hours.\n(c) Cancellable and resumable; a fix run must never block on maintenance.\n(d) Opt-in ONLY, per-drive toggle, per-action toggle. Never touch a drive silently.\n(e) Report last-run + estimated benefit per action, like the trickplay optimizer does.\n(f) Stale-rewrite has data-safety risk — must write to sibling temp + verify + atomic rename, same pattern as TranscodeFixer's swap. A bad rewrite that overwrites in place would irreversibly damage the file.\n(g) Stale-rewrite MUST preserve every piece of metadata on the file: CreationTimeUtc + LastWriteTimeUtc (same fix as i-175-08 — Jellyfin's Recently Added reads mtime, so a refreshed file inheriting Now() would surface as brand-new and pollute the user's home page), POSIX permissions + owner/group on Linux, NTFS ACLs on Windows, and any xattrs (macOS Finder tags, Linux extended attrs used by some tagging tools). Otherwise a benign maintenance pass silently mutates the library's metadata surface.\n\nOpen questions: is defrag ever worth it on a library of mostly-sequential large files? SSD bit-rot on write-once media libraries — is 12 months the right cadence, or is that data already fresh enough from monthly SMART scrubs on the ZFS/btrfs side? Real signal probably needs a fragmentation-delta + stale-file-age measurement on real user drives before committing to build the whole thing.",
       "kind": "feature",
-      "versionId": "backlog",
+      "versionId": "v-1-0-8-1",
       "createdAt": "2026-09-08T02:45:00Z",
-      "updatedAt": "2026-09-08T02:55:00Z"
+      "updatedAt": "2026-09-08T14:53:49.098Z",
+      "completedAt": null
+    },
+    {
+      "id": "05cd2490-137f-4f0f-9eff-4aa210ba75c8",
+      "title": "Warn user if libraries contain the same folders",
+      "notes": "if a user has multiple libraries that cover the same folders i.e Media which has \\media\\ and movies that has \\media\\movies\\ and tv that has \\media\\tv\\",
+      "kind": "feature",
+      "versionId": "backlog",
+      "createdAt": "2026-09-11T06:03:48.588Z",
+      "updatedAt": "2026-09-11T06:04:35.436Z"
     }
   ]
 }
