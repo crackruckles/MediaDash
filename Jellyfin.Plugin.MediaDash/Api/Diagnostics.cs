@@ -76,7 +76,7 @@ public static class Diagnostics
         var trimmed = message.Length > 800 ? message[..800] + "…" : message;
         // Dedup key hashes the *pre-truncation* message so two different long errors that share the
         // truncation prefix don't get collapsed into one entry with a misleading Count.
-        var messageHash = message.GetHashCode(StringComparison.Ordinal);
+        var messageHash = StableStringHash(message);
         var now = DateTime.UtcNow;
         DateTime firstSeen;
         int newCount;
@@ -225,6 +225,36 @@ public static class Diagnostics
             {
                 return Entries.Count;
             }
+        }
+    }
+
+    /// <summary>
+    /// Deterministic 32-bit hash of a diagnostic message. Used as the second half of the
+    /// <c>(source, message_hash)</c> dedup key in the <c>diagnostics</c> table so repeated fires
+    /// of the same error message collapse into one row with a Count that increments — even
+    /// across Jellyfin restarts. <see cref="string.GetHashCode(StringComparison)"/> is randomised
+    /// per-process (hash-flooding mitigation), which silently broke dedup: each restart rewrote
+    /// the same message under a fresh random hash, adding a "duplicate" row on the Errors tab
+    /// on every restart. FNV-1a 32-bit is stable across processes and machines, fast enough for
+    /// diagnostic-level rates (millions of hashes/sec), and collision risk is bounded by the
+    /// PRIMARY KEY conflict — a genuine hash clash between two different messages would just
+    /// overwrite the older count, which is safer than accumulating duplicates.
+    /// </summary>
+    /// <param name="s">The string to hash.</param>
+    /// <returns>A stable 32-bit hash suitable for the diagnostics dedup key.</returns>
+    public static int StableStringHash(string s)
+    {
+        unchecked
+        {
+            const int Offset = (int)2166136261;
+            const int Prime = 16777619;
+            var hash = Offset;
+            foreach (var c in s)
+            {
+                hash = (hash ^ c) * Prime;
+            }
+
+            return hash;
         }
     }
 
