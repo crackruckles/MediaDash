@@ -7695,17 +7695,20 @@
 
             // Pre-flight the recycle bin volume before saving: ≥5 GB free is required and, when the
             // pause-cap is still at the 0 (disabled) default, seed it with the disk's suggestion so
-            // fills can't drive the volume below the 3 GB safety floor unseen. Refuses hard on
-            // insufficient space with a jump-to-card button — matches the user's ask for a UI
-            // shortcut back to the Recycle bin setting.
-            function validateAndSaveConfig(c, binPath) {
+            // fills can't drive the volume below the 3 GB safety floor unseen. Soft-warns on
+            // insufficient space with a jump-to-card button and a "Save anyway" override — GitHub
+            // #58: users on smaller volumes were completely blocked from saving unrelated settings
+            // because the refusal was hard. forceSaveDespiteLowSpace=true skips the check and
+            // proceeds to the update call; the user's explicit click on "Save anyway" is a
+            // stronger signal than the 5 GB floor.
+            function validateAndSaveConfig(c, binPath, forceSaveDespiteLowSpace) {
                 var warnEl = view.querySelector('#mdBinDiskWarn');
                 if (warnEl) warnEl.style.display = 'none';
                 var url = 'RecycleBin/DiskInfo';
                 if (binPath) url += '?path=' + encodeURIComponent(binPath);
                 api(url).then(function (info) {
-                    if (info && info.MeetsFiveGbMinimum === false) {
-                        showBinDiskWarning(info);
+                    if (!forceSaveDespiteLowSpace && info && info.MeetsFiveGbMinimum === false) {
+                        showBinDiskWarning(info, c, binPath);
                         return;
                     }
 
@@ -7735,15 +7738,16 @@
                 });
             }
 
-            function showBinDiskWarning(info) {
+            function showBinDiskWarning(info, pendingConfig, pendingBinPath) {
                 var warnEl = view.querySelector('#mdBinDiskWarn');
                 if (!warnEl) return;
                 var freeGb = Math.round((info.FreeBytes || 0) / (1024 * 1024 * 1024));
                 warnEl.innerHTML =
-                    '<div style="margin-bottom:.5em;"><strong>Refused to save:</strong> ' +
+                    '<div style="margin-bottom:.5em;"><strong>Warning:</strong> ' +
                     esc(info.PathProbed || '(default location)') + ' has only ' + freeGb + ' GB free.</div>' +
-                    '<div style="margin-bottom:.7em;">Jellyfin needs 2 GB of free space to run so MediaDash requires at least 5 GB before it will use a folder for the recycle bin. Pick a location with more room.</div>' +
-                    '<button is="emby-button" type="button" id="mdBinDiskWarnJump" class="raised" style="background:#dc2626;color:#fff;font-size:80%;"><span class="material-icons" style="font-size:1em;vertical-align:-2px;margin-right:.3em;">arrow_downward</span><span>Go to Recycle bin settings</span></button>';
+                    '<div style="margin-bottom:.7em;">MediaDash recommends at least 5 GB free before it uses a folder for the recycle bin (Jellyfin itself needs about 2 GB to keep running). You can pick a location with more room, or save these settings anyway if you know what you\'re doing — GitHub #58.</div>' +
+                    '<button is="emby-button" type="button" id="mdBinDiskWarnJump" class="raised" style="background:#dc2626;color:#fff;font-size:80%;margin-right:.5em;"><span class="material-icons" style="font-size:1em;vertical-align:-2px;margin-right:.3em;">arrow_downward</span><span>Go to Recycle bin settings</span></button>' +
+                    '<button is="emby-button" type="button" id="mdBinDiskWarnForce" class="raised" style="font-size:80%;"><span class="material-icons" style="font-size:1em;vertical-align:-2px;margin-right:.3em;">save</span><span>Save anyway</span></button>';
                 warnEl.style.display = '';
                 var jumpBtn = warnEl.querySelector('#mdBinDiskWarnJump');
                 if (jumpBtn) {
@@ -7760,6 +7764,13 @@
                         if (pathInput) {
                             setTimeout(function () { pathInput.focus(); }, 350);
                         }
+                    });
+                }
+
+                var forceBtn = warnEl.querySelector('#mdBinDiskWarnForce');
+                if (forceBtn && pendingConfig) {
+                    forceBtn.addEventListener('click', function () {
+                        validateAndSaveConfig(pendingConfig, pendingBinPath, true);
                     });
                 }
             }
