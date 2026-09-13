@@ -261,6 +261,19 @@ public sealed class FixTask : IScheduledTask
             }
         }
 
+        // QueueDetectedIssues is a bulk UPDATE — it can't see the per-row DetailsJson to check
+        // for blocking warnings (bitmap-subtitle removals, low-space overrides, etc.), so it
+        // over-queues those rows. Revert them here before the fixer picks them up: consent-
+        // gated data loss requires an explicit manual Approve from the Issues tab, even when
+        // the type's mode is Automatic. Pairs with Issue.HasBlockingWarnings.
+        var reverted = _db.RollbackAutoQueuedBlockingWarnings();
+        if (reverted > 0)
+        {
+            _logger.LogInformation(
+                "Reverted {Count} auto-queued issue(s) back to Detected because they carry blocking warnings — manual approval required.",
+                reverted);
+        }
+
         // An issue reaches Queued status either because the auto-queue step above put it there (Automatic mode)
         // or because the user explicitly approved it in the UI. Manual approval is a stronger signal than the
         // type's default mode, so DetectOnly does NOT filter it back out — only Off does (the type is disabled

@@ -904,6 +904,49 @@ public sealed class MediaDashDb
     }
 
     /// <summary>
+    /// Reverts newly auto-queued issues whose DetailsJson carries a blocking warning back to
+    /// Detected, so the fixer never touches them without a manual Approve. The consent gate lives
+    /// in <see cref="Issue.HasBlockingWarnings"/> — this method is the DB-side enforcement that
+    /// pairs with it: <see cref="QueueDetectedIssues"/> is a bulk SQL UPDATE that can't see the
+    /// per-row warning payload, so we walk the newly-queued rows in C# and bounce any consent-
+    /// required ones back. Called immediately after the auto-queue step in FixTask.
+    /// </summary>
+    /// <returns>The number of issues reverted from Queued to Detected.</returns>
+    public int RollbackAutoQueuedBlockingWarnings()
+    {
+        var toRevert = GetIssues(status: IssueStatus.Queued)
+            .Where(i => i.HasBlockingWarnings)
+            .Select(i => i.Id)
+            .ToList();
+
+        if (toRevert.Count == 0)
+        {
+            return 0;
+        }
+
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        // Parameterize each id — SQLite has no array binding, so we build @id0,@id1,... .
+        // The list is typically 0-few items (bitmap-sub track removals are the main source), so
+        // one parameterised UPDATE is cheaper than a per-row round-trip.
+        var placeholders = new List<string>(toRevert.Count);
+        for (int i = 0; i < toRevert.Count; i++)
+        {
+            var name = "@id" + i.ToString(CultureInfo.InvariantCulture);
+            placeholders.Add(name);
+            cmd.Parameters.AddWithValue(name, toRevert[i]);
+        }
+
+#pragma warning disable CA2100, CA3001 // placeholder list is machine-composed from an int range, ids are bound as parameters
+        cmd.CommandText = "UPDATE issues SET status = @detected WHERE status = @queued AND id IN ("
+            + string.Join(",", placeholders) + ")";
+#pragma warning restore CA2100, CA3001
+        cmd.Parameters.AddWithValue("@detected", (int)IssueStatus.Detected);
+        cmd.Parameters.AddWithValue("@queued", (int)IssueStatus.Queued);
+        return cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
     /// Gets a single issue by id.
     /// </summary>
     /// <param name="issueId">The issue id.</param>
