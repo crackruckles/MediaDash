@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -29,6 +30,13 @@ namespace Jellyfin.Plugin.MediaDash.Scanners;
 /// </summary>
 public sealed partial class MediaGrouperScanner : IScanner
 {
+    // Matches "Series Name (YYYY)" folder-suffix convention — the same shape Jellyfin's own
+    // documented layout recommends and the shape users create on disk to keep reboots apart.
+    // Trailing whitespace tolerated so " Doctor Who (2005) " still matches.
+    private static readonly Regex SeriesYearSuffixRegex = new(
+        @"^(.+?)\s*\((\d{4})\)\s*$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
     private readonly LibraryGuard _guard;
     private readonly ILogger<MediaGrouperScanner> _logger;
 
@@ -208,9 +216,16 @@ public sealed partial class MediaGrouperScanner : IScanner
             return null;
         }
 
-        var seriesRaw = !string.IsNullOrWhiteSpace(episode.SeriesName)
-            ? episode.SeriesName
-            : ExtractShowNameFromFilename(Path.GetFileNameWithoutExtension(path)!);
+        // GitHub #43 (Doctor Who reboots + Silo (2023) year-strip). Jellyfin's TVDb match collapses
+        // multiple reboots into one Series entity with a bare SeriesName ("Doctor Who", "Silo"), so
+        // grouping on SeriesName alone destroys the year-suffixed folders users manually created on
+        // disk. ResolveSafeSeriesName prefers the on-disk year suffix, falls back to PremiereDate,
+        // and only lands on plain SeriesName when neither signal is present.
+        var seriesRaw = ResolveSafeSeriesName(
+            episode.SeriesName,
+            episode.Series?.PremiereDate?.Year,
+            path,
+            tvRoot);
 
         if (string.IsNullOrWhiteSpace(seriesRaw))
         {
@@ -284,6 +299,122 @@ public sealed partial class MediaGrouperScanner : IScanner
         };
     }
 
+    /// <summary>
+    /// Resolves the folder name to group episodes under, honoring on-disk year-suffixed folders
+    /// (Doctor Who reboots, Silo (2023)) that Jellyfin's TVDb match collapses into a bare
+    /// SeriesName. Rule order per docs/superpowers/specs/2026-09-01-media-organiser-design.md §5.2.1:
+    /// (1) on-disk parent-of-parent (Season/) or direct parent (no Season/) year-suffixed folder,
+    /// (2) SeriesName + PremiereDate year, (3) plain SeriesName. Kept as a pure function so it's
+    /// InlineData-testable without constructing a full Jellyfin Episode entity. Public/internal for
+    /// tests; called from BuildTvIssue for the real path.
+    /// GitHub #43.
+    /// </summary>
+    /// <param name="episodeSeriesName">Jellyfin's <c>Episode.SeriesName</c> — may be empty when metadata identification failed.</param>
+    /// <param name="seriesPremiereYear">Jellyfin's <c>Series.PremiereDate</c> year — null when metadata is absent or the show has no premiere date.</param>
+    /// <param name="episodeFilePath">Full path to the episode file on disk. Ancestors are walked to find a user-created year-suffix folder.</param>
+    /// <param name="tvRoot">The library root path. Search never escapes above it.</param>
+    /// <returns>The safe series folder name (with year suffix when disambiguation applied), or empty string when neither on-disk nor metadata signals identify the show.</returns>
+    internal static string ResolveSafeSeriesName(
+        string? episodeSeriesName,
+        int? seriesPremiereYear,
+        string episodeFilePath,
+        string tvRoot)
+    {
+        // Rule 1: on-disk disambiguation — the year-suffixed folder the user manually made wins.
+        // Preserves reboot separation ("Doctor Who (1963)" vs "(2005)" vs "(2024)") and also fixes
+        // Vaygrim's case where "Silo (2023)/" was being renamed to bare "Silo/".
+        var onDiskFolder = FindYearSuffixedSeriesFolder(episodeFilePath, tvRoot);
+        if (onDiskFolder is not null)
+        {
+            return onDiskFolder;
+        }
+
+        var seriesName = !string.IsNullOrWhiteSpace(episodeSeriesName)
+            ? episodeSeriesName!
+            : ExtractShowNameFromFilename(Path.GetFileNameWithoutExtension(episodeFilePath) ?? string.Empty);
+        if (string.IsNullOrWhiteSpace(seriesName))
+        {
+            return string.Empty;
+        }
+
+        // Defense-in-depth sanitizer: when Jellyfin's TVDb/TMDb match fails, some versions fall back
+        // to the raw filename as `Episode.SeriesName` (e.g. "spooks S01E06"). Trusting that verbatim
+        // grouped the episode under "spooks S01E06/" — one folder per episode instead of one folder
+        // per show. Whenever the resolved seriesName still carries an SxxExx / NxN episode marker,
+        // strip it via the same extractor the empty-SeriesName branch uses. Runs unconditionally so
+        // future SeriesName-shaped-like-a-filename regressions self-heal. No-op for well-formed
+        // names — the extractor returns its input unchanged when neither marker matches.
+        if (SxxExxRegex().IsMatch(seriesName) || NxNRegex().IsMatch(seriesName))
+        {
+            var sanitized = ExtractShowNameFromFilename(seriesName);
+            if (!string.IsNullOrWhiteSpace(sanitized))
+            {
+                seriesName = sanitized;
+            }
+        }
+
+        // Rule 2: Jellyfin-metadata disambiguation. Only synthesize a year suffix when SeriesName
+        // isn't already year-tagged — otherwise a "Show (2023)" name would become "Show (2023) (2023)".
+        if (seriesPremiereYear is int year && !SeriesYearSuffixRegex.IsMatch(seriesName))
+        {
+            return seriesName + " (" + year.ToString(CultureInfo.InvariantCulture) + ")";
+        }
+
+        // Rule 3: plain SeriesName last resort.
+        return seriesName;
+    }
+
+    // Looks for a "Series (YYYY)" folder among the episode file's immediate ancestors, bounded
+    // by the library root. Preferred order matches the two common layouts:
+    //   1. Series/Season 01/E01.mkv  — parent-of-parent is the series folder (Jellyfin canonical)
+    //   2. Series/E01.mkv            — direct parent is the series folder (loose, no Season/)
+    // Never returns folders equal to or above the library root: a top-level "TV (2024)" library
+    // container would otherwise match and corrupt every show under it.
+    private static string? FindYearSuffixedSeriesFolder(string episodeFilePath, string tvRoot)
+    {
+        var normalizedRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(tvRoot));
+        var normalizedFile = Path.GetFullPath(episodeFilePath);
+        var directParent = Path.GetDirectoryName(normalizedFile);
+        if (string.IsNullOrEmpty(directParent))
+        {
+            return null;
+        }
+
+        var parentOfParent = Path.GetDirectoryName(directParent);
+        if (!string.IsNullOrEmpty(parentOfParent) && IsInsideLibrary(parentOfParent, normalizedRoot))
+        {
+            var name = Path.GetFileName(Path.TrimEndingDirectorySeparator(parentOfParent));
+            if (!string.IsNullOrEmpty(name) && SeriesYearSuffixRegex.IsMatch(name))
+            {
+                return name;
+            }
+        }
+
+        if (IsInsideLibrary(directParent, normalizedRoot))
+        {
+            var name = Path.GetFileName(Path.TrimEndingDirectorySeparator(directParent));
+            if (!string.IsNullOrEmpty(name) && SeriesYearSuffixRegex.IsMatch(name))
+            {
+                return name;
+            }
+        }
+
+        return null;
+    }
+
+    // True when 'path' sits strictly INSIDE 'normalizedRoot' (excludes the root itself + anything above).
+    private static bool IsInsideLibrary(string path, string normalizedRoot)
+    {
+        var normalized = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+        var cmp = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        if (string.Equals(normalized, normalizedRoot, cmp))
+        {
+            return false;
+        }
+
+        return Fixers.LibraryGuard.IsUnder(normalized, normalizedRoot);
+    }
+
     private static MovieCandidate? BuildMovieCandidate(Movie movie, string moviesRoot)
     {
         var path = movie.Path;
@@ -301,6 +432,17 @@ public sealed partial class MediaGrouperScanner : IScanner
         var canonical = !string.IsNullOrWhiteSpace(movie.Name)
             ? movie.Name
             : Path.GetFileNameWithoutExtension(fullPath) ?? string.Empty;
+
+        // TV episodes misfiled into a Movies library get identified by Jellyfin as Movies (whatever
+        // extension the wrong library uses). If the canonical name still carries an SxxExx / NxN
+        // marker after Jellyfin's identification, this file is a TV episode in the wrong pile —
+        // grouping it under a movie folder ("spooks S01E06/") is nonsense. Refuse the candidate;
+        // the Media Sorter scanner (a separate check) flags the misfile so the user can move it
+        // to the TV library where the TV grouper handles it properly.
+        if (LooksLikeTvEpisodeMisfiled(canonical, Path.GetFileNameWithoutExtension(fullPath) ?? string.Empty))
+        {
+            return null;
+        }
 
         var solo = RenameTemplate.Scrub(canonical);
         var stem = RenameTemplate.Scrub(StripFranchiseSuffix(canonical));
@@ -361,6 +503,22 @@ public sealed partial class MediaGrouperScanner : IScanner
         while (s != prev);
 
         return s.Length == 0 ? name.Trim() : s;
+    }
+
+    /// <summary>
+    /// True when a Jellyfin-classified Movie is actually a TV episode misfiled into the Movies
+    /// library (Jellyfin identifies by folder, not by filename shape). Detected by the presence of
+    /// an SxxExx / NxN episode marker in either the identified canonical name or the raw filename.
+    /// Used by <see cref="BuildMovieCandidate"/> to refuse the group candidate — Media Sorter
+    /// handles the misfile separately. Internal for direct unit testing.
+    /// </summary>
+    /// <param name="canonical">The Jellyfin-identified canonical name (Movie.Name or filename fallback).</param>
+    /// <param name="filenameNoExt">The filename without extension.</param>
+    /// <returns>True when either candidate string carries an episode marker.</returns>
+    internal static bool LooksLikeTvEpisodeMisfiled(string canonical, string filenameNoExt)
+    {
+        return (!string.IsNullOrEmpty(canonical) && (SxxExxRegex().IsMatch(canonical) || NxNRegex().IsMatch(canonical)))
+            || (!string.IsNullOrEmpty(filenameNoExt) && (SxxExxRegex().IsMatch(filenameNoExt) || NxNRegex().IsMatch(filenameNoExt)));
     }
 
     /// <summary>
