@@ -86,13 +86,19 @@ public sealed class SubtitleLanguageScanner : ProbingScannerBase
             }
         }
 
+        // Data-loss pre-flight — shared with AudioLanguageScanner. If the SUB fix will incidentally
+        // drop bitmap subs the mp4/ipod container can't hold, block auto-queue until the user
+        // confirms via Approve.
+        var warnings = AudioLanguageScanner.BuildDataLossWarnings(probe!, path);
+
         var issue = new Issue
         {
             DetailsJson = JsonSerializer.Serialize(new
             {
                 removeIndexes = embedded.Select(t => t.Index).ToArray(),
                 externalFiles = external.Select(e => e.Path).ToArray(),
-                languages
+                languages,
+                warnings
             }),
             SuggestedFix = external.Count > 0
                 ? $"Remove subtitles in {string.Join(", ", languages)} ({embedded.Count} embedded, {external.Count} separate file(s))."

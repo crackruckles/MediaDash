@@ -29,6 +29,25 @@ public sealed class TrackFixer : IFixer
     // permissions, disk full) since those don't trigger the timeout branch.
     private static readonly TimeSpan RemuxRetryTimeout = TimeSpan.FromHours(5);
 
+    // MP4-family container extensions (ipod muxer). The mp4/ipod muxer refuses bitmap subtitle
+    // codecs under -c copy and any remux to the same container drops those tracks. Kept as a
+    // constant so both scanners (data-loss pre-flight) and the fixer (drop-on-remux) share one
+    // definition.
+    // ponytail: classifier only — the fix-time drop plumbing (negative-map fold-in) is not yet
+    // wired. Upgrade path: add ComputeMuxerIncompatibleSubtitleIndexes to RunTrackRemuxAsync's
+    // negative-map list so the remux succeeds against these sources instead of just warning.
+    private static readonly HashSet<string> Mp4FamilyExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "mp4", "m4v", "m4a", "mov"
+    };
+
+    // Bitmap subtitle codec names ffmpeg emits for the streams mp4/ipod cannot hold under -c copy.
+    // VobSub (dvd_subtitle, codec_id 98314 in ffmpeg), PGS (Blu-ray), DVB.
+    private static readonly HashSet<string> Mp4IncompatibleSubtitleCodecs = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "dvd_subtitle", "hdmv_pgs_subtitle", "dvb_subtitle"
+    };
+
     private readonly FfprobeService _ffprobe;
     private readonly FfmpegExecutor _ffmpeg;
     private readonly OutputVerifier _verifier;
@@ -451,6 +470,40 @@ public sealed class TrackFixer : IFixer
     }
 
     internal static List<string> GetExternalFilesForTest(string detailsJson) => GetExternalFiles(detailsJson);
+
+    /// <summary>
+    /// Classifier: returns the subtitle streams from <paramref name="probe"/> that the target
+    /// MP4-family container cannot hold under a copy-only remux. Empty for non-MP4-family
+    /// containers or when no bitmap subs are present. Used by scanners to attach a data-loss
+    /// warning before the FixTask promotes the issue to Queued.
+    /// </summary>
+    /// <param name="probe">The ffprobe result.</param>
+    /// <param name="ext">The target extension (with or without leading dot).</param>
+    /// <returns>The streams the muxer will drop.</returns>
+    public static IReadOnlyList<FfprobeStreamInfo> ComputeMuxerIncompatibleSubtitleStreams(FfprobeData probe, string ext)
+    {
+        var normalized = (ext ?? string.Empty).TrimStart('.');
+        if (!Mp4FamilyExtensions.Contains(normalized) || probe.Streams is null)
+        {
+            return Array.Empty<FfprobeStreamInfo>();
+        }
+
+        return probe.Streams
+            .Where(s => string.Equals(s.CodecType, "subtitle", StringComparison.OrdinalIgnoreCase)
+                && s.CodecName is not null
+                && Mp4IncompatibleSubtitleCodecs.Contains(s.CodecName))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Index-only view of <see cref="ComputeMuxerIncompatibleSubtitleStreams"/>. Used by tests
+    /// and by the fixer's future negative-map fold-in.
+    /// </summary>
+    /// <param name="probe">The ffprobe result.</param>
+    /// <param name="ext">The target extension (with or without leading dot).</param>
+    /// <returns>The stream indexes the muxer will drop.</returns>
+    public static IReadOnlyList<int> ComputeMuxerIncompatibleSubtitleIndexes(FfprobeData probe, string ext)
+        => ComputeMuxerIncompatibleSubtitleStreams(probe, ext).Select(s => s.Index).ToList();
 
     private static List<string> GetExternalFiles(string detailsJson)
     {

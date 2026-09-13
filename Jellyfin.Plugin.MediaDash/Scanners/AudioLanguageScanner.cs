@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.MediaDash.Data;
+using Jellyfin.Plugin.MediaDash.Fixers;
 using Jellyfin.Plugin.MediaDash.Probing;
 using MediaBrowser.Controller.Entities;
 using Microsoft.Extensions.Logging;
@@ -55,13 +57,21 @@ public sealed class AudioLanguageScanner : ProbingScannerBase
             return Task.FromResult<Issue?>(null);
         }
 
+        // Data-loss pre-flight: TrackFixer's remux writes to the source's own container (same
+        // extension). When that extension is MP4-family and the source carries bitmap subtitle
+        // streams (VobSub / PGS / DVB), the fix will DROP those subs because mp4/ipod can't hold
+        // them under -c copy. Silent drop is not acceptable — attach a blocking warning so the
+        // FixTask auto-queue holds this issue as Detected and the user must consent via Approve.
+        var warnings = BuildDataLossWarnings(probe!, path);
+
         var issue = new Issue
         {
             DetailsJson = JsonSerializer.Serialize(new
             {
                 removeIndexes = remove.Select(t => t.Index).ToArray(),
                 removeLanguages = remove.Select(t => LanguageHelper.Normalize(t.Language)).ToArray(),
-                keepLanguages = keep.Select(t => LanguageHelper.Normalize(t.Language)).ToArray()
+                keepLanguages = keep.Select(t => LanguageHelper.Normalize(t.Language)).ToArray(),
+                warnings
             }),
             SuggestedFix = string.Format(
                 CultureInfo.InvariantCulture,
@@ -72,6 +82,29 @@ public sealed class AudioLanguageScanner : ProbingScannerBase
             SizeSavings = EstimateTrackBytes(probe!, remove)
         };
         return Task.FromResult<Issue?>(issue);
+    }
+
+    // Kept internal + static so SubtitleLanguageScanner can call the same builder — both scanners
+    // emit issues that route through TrackFixer's same-container remux, so both hit the same
+    // bitmap-sub incompatibility.
+    internal static IssueWarning[] BuildDataLossWarnings(FfprobeData probe, string path)
+    {
+        var ext = Path.GetExtension(path).TrimStart('.').ToLowerInvariant();
+        var incompat = TrackFixer.ComputeMuxerIncompatibleSubtitleStreams(probe, ext);
+        if (incompat.Count == 0)
+        {
+            return [];
+        }
+
+        var codecList = string.Join(", ", incompat.Select(s => s.CodecName).Distinct());
+        var message = string.Format(
+            CultureInfo.InvariantCulture,
+            "This fix will also drop {0} bitmap subtitle track{1} ({2}) that the .{3} container cannot hold under a copy-only remux. Once approved, those tracks are gone — restore the original from the recycle bin within the retention window to get them back.",
+            incompat.Count,
+            incompat.Count == 1 ? string.Empty : "s",
+            codecList,
+            ext);
+        return [new IssueWarning { Code = "bitmap-subs-dropped", Blocking = true, Message = message }];
     }
 
     private static long EstimateTrackBytes(FfprobeData probe, IReadOnlyList<FfprobeStreamInfo> tracks)
