@@ -139,7 +139,7 @@ public sealed class EmbeddedCoverArtFixer : IFixer
         var extractError = await ExtractCoverViaWebpAsync(sourceForExtract, coverPath, cancellationToken).ConfigureAwait(false);
         if (extractError is not null)
         {
-            return FixResult.Fail("Cover extraction failed; the folder is untouched. Details: " + TranscodeFixer.Truncate(extractError));
+            return FixResult.Fail("Cover extraction failed; the folder is untouched.", TranscodeFixer.Truncate(extractError));
         }
 
         long freed = 0;

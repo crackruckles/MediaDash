@@ -35,6 +35,13 @@ public sealed class HistoryDto
     public string Action { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the raw technical text (ffmpeg stderr, exception message) that produced
+    /// the outcome. Null when there is no technical backing. Rendered by the UI behind a
+    /// "Technical detail" disclosure so the primary Action stays readable.
+    /// </summary>
+    public string? TechnicalDetail { get; set; }
+
+    /// <summary>
     /// Gets or sets the bytes freed.
     /// </summary>
     public long BytesFreed { get; set; }
@@ -73,6 +80,7 @@ public sealed class HistoryDto
             Type = entry.Type.ToString(),
             FileName = System.IO.Path.GetFileName(entry.Path),
             Action = entry.Action,
+            TechnicalDetail = entry.TechnicalDetail,
             BytesFreed = entry.BytesFreed,
             FixedAtUtc = entry.FixedAtUtc,
             WasDryRun = entry.WasDryRun,

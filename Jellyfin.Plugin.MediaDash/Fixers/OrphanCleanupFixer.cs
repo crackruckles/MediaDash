@@ -232,7 +232,7 @@ public sealed class OrphanCleanupFixer : IFixer
         {
             _logger.LogWarning(ex, "OrphanCleanupFixer: could not remove {Path}", issue.Path);
             Api.Diagnostics.Record("OrphanCleanupFixer.Delete", "Couldn't remove orphan \"" + issue.Path + "\": " + ex.Message + ". Check that Jellyfin has write access there.");
-            return FixResult.Fail("Couldn't delete \"" + fileName + "\": " + ex.Message);
+            return FixResult.Fail("Couldn't delete \"" + fileName + "\" — check that Jellyfin has write access to the containing folder.", ex.Message);
         }
     }
 

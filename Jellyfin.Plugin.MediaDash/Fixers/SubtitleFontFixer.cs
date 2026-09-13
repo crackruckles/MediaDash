@@ -66,11 +66,11 @@ public sealed class SubtitleFontFixer : IFixer
         }
         catch (NotSupportedException ex)
         {
-            return Task.FromResult(FixResult.Fail("Can't optimise this subtitle: " + ex.Message));
+            return Task.FromResult(FixResult.Fail("Can't optimise this subtitle — it uses a feature MediaDash doesn't support.", ex.Message));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return Task.FromResult(FixResult.Fail("Couldn't read " + Path.GetFileName(issue.Path) + ": " + ex.Message));
+            return Task.FromResult(FixResult.Fail("Couldn't read " + Path.GetFileName(issue.Path) + " — check that Jellyfin can read it.", ex.Message));
         }
 
         var embedded = ass.EmbeddedFonts();
@@ -86,7 +86,7 @@ public sealed class SubtitleFontFixer : IFixer
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return Task.FromResult(FixResult.Fail("Couldn't stat " + Path.GetFileName(issue.Path) + ": " + ex.Message));
+            return Task.FromResult(FixResult.Fail("Couldn't read file size for " + Path.GetFileName(issue.Path) + " — check that Jellyfin can read it.", ex.Message));
         }
 
         // Compute which fonts to keep based on current config, not what the scanner saw — the setting
@@ -161,7 +161,7 @@ public sealed class SubtitleFontFixer : IFixer
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             TryDelete(tmp);
-            return Task.FromResult(FixResult.Fail("Couldn't write " + Path.GetFileName(issue.Path) + ": " + ex.Message));
+            return Task.FromResult(FixResult.Fail("Couldn't write " + Path.GetFileName(issue.Path) + " — check that Jellyfin has write access to the containing folder.", ex.Message));
         }
 
         long after;

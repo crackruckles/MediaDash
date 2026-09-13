@@ -166,7 +166,7 @@ public sealed class MediaGrouperFixer : IFixer
         }
         catch (IOException ex)
         {
-            return Task.FromResult(FixResult.Fail("Move failed: " + ex.Message));
+            return Task.FromResult(FixResult.Fail("Move failed — the operating system rejected the rename.", ex.Message));
         }
 
         if (!isFolder)

@@ -92,7 +92,7 @@ public sealed class NfoFixer : IFixer
         {
             _logger.LogWarning(ex, "NfoFixer: could not remove {Path}", issue.Path);
             Api.Diagnostics.Record("NfoFixer.Delete", "Couldn't delete NFO \"" + issue.Path + "\": " + ex.Message + ". Check that Jellyfin has write access to the containing folder.");
-            return Task.FromResult(FixResult.Fail("Couldn't delete \"" + fileName + "\": " + ex.Message));
+            return Task.FromResult(FixResult.Fail("Couldn't delete \"" + fileName + "\" — check that Jellyfin has write access to the containing folder.", ex.Message));
         }
     }
 }

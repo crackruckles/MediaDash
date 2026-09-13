@@ -100,6 +100,13 @@ public sealed class RecycleBinItem
     public string ActionText { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the raw technical text that backed the fix (ffmpeg stderr, exception
+    /// message). Null when the fix had no technical backing (most success rows and manual
+    /// deletes). Rendered by the UI behind a "Technical detail" disclosure below ActionText.
+    /// </summary>
+    public string? TechnicalDetail { get; set; }
+
+    /// <summary>
     /// Gets or sets plain-language recovery guidance for this specific row. Non-empty for every
     /// row so the UI can render it verbatim in a tooltip / expand-out panel next to the Restore
     /// button. Examples: "Click Restore to put the file back at &lt;original path&gt;.",

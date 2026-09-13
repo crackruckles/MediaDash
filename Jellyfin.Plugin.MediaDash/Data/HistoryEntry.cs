@@ -33,9 +33,24 @@ public sealed class HistoryEntry
     public string Action { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the raw technical detail that backs this action (ffmpeg stderr, exception
+    /// text, decoder output). Null when there is no technical backing. Persisted in the
+    /// history.action_detail column so the Recycle bin / History tab can surface it later
+    /// behind a "Technical detail" disclosure without re-running the fix.
+    /// </summary>
+    public string? TechnicalDetail { get; set; }
+
+    /// <summary>
     /// Gets or sets the bytes freed by this action.
     /// </summary>
     public long BytesFreed { get; set; }
+
+    /// <summary>
+    /// Gets or sets the pre-fix source size for rescue-style actions (Playability repair ladder).
+    /// Zero on delete-style actions. Feeds the Overview "Broken files repaired" panel's
+    /// "GB saved from deletion" metric.
+    /// </summary>
+    public long SavedBytes { get; set; }
 
     /// <summary>
     /// Gets or sets the recycle bin location of the removed file, when recycled.

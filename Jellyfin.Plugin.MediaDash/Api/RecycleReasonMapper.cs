@@ -18,7 +18,7 @@ public static class RecycleReasonMapper
     public static string ReasonFor(IssueType type) => type switch
     {
         IssueType.Duplicate => "Duplicate — kept a better copy",
-        IssueType.Playability => "Unplayable file removed",
+        IssueType.Playability => "Damaged file",
         IssueType.Quality => "Re-encoded to fit quality ceiling",
         IssueType.SubtitleLanguage => "Removed unwanted subtitle language",
         IssueType.AudioLanguage => "Removed unwanted audio language",
