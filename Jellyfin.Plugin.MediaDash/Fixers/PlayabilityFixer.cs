@@ -204,10 +204,17 @@ public sealed class PlayabilityFixer : IFixer
         }
 
         var tempPath = TranscodeFixer.SidecarPath(issue.Path, "repair.tmp1", ext);
+        // +discardcorrupt is the difference between rung 1 producing a file that plays end-to-end vs
+        // one that fails at the last packet. -c copy blindly copies every packet the demuxer emits,
+        // including the partial packet at the truncation edge of a tail-truncated MP4 — the AAC
+        // decoder chokes on the incomplete tail and strict verify (-xerror) rejects the whole file.
+        // discardcorrupt drops that final partial packet at demux time so the remux writes a clean
+        // container terminating at the last complete packet. No effect on MKV/MP4 files that were
+        // whole to begin with; only matters on tail damage. Same flag on rungs 3 + 4 for symmetry.
         var args = new List<string>
         {
             "-err_detect", "ignore_err",
-            "-fflags", "+genpts+igndts",
+            "-fflags", "+genpts+igndts+discardcorrupt",
             "-i", issue.Path,
             "-map", "0",
             "-c", "copy",
@@ -323,7 +330,7 @@ public sealed class PlayabilityFixer : IFixer
         var args = new List<string>
         {
             "-err_detect", "ignore_err",
-            "-fflags", "+genpts+igndts",
+            "-fflags", "+genpts+igndts+discardcorrupt",
             "-i", issue.Path,
             "-map", "0",
             "-c", "copy",
@@ -361,7 +368,7 @@ public sealed class PlayabilityFixer : IFixer
         var args = new List<string>
         {
             "-err_detect", "ignore_err",
-            "-fflags", "+genpts+igndts",
+            "-fflags", "+genpts+igndts+discardcorrupt",
             "-i", issue.Path,
             "-map", "0:v:0?",
             "-map", "0:a?",
@@ -458,12 +465,21 @@ public sealed class PlayabilityFixer : IFixer
             ? Path.ChangeExtension(issue.Path, ".mkv")
             : issue.Path;
 
+        // Path.ChangeExtension is a no-op when the source is already .mkv, so rung 3 / rung 4
+        // on an .mkv source land on the SAME path as the source. That's a same-file swap, not
+        // a collision — treat it exactly like the same-extension case below (guaranteed present,
+        // no clash) instead of tripping the collision guard against ourselves. Pre-fix: rung 3
+        // and rung 4 always fell through to delete for every .mkv source (the most common shape
+        // for bit-flip damage), quietly gutting the whole repair ladder for .mkv files.
+        var pathActuallyChanged = extensionChanged
+            && !string.Equals(finalPath, issue.Path, StringComparison.OrdinalIgnoreCase);
+
         // Collision guard: extension change would land on top of an unrelated existing file
         // (e.g. left over from an earlier repair run, or a user file that happens to share
         // the target name). Refuse BEFORE touching the original — otherwise we recycle the
         // source, hit File.Move's "already exists", and leak the temp with nothing at the
         // final path. Same-extension path is the source itself, guaranteed present, no clash.
-        if (extensionChanged && File.Exists(finalPath))
+        if (pathActuallyChanged && File.Exists(finalPath))
         {
             _logger.LogInformation(
                 "Playability repair refused for {Path}: target {Final} already exists — falling through to next rung.",
@@ -496,7 +512,7 @@ public sealed class PlayabilityFixer : IFixer
         }
 
         _libraryMonitor.ReportFileSystemChanged(issue.Path);
-        if (extensionChanged)
+        if (pathActuallyChanged)
         {
             _libraryMonitor.ReportFileSystemChanged(finalPath);
         }
