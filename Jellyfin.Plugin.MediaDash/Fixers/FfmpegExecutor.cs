@@ -25,6 +25,28 @@ public sealed class FfmpegExecutor
         "dup_frames=", "drop_frames=", "speed=", "progress="
     ];
 
+    // Signatures ffmpeg emits when the SOURCE file (not our args, not the encoder, not disk state)
+    // is malformed / corrupt / truncated. Presence of any one means no re-encode or remux is ever
+    // going to succeed on this file — the ladder should route to Playability, not surface a raw
+    // "ffmpeg failed" error the user can't act on. Kept as literal substrings so it stays greppable
+    // and users can add signatures without a regex.
+    // Real-world provenance: reported by users hitting DVR-recorded .mpg with mpeg2video + ac3
+    // corruption ("expacc out-of-range", "Invalid frame dimensions 0x0"), plus the well-known
+    // fixture cases (moov atom, EBML header, could not find codec parameters).
+    private static readonly string[] CorruptSourceMarkers =
+    [
+        "Invalid frame dimensions", // mpeg2video demuxer confusion
+        "error decoding", // covers audio-block + video-block decode failures
+        "Invalid data found when processing", // ffmpeg's universal "input is malformed"
+        "could not find codec parameters", // demuxer can't identify streams
+        "moov atom not found", // MP4 header damage / truncation
+        "EBML header parsing failed", // MKV header damage
+        "expacc", // ac3 bitstream corruption ("expacc N is out-of-range")
+        "bandwidth code", // ac3 header damage
+        "ignoring pic cod ext", // mpeg2 picture-extension header damage
+        "Header missing" // various demuxer header issues
+    ];
+
     // Any MediaDash-sidecar ffmpeg older than this is considered orphaned (crash / hot-reload leftover)
     // and safe to kill. A living sibling started seconds ago is NOT stale, so the sweep must not touch it.
     private static readonly TimeSpan StaleFfmpegWindow = TimeSpan.FromMinutes(5);
@@ -52,6 +74,7 @@ public sealed class FfmpegExecutor
     /// <param name="progress">Optional 0..1 progress reporter, driven by ffmpeg's own <c>-progress pipe:2</c> output when <paramref name="totalDurationSeconds"/> is set.</param>
     /// <param name="totalDurationSeconds">The expected total duration of the output; used to convert ffmpeg's out_time_us into a fraction. Set to 0 to skip progress plumbing.</param>
     /// <param name="recordDiagnosticOnTimeout">When false, a wall-clock timeout returns the error string but does NOT surface an Ffmpeg.Timeout to the Errors tab. Used by callers that retry with a longer window (TrackFixer): only the retry's failure should show up, otherwise every successful large-file remux leaves a stale "timeout" in the Errors tab.</param>
+    /// <param name="recordDiagnosticOnFailure">When false, an ffmpeg exit-code failure returns the stderr tail but does NOT surface an Ffmpeg.Error to the Errors tab. Used by fall-through pipelines (PlayabilityFixer's repair ladder) where each rung is EXPECTED to fail on files it can't handle — the next rung takes over. The final outcome (rescue vs delete) is what the user should see, not each rung's probe result.</param>
     /// <returns>The last portion of stderr on failure, or null on success.</returns>
     public async Task<string?> RunAsync(
         IReadOnlyList<string> args,
@@ -59,7 +82,8 @@ public sealed class FfmpegExecutor
         CancellationToken cancellationToken,
         IProgress<double>? progress = null,
         double totalDurationSeconds = 0,
-        bool recordDiagnosticOnTimeout = true)
+        bool recordDiagnosticOnTimeout = true,
+        bool recordDiagnosticOnFailure = true)
     {
         var encoderPath = _mediaEncoder.EncoderPath;
         if (string.IsNullOrEmpty(encoderPath))
@@ -147,9 +171,18 @@ public sealed class FfmpegExecutor
             {
                 var tail = stderrTail.ToString();
                 var msg = string.IsNullOrWhiteSpace(tail) ? $"ffmpeg exited with code {process.ExitCode}" : tail;
-                Api.Diagnostics.Record(
-                    "Ffmpeg.Error",
-                    "ffmpeg failed" + FindInputHint(args) + ": " + TrimForDiagnostic(msg) + ". The original file was left untouched.");
+                // Corrupt-source failures are a dead end for encode/remux — always suppress the raw
+                // "Ffmpeg.Error" diagnostic (independent of recordDiagnosticOnFailure). The caller
+                // still receives the stderr string and shapes a FixResult.Fail message pointing at
+                // the Playability repair ladder, so the user gets an actionable next step via History
+                // instead of a raw stderr dump on the Errors tab.
+                if (recordDiagnosticOnFailure && !IsCorruptSourceError(msg))
+                {
+                    Api.Diagnostics.Record(
+                        "Ffmpeg.Error",
+                        "ffmpeg failed" + FindInputHint(args) + ": " + TrimForDiagnostic(msg) + ". The original file was left untouched.");
+                }
+
                 return msg;
             }
 
@@ -187,6 +220,31 @@ public sealed class FfmpegExecutor
     public static bool IsTimeoutError(string error)
     {
         return error is not null && error.Contains("time limit and was stopped", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Classifies whether an ffmpeg stderr tail indicates the SOURCE file is malformed / corrupt.
+    /// Callers use this to promote a fixer failure from "raw ffmpeg error" (which needs a Report-an-issue
+    /// button) to "source is broken, try the Playability repair ladder instead" (which is actionable).
+    /// </summary>
+    /// <param name="error">The error string returned by <see cref="RunAsync"/> (stderr tail).</param>
+    /// <returns>True if any known corrupt-source signature is present. False for empty input.</returns>
+    public static bool IsCorruptSourceError(string? error)
+    {
+        if (string.IsNullOrEmpty(error))
+        {
+            return false;
+        }
+
+        foreach (var marker in CorruptSourceMarkers)
+        {
+            if (error.Contains(marker, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static string TimeoutError(TimeSpan timeout) => $"ffmpeg exceeded the {timeout} time limit and was stopped";
