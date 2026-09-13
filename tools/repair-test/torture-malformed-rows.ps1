@@ -1,4 +1,4 @@
-# Malformed-row torture: inject 5 rows into the issues table whose shape would tempt the
+﻿# Malformed-row torture: inject 5 rows into the issues table whose shape would tempt the
 # plugin to crash (bad Guid item_id, non-object DetailsJson roots, non-string reason
 # field), then verify /Status, /Issues, and /Fix all return 2xx and don't throw.
 #
@@ -39,7 +39,7 @@ $marker = 'malformed-row-torture'
 Write-Host "Clearing any leftover malformed-row rows..."
 & sqlite3 $DbPath "DELETE FROM issues WHERE path LIKE '%$marker%';"
 
-# ─── Inject 5 malformed rows ────────────────────────────────────────────────
+# --- Inject 5 malformed rows ------------------------------------------------
 # Schema: (type, item_id, path, details, suggested_fix, size_savings, status, detected_at_utc, confidence)
 # type = 1 (Playability), status = 0 (Detected), detected_at_utc = 0 (epoch, plugin tolerates).
 $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
@@ -69,14 +69,14 @@ foreach ($r in $rows) {
     Write-Host "  injected: $($r.desc)"
 }
 
-# ─── Authenticate ───────────────────────────────────────────────────────────
+# --- Authenticate -----------------------------------------------------------
 Write-Host "`nAuthenticating..."
 $authBody = @{ Username = $AdminUser; Pw = $AdminPass } | ConvertTo-Json -Compress
 $authH    = @{ Authorization = 'MediaBrowser Client="mrtorture", Device="ps", DeviceId="dtmr1", Version="1"' }
 $auth = Invoke-RestMethod -Method Post -Uri "$JellyfinUrl/Users/AuthenticateByName" -Body $authBody -ContentType application/json -Headers $authH
 $hdr  = @{ Authorization = "MediaBrowser Token=`"$($auth.AccessToken)`", Client=`"mrtorture`", Device=`"ps`", DeviceId=`"dtmr1`", Version=`"1`"" }
 
-# ─── Hit the three endpoints ────────────────────────────────────────────────
+# --- Hit the three endpoints ------------------------------------------------
 $results = @()
 
 function Probe($label, [scriptblock]$call) {
@@ -97,7 +97,7 @@ $results += Probe 'GET  /MediaDash/Status'  { Invoke-RestMethod -Uri "$JellyfinU
 $results += Probe 'GET  /MediaDash/Issues'  { Invoke-RestMethod -Uri "$JellyfinUrl/MediaDash/Issues" -Headers $hdr }
 $results += Probe 'POST /MediaDash/Fix'     { Invoke-RestMethod -Method Post -Uri "$JellyfinUrl/MediaDash/Fix" -Headers $hdr }
 
-# ─── Cleanup + report ───────────────────────────────────────────────────────
+# --- Cleanup + report -------------------------------------------------------
 Write-Host "`nCleaning up injected rows..."
 & sqlite3 $DbPath "DELETE FROM issues WHERE path LIKE '%$marker%';"
 

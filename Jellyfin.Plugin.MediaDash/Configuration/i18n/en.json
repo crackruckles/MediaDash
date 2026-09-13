@@ -87,11 +87,11 @@
                   "Playability":  {
                                       "title":  "Files that won\u0027t play",
                                       "hint":  "These files are broken or unreadable.",
-                                      "action":  "Remove file",
-                                      "actionHint":  "Queues removal for the next fix run (re-checked as broken before anything is removed).",
-                                      "approveAll":  "Remove all {0} broken files shown",
-                                      "doRecycle":  "Remove the broken file — recoverable from the recycle bin",
-                                      "doPermanent":  "Remove the broken file — permanently"
+                                      "action":  "Repair / Remove file",
+                                      "actionHint":  "Tries to repair the file first. If it can't be repaired, the file is removed.",
+                                      "approveAll":  "Repair / Remove all {0} broken files shown",
+                                      "doRecycle":  "Try to repair; if it can't be repaired, remove the file (recoverable from the recycle bin)",
+                                      "doPermanent":  "Try to repair; if it can't be repaired, remove the file permanently"
                                   },
                   "Quality":  {
                                   "title":  "Files wasting space",
@@ -154,7 +154,7 @@
                                            "title":  "Missing subtitles",
                                            "hint":  "No subtitle in any of your kept languages.",
                                            "action":  "Download subtitles",
-                                           "actionHint":  "Downloads one via Jellyfin\u0027s configured subtitle providers (OpenSubtitles etc.).",
+                                           "actionHint":  "Fetches a subtitle file from Jellyfin\u0027s configured subtitle providers (OpenSubtitles etc.) and saves it alongside the video.",
                                            "approveAll":  "Download subtitles for all {0} shown"
                                        },
                   "Stale":  {
