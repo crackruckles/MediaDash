@@ -19,6 +19,13 @@ namespace Jellyfin.Plugin.MediaDash.ScheduledTasks;
 /// </summary>
 public sealed class ScanTask : IScheduledTask
 {
+    /// <summary>
+    /// Grace window a user-triggered scan grants the reviewer before opportunistic fixes are
+    /// allowed to run. Long enough to actually read the Issues tab and decide, short enough that
+    /// forgotten-tab scenarios still get their auto-fix on the next scheduled fix window.
+    /// </summary>
+    internal static readonly TimeSpan ManualScanReviewGrace = TimeSpan.FromMinutes(10);
+
     private readonly ILibraryManager _libraryManager;
     private readonly IEnumerable<IScanner> _scanners;
     private readonly MediaDashDb _db;
@@ -47,6 +54,17 @@ public sealed class ScanTask : IScheduledTask
     /// Set by the dashboard's "Scan now" button — the person clicking it is themselves an active session.
     /// </summary>
     internal static bool BypassIdleCheckOnce { get; set; }
+
+    /// <summary>
+    /// Gets or sets when the most recent USER-triggered scan finished (UTC). The opportunistic
+    /// scheduled <see cref="FixTask"/> checks this against <see cref="ManualScanReviewGrace"/> and
+    /// skips its run when we're still inside the grace window — otherwise a user who hits "Scan"
+    /// and starts reviewing the Issues tab watches issues auto-fix out from under them mid-review.
+    /// The explicit "Run fixes now" button bypasses via <see cref="FixTask.BypassIdleCheckOnce"/>
+    /// so users can opt out of the grace at any time. Reset to <c>null</c> when the run wasn't
+    /// manual — scheduled scans DON'T grant the grace period (there's no user to protect).
+    /// </summary>
+    internal static DateTime? ManualScanCompletedUtc { get; set; }
 
     /// <inheritdoc />
     public string Name => I18n.I18nCatalog.GetHtml(System.Globalization.CultureInfo.CurrentUICulture.Name, "task.scan.name", "Scan libraries for issues");
@@ -215,6 +233,13 @@ public sealed class ScanTask : IScheduledTask
         {
             _logger.LogWarning(ex, "Redownload detection failed.");
             Api.Diagnostics.Record("ScanTask.RedownloadDetect", "Redownload detection failed: " + ex.Message + ". Recycle-bin redownload warnings will be stale until the next successful scan.");
+        }
+
+        // Grant the fix-task grace period ONLY when this was a user click. Scheduled scans don't
+        // set the timestamp — there's no user to shield from an opportunistic fix run.
+        if (bypassIdleCheck)
+        {
+            ManualScanCompletedUtc = DateTime.UtcNow;
         }
 
         progress.Report(100);
