@@ -35,6 +35,9 @@ These must hold in every code path and have unit tests. Do not relax them for co
 3. Never replace an original until the new file passes ffprobe verification (duration within 2s, expected streams present).
 4. All destructive operations respect the per-fix-type disposal setting (recycle bin vs permanent) and the global dry-run toggle. Dry-run defaults ON.
 5. Check free disk space (≥2× source size) before any transcode.
+6. **The plugin never throws on unexpected DB row shape.** Malformed rows (bad Guid strings, non-object DetailsJson roots, out-of-range enum values) are logged with the row id and skipped; loading + operating surfaces must return a partial result, never a 500.
+7. **Every status-mutating endpoint calls the shared state-machine helper.** Direct `UPDATE issues SET status = …` is banned outside `TryTransitionOpenIssue` / `BulkUpdateOpenIssueStatus`. This keeps Approve, Dismiss, Revert, and the auto-queue consent rollback path from silently disagreeing on which transitions are legal.
+8. **Every scanner check has a matching fix-time re-verify.** If a scanner uses `MediaFormats.All` to decide "media present", the corresponding fixer's re-verify uses `MediaFormats.All` too. Extract shared helpers where duplication drifts.
 
 ## Conventions
 
