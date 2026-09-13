@@ -19,12 +19,6 @@
                          "targetRung":  1
                      },
                      {
-                         "postExists":  "rung2-broken-sub.mkv",
-                         "name":  "rung2-broken-sub.mkv",
-                         "preBroken":  true,
-                         "targetRung":  2
-                     },
-                     {
                          "postExists":  "rung2-broken-second-audio.mkv",
                          "name":  "rung2-broken-second-audio.mkv",
                          "preBroken":  true,

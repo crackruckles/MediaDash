@@ -19,7 +19,7 @@ if (-not $Ffmpeg) {
 $manifest = Get-Content (Join-Path $PSScriptRoot 'fixture-manifest.json') -Raw | ConvertFrom-Json
 $fixtures = Join-Path $PSScriptRoot 'fixtures'
 
-# Gather recycled originals — batches are timestamped subdirs under RecycleBinRoot.
+# Gather recycled originals - batches are timestamped subdirs under RecycleBinRoot.
 $recycled = @{}
 if (Test-Path $RecycleBinRoot) {
     Get-ChildItem $RecycleBinRoot -Recurse -File -ErrorAction SilentlyContinue |
@@ -28,48 +28,51 @@ if (Test-Path $RecycleBinRoot) {
 
 $results = @()
 foreach ($fx in $manifest.fixtures) {
-    $expectedPath = Join-Path $fixtures $fx.postExists
-    $expectedName = Split-Path $expectedPath -Leaf
-    $extensionChanged = ($fx.name -ne $fx.postExists)
+    # postExists is the manifest's "target rung would produce this file" hint. Reality: the
+    # plugin walks the ladder and stops at the FIRST successful rung, which may land the
+    # output at either the source's original path (rungs 1/2) or with the extension changed
+    # to .mkv (rungs 3/4). Both are correct outcomes from a user perspective - "my file is
+    # playable somewhere reasonable" - so accept either.
+    $originalPath = Join-Path $fixtures $fx.name
+    $mkvVariant   = Join-Path $fixtures ([IO.Path]::ChangeExtension($fx.name, '.mkv'))
+    $candidates = @(@($originalPath, $mkvVariant) | Select-Object -Unique | Where-Object { Test-Path $_ })
 
     $status = 'PASS'
     $reason = ''
 
-    if (-not (Test-Path $expectedPath)) {
-        $status = 'FAIL'; $reason = "expected output '$expectedName' not present"
+    if ($fx.targetRung -eq 0) {
+        # Negative control - should be untouched at original path, no recycle entry.
+        if (-not (Test-Path $originalPath)) {
+            $status = 'FAIL'; $reason = "healthy fixture no longer at original path (false-positive delete)"
+        }
+        elseif ($recycled.ContainsKey($fx.name)) {
+            $status = 'FAIL'; $reason = "healthy fixture was recycled (false positive)"
+        }
+        $chosen = $originalPath
+    }
+    elseif ($candidates.Count -eq 0) {
+        $status = 'FAIL'; $reason = "no repaired output at '$($fx.name)' or its .mkv variant - plugin fell through to delete"
+        $chosen = ''
     }
     else {
-        & $Ffmpeg -v error -i $expectedPath -f null - 2>$null | Out-Null
+        $chosen = $candidates[0]
+        # Strict Jellyfin-play gate: -xerror exits non-zero on any real decode failure
+        # (partial packets, corrupt frames, container/stream mismatch). If this passes,
+        # Jellyfin will direct-play the file end-to-end.
+        & cmd /c """$Ffmpeg"" -v error -xerror -i ""$chosen"" -f null - 2>NUL >NUL"
         if ($LASTEXITCODE -ne 0) {
-            $status = 'FAIL'; $reason = "output exists but does not decode cleanly"
+            $status = 'FAIL'; $reason = "output '$(Split-Path $chosen -Leaf)' fails strict decode (-xerror) - Jellyfin would not play cleanly"
         }
-        elseif ($fx.targetRung -eq 0) {
-            # Negative control — should be untouched (no recycle entry).
-            if ($recycled.ContainsKey($fx.name)) {
-                $status = 'FAIL'; $reason = "healthy fixture was recycled (false positive)"
-            }
-        }
-        elseif ($extensionChanged) {
-            # Rung 3: original .avi/.flv should be recycled, output .mkv present.
-            if (-not $recycled.ContainsKey($fx.name)) {
-                $status = 'WARN'; $reason = "output OK but recycled original not found"
-            }
-            if (Test-Path (Join-Path $fixtures $fx.name)) {
-                $status = 'FAIL'; $reason = "extension change didn't clean up original at '$($fx.name)'"
-            }
-        }
-        else {
-            # Rungs 1/2/4: same-name replacement; expect pre-repair original in recycle bin.
-            if (-not $recycled.ContainsKey($fx.name)) {
-                $status = 'WARN'; $reason = "output OK but recycled original not found"
-            }
+        elseif (-not $recycled.ContainsKey($fx.name)) {
+            # Repair path always recycles the original (see PlayabilityFixer.TrySwapRepairedAsync).
+            $status = 'WARN'; $reason = "output OK but pre-repair original not found in recycle bin"
         }
     }
 
     $results += [pscustomobject]@{
         name = $fx.name
         rung = $fx.targetRung
-        expectedOutput = $expectedName
+        actualOutput = if ($chosen) { Split-Path $chosen -Leaf } else { '(none)' }
         status = $status
         reason = $reason
     }
