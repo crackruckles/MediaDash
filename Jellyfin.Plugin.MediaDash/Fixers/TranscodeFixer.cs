@@ -252,8 +252,11 @@ public sealed class TranscodeFixer : IFixer
                 File.SetCreationTimeUtc(targetPath, srcCreatedUtc);
                 File.SetLastWriteTimeUtc(targetPath, srcModifiedUtc);
             }
-            catch (IOException ex)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
+                // Linux `utimensat(2)` returns EPERM as UnauthorizedAccessException, NOT
+                // IOException (GitHub #59); network shares / restricted-perms mounts hit this.
+                // Non-fatal — the transcode is already committed.
                 _logger.LogInformation("TranscodeFixer: could not restore source timestamps on '{Path}': {Message}", targetPath, ex.Message);
             }
 

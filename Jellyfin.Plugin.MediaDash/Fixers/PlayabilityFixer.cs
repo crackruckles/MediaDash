@@ -486,10 +486,12 @@ public sealed class PlayabilityFixer : IFixer
             File.SetCreationTimeUtc(finalPath, srcCreatedUtc);
             File.SetLastWriteTimeUtc(finalPath, srcModifiedUtc);
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // Non-fatal: some network shares can't set file times. Log drift so the Recently
-            // Added anomaly is traceable; don't fail the fix — the file is already repaired.
+            // Non-fatal: some network shares / restricted-perms mounts can't set file times —
+            // Linux `utimensat(2)` returns EPERM which surfaces as UnauthorizedAccessException,
+            // NOT IOException (GitHub #59). Log drift so the Recently Added anomaly is
+            // traceable; don't fail the fix — the file is already repaired by the time this runs.
             _logger.LogInformation("PlayabilityFixer: could not restore source timestamps on '{Path}': {Message}", finalPath, ex.Message);
         }
 

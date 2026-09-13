@@ -314,11 +314,13 @@ public sealed class TrackFixer : IFixer
                     File.SetCreationTimeUtc(issue.Path, srcCreatedUtc);
                     File.SetLastWriteTimeUtc(issue.Path, srcModifiedUtc);
                 }
-                catch (IOException ex)
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
-                    // Non-fatal: users on network shares sometimes can't set file times. Log
-                    // the drift so Jellyfin's Recently Added anomaly is traceable, don't fail
-                    // the fix — the file is already rebuilt and swapped.
+                    // Non-fatal: users on network shares / restricted-perms mounts sometimes can't
+                    // set file times — Linux `utimensat(2)` returns EPERM which surfaces as
+                    // UnauthorizedAccessException, NOT IOException (GitHub #59). Log the drift so
+                    // Jellyfin's Recently Added anomaly is traceable, don't fail the fix — the
+                    // file is already rebuilt and swapped by the time this runs.
                     _logger.LogInformation("TrackFixer: could not restore source timestamps on '{Path}': {Message}", issue.Path, ex.Message);
                 }
 
