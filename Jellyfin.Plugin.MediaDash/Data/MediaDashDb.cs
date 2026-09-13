@@ -465,11 +465,25 @@ public sealed class MediaDashDb
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
         {
+            // F-014: use TryParseExact so a single malformed item_id (legacy row, botched DB
+            // edit, third-party tool experimenting) doesn't crash the whole /Status + /Issues
+            // surface with FormatException → HTTP 500. Log the row id + drop the malformed
+            // entry; the rest of the payload still renders. CLAUDE.md safety invariant #6.
+            var idColumn = reader.GetInt64(0);
+            var itemIdStr = reader.GetString(2);
+            if (!Guid.TryParseExact(itemIdStr, "N", out var itemId))
+            {
+                Api.Diagnostics.Record(
+                    "MediaDashDb.MalformedItemId",
+                    "Skipped issues row id=" + idColumn.ToString(CultureInfo.InvariantCulture) + ": item_id '" + itemIdStr + "' is not a valid 32-char hex GUID. Delete the row from SQLite to clean up (DELETE FROM issues WHERE id = " + idColumn.ToString(CultureInfo.InvariantCulture) + ";).");
+                continue;
+            }
+
             result.Add(new Issue
             {
-                Id = reader.GetInt64(0),
+                Id = idColumn,
                 Type = (IssueType)reader.GetInt32(1),
-                ItemId = Guid.ParseExact(reader.GetString(2), "N"),
+                ItemId = itemId,
                 Path = reader.GetString(3),
                 DetailsJson = reader.GetString(4),
                 SuggestedFix = reader.GetString(5),
@@ -906,11 +920,24 @@ public sealed class MediaDashDb
             return null;
         }
 
+        // F-014 (single-row variant): tolerate malformed item_id — return null rather than
+        // throwing FormatException all the way up. Every caller of GetIssue already handles the
+        // "no such row" null return, so the malformed case reuses that path.
+        var idColumn = reader.GetInt64(0);
+        var itemIdStr = reader.GetString(2);
+        if (!Guid.TryParseExact(itemIdStr, "N", out var itemId))
+        {
+            Api.Diagnostics.Record(
+                "MediaDashDb.MalformedItemId",
+                "GetIssue(" + issueId.ToString(CultureInfo.InvariantCulture) + ") returned null: item_id '" + itemIdStr + "' is not a valid 32-char hex GUID. Delete the row from SQLite to clean up.");
+            return null;
+        }
+
         return new Issue
         {
-            Id = reader.GetInt64(0),
+            Id = idColumn,
             Type = (IssueType)reader.GetInt32(1),
-            ItemId = Guid.ParseExact(reader.GetString(2), "N"),
+            ItemId = itemId,
             Path = reader.GetString(3),
             DetailsJson = reader.GetString(4),
             SuggestedFix = reader.GetString(5),
