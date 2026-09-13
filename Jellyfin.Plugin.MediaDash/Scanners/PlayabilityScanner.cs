@@ -55,6 +55,11 @@ public sealed class PlayabilityScanner : ProbingScannerBase
         string? reason = null;
         string? detail = null;
 
+        // technical: raw ffmpeg / ffprobe output (multi-line, decoder-speak). Kept separate
+        // from `detail` so the History / Recycle bin / Issues UI can render the friendly line
+        // as primary text and hide the raw dump behind a "Technical detail" disclosure.
+        string? technical = null;
+
         if (!System.IO.File.Exists(path))
         {
             return new Issue
@@ -107,7 +112,7 @@ public sealed class PlayabilityScanner : ProbingScannerBase
             return new Issue
             {
                 DetailsJson = JsonSerializer.Serialize(new { reason = "book-or-comic-corrupt", detail = probeReason }),
-                SuggestedFix = "This file can't be read. Approve to remove it — it goes to the recycle bin first unless you chose permanent delete.",
+                SuggestedFix = "This file can't be read. Approve to try repair — if repair fails the file is removed (recycle bin unless you chose permanent delete).",
                 SizeSavings = bookSize
             };
         }
@@ -121,7 +126,8 @@ public sealed class PlayabilityScanner : ProbingScannerBase
         if (probe.Error is not null || probe.Streams is null || probe.Streams.Count == 0)
         {
             reason = "unreadable";
-            detail = probe.Error?.Message ?? "The file could not be read as a media file.";
+            detail = "The file could not be read as a media file.";
+            technical = probe.Error?.Message;
         }
         else if (IsContainerExtensionMismatch(path, probe, out var mismatchDetail))
         {
@@ -190,7 +196,8 @@ public sealed class PlayabilityScanner : ProbingScannerBase
                 if (decodeError is not null)
                 {
                     reason = "decode-error";
-                    detail = decodeError;
+                    detail = "The video stream is damaged and the decoder rejected part of it.";
+                    technical = decodeError;
                 }
             }
         }
@@ -211,8 +218,8 @@ public sealed class PlayabilityScanner : ProbingScannerBase
 
         return new Issue
         {
-            DetailsJson = JsonSerializer.Serialize(new { reason, detail }),
-            SuggestedFix = "This file can't be played. Approve to remove it — it goes to the recycle bin first unless you chose permanent delete.",
+            DetailsJson = JsonSerializer.Serialize(new { reason, detail, technical }),
+            SuggestedFix = "This file can't be played. Approve to try repair — if repair fails the file is removed (recycle bin unless you chose permanent delete).",
             SizeSavings = size
         };
     }

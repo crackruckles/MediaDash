@@ -1490,4 +1490,19 @@ public sealed class MediaDashDb
             throw;
         }
     }
+
+    /// <summary>
+    /// Returns the Playability repair-ladder tally for the Overview panel. Empty until the
+    /// history schema tracks per-repair saved_bytes + rung labels (v7 migration).
+    /// </summary>
+    /// <param name="sinceTicks">Ignored today; retained on the signature so the callsite doesn't churn when the real query lands.</param>
+    /// <returns>An empty summary. Front-end hides the panel on <c>CountLifetime == 0</c>.</returns>
+    // ponytail: stub only — history schema doesn't yet carry saved_bytes / rung. Upgrade path:
+    // add schema v7 migration (saved_bytes column) + v8 (action_detail) then replace this with a
+    // real COUNT/SUM query grouped by rung label parsed from history.action.
+    public Api.RepairSummary GetRepairSummary(long sinceTicks)
+    {
+        _ = sinceTicks;
+        return new Api.RepairSummary();
+    }
 }

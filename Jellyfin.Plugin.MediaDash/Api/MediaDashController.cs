@@ -247,7 +247,8 @@ public class MediaDashController : ControllerBase
             RecycleBinRetentionDays = config.RecycleBinRetentionDays,
             LastFixRun = Plugin.LastFixRun,
             FixPauseReason = FixTask.PauseReason,
-            RedownloadWarnings = Plugin.RedownloadWarnings
+            RedownloadWarnings = Plugin.RedownloadWarnings,
+            Repair = _db.GetRepairSummary(DateTime.UtcNow.AddDays(-30).Ticks)
         };
     }
 
@@ -1281,6 +1282,7 @@ public class MediaDashController : ControllerBase
                     item.IssueType = h.Type.ToString();
                     item.Reason = RecycleReasonMapper.ReasonFor(h.Type);
                     item.ActionText = h.Action ?? string.Empty;
+                    item.TechnicalDetail = h.TechnicalDetail;
                     item.RestoreHint = RecycleReasonMapper.RestoreHintFor(RecycleProvenance.History, h.Path);
                 }
                 else if (!string.IsNullOrEmpty(e.OriginalPath))
