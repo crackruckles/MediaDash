@@ -31,11 +31,11 @@ public sealed class TrackFixer : IFixer
 
     // MP4-family container extensions (ipod muxer). The mp4/ipod muxer refuses bitmap subtitle
     // codecs under -c copy and any remux to the same container drops those tracks. Kept as a
-    // constant so both scanners (data-loss pre-flight) and the fixer (drop-on-remux) share one
-    // definition.
-    // ponytail: classifier only — the fix-time drop plumbing (negative-map fold-in) is not yet
-    // wired. Upgrade path: add ComputeMuxerIncompatibleSubtitleIndexes to RunTrackRemuxAsync's
-    // negative-map list so the remux succeeds against these sources instead of just warning.
+    // constant so both scanners (data-loss pre-flight warning) and the fixer (negative-map
+    // fold-in via ComputeMuxerIncompatibleSubtitleIndexes in RunTrackRemuxAsync) share one
+    // definition. The scanner attaches a blocking warning on affected files and the FixTask
+    // consent gate keeps them out of Queued until the user manually approves; only then does
+    // the fold-in drop the bitmap tracks at remux time.
     private static readonly HashSet<string> Mp4FamilyExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         "mp4", "m4v", "m4a", "mov"
@@ -220,9 +220,34 @@ public sealed class TrackFixer : IFixer
         string? recyclePath = null;
         long freed = 0;
 
+        var ext = Path.GetExtension(issue.Path).TrimStart('.');
+
+        // MP4-family source with bitmap subtitles present: the ipod muxer refuses dvd_subtitle /
+        // hdmv_pgs_subtitle / dvb_subtitle under -c copy, and any remux against those streams
+        // aborts with "Could not find tag for codec ... in stream #0:N, codec not currently
+        // supported in container". Scanners have already attached a blocking warning
+        // (data-loss consent gate) for these files, so we only reach this fold-in AFTER the
+        // user has manually approved from the Issues tab. Fold the incompatible sub indexes
+        // into removeIndexes so the negative-map list drops them at remux time — the remux
+        // now succeeds instead of the ipod muxer refusing the whole file. HashSet-dedup avoids
+        // double-mapping if the language filter already included the same subtitle stream.
+        var droppedIncompatibleCount = 0;
+        var incompatibleIndexes = ComputeMuxerIncompatibleSubtitleIndexes(probe, ext);
+        if (incompatibleIndexes.Count > 0)
+        {
+            var existing = new HashSet<int>(removeIndexes);
+            foreach (var idx in incompatibleIndexes)
+            {
+                if (existing.Add(idx))
+                {
+                    removeIndexes.Add(idx);
+                    droppedIncompatibleCount++;
+                }
+            }
+        }
+
         if (removeIndexes.Count > 0)
         {
-            var ext = Path.GetExtension(issue.Path).TrimStart('.');
             var tempPath = TranscodeFixer.SidecarPath(issue.Path, "tmp", ext);
             var swapPath = TranscodeFixer.SidecarPath(issue.Path, "new", string.Empty);
             var drive = RecycleBin.FindDriveForPath(issue.Path);
@@ -406,6 +431,13 @@ public sealed class TrackFixer : IFixer
 
         _libraryMonitor.ReportFileSystemChanged(issue.Path);
         _logger.LogInformation("Track fix: {Action}", actionText);
+        if (droppedIncompatibleCount > 0)
+        {
+            _logger.LogInformation(
+                "Track fix: dropped {Count} bitmap subtitle track(s) that the target MP4-family container cannot hold under -c copy (user pre-approved via blocking-warning consent gate).",
+                droppedIncompatibleCount);
+        }
+
         return new FixResult
         {
             Success = true,
