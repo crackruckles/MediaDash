@@ -9,7 +9,7 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
-        "version": "1.0.7.6.0",
+        "version": "1.0.7.6",
         "changelog": "Repair broken files ladder (quick remux → drop broken streams → container coerce → re-encode) + F-014/015/016 malformed-row robustness sweep (dashboard, PlayabilityFixer, HasBlockingWarnings + 6 other JSON readers hardened) + Media Grouper year-suffix fix for TV reboots (#43 Doctor Who, Silo) + Track fix VobSub/PGS/DVB consent gate for MP4-family (#56) + Track/Playability/Transcode fixers widened to UnauthorizedAccessException on SMB/NFS/FUSE (#59) + Recycle bin 5 GB soft-warn for Proxmox LXC / Docker bind-mount (#58) + Errors tab: correct labels for pauses / skips / malformed-row / ffmpeg-on-corrupt-source + stable FNV-1a dedup + 10-minute review grace + plain-language messages everywhere.\n\n753 / 753 tests green. 15 / 15 real-file torture-test variants recover end-to-end. One binary for Jellyfin 10.11 and 12.0.",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v1.0.7.6/mediadash_1.0.7.6.zip",
@@ -17,7 +17,7 @@
         "timestamp": "2026-09-14T13:49:00Z"
       },
       {
-        "version": "1.0.7.6.0",
+        "version": "1.0.7.6",
         "changelog": "Repair broken files ladder (quick remux → drop broken streams → container coerce → re-encode) + F-014/015/016 malformed-row robustness sweep (dashboard, PlayabilityFixer, HasBlockingWarnings + 6 other JSON readers hardened) + Media Grouper year-suffix fix for TV reboots (#43 Doctor Who, Silo) + Track fix VobSub/PGS/DVB consent gate for MP4-family (#56) + Track/Playability/Transcode fixers widened to UnauthorizedAccessException on SMB/NFS/FUSE (#59) + Recycle bin 5 GB soft-warn for Proxmox LXC / Docker bind-mount (#58) + Errors tab: correct labels for pauses / skips / malformed-row / ffmpeg-on-corrupt-source + stable FNV-1a dedup + 10-minute review grace + plain-language messages everywhere.\n\n753 / 753 tests green. 15 / 15 real-file torture-test variants recover end-to-end. One binary for Jellyfin 10.11 and 12.0.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v1.0.7.6/mediadash_1.0.7.6.zip",
