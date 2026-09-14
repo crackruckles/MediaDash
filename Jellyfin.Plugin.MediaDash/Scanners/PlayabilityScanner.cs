@@ -62,6 +62,17 @@ public sealed class PlayabilityScanner : ProbingScannerBase
 
         if (!System.IO.File.Exists(path))
         {
+            // Folder-based Jellyfin library entries — BDMV / VIDEO_TS / DVD rips, mounted ISO
+            // trees, some Blu-ray "BDRemux" layouts — expose a directory path, not a file path.
+            // File.Exists returns false but the item is fine and Jellyfin plays it (or, in the
+            // DRM-protected case, correctly refuses to). Skip playability checks entirely for
+            // these; the plugin can never usefully "repair" a folder tree, and reporting them
+            // as missing files with a "run a library scan" hint is user-hostile (2026-09-14).
+            if (System.IO.Directory.Exists(path))
+            {
+                return null;
+            }
+
             return new Issue
             {
                 DetailsJson = JsonSerializer.Serialize(new { reason = "missing", detail = "The library entry points to a file that no longer exists." }),
@@ -123,6 +134,17 @@ public sealed class PlayabilityScanner : ProbingScannerBase
             return null;
         }
 
+        // DRM-protected files (iTunes Fairplay, Widevine, PlayReady) surface encrypted sample
+        // entries as codec_tag_string="encv" (encrypted video) or "enca" (encrypted audio) under
+        // ISO base media file format. They aren't broken and the repair ladder can never fix them
+        // — every rung will fail and the file gets recycled. Skip playability checks entirely.
+        if (probe.Streams is not null && probe.Streams.Any(s =>
+                string.Equals(s.CodecTagString, "encv", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(s.CodecTagString, "enca", StringComparison.OrdinalIgnoreCase)))
+        {
+            return null;
+        }
+
         if (probe.Error is not null || probe.Streams is null || probe.Streams.Count == 0)
         {
             reason = "unreadable";
@@ -158,47 +180,20 @@ public sealed class PlayabilityScanner : ProbingScannerBase
         }
         else if (Config.ThoroughPlayabilityCheck)
         {
-            // Bitrate-vs-size sanity check first (cheap, no ffmpeg). If the container claims duration D
-            // and bitrate B, expected file size ≈ B*D/8. When the actual file is meaningfully smaller,
-            // the file was truncated even though its header still advertises the full duration. Only
-            // fires when both bit_rate and duration are known and positive. Tolerance 40% accommodates
-            // both VBR variance and containers where the reported bitrate is the video stream only
-            // (which is common) — we deliberately want false negatives over false positives here.
-            var bitrate = TryParseLong(probe.Format?.BitRate);
-            long actualSize = 0;
-            try
+            // Decode-check is the source of truth for truncation and corruption. Removed a
+            // bitrate-vs-size pre-filter here (2026-09-14) — it flagged efficient x264 rips of
+            // Severance / Landman / Rage / Outlander as "size-truncated" because Format.BitRate
+            // overestimated actual VBR content by 2×+. DecodeCheckAsync already catches genuine
+            // truncation via the decoded-time shortfall heuristic (FfprobeService line ~227) with
+            // far fewer false positives; keeping only that.
+            var decodeError = ShouldSampleWholeFile(duration)
+                ? await Ffprobe.DecodeCheckAsync(path, durationSeconds: 0, cancellationToken).ConfigureAwait(false)
+                : await Ffprobe.DecodeCheckAsync(path, duration, cancellationToken).ConfigureAwait(false);
+            if (decodeError is not null)
             {
-                actualSize = new System.IO.FileInfo(path).Length;
-            }
-            catch (System.IO.IOException)
-            {
-            }
-
-            if (bitrate is > 0 && duration > 0 && actualSize > 0)
-            {
-                var expectedBytes = bitrate.Value / 8.0 * duration;
-                if (actualSize < expectedBytes * 0.6)
-                {
-                    reason = "size-truncated";
-                    detail = string.Format(
-                        CultureInfo.InvariantCulture,
-                        "File is {0} bytes but the container's bitrate × duration expects ~{1:F0} bytes — the file appears to hold much less content than it advertises.",
-                        actualSize,
-                        expectedBytes);
-                }
-            }
-
-            if (reason is null)
-            {
-                var decodeError = ShouldSampleWholeFile(duration)
-                    ? await Ffprobe.DecodeCheckAsync(path, durationSeconds: 0, cancellationToken).ConfigureAwait(false)
-                    : await Ffprobe.DecodeCheckAsync(path, duration, cancellationToken).ConfigureAwait(false);
-                if (decodeError is not null)
-                {
-                    reason = "decode-error";
-                    detail = "The video stream is damaged and the decoder rejected part of it.";
-                    technical = decodeError;
-                }
+                reason = "decode-error";
+                detail = "The video stream is damaged and the decoder rejected part of it.";
+                technical = decodeError;
             }
         }
 
@@ -232,11 +227,6 @@ public sealed class PlayabilityScanner : ProbingScannerBase
         duration = 0;
         var raw = probe.Format?.Duration ?? probe.Streams?.FirstOrDefault(s => s.Duration is not null)?.Duration;
         return raw is not null && double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out duration);
-    }
-
-    private static long? TryParseLong(string? raw)
-    {
-        return long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : null;
     }
 
     /// <summary>

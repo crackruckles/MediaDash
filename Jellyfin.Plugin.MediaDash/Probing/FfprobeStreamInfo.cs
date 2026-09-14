@@ -27,6 +27,15 @@ public sealed class FfprobeStreamInfo
     public string? CodecName { get; set; }
 
     /// <summary>
+    /// Gets or sets the four-character codec tag string from the container's sample entry
+    /// (e.g. "avc1" for H.264, "hev1" for HEVC, "encv" / "enca" for encrypted video / audio
+    /// under ISO base media file format DRM). Used by <see cref="Scanners.PlayabilityScanner"/>
+    /// to skip DRM-protected files rather than mis-flag them as unplayable.
+    /// </summary>
+    [JsonPropertyName("codec_tag_string")]
+    public string? CodecTagString { get; set; }
+
+    /// <summary>
     /// Gets or sets the video width in pixels.
     /// </summary>
     [JsonPropertyName("width")]
