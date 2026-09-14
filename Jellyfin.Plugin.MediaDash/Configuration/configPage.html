@@ -8886,6 +8886,8 @@
                 { prefix: 'FixTask.FileLocked', title: 'Fix run — file locked', icon: 'lock', hint: 'The file was still open after ~7.5s of retries. Long-lived holders: an active playback, Jellyfin trickplay / chapter-thumb / cover-art extraction, a sibling MediaDash scan, or an external tool (Sonarr, Radarr, sync app, antivirus).' },
                 { prefix: 'FixTask.DiskFull', title: 'Fix run — drive full', icon: 'sd_card_alert', hint: 'The target or recycle-bin drive ran out of space mid-fix. Free some space and MediaDash will retry on the next run.' },
                 { prefix: 'FixTask.IOError', title: 'Fix run — I/O error', icon: 'error_outline', hint: 'An I/O error MediaDash can\'t classify — usually a network-path glitch, an ACL edge case, or an antivirus briefly locking the file. The next scheduled fix run will retry.' },
+                { prefix: 'FixTask.NoRunnable', title: 'Fix run — nothing to run', icon: 'info', hint: 'Every approved issue belongs to a type currently set to \'Off\' in Settings → What to fix. Switch the type to \'Ask me first\' or \'Automatic\' to let them run, or dismiss the issues. Not a failure.' },
+                { prefix: 'FixTask.SomeSkipped', title: 'Fix run — some issues skipped', icon: 'info', hint: 'The listed count of approved issues did not run because their type is set to \'Off\' in Settings → What to fix. The rest of the queue ran normally. Not a failure.' },
                 { prefix: 'FixTask', title: 'Fix run failed', icon: 'build', hint: 'The fix pipeline threw an unexpected error. Retry from the Errors tab; if it happens again, use "Report an issue".' },
                 { prefix: 'Ffprobe.Timeout', title: 'ffprobe timed out', icon: 'hourglass_empty', hint: 'A file took over 2 minutes to probe and was skipped. Usually a huge file on slow storage or a container ffprobe cannot parse.' },
                 { prefix: 'Ffprobe.RunFailed', title: 'ffprobe could not run', icon: 'terminal', hint: 'The Jellyfin server has no working ffprobe. Every scan that inspects files is blocked. Check Dashboard > Playback > Transcoding.' },
@@ -8900,7 +8902,8 @@
                 { prefix: 'StaleScanner.UserApi', title: 'Stale scanner — Jellyfin API mismatch', icon: 'error_outline', hint: 'MediaDash could not enumerate users on this Jellyfin build. The Stale scanner is skipped this run; other scanners are unaffected.' },
                 { prefix: 'SystemStats.Linux', title: 'System monitoring (Linux)', icon: 'monitoring', hint: 'A one-off failure reading /proc or /sys. The Overview stats card may show N/A for one poll. Not user-facing.' },
                 { prefix: 'SystemStats.WindowsGPU', title: 'System monitoring (Windows GPU)', icon: 'monitoring', hint: 'A GPU perf counter briefly failed. Overview GPU% may show N/A for one poll. Not user-facing.' },
-                { prefix: 'SystemStats', title: 'System monitoring', icon: 'monitoring', hint: 'A one-off system-stats sample failed. The Overview card may skip one poll. Not user-facing.' }
+                { prefix: 'SystemStats', title: 'System monitoring', icon: 'monitoring', hint: 'A one-off system-stats sample failed. The Overview card may skip one poll. Not user-facing.' },
+                { prefix: 'MediaDashDb.MalformedItemId', title: 'Database — malformed issues row', icon: 'storage', hint: 'A row in MediaDash\'s issues table has an item_id that is not a valid 32-char hex GUID. The row is skipped on every read (safe) but it will keep re-appearing here until deleted. Copy the DELETE statement from the message and run it against mediadash.db to clean up.' }
             ];
 
             function errorMeta(source) {
