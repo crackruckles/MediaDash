@@ -32,6 +32,31 @@ public sealed class MediaDashDbTests : IDisposable
     };
 
     [Fact]
+    public void InterleaveCacheRoundTripsAndInvalidatesOnFileChange()
+    {
+        Assert.Null(_db.GetCachedInterleave("A", 100, 5));
+
+        _db.StoreInterleave("A", 100, 5, 0);
+        Assert.Equal(0, _db.GetCachedInterleave("A", 100, 5));
+
+        _db.StoreInterleave("A", 100, 5, 1759.4);
+        Assert.Equal(1759.4, _db.GetCachedInterleave("A", 100, 5));
+
+        Assert.Null(_db.GetCachedInterleave("A", 101, 5));
+        Assert.Null(_db.GetCachedInterleave("A", 100, 6));
+    }
+
+    [Fact]
+    public void ResetScanStateClearsInterleaveCache()
+    {
+        _db.StoreInterleave("A", 100, 5, 12);
+
+        _db.ResetScanState();
+
+        Assert.Null(_db.GetCachedInterleave("A", 100, 5));
+    }
+
+    [Fact]
     public void ScopedScanDoesNotWipeIssuesOutsideItsScope()
     {
         _db.ReplaceDetectedIssues(IssueType.Playability, [Make("A"), Make("B")]);

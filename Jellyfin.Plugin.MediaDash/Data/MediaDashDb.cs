@@ -110,6 +110,14 @@ public sealed class MediaDashDb
                 reason TEXT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS interleave_cache (
+                path TEXT PRIMARY KEY,
+                size INTEGER NOT NULL,
+                mtime_utc INTEGER NOT NULL,
+                checked_at_utc INTEGER NOT NULL,
+                offset_seconds REAL NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS file_hashes (
                 path TEXT NOT NULL,
                 size INTEGER NOT NULL,
@@ -701,6 +709,48 @@ public sealed class MediaDashDb
     }
 
     /// <summary>
+    /// Looks up a cached interleave-check result that is still valid for the file's current size and modification time.
+    /// </summary>
+    /// <param name="path">Full file path.</param>
+    /// <param name="size">Current file size in bytes.</param>
+    /// <param name="mtimeUtcTicks">Current last-write time in UTC ticks.</param>
+    /// <returns>The measured audio/video offset in seconds (0 when the file is fine), or null when not cached.</returns>
+    public double? GetCachedInterleave(string path, long size, long mtimeUtcTicks)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT offset_seconds FROM interleave_cache WHERE path = @path AND size = @size AND mtime_utc = @mtime";
+        cmd.Parameters.AddWithValue("@path", path);
+        cmd.Parameters.AddWithValue("@size", size);
+        cmd.Parameters.AddWithValue("@mtime", mtimeUtcTicks);
+        return cmd.ExecuteScalar() is double offset ? offset : null;
+    }
+
+    /// <summary>
+    /// Stores an interleave-check result, replacing any previous entry for the path.
+    /// </summary>
+    /// <param name="path">Full file path.</param>
+    /// <param name="size">File size in bytes at check time.</param>
+    /// <param name="mtimeUtcTicks">Last-write time in UTC ticks at check time.</param>
+    /// <param name="offsetSeconds">The measured audio/video offset in seconds; 0 when the file is fine.</param>
+    public void StoreInterleave(string path, long size, long mtimeUtcTicks, double offsetSeconds)
+    {
+        using var connection = Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO interleave_cache (path, size, mtime_utc, checked_at_utc, offset_seconds)
+            VALUES (@path, @size, @mtime, @checkedAt, @offset)
+            ON CONFLICT(path) DO UPDATE SET size = @size, mtime_utc = @mtime, checked_at_utc = @checkedAt, offset_seconds = @offset
+            """;
+        cmd.Parameters.AddWithValue("@path", path);
+        cmd.Parameters.AddWithValue("@size", size);
+        cmd.Parameters.AddWithValue("@mtime", mtimeUtcTicks);
+        cmd.Parameters.AddWithValue("@checkedAt", DateTime.UtcNow.Ticks);
+        cmd.Parameters.AddWithValue("@offset", offsetSeconds);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
     /// Updates the status of a single issue.
     /// </summary>
     /// <param name="issueId">The issue id.</param>
@@ -1266,7 +1316,7 @@ public sealed class MediaDashDb
     {
         using var connection = Open();
         using var transaction = connection.BeginTransaction();
-        foreach (var table in new[] { "issues", "probe_cache", "decode_cache", "format_probe_cache" })
+        foreach (var table in new[] { "issues", "probe_cache", "decode_cache", "format_probe_cache", "interleave_cache" })
         {
             using var cmd = connection.CreateCommand();
             cmd.Transaction = transaction;

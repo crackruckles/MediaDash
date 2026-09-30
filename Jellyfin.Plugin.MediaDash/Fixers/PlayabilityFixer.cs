@@ -81,6 +81,13 @@ public sealed class PlayabilityFixer : IFixer
             return FixResult.Fail("The file plays fine now — nothing was removed. Re-scan to clear this issue.");
         }
 
+        // A badly interleaved file still plays from the start, so it must never reach the delete
+        // path below: it is either rewritten and verified, or left exactly as it is.
+        if (string.Equals(TryGetReason(issue.DetailsJson), InterleaveAnalyzer.IssueReason, StringComparison.Ordinal))
+        {
+            return await FixInterleaveAsync(issue, cancellationToken).ConfigureAwait(false);
+        }
+
         // Repair ladder — try to salvage before deleting. Skips out to today's delete path on
         // pre-flight fail, all-rungs-disabled, or all-rungs-fail. Dry-run also skips: there's no
         // way to preview a "the file WOULD have been repaired" outcome accurately.
@@ -131,6 +138,60 @@ public sealed class PlayabilityFixer : IFixer
             BytesFreed = size,
             RecyclePath = recyclePath
         };
+    }
+
+    private async Task<FixResult> FixInterleaveAsync(Issue issue, CancellationToken cancellationToken)
+    {
+        var fileName = Path.GetFileName(issue.Path);
+        if (Plugin.Instance!.Configuration.DryRun)
+        {
+            return FixResult.DryRun("rewritten " + fileName + " with sound and picture stored side by side", 0);
+        }
+
+        var ext = Path.GetExtension(issue.Path).TrimStart('.');
+        var probe = await _ffprobe.ProbeAsync(issue.Path, cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrEmpty(ext) || probe is null)
+        {
+            return FixResult.Fail("The file could not be read; nothing was changed.");
+        }
+
+        if (!HasFreeSpace(issue.Path, 2))
+        {
+            return FixResult.Fail("Not enough free disk space to rewrite the file (needs about twice its size); nothing was changed.");
+        }
+
+        var tempPath = TranscodeFixer.SidecarPath(issue.Path, "repair.tmp5", ext);
+        // -max_interleave_delta 0 makes the muxer hold packets until every stream has caught up,
+        // instead of giving up after 10 seconds and writing them in source order again. The held
+        // packets sit in memory, so usage grows with the size of the misplaced stretch.
+        var args = new List<string>
+        {
+            "-i", issue.Path,
+            "-map", "0",
+            "-c", "copy",
+            "-max_interleave_delta", "0",
+            tempPath
+        };
+
+        var error = await _ffmpeg.RunAsync(args, RepairRungTimeout, cancellationToken).ConfigureAwait(false);
+        var verifyError = error ?? await VerifyRepairedAsync(probe, issue.Path, tempPath, cancellationToken).ConfigureAwait(false);
+        if (verifyError is null)
+        {
+            var outputProbe = await _ffprobe.ProbeAsync(tempPath, cancellationToken).ConfigureAwait(false);
+            if (outputProbe is null || await _ffprobe.InterleaveCheckAsync(tempPath, outputProbe, cancellationToken, useCache: false).ConfigureAwait(false) is not null)
+            {
+                verifyError = "The rewritten file still has sound and picture stored apart.";
+            }
+        }
+
+        if (verifyError is not null)
+        {
+            TryDelete(tempPath);
+            return FixResult.Fail("The file could not be rewritten; it was left untouched.", TranscodeFixer.Truncate(verifyError));
+        }
+
+        return await TrySwapRepairedAsync(issue, tempPath, "sound and picture stored side by side", extensionChanged: false, cancellationToken).ConfigureAwait(false)
+            ?? FixResult.Fail("The file could not be rewritten; it was left untouched.");
     }
 
     /// <summary>
@@ -602,6 +663,9 @@ public sealed class PlayabilityFixer : IFixer
 
                 var decodeError = await _ffprobe.DecodeCheckAsync(issue.Path, duration, cancellationToken).ConfigureAwait(false);
                 return decodeError is not null;
+
+            case InterleaveAnalyzer.IssueReason:
+                return await _ffprobe.InterleaveCheckAsync(issue.Path, probe, cancellationToken).ConfigureAwait(false) is not null;
 
             case "unreadable":
             case "book-or-comic-corrupt":
