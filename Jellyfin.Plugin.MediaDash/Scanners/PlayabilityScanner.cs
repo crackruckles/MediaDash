@@ -199,7 +199,7 @@ public sealed class PlayabilityScanner : ProbingScannerBase
 
         if (reason is null)
         {
-            return null;
+            return await EvaluateInterleaveAsync(item, path, probe, cancellationToken).ConfigureAwait(false);
         }
 
         long size = 0;
@@ -216,6 +216,31 @@ public sealed class PlayabilityScanner : ProbingScannerBase
             DetailsJson = JsonSerializer.Serialize(new { reason, detail, technical }),
             SuggestedFix = "This file can't be played. Approve to try repair — if repair fails the file is removed (recycle bin unless you chose permanent delete).",
             SizeSavings = size
+        };
+    }
+
+    private async Task<Issue?> EvaluateInterleaveAsync(BaseItem item, string path, FfprobeData probe, CancellationToken cancellationToken)
+    {
+        if (!Config.ThoroughPlayabilityCheck || IsAudioKind(item.GetBaseItemKind()))
+        {
+            return null;
+        }
+
+        var offset = await Ffprobe.InterleaveCheckAsync(path, probe, cancellationToken).ConfigureAwait(false);
+        if (offset is not double seconds)
+        {
+            return null;
+        }
+
+        var detail = string.Format(
+            CultureInfo.InvariantCulture,
+            "Sound and picture are stored up to {0:F0} minutes apart inside this file. It plays from the start, but after skipping ahead it can stall or play without sound.",
+            Math.Ceiling(seconds / 60));
+        return new Issue
+        {
+            DetailsJson = JsonSerializer.Serialize(new { reason = InterleaveAnalyzer.IssueReason, detail }),
+            SuggestedFix = "Skipping ahead in this file can stall or lose sound. Approve to rewrite it with sound and picture stored side by side — nothing is re-encoded, and the file is left untouched if the rewrite fails.",
+            SizeSavings = 0
         };
     }
 

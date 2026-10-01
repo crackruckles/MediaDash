@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -163,6 +165,151 @@ public sealed class FfprobeService
             expectedSeconds: 0,
             tolerantContainer: true,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Checks whether the file's audio is stored next to the video it belongs to. Samples a few
+    /// positions first (cheap); only when a sample holds video without audio is the whole file
+    /// walked to measure how far apart the two really are. Results are cached by path, size and
+    /// modification time.
+    /// </summary>
+    /// <param name="path">Full path of the file to check.</param>
+    /// <param name="probe">The file's probe data.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <param name="useCache">False to measure the file afresh and leave the cache untouched.</param>
+    /// <returns>The audio/video offset in seconds when it exceeds <see cref="InterleaveAnalyzer.MaxOffsetSeconds"/>, or null when the file is fine or could not be checked.</returns>
+    public async Task<double?> InterleaveCheckAsync(string path, FfprobeData probe, CancellationToken cancellationToken, bool useCache = true)
+    {
+        ArgumentNullException.ThrowIfNull(probe);
+        var fileInfo = new FileInfo(path);
+        if (!fileInfo.Exists || probe.Streams is null)
+        {
+            return null;
+        }
+
+        // Cover art is reported as a video stream with a single packet; it says nothing about layout.
+        var video = probe.Streams.FirstOrDefault(s =>
+            string.Equals(s.CodecType, "video", StringComparison.OrdinalIgnoreCase)
+            && !(s.Disposition is not null && s.Disposition.TryGetValue("attached_pic", out var pic) && pic != 0));
+        var audioIndexes = probe.Streams
+            .Where(s => string.Equals(s.CodecType, "audio", StringComparison.OrdinalIgnoreCase))
+            .Select(s => s.Index)
+            .ToHashSet();
+        if (video is null || audioIndexes.Count == 0
+            || !double.TryParse(probe.Format?.Duration, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var duration))
+        {
+            return null;
+        }
+
+        var sampleStarts = InterleaveAnalyzer.GetSampleStarts(duration);
+        if (sampleStarts.Count == 0)
+        {
+            return null;
+        }
+
+        if (useCache)
+        {
+            var cached = _db.GetCachedInterleave(path, fileInfo.Length, fileInfo.LastWriteTimeUtc.Ticks);
+            if (cached is double c)
+            {
+                return c > InterleaveAnalyzer.MaxOffsetSeconds ? c : null;
+            }
+        }
+
+        var sampled = await ReadPacketTimesAsync(path, InterleaveAnalyzer.ToReadIntervals(sampleStarts), ProbeTimeout, cancellationToken).ConfigureAwait(false);
+        if (sampled is null)
+        {
+            return null;
+        }
+
+        double offset = 0;
+        if (InterleaveAnalyzer.HasSampleWithoutAudio(sampled, sampleStarts, video.Index, audioIndexes))
+        {
+            // A sample without audio is only a hint: an audio track that ends early or has silent
+            // gaps looks the same. The full walk is slow on big files but only runs on suspects.
+            var all = await ReadPacketTimesAsync(path, readIntervals: null, TimeSpan.FromMinutes(10), cancellationToken).ConfigureAwait(false);
+            if (all is null)
+            {
+                return null;
+            }
+
+            offset = InterleaveAnalyzer.MeasureMaxOffsetSeconds(all, video.Index, audioIndexes);
+        }
+
+        if (useCache)
+        {
+            _db.StoreInterleave(path, fileInfo.Length, fileInfo.LastWriteTimeUtc.Ticks, offset);
+        }
+
+        return offset > InterleaveAnalyzer.MaxOffsetSeconds ? offset : null;
+    }
+
+    private async Task<List<(int StreamIndex, double PtsSeconds)>?> ReadPacketTimesAsync(string path, string? readIntervals, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        var probePath = _mediaEncoder.ProbePath;
+        if (string.IsNullOrEmpty(probePath))
+        {
+            return null;
+        }
+
+        using var process = new Process();
+        process.StartInfo.FileName = probePath;
+        process.StartInfo.UseShellExecute = false;
+        process.StartInfo.CreateNoWindow = true;
+        process.StartInfo.RedirectStandardOutput = true;
+        process.StartInfo.RedirectStandardError = true;
+        process.StartInfo.ArgumentList.Add("-threads");
+        process.StartInfo.ArgumentList.Add(ResolveScanThreads());
+        process.StartInfo.ArgumentList.Add("-v");
+        process.StartInfo.ArgumentList.Add("error");
+        if (readIntervals is not null)
+        {
+            process.StartInfo.ArgumentList.Add("-read_intervals");
+            process.StartInfo.ArgumentList.Add(readIntervals);
+        }
+
+        foreach (var arg in new[] { "-show_entries", "packet=stream_index,pts_time", "-of", "csv=p=0", path })
+        {
+            process.StartInfo.ArgumentList.Add(arg);
+        }
+
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(timeout);
+
+        try
+        {
+            process.Start();
+            TryLowerPriority(process);
+            var stderrTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
+            var packets = new List<(int StreamIndex, double PtsSeconds)>();
+            while (await process.StandardOutput.ReadLineAsync(timeoutCts.Token).ConfigureAwait(false) is { } line)
+            {
+                if (InterleaveAnalyzer.TryParsePacketLine(line, out var streamIndex, out var pts))
+                {
+                    packets.Add((streamIndex, pts));
+                }
+            }
+
+            await process.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false);
+            await stderrTask.ConfigureAwait(false);
+            return process.ExitCode == 0 ? packets : null;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning("ffprobe packet walk timed out on {Path}", path);
+            TryKill(process);
+            return null;
+        }
+        catch (OperationCanceledException)
+        {
+            TryKill(process);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ffprobe packet walk failed on {Path}", path);
+            return null;
+        }
     }
 
     private async Task<string?> RunFfmpegDecodeAsync(string[] args, double expectedSeconds, bool tolerantContainer, CancellationToken cancellationToken)
