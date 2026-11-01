@@ -80,26 +80,26 @@ _Refreshes on the 1st of each month from opt-in installs. See [docs/PRIVACY.md](
 
 | | Lifetime | This month |
 |---|---:|---:|
-| **Storage reclaimed** | 152.2 TB | 75.4 GB |
-| Duplicate copies removed | 55,417 | 0 |
-| Broken files removed | 75,723 | 0 |
-| Oversized files re-encoded | 35,098 | 4 |
-| Unwanted subtitles stripped | 296,523 | 579 |
-| Unwanted audio stripped | 97,753 | 225 |
-| Misplaced files moved | 9,395 | 43 |
-| Missing subtitles downloaded | 101,296 | 762 |
-| Stale files retired | 326 | 1 |
-| Corrupt artwork repaired | 5,972 | 3 |
-| Suspicious files quarantined | 4,834 | 0 |
-| Ungrouped media grouped | 91,322 | 16 |
-| Trickplay thumbnails re-encoded | 40,950 | 0 |
+| **Storage reclaimed** | 163.2 TB | 1.6 MB |
+| Duplicate copies removed | 59,408 | 0 |
+| Broken files removed | 88,913 | 0 |
+| Oversized files re-encoded | 37,741 | 0 |
+| Unwanted subtitles stripped | 327,691 | 43 |
+| Unwanted audio stripped | 106,029 | 0 |
+| Misplaced files moved | 9,435 | 0 |
+| Missing subtitles downloaded | 119,624 | 20 |
+| Stale files retired | 375 | 0 |
+| Corrupt artwork repaired | 6,067 | 0 |
+| Suspicious files quarantined | 6,884 | 0 |
+| Ungrouped media grouped | 95,227 | 0 |
+| Trickplay thumbnails re-encoded | 55,719 | 0 |
 | Subtitle fonts stripped | 6 | 0 |
-| Orphaned debris removed | 1,086,421 | 3 |
-| Corrupt NFO deleted | 128,712 | 216 |
-| Heavy transcodes pre-encoded | 1,804 | 10 |
+| Orphaned debris removed | 1,117,235 | 0 |
+| Corrupt NFO deleted | 137,155 | 0 |
+| Heavy transcodes pre-encoded | 2,234 | 0 |
 | Failed transcodes recovered | 0 | 0 |
-| Embedded cover art consolidated | 53,693 | 0 |
-| **Reporting installs** | 2,943 lifetime | 369 this month |
+| Embedded cover art consolidated | 60,369 | 0 |
+| **Reporting installs** | 3,228 lifetime | 79 this month |
 <!-- STATS:END -->
 
 ## Built to be trusted with your media
