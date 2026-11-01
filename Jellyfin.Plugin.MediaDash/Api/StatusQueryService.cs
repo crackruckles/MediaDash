@@ -32,6 +32,10 @@ public sealed class StatusQueryService
     private readonly ITaskManager _taskManager;
     private readonly RunState _runState;
 
+    // Static so the reading cache and the one-measurement-in-flight-per-share guarantee hold across
+    // the dashboard's 3-15 s polls, however many StatusQueryService instances the host creates.
+    private static readonly UncVolumeProbe ShareProbe = new(MeasureShare, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(30));
+
     /// <summary>Initializes a new instance of the <see cref="StatusQueryService"/> class.</summary>
     /// <param name="db">Plugin DB — source of the Playability RepairSummary aggregation (history table).</param>
     /// <param name="issues">Issue-table store (05-C.2), source of open-issue summary + auto-queueable count.</param>
@@ -74,8 +78,10 @@ public sealed class StatusQueryService
         // returns "/" for every Linux path, which would collapse every library folder to root
         // and never match any mount point (leaving all drives unmarked as library drives on Linux,
         // which suppressed the SMART probe for every library drive there).
-        var libraryRoots = _libraryManager.GetVirtualFolders()
+        var libraryLocations = _libraryManager.GetVirtualFolders()
             .SelectMany(f => f.Locations)
+            .ToList();
+        var libraryRoots = libraryLocations
             .Select(l => Fixers.RecycleBin.FindDriveForPath(l))
             .Where(d => d is not null)
             .Select(d => Path.TrimEndingDirectorySeparator(d!.RootDirectory.FullName))
@@ -135,6 +141,36 @@ public sealed class StatusQueryService
             {
                 Diagnostics.Record("SystemStats.DriveStat", "Access denied reading drive '" + drive.Name + "' for the Overview: " + ex.Message + ". Grant Jellyfin's user read permission on the drive root to include it.");
             }
+        }
+
+        // Libraries on a NAS addressed by UNC path (\\nas\share) never match a drive letter above, so
+        // without this they'd be missing from the card (and from the free-space total and the
+        // low-space warning). Measured with a short timeout + cache so an offline NAS can't stall
+        // the dashboard; a share that can't be read is simply left out until it answers again.
+        // Several shares on one NAS volume report the same space, so they're merged into one entry
+        // instead of listing the disk twice and double-counting its free space.
+        var shareReadings = new List<(string Root, long FreeBytes, long TotalBytes)>();
+        foreach (var shareRoot in UncLibraryRoots.From(libraryLocations))
+        {
+            if (ShareProbe.TryGet(shareRoot, out var shareFree, out var shareTotal))
+            {
+                shareReadings.Add((shareRoot, shareFree, shareTotal));
+            }
+        }
+
+        foreach (var volume in UncVolumeGrouping.Group(shareReadings))
+        {
+            freeDisk += volume.FreeBytes;
+            totalDisk += volume.TotalBytes;
+            drives.Add(new DriveUsage
+            {
+                Root = volume.Label,
+                FreeBytes = volume.FreeBytes,
+                TotalBytes = volume.TotalBytes,
+                IsLibraryDrive = true,
+                IsNetworkShare = true,
+                LowSpaceWarning = ComputeShareLowSpaceWarning(volume.FreeBytes, volume.TotalBytes)
+            });
         }
 
         // Docker overlay / btrfs subvolume / etc. often report as DriveType.Unknown and get filtered out
@@ -321,6 +357,26 @@ public sealed class StatusQueryService
         }
 
         return ComputeLowSpaceWarning(drive.AvailableFreeSpace, drive.TotalSize, drive.DriveFormat, config.LibraryDriveWarnThresholdPercent);
+    }
+
+    private static UncVolumeProbe.Reading MeasureShare(string shareRoot)
+    {
+        return Fixers.FreeSpaceGuard.TryGetDiskSpace(shareRoot, out var free, out var total)
+            ? new UncVolumeProbe.Reading(true, free, total)
+            : default;
+    }
+
+    // Same config gating as the DriveInfo overload (feature flag + threshold), for a share that has
+    // no DriveInfo. The filesystem format is unknown over SMB, so no CoW tightening applies.
+    private static string? ComputeShareLowSpaceWarning(long freeBytes, long totalBytes)
+    {
+        var config = Plugin.Instance?.Configuration;
+        if (config is null || !config.LibraryDriveLowSpaceWarningEnabled)
+        {
+            return null;
+        }
+
+        return ComputeLowSpaceWarning(freeBytes, totalBytes, string.Empty, config.LibraryDriveWarnThresholdPercent);
     }
 
     /// <summary>

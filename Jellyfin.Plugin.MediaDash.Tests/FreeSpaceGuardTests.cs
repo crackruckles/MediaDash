@@ -66,6 +66,52 @@ public sealed class FreeSpaceGuardTests : IDisposable
     }
 
     [Fact]
+    public void TryGetAvailableFreeSpaceMeasuresARealVolume()
+    {
+        Assert.True(FreeSpaceGuard.TryGetAvailableFreeSpace(_tempFile, out var available));
+        Assert.True(available > 0);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("\0invalid-path")]
+    public void TryGetAvailableFreeSpaceFailsClosedOnUnmeasurablePaths(string path)
+    {
+        Assert.False(FreeSpaceGuard.TryGetAvailableFreeSpace(path, out var available));
+        Assert.Equal(0, available);
+    }
+
+    [Fact]
+    public void UncPathIsMeasuredInsteadOfFailingClosed()
+    {
+        // Regression: DriveInfo throws ArgumentException for a UNC root (\\server\share), so every
+        // library on a NAS addressed by UNC path was refused with "Not enough free disk space"
+        // no matter how much room the share had. Windows-only: build a UNC path to the temp
+        // file's own volume through the local administrative share. Returns quietly where that
+        // share is unavailable, so non-admin and non-Windows hosts don't see a false failure.
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var root = Path.GetPathRoot(_tempFile);
+        if (string.IsNullOrEmpty(root) || root.Length < 2 || root[1] != ':')
+        {
+            return;
+        }
+
+        var unc = @"\\localhost\" + root[0] + "$" + _tempFile.Substring(2);
+        if (!File.Exists(unc))
+        {
+            return;
+        }
+
+        Assert.True(FreeSpaceGuard.TryGetAvailableFreeSpace(unc, out var available));
+        Assert.True(available > 0);
+        Assert.True(FreeSpaceGuard.HasEnoughFreeSpace(unc, multiplier: 2));
+    }
+
+    [Fact]
     public void OverflowSafeArithmeticNeverThrows()
     {
         // Documents the intent: the helper divides available-space by multiplier instead of

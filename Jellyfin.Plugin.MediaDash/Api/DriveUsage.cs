@@ -27,6 +27,11 @@ public sealed class DriveUsage
     /// the DB volume filling up before it starves Jellyfin.</summary>
     public bool IsPluginDataDrive { get; set; }
 
+    /// <summary>Gets or sets a value indicating whether this entry is a network share addressed by UNC
+    /// path (e.g. <c>\\nas\media</c>) rather than a local drive. Shares have no SMART data, so the
+    /// Overview shows a "network share" badge for them instead of the SMART pill.</summary>
+    public bool IsNetworkShare { get; set; }
+
     /// <summary>Gets or sets a plain-language low-space warning for this drive
     /// (e.g. "Drive is 92 % full — free some space before fixes stall"), or null when the drive is
     /// below its configured threshold or the user dismissed the banner client-side. Advisory only;

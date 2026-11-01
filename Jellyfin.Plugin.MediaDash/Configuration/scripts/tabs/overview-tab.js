@@ -123,6 +123,8 @@
                     ? '<span class="mdBadge" style="background:rgba(6,182,212,.16);color:#67e8f9;font:600 11px \'IBM Plex Mono\', monospace;padding:4px 9px;border-radius:6px;">library</span>' : '';
                 var recycleBadge = dr.IsRecycleBinDrive
                     ? '<span class="mdBadge" style="background:rgba(236,72,153,.16);color:#f9a8d4;font:600 11px \'IBM Plex Mono\', monospace;padding:4px 9px;border-radius:6px;">recycle bin</span>' : '';
+                var shareBadge = dr.IsNetworkShare
+                    ? '<span class="mdBadge" style="background:rgba(148,163,184,.16);color:#cbd5e1;font:600 11px \'IBM Plex Mono\', monospace;padding:4px 9px;border-radius:6px;">network share</span>' : '';
                 var pill = smartHeaderPillHtml(dr);
                 var tiles = smartTilesHtml(dr);
                 var usageTitle = deps.fmt(deps.STR.driveUsed, deps.bytes(used), deps.bytes(dr.TotalBytes));
@@ -134,7 +136,7 @@
                     '<div class="mdDriveRow">' +
                         '<div class="mdDriveHeadMain">' +
                             '<span class="mdDriveRoot">' + deps.esc(dr.Root) + '</span>' +
-                            libraryBadge + recycleBadge +
+                            libraryBadge + recycleBadge + shareBadge +
                         '</div>' +
                         '<div class="mdDriveUsage" style="flex:1 1 300px;">' +
                             '<div class="mdBarTrack" title="' + deps.esc(usageTitle) + '">' +
@@ -156,6 +158,7 @@
             // pending pill so a fresh boot doesn't briefly say "SMART unknown". The pill auto-heals
             // on the next /Status poll (~3 s during scan/fix, up to ~15 s idle) once the probe lands.
             function smartHeaderPillHtml(dr) {
+                if (dr.IsNetworkShare) return ''; // SMART is a property of a physical disk, which a share doesn't expose.
                 if (!dr.IsLibraryDrive && !dr.IsRecycleBinDrive) return '';
                 if (!mdSmartMonitoringEnabled) {
                     return '<span class="mdSmartPill mdSmartPill--disabled" title="SMART monitoring is off. Right-click (or long-press) to re-enable.">' +
@@ -178,6 +181,7 @@
             // Stat tile row: temperature, wear, powered-on, uncorrected errors. Each tile only renders
             // when the server-side probe actually produced a value; skipping keeps the card honest.
             function smartTilesHtml(dr) {
+                if (dr.IsNetworkShare) return '';
                 if (!dr.IsLibraryDrive && !dr.IsRecycleBinDrive) return '';
                 if (!mdSmartMonitoringEnabled) return '';
                 var tiles = [];
