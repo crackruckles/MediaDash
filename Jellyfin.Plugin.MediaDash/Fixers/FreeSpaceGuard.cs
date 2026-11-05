@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 
 namespace Jellyfin.Plugin.MediaDash.Fixers;
 
@@ -35,17 +37,15 @@ internal static class FreeSpaceGuard
                 return false;
             }
 
-            var root = Path.GetPathRoot(fi.FullName);
-            if (string.IsNullOrEmpty(root))
+            if (!TryGetAvailableFreeSpace(fi.FullName, out var available))
             {
                 return false;
             }
 
-            var drive = new DriveInfo(root);
             // Overflow-safe: compare via division instead of `fi.Length * multiplier`, which would
             // wrap for sources larger than long.MaxValue / multiplier (~4.6 EB at multiplier=2 —
             // unrealistic today, but "unrealistic" is exactly how overflow bugs get shipped).
-            return drive.AvailableFreeSpace / multiplier >= fi.Length;
+            return available / multiplier >= fi.Length;
         }
         catch (IOException)
         {
@@ -60,4 +60,94 @@ internal static class FreeSpaceGuard
             return false;
         }
     }
+
+    /// <summary>
+    /// Measures the bytes available to the current user on the volume holding
+    /// <paramref name="fullPath"/>. On Windows this uses <c>GetDiskFreeSpaceExW</c>, which (unlike
+    /// <see cref="DriveInfo"/>) accepts UNC/NAS paths such as <c>\\nas\share\Shows\…</c> and honours
+    /// per-user quotas. Everywhere else, and as a fallback on Windows, it uses
+    /// <see cref="DriveInfo"/> on the path root. Returns false (fail closed) when the volume can't
+    /// be measured.
+    /// </summary>
+    /// <param name="fullPath">Absolute path to a file or directory on the volume to measure.</param>
+    /// <param name="availableBytes">Bytes available to the caller, or 0 when this returns false.</param>
+    /// <returns>True when the free space could be measured.</returns>
+    internal static bool TryGetAvailableFreeSpace(string fullPath, out long availableBytes)
+    {
+        availableBytes = 0;
+
+        if (string.IsNullOrEmpty(fullPath))
+        {
+            return false;
+        }
+
+        if (OperatingSystem.IsWindows() && TryGetAvailableFreeSpaceWindows(fullPath, out availableBytes))
+        {
+            return true;
+        }
+
+        var root = Path.GetPathRoot(fullPath);
+        if (string.IsNullOrEmpty(root))
+        {
+            return false;
+        }
+
+        try
+        {
+            availableBytes = new DriveInfo(root).AvailableFreeSpace;
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            // DriveInfo only understands drive letters on Windows; a UNC root lands here.
+            return false;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static bool TryGetAvailableFreeSpaceWindows(string fullPath, out long availableBytes)
+    {
+        availableBytes = 0;
+
+        // Try the containing directory first: it resolves mounted-folder volumes correctly. Fall
+        // back to the path root, which is short enough to dodge MAX_PATH for very deep trees.
+        // GetDiskFreeSpaceExW requires a trailing separator on a bare UNC share root.
+        var candidates = new[] { Path.GetDirectoryName(fullPath), Path.GetPathRoot(fullPath) };
+        foreach (var candidate in candidates)
+        {
+            if (string.IsNullOrEmpty(candidate))
+            {
+                continue;
+            }
+
+            var dir = Path.EndsInDirectorySeparator(candidate) ? candidate : candidate + Path.DirectorySeparatorChar;
+            if (GetDiskFreeSpaceExW(dir, out var freeToCaller, out _, out _))
+            {
+                // The API reports unsigned 64-bit; clamp so the signed comparison in the caller
+                // can never go negative.
+                availableBytes = freeToCaller > long.MaxValue ? long.MaxValue : (long)freeToCaller;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    [SupportedOSPlatform("windows")]
+    private static extern bool GetDiskFreeSpaceExW(
+        string lpDirectoryName,
+        out ulong lpFreeBytesAvailableToCaller,
+        out ulong lpTotalNumberOfBytes,
+        out ulong lpTotalNumberOfFreeBytes);
 }
