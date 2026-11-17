@@ -53,7 +53,7 @@ public sealed class SubtitleLanguageScanner : ProbingScannerBase
         var external = string.Equals(item.Path, path, StringComparison.Ordinal)
             ? item.GetMediaStreams()
                 .Where(s => s.Type == MediaStreamType.Subtitle && s.IsExternal && !string.IsNullOrEmpty(s.Path)
-                    && !string.Equals(s.Path, path, StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(s.Path, path, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)
                     && !LanguageHelper.IsAllowed(s.Language, allowed)
                     && !(protectHi && s.IsHearingImpaired))
                 .Select(s => new { s.Path, Language = LanguageHelper.Normalize(s.Language) })
@@ -90,7 +90,7 @@ public sealed class SubtitleLanguageScanner : ProbingScannerBase
         // Data-loss pre-flight — shared with AudioLanguageScanner. If the SUB fix will incidentally
         // drop bitmap subs the mp4/ipod container can't hold, block auto-queue until the user
         // confirms via Approve.
-        var warnings = AudioLanguageScanner.BuildDataLossWarnings(probe!, path);
+        var warnings = AudioLanguageScanner.BuildDataLossWarnings(probe ?? new FfprobeData(), path);
 
         var issue = new Issue
         {

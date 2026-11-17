@@ -1,0 +1,1043 @@
+{
+  "caseId": "reddit-disappearing",
+  "sourceDigest": "575b881b68693b1a6cc7182c865c286916b41a251ac654fcc3799ae2958a96ab",
+  "dllSha256": "f3c38106ae7cb5a640d27cf460644b36ce6b5da14a71ae6d14ffa1f3dc6a9f01",
+  "environment": "Windows interactive account, owned loopback Jellyfin 10.11.11 and 12.0.0 (12.0-rc3 archive), exact isolated candidate DLL f3c38106ae7cb5a640d27cf460644b36ce6b5da14a71ae6d14ffa1f3dc6a9f01",
+  "checks": [
+    {
+      "name": "v10: exact issue preview has zero savings and keeps the queued row",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: exact issue refusal writes failed history without savings or recycle",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: all unchanged originals and foreign destination retain exact hashes",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: refused row stays visible through rescan under the exact issue ID",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: exact issue preview has zero savings and keeps the queued row",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: exact issue refusal writes failed history without savings or recycle",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: all unchanged originals and foreign destination retain exact hashes",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: refused row stays visible through rescan under the exact issue ID",
+      "passed": true,
+      "skipped": false
+    }
+  ],
+  "evidenceRecord": "docs/testing/reported-issues-evidence/review-repairs-local-20261106.json",
+  "evidenceRecordSha256": "d4ea0f06d4d102877ac08753f010340a42f3f813cf64f6294c8133f453643183",
+  "evidenceHashes": [
+    {
+      "path": "artifacts/push-preparation-20261105-review-repairs/artifacts/review-final-gate-20261106/dotnet.log",
+      "sha256": "9d189ad2ebf0a8f876f1e92f25fd4163bbeb8e942a9074531c31683c76f572bc"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-review-repairs/artifacts/review-final-gate-20261106/gate-self-tests.log",
+      "sha256": "4e246c85fa3340ebc6a891f59abe28f4381844bfca2fb5891227818368eebfaf"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-review-repairs/artifacts/review-final-gate-20261106/reported-issues.trx",
+      "sha256": "24a3170fc803cd7c1b31517fef752180bafb76de885e328c896af1e47a9d3a0a"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-review-repairs/artifacts/review-final-gate-20261106/summary.json",
+      "sha256": "76d05261f4b74567dedb52006bebfbe5f0a185fcd7b564023b04eea8f930bff1"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-review-repairs/artifacts/review-final-gate-20261106/ui.log",
+      "sha256": "1f78a133b1dd871f993b57d6064b24de6c91b405b5064706a65e1b43b1663a28"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-review-repairs/artifacts/review-final-harnesses-20261106/summary.json",
+      "sha256": "25283796d42a61bed59876cd96eac8bfec80cade382add41031470f636592b19"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-review-repairs/artifacts/review-linux-results/review-linux.trx",
+      "sha256": "7919c8a6a8e2278bab09446512086c5f5fd4353b79efac1efe6c10cd83a02d4f"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-review-repairs/artifacts/review-linux.log",
+      "sha256": "3ff95eefafd7401c3f4d638e74664a5ffc726af9058ee34dcb1bb052e3e69a8b"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-nfo-thumb-expected-undo-red.log",
+      "sha256": "cb29fa31b0fb2a6a68f3612e898aa2f69dc422eaa0583e26d9cf33d4e19283da"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-nfo-thumb-retry/v10/final-evidence/cleanup.json",
+      "sha256": "c045a318672481e972f40775ec9935dc8885cf52040c7d8c679f91871d9d3862"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-nfo-thumb-retry/v10/final-evidence/diagnostic.json",
+      "sha256": "36873f343e0e15810a1186cc0e1ac2dec0f6503e9ebfdb477ad5683eca4d607c"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-nfo-thumb-retry/v10/final-evidence/failed-undo-fixture-recovery.json",
+      "sha256": "8d834ea940836a1b8a68fcfc3c4faeae49cbec3643aa1ba4c758d0ca0a03e637"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-nfo-thumb-retry/v10/final-evidence/undo.json",
+      "sha256": "82e4b2dfb30a5122cc055f0eef321a7f2755ff5465e26e4a0846b31faddd1305"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser.log",
+      "sha256": "71bc4b6d4b70b48c78a1f10b084d48004b1d64674aaa168f86a7469757fad09e"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser/base.py",
+      "sha256": "f94d2e356e63e7544fc0f53ad6ed1fc074302c421692afd4a8526d0c78a93d98"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser/browser.cjs",
+      "sha256": "f4f8f8f0e03ca07e919fe749e128485201a160c1860c599be127d3cb0d67c1ac"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser/continuation.py",
+      "sha256": "6a40d6294a1997d4cb068ddefaf75eb13c02d1c4b6e9cd8f47a1494391bb81b8"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser/run.py",
+      "sha256": "e2084cd1a3972621e17043f0a0481a696b6859f162e2e4f7c4de70521a59d172"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser/v12/final-evidence/browser-progress.json",
+      "sha256": "3484d381dde558c084cbc136c947da095a8ea4f022fb7e6b13ee8ac73fcefe57"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser/v12/final-evidence/candidate.json",
+      "sha256": "677c3660c6a12a8284774b8c26b160325343cd1e50ac5062c615837c107a7e5b"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser/v12/final-evidence/cleanup.json",
+      "sha256": "3e38013166b654012c22a04d5bb9a63aaf87dc3fbdf6546c923d86880db7cf4c"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser/v12/final-evidence/cold-scan-timing.json",
+      "sha256": "750d21e137a1c0fe61b93ddbe1eba82f5e89a9e95fd12c141a149dc8a9e622dd"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser/v12/final-evidence/config-before-load.json",
+      "sha256": "5a2b25c32e3a081c97221e5a865a5aa130d8cc4bf70c918b72b0eb94fa8835c4"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser/v12/final-evidence/config-fresh.json",
+      "sha256": "cedc717378b9e11df35cf77fcf2a176db6c724bf3c8fad6ea4a34a946b0145ea"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser/v12/final-evidence/config-workflow.json",
+      "sha256": "456da8955cc794c421ceaae7da1ff1ecacf58add0b2fb6bcda291068e7ebeac3"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser/v12/final-evidence/fixture-cleanup.json",
+      "sha256": "463e0d3453fde50fb40f28200ee820214cbfd1670ced65d98115d4e63bbccfb0"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser/v12/final-evidence/fixture.json",
+      "sha256": "5c29b9330c5420d8f11e38cd4460728f666de9c4ff8ab97b1454c9b3274a2917"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser/v12/final-evidence/issues-after-load-scan.json",
+      "sha256": "c1371ef569b131a3639020665f0638ab3e59a6291e2f61bfc385fcb472eb1a2d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser/v12/final-evidence/issues-initial.json",
+      "sha256": "71f9871825213a4a2d96d64329302529bf41e0189cb43f738bf33d25c1902059"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser/v12/final-evidence/load-findings-verified.json",
+      "sha256": "4e08068199b5aee5c3a67113a5864d6e2c6dc12eb5952751daac5acd69a4e0ee"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser/v12/final-evidence/load-fixtures.json",
+      "sha256": "b8e6f0c28a42414d9c66b7e8630c749eeb4253dc195535241908c4d9e6b7b271"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser/v12/final-evidence/native-index-timing.json",
+      "sha256": "95cddd8d0b93220a53270ad3ccba92a72b96b239d45651bf8b6496bcc911712d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser/v12/final-evidence/plugin.json",
+      "sha256": "15ad030f337f5897cb55a7b32115639b3f8f6bc56080f9cdbd99f51afad3fd87"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser/v12/final-evidence/results.json",
+      "sha256": "467903013415f5c7456f251c4723358122aa9045efc35fd3f31e512f44285b6d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser/v12/final-evidence/server-config-before-index.json",
+      "sha256": "41b996c7de20d2932bc64c7b75eafbc96af112950d73ea85e0d4eaba652a3076"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser/v12/final-evidence/server.json",
+      "sha256": "dbe07c060d2f25dbb945ad4e768269e04d198ff21add189369c3e17c56109bde"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-browser/v12/final-evidence/warm-scan-timing.json",
+      "sha256": "533870fb3ab7c03d2967f3663d8cf47530e3ab5324f3e4e4b74eb4062c502267"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live.log",
+      "sha256": "03f292c3ce596dbb1f5920d56c9fb995c71a44e5dc45582d1c68cd8f84fc39d0"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/base.py",
+      "sha256": "b243c23568c85584d383b447c3c3532d44a5bd45cf93f4b6563347bd086b16ce"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/continuation.py",
+      "sha256": "24dae04435974ce3866b1f89c07cef521ff37cfc7f089cd46a63c2bb2ae2ec08"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/mover.py",
+      "sha256": "7a647881157cc769ec27823e8eec303ac4d917e52efab913f741874fcb4ef4e7"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/refusal.py",
+      "sha256": "1a07ae6cc24cd644544598727e3d2dd211c8157836f3a91b77bdefa1a046fc5e"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/run.py",
+      "sha256": "2d5a02246bfe87c61fb03814a1516c07333a393322b771d05ddf417eda75824a"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10-outcome.json",
+      "sha256": "90d69310f0a9f55fc3d3c43d36574bf23ba09b95acc1037f1215eba586c2620a"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/artwork-disposal-failure-history.json",
+      "sha256": "76e10e8010615264e73f586a59277d83bbd826fedcc621a44f1a80d42047fc57"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/artwork-fixture.json",
+      "sha256": "df7658a65decf73e5d998f24ef37fd72c9ce3ee3923963844151434c1e4a51b7"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/artwork-images-after-fix.json",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/artwork-images-after-restore.json",
+      "sha256": "5002503d609519bb520676809aa71ff597d5b10815b8eb6cbbec9b7569407487"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/artwork-initial-images.json",
+      "sha256": "33345d1a70d06fb3d6c4f2f7109c643c4dcb5d7889922363180d9adfb426f65b"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/artwork-persistence-failure-history.json",
+      "sha256": "9bc8617da24f460eb9fa1b146cff88082c91cb1b2dd2b97476ebd2b46cd57ba0"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/artwork-real-history.json",
+      "sha256": "9155ba699de2b9b5c5a974609554568df639d267b0c54b560bc1ba024cab5849"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/audio-baseline.json",
+      "sha256": "872f9916eb4f3d3f70fe40422979535c564a3cbb8ed0db2f201ff281af4f808f"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/audio-real-history.json",
+      "sha256": "c7b285b69cd69d18f545f66c52af9d95b62bee35b0a168930da6bd3f0c5f4e4c"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/audio-recovered.json",
+      "sha256": "f2c0222888cac003cbb2d1c7d00345f140004e3e3da4b0a384aa8340e2343f84"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/audio-restore.json",
+      "sha256": "04d484788308bd3172685dc863b22f0c59771222438ab10f110603960dd8b372"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/cleanup.json",
+      "sha256": "0d0303be33ecc40968689c1e2de8e4508750ede78172797aa6b2fd101b88ea1a"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/config-after-upgrade.json",
+      "sha256": "a92dbe9b6a0d5ef37bd22ae1f6e163a6fdd630ff275808056f141b1beaa43d7d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/config-before-legacy.json",
+      "sha256": "a92dbe9b6a0d5ef37bd22ae1f6e163a6fdd630ff275808056f141b1beaa43d7d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/config-fresh.json",
+      "sha256": "cedc717378b9e11df35cf77fcf2a176db6c724bf3c8fad6ea4a34a946b0145ea"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/config-workflow.json",
+      "sha256": "456da8955cc794c421ceaae7da1ff1ecacf58add0b2fb6bcda291068e7ebeac3"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/fixture.json",
+      "sha256": "621dd02ceee436e35808211f3dff7e4e5b717d450226ba699f85f7ae76db613a"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/group-applied.json",
+      "sha256": "142c643f6b2579091bdd3814c102eaa84f93be16826464f896e9f5a5c35ec6dc"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/group-fixture.json",
+      "sha256": "1edc745a64fb4639b257a30f07662a9595a1396a410a389ebdaa81f44cd3dba4"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/group-plan.json",
+      "sha256": "817eab171cc392652fafde659e2073bcf75bd58342fb4f163c3b271684df02ce"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/group-undo.json",
+      "sha256": "e7fc796689a7b903aeef15fdca0fa742dd7600bc8b2dea72d9881fd1c2e1c6fe"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/history-http-timing.json",
+      "sha256": "0e90602f5bfa1c5447d94d9e07ab553bdab2c904e296068f41e19e81133793e1"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/issue86-all.json",
+      "sha256": "30ef80964907757a5d786d02b5f64f1fa6960bafa3e60bfcbb5734189731f01d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/issue86-custom-all.json",
+      "sha256": "24c10f0059fd617d22a382f1e4ac0be1e09fdef17647ede2f3f61fa18cb271ce"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/issue86-custom-selected.json",
+      "sha256": "81db3ba899de3fc03d09aecccb2eec8eaa5ee1361913b3b3373e56beef0b2c53"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/issue86-selected.json",
+      "sha256": "01700bd59cfbe16f53df58e0d00acf8936a6ed435dc3d8b9eff648032c8befa9"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/issue87-live.json",
+      "sha256": "fc529d1a08eb1535b6543cc1e44d0f883ca4df6856ab017187a6e3b31385b2c2"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/issue89-live.json",
+      "sha256": "a7070896f194416504b4ef313fb9b2e406a8392fb9613983f64f41b63e0c22cb"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/issue92-header.json",
+      "sha256": "ca43fc0595d1efd66428cc4125eff339c973d238f2df6358e62d95dd1d5b3f15"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/issue92-inventory.json",
+      "sha256": "512f6161790e66440f725efdaf07539f81cb0c00635e4ad4f528063f9fc1eafd"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/issues-initial.json",
+      "sha256": "a9062b2ecfd260ba9973913003f9157fbe1b8dfe62b358cb47779a1bbb9882c9"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/load-fixtures.json",
+      "sha256": "673599c496aad3f2a799eb4b6ccc5385c7286215c02401f62fb8b2ee728454f1"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/load-seed.json",
+      "sha256": "98d04274baa7d984a1df93133c054483846811f53c7bf14aee6dd876ff1fc182"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/plugin.json",
+      "sha256": "15ad030f337f5897cb55a7b32115639b3f8f6bc56080f9cdbd99f51afad3fd87"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/preview-history.json",
+      "sha256": "55837752974066500c6b050ba50fd960e29a609f92cbf9537c24b06e3bfb9659"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/queue-before-restart.json",
+      "sha256": "365e6398e7a303f61cbe031e2a8228a6140f92aab77d23e1c67efd24a227730d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/results.json",
+      "sha256": "468a74cbfe54988d884ce8bc26f200befded815e281779ea0b1efa48011dcac0"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/server.json",
+      "sha256": "e711868784ec226e604844967f9775c8433cd2ed243afc805f082207a5d8402d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/system-before-custom-metadata.json",
+      "sha256": "45b274748d464576b23511a7b5ecb9b809260b9573c55fad77473afd241f493b"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/trim.json",
+      "sha256": "ed0e8f0aa66bcd2a0c5f4ba1d7babdbce9249115652e0861df0ef103fdf318c0"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/watch-after-undo.json",
+      "sha256": "b94cef3b55462db3389a64347b3e2d26eef3ca950340898ac918690b31fe1ba6"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/watch-after.json",
+      "sha256": "9573a2f85fb9531c6af5f03a320ff7894389e7c18705e4017a0eb9c36a57a8b8"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/watch-before.json",
+      "sha256": "735c61f73cd4ca58ecc2e6e44898eb3a5c4092104d1594835e93e88a2c0cbc05"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/final-evidence/xml-before-legacy.json",
+      "sha256": "99000ddc6a082d78a0ab174f08acda4a3e8861dbc7c579e248f7988e75eb68be"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/refusal-evidence/cleanup.json",
+      "sha256": "15f1beb63efd718a3a7bab8150091f84c50770dfea7ae9c13bf2dc6c5769ab39"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/refusal-evidence/config-fresh.json",
+      "sha256": "cedc717378b9e11df35cf77fcf2a176db6c724bf3c8fad6ea4a34a946b0145ea"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/refusal-evidence/fixture.json",
+      "sha256": "621dd02ceee436e35808211f3dff7e4e5b717d450226ba699f85f7ae76db613a"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/refusal-evidence/plugin.json",
+      "sha256": "15ad030f337f5897cb55a7b32115639b3f8f6bc56080f9cdbd99f51afad3fd87"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/refusal-evidence/refused-move.json",
+      "sha256": "f4e4c6a49d00fea3f055c52203b65ce8673049d4f9f9496933f210f7f93d7fa1"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/refusal-evidence/results.json",
+      "sha256": "b550c7e7c0a9047972f52a87a26b36b34de88a9c9d1cb0975c55e581aa0be0de"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v10/refusal-evidence/server.json",
+      "sha256": "e711868784ec226e604844967f9775c8433cd2ed243afc805f082207a5d8402d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12-outcome.json",
+      "sha256": "90d69310f0a9f55fc3d3c43d36574bf23ba09b95acc1037f1215eba586c2620a"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/artwork-disposal-failure-history.json",
+      "sha256": "49d974506d645b6b3a1f1a6dd71d0a2965ac7e98139f1ef96f8c6b26f0ea4744"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/artwork-fixture.json",
+      "sha256": "ac32c82123f58e8db5a79fe945e6f8d63196af5509386927df0022d9553e0bbc"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/artwork-images-after-fix.json",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/artwork-images-after-restore.json",
+      "sha256": "efd58f694e585ed276e2f1ec6bf746e5d4a7f295da810b1595672590ac9b7748"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/artwork-initial-images.json",
+      "sha256": "68453e868ee728dd434941cac38947b211e233dc98408abf13bc8bcd5004a351"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/artwork-persistence-failure-history.json",
+      "sha256": "4b06fa76a66aea0268bf03a94fcfd19d93e1e71da22b57069a70b44ea913ae41"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/artwork-real-history.json",
+      "sha256": "dfdec2122171fffa9e1735611f5494395ac5acabee146e3cb6d3c369acd9c776"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/audio-baseline.json",
+      "sha256": "90b734c8a0bdf43ce59d333babc7bcf57e1e30e5d4b298f4ff22cacd86647ecc"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/audio-real-history.json",
+      "sha256": "dd565defec0e49033e0d56997b62fc85fc0fccf336ad0cc6dbf3392ea766a564"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/audio-recovered.json",
+      "sha256": "50fbc2d1874ae69683e4d32bc00ccc1b5cc248bd1ddfaca401f4bf127d4f06ca"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/audio-restore.json",
+      "sha256": "036fac3b8e31f6399166063c54f60146d06457a23a647207651438282003b42e"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/cleanup.json",
+      "sha256": "0336bbf4d7568eeb5beb58b5ac57ef5e51a8b1558220e11944c89656650849e5"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/config-after-upgrade.json",
+      "sha256": "a92dbe9b6a0d5ef37bd22ae1f6e163a6fdd630ff275808056f141b1beaa43d7d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/config-before-legacy.json",
+      "sha256": "a92dbe9b6a0d5ef37bd22ae1f6e163a6fdd630ff275808056f141b1beaa43d7d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/config-fresh.json",
+      "sha256": "cedc717378b9e11df35cf77fcf2a176db6c724bf3c8fad6ea4a34a946b0145ea"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/config-workflow.json",
+      "sha256": "456da8955cc794c421ceaae7da1ff1ecacf58add0b2fb6bcda291068e7ebeac3"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/fixture.json",
+      "sha256": "00a4ea5377684b5e4d331be45507f6203e859fbc5c10c42318caeb2a13d0ada0"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/group-applied.json",
+      "sha256": "f46d7d587bb657973c2658a095ff73c2aaa4aeb1adad45c1ac9ae9052320cd55"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/group-fixture.json",
+      "sha256": "d4911ea480f175f440973eb6a947c80b7923e3a95efa4cd732e607603a506e63"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/group-plan.json",
+      "sha256": "6af58d2d9803f8107c43d19007d201d8d22741cdb4b67939d88cd549ebb8e672"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/group-undo.json",
+      "sha256": "de346fa00afa380108a652d346ead6d4f4e4397efad3a044710d2d19af957941"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/history-http-timing.json",
+      "sha256": "c339a2c1da3cd271de6ce19796b4773ac2547b4ebadd73b400cccf27408a1f33"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/issue86-all.json",
+      "sha256": "0e7f3f0d90d51331ef2e0fc44b64bb66ed2cdb094752f2f31d659e7e402df350"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/issue86-custom-all.json",
+      "sha256": "2899fa373717ac132afb0a7e5dd24283ef9fedf9f54e9ab5a1283ab6e8860e9e"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/issue86-custom-selected.json",
+      "sha256": "56957f0739cdc483b754012cc9263eb930ee04b107be86d05c7962094bff5501"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/issue86-selected.json",
+      "sha256": "02398150a87cb4cbf620c8c1aff5728540b1826a1dd68960a0351c4ac7bd3a02"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/issue87-live.json",
+      "sha256": "dd39666d518f59284b4cc40eb365d20b11826248a71cbe515b3c6c2866eebb73"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/issue89-live.json",
+      "sha256": "d74fe6b92cfda40ccb2ecf8b139ef5159181462b0bafbe64d51b15ed9bbcf97d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/issue92-header.json",
+      "sha256": "ca0030805a88c3892640e6ad84c058475afe7a4dd4b35ccdb099ecce4860914b"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/issue92-inventory.json",
+      "sha256": "9be3a5fd3033537ae23ea0f9754b248f635b2ffb57c4bd19804a3287c1c00477"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/issues-initial.json",
+      "sha256": "47b85eb5576b770f9ccc8158bc0343aeeb2bc6a4c8d7520c6b93ed801c059887"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/load-fixtures.json",
+      "sha256": "0094150a53236090a19a56f9754743cfbc343dadf386bb19f302491004d56d48"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/load-seed.json",
+      "sha256": "98d04274baa7d984a1df93133c054483846811f53c7bf14aee6dd876ff1fc182"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/plugin.json",
+      "sha256": "15ad030f337f5897cb55a7b32115639b3f8f6bc56080f9cdbd99f51afad3fd87"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/preview-history.json",
+      "sha256": "155bf95d08246ee4ab99ad0375e49bacbe7d283c43200f6c3243fc90d7d679f9"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/queue-before-restart.json",
+      "sha256": "5384166793408b43a240586e6f31e1160552756ec3c2579e81abed403f5b438f"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/results.json",
+      "sha256": "62cf079863df6668f2f11ebc8f2130a8fd6f1e6046c24d6a6e3a46cb9b92e21c"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/server.json",
+      "sha256": "1bbbbba24c234499160aa9584eace545e00462384f1a47ee66159e722e610e9b"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/system-before-custom-metadata.json",
+      "sha256": "41b996c7de20d2932bc64c7b75eafbc96af112950d73ea85e0d4eaba652a3076"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/trim.json",
+      "sha256": "76a0023dc262c369392a6651c6d6e0aaef8ac82f69e5449ff86208a73103ff9c"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/watch-after-undo.json",
+      "sha256": "c9ba6642d37fc1a80f922801d74e2dc9e5aefdd94be4e06b179445b51323ab23"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/watch-after.json",
+      "sha256": "2ccc12fcbbe07d5dad07cd87028675ebb476365ba5658f5a595ef925e4e5e690"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/watch-before.json",
+      "sha256": "0c17be81e9f45c1bf1d8b5d82f60235974ec34cdd36ab5d73a67ad495652daa4"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/final-evidence/xml-before-legacy.json",
+      "sha256": "9075b607b6df56993af259b03def532130bca2fb20aa0f109ace614174d45215"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/refusal-evidence/cleanup.json",
+      "sha256": "614b6737ae15464b8960c2b333bef45ff961e06c4ea9b7d627672cb624b114d7"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/refusal-evidence/config-fresh.json",
+      "sha256": "cedc717378b9e11df35cf77fcf2a176db6c724bf3c8fad6ea4a34a946b0145ea"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/refusal-evidence/fixture.json",
+      "sha256": "00a4ea5377684b5e4d331be45507f6203e859fbc5c10c42318caeb2a13d0ada0"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/refusal-evidence/plugin.json",
+      "sha256": "15ad030f337f5897cb55a7b32115639b3f8f6bc56080f9cdbd99f51afad3fd87"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/refusal-evidence/refused-move.json",
+      "sha256": "b71cfd2d3bab1faad98de64029b5b8c2a9fd881c8a3aa786082d2f65c2604198"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/refusal-evidence/results.json",
+      "sha256": "9f4588d8894bd8881ef06b0ef5277568414e2c7973f71185874c632405adf49b"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-core-live/v12/refusal-evidence/server.json",
+      "sha256": "1bbbbba24c234499160aa9584eace545e00462384f1a47ee66159e722e610e9b"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-linux-native.log",
+      "sha256": "4296711cf7b67d0b4e848686914b2fe22b299f0893d7ecc7c936e77b31f9ab58"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-linux-native/live.py",
+      "sha256": "174ca32fdbad99c72faf2fab683e0e7753dfc64858d53b90fbb7d6e1cd20c93c"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-linux-native/v10-evidence/final-evidence/cleanup.json",
+      "sha256": "bc8829752dde89b2ad62a3dda976c572fee5f987d8bf7376cb77b25e6be08b89"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-linux-native/v10-evidence/final-evidence/config-fresh.json",
+      "sha256": "6c3276cd36fae6649bf364ae75ad70b986bccb4c2ea5ea3a1c68a4a7cf1f273a"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-linux-native/v10-evidence/final-evidence/config-workflow.json",
+      "sha256": "835a50773cfd558f4088ee3f0618acc7f3d3bda6b4998fc8ac338aace8b6caaa"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-linux-native/v10-evidence/final-evidence/cross-volume-history.json",
+      "sha256": "955dabc2e75a57eca097cd5426a0f2de77064c73464956c4050aefd75b5a84ae"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-linux-native/v10-evidence/final-evidence/cross-volume-move.json",
+      "sha256": "f9369ad77567b375d8f1e9002bd0c4275d8c49d0cf919797e2a4f31d5f67ff59"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-linux-native/v10-evidence/final-evidence/cross-volume-original.json",
+      "sha256": "45dad5e92e014d55c11ededcd69f5880920624efd8d4e30e7783e2f727eb2fa3"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-linux-native/v10-evidence/final-evidence/cross-volume-preview.json",
+      "sha256": "b1f5705676432e331fcd157dee9e4042e2728b13ebd0afa3bb90576b5cc88898"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-linux-native/v10-evidence/final-evidence/cross-volume-undo.json",
+      "sha256": "b9e1a6f381102d6c06646bb082735216955fb924bff37cdb0219b1e195bfed5b"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-linux-native/v10-evidence/final-evidence/cross-volume-verified.json",
+      "sha256": "426fab4eb774f38682c7c5c2d758c6833aabe24fe1f7000327158f241c984e7b"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-linux-native/v10-evidence/final-evidence/fixture.json",
+      "sha256": "fbd3a6ba1ec3a715f24761a047675623c6dd8c3f051a9493223065e2764fdc34"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-linux-native/v10-evidence/final-evidence/issues-initial.json",
+      "sha256": "b119353da4489118a66e6671bce24b7d18d7a7b3715d8e84752d9b1a421d5d96"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-linux-native/v10-evidence/final-evidence/plugin.json",
+      "sha256": "6e43bf3a6f89a77f2ce3985c2b545dbde860d04b4d95d78dbf684dc92a310f61"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-linux-native/v10-evidence/final-evidence/results.json",
+      "sha256": "b28c6fd15a5993996ce1c02cc36cf47f90ff0f41bbbe178e46fb8a0b024acd87"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-linux-native/v10-evidence/final-evidence/server.json",
+      "sha256": "d4aa8f8a8edd1772ab6a256c4881ff5025ba6f2f14eb054a772418df1afa4eb2"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-linux-native/v10-evidence/final-evidence/tmpfs-cleanup.json",
+      "sha256": "9c10ffb445c9f91783c1c5d861051a27828eb4f2ee633136317a92bb648a9201"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live.log",
+      "sha256": "f4d7fe3e0860e425fd26160b45c6ff8080d0d007e76a6e938943932f21dc56cb"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/integrate.py",
+      "sha256": "16111200c1b82721b817a8cf7c17d5d2b274c1ff936ab71ce4f59ef92a28e515"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/missing_artwork.py",
+      "sha256": "7bc5ba4834bd7e65f7ee8937ab81c272411b303131fd8203412dddf75863fa9c"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/primary-integration.json",
+      "sha256": "34b4e3225276d1803a58319fef1ffbb19b24134e3606d5b1de4402ee77d6a272"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/primary-original-bytes.zip",
+      "sha256": "e8c325d9125fbb45e9ffae6b2de9d049ff11f44cfac50f7408b9edfff2c2399b"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/record.py",
+      "sha256": "642e481fe1f0bb3dec175c947ce69e5305ad31cfa2ed0d2e53fc72f790b1c59f"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/run.py",
+      "sha256": "023cd8d019ae29d63e55920e3950b5ad7e8103e9e72876c8ae56ee6fbde49167"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/Audiobook-move.json",
+      "sha256": "92f84e3759b999775d4fabe3a0f68ca03bb3da773ff90dcb552f295e81fd1d55"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/Audiobook-original.json",
+      "sha256": "88d6e5f286a0a540181eee8c1a06d6b9c28dc32b7bb6b36d39b222722338a4fc"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/Audiobook-preview.json",
+      "sha256": "fa59ea1adaee655809bb9b44d5b01f78af5fcd2016e49173ef62c3d86874d54e"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/Audiobook-undo.json",
+      "sha256": "15fd6d40f655b2d86bcff93e1fbd639ce81bc4fa83a36a28868520e08a199867"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/Audiobook-verified.json",
+      "sha256": "1572143bbf71eb4f7b07224f9aefb51a2923d27ba4fd58e612239bd8b1bf97e8"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/Comic-move.json",
+      "sha256": "ed9771f6fa339e178cd3e6f627ecc3ad752d66c94cd0b5e20c2bc7516d7840d2"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/Comic-original.json",
+      "sha256": "349d00bc56993a9f935c6989518a2938af77e738d1ca15a0f6f1315b152fdc26"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/Comic-preview.json",
+      "sha256": "012ee27fcf188fdd3221737f1b58e28b2127445f96bec222028918ea327b562f"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/Comic-undo.json",
+      "sha256": "ffdf4fb15d463c8bed5d288b59d2f3a52d4a948e5284a25455d51eaa50e80817"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/Comic-verified.json",
+      "sha256": "8236ac7ea210f4641ad46579ef44e2b4d2fe5f53ea28556677ae6f600a0b872e"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/EPUB-move.json",
+      "sha256": "981d1409936bc9e4580bb7371069539d780d80e9342fff7edf49b4e8ce932df9"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/EPUB-original.json",
+      "sha256": "24b62fc1cfb86a1d2b4f7ac34ec543462f25b92b7ebcce9105b36a20757e25fc"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/EPUB-preview.json",
+      "sha256": "428aabbc583a0dd33cc915fc1b30c022576c871364189ebf7079261210f2f196"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/EPUB-undo.json",
+      "sha256": "ad434fd74c65d9b5c0e623cf59b3c7924627a987d80816545e1b452b5b446768"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/EPUB-verified.json",
+      "sha256": "37e0a32a69b8deb591f60e9914b677d9e5a6cb51b31be40bab98c3c0b0633c96"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/candidate.json",
+      "sha256": "c6023fef7b8113fe903979c7ae7f4afaa1cdfc7da3eda93d529916928c6038b1"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/cleanup.json",
+      "sha256": "2a3e275a0d5e8443febb469257819d04fd1a112baf364f42a3a3ee4fb3862c94"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/config-fresh.json",
+      "sha256": "cedc717378b9e11df35cf77fcf2a176db6c724bf3c8fad6ea4a34a946b0145ea"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/config-workflow.json",
+      "sha256": "456da8955cc794c421ceaae7da1ff1ecacf58add0b2fb6bcda291068e7ebeac3"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/fixture.json",
+      "sha256": "39b7dbddd24ba4a26f111c80dd32665637ea179a8d53e68841f677732b0a704d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/issues-initial.json",
+      "sha256": "140b3eb4516122d06c1a1a919a3301a680dd25032d2e33bfc1ab83d92e1a7e0a"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/mode-consent-refusal.json",
+      "sha256": "cf1673d87ebe27ee861daf94d248992861457e986b3784bcac2f965b1e01f42b"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/plugin.json",
+      "sha256": "15ad030f337f5897cb55a7b32115639b3f8f6bc56080f9cdbd99f51afad3fd87"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/results.json",
+      "sha256": "9047cbb5cb4191c5dea95ba605b93a145fd947e20c8ec3d63531dafe5c7a376d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/final-evidence/server.json",
+      "sha256": "6d0257ce5a81be16986b3fa723ddc3a943b73871b2582caa1ca2e23b9fb25538"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/missing-artwork-retry-evidence/cleanup.json",
+      "sha256": "2a3e275a0d5e8443febb469257819d04fd1a112baf364f42a3a3ee4fb3862c94"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/missing-artwork-retry-evidence/config-fresh.json",
+      "sha256": "cedc717378b9e11df35cf77fcf2a176db6c724bf3c8fad6ea4a34a946b0145ea"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/missing-artwork-retry-evidence/fixture.json",
+      "sha256": "39b7dbddd24ba4a26f111c80dd32665637ea179a8d53e68841f677732b0a704d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/missing-artwork-retry-evidence/initial-native-images.json",
+      "sha256": "70038b2a51f14744462e38df322b717c0d5b26115f05dcb4915347506423c85a"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/missing-artwork-retry-evidence/missing-before.json",
+      "sha256": "794160304298da1667107402e6ff9f93d7302146f1360d4431f588c7db5b9ada"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/missing-artwork-retry-evidence/missing-detected.json",
+      "sha256": "b9ee7bbf090869b7f4e896ecf3d810bd16c793d186fa23d03e7662f4d924c1b2"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/missing-artwork-retry-evidence/missing-history.json",
+      "sha256": "6743b1d9a91e42959a3919cb46ab45edb34471049203b1fef41b386fbb15c053"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/missing-artwork-retry-evidence/missing-verified.json",
+      "sha256": "b4a7c0a466880f1864526714d7da319a9f147fb26edc2e96156cf1cc4f4e0e50"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/missing-artwork-retry-evidence/plugin.json",
+      "sha256": "15ad030f337f5897cb55a7b32115639b3f8f6bc56080f9cdbd99f51afad3fd87"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/missing-artwork-retry-evidence/results.json",
+      "sha256": "096068576d52b84fa0c174c0e68ccaae805ed927d7e17c98a443958bcb09ab30"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v10/missing-artwork-retry-evidence/server.json",
+      "sha256": "6d0257ce5a81be16986b3fa723ddc3a943b73871b2582caa1ca2e23b9fb25538"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/Audiobook-move.json",
+      "sha256": "42bbadb79294523645d1eddf83d7a26b347e067f62e24a7d4b595c76c6ff026e"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/Audiobook-original.json",
+      "sha256": "b61be6de2c605d84e5057729bf5c0c7a5e626423daa72951551d43b5837b1dc0"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/Audiobook-preview.json",
+      "sha256": "9a0b385a69351868ac2562c9052e5dc526609bcc29e5df8ef400726dc8a1b7b1"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/Audiobook-undo.json",
+      "sha256": "989c6c428fd0b5e8f0e3cc46957a265d83bf4f4b499049f38e12b07910a990d1"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/Audiobook-verified.json",
+      "sha256": "41258c55131365708a518d8510d9923a036359160483b165f390b3e6caf74c76"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/Comic-move.json",
+      "sha256": "8a53de3077285185f3616ff222cf75858e35cb25c9b2da28d8d6c97a16078fe7"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/Comic-original.json",
+      "sha256": "683effc7dfd703c9baca96a0b03267a91fbd7da38580dae455ade3a6ead164ad"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/Comic-preview.json",
+      "sha256": "286587848b8655dfbb9ea1c718726939cf283055b900cca513a5cce6088be1b3"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/Comic-undo.json",
+      "sha256": "def6543261624df9581c4c11f5195523cca032993fefcb3584746d732eb5377a"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/Comic-verified.json",
+      "sha256": "c143f4a6ec75b73b1bc2133905f1d29c11ac1b4f190911c53edf61c00ef2c49d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/EPUB-move.json",
+      "sha256": "857db8c368fd187f2e6eb39b4fe09e692942112c15aa16ac7ae7b619853d62a9"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/EPUB-original.json",
+      "sha256": "8e87698c88f0bc761ba845b49a8daab1d436b608bf094aced6dfb705287e37d6"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/EPUB-preview.json",
+      "sha256": "0c5463937145227c3c84820c5dda07104277aef6206916daa4c62ffe86f51a65"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/EPUB-undo.json",
+      "sha256": "6f197dc88c8bfa0cfc4c20c5a8f544af3b593b3cfd08b60b14598d6486450e3b"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/EPUB-verified.json",
+      "sha256": "ad898e7be5e9f439d51640ab76f7c3f8c48dfa6275b787acea07045575b24ef4"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/candidate.json",
+      "sha256": "c6023fef7b8113fe903979c7ae7f4afaa1cdfc7da3eda93d529916928c6038b1"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/cleanup.json",
+      "sha256": "9b33e80adc30e6ca94aa3dcae7a45fd726bb7dec7b4377138290dd073ac377c2"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/config-fresh.json",
+      "sha256": "cedc717378b9e11df35cf77fcf2a176db6c724bf3c8fad6ea4a34a946b0145ea"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/config-workflow.json",
+      "sha256": "456da8955cc794c421ceaae7da1ff1ecacf58add0b2fb6bcda291068e7ebeac3"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/fixture.json",
+      "sha256": "9954f0d5e51b0180391be90a681a0156f13440ff39bdd184026b05950583aec4"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/issues-initial.json",
+      "sha256": "6148e89688e2a8959cc96e0fb4ca2d7a04026077a74574e0ba9b79d26490982c"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/mode-consent-refusal.json",
+      "sha256": "0105d96903188310ca40ef0b51527b89459aca8718b24117bbfa1f752f3f8f45"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/plugin.json",
+      "sha256": "15ad030f337f5897cb55a7b32115639b3f8f6bc56080f9cdbd99f51afad3fd87"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/results.json",
+      "sha256": "44e4bd9dd81f2014e6be9abb9cca34694ce44ea57a184ae955998223d8484503"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/final-evidence/server.json",
+      "sha256": "6d4cb01cd0f6ae8e83d65adb499248da073db4999d01fe988389cd8512eaa367"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/missing-artwork-retry-evidence/cleanup.json",
+      "sha256": "9b33e80adc30e6ca94aa3dcae7a45fd726bb7dec7b4377138290dd073ac377c2"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/missing-artwork-retry-evidence/config-fresh.json",
+      "sha256": "cedc717378b9e11df35cf77fcf2a176db6c724bf3c8fad6ea4a34a946b0145ea"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/missing-artwork-retry-evidence/fixture.json",
+      "sha256": "9954f0d5e51b0180391be90a681a0156f13440ff39bdd184026b05950583aec4"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/missing-artwork-retry-evidence/initial-native-images.json",
+      "sha256": "634991db5317e803dda43d389a478723693587bcac35be630da8b688103dff77"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/missing-artwork-retry-evidence/missing-before.json",
+      "sha256": "9f5d2b111a3bb22fb6a804a380bee71b303296c7894b783aefaf5a71a9664652"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/missing-artwork-retry-evidence/missing-detected.json",
+      "sha256": "17f8aab50c79c58c6eb65658fd674d64c008e44adafc9e57aa180519ea2405ca"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/missing-artwork-retry-evidence/missing-history.json",
+      "sha256": "62952d17cfaeaead1c433d1e3bd8f234fd75c400595d9594aa22c88037a042b3"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/missing-artwork-retry-evidence/missing-verified.json",
+      "sha256": "1e87b9cd5a8cdb8f4485ae1d585fcae0a9cd89f25c5e12f49a82dfe4b8258989"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/missing-artwork-retry-evidence/plugin.json",
+      "sha256": "15ad030f337f5897cb55a7b32115639b3f8f6bc56080f9cdbd99f51afad3fd87"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/missing-artwork-retry-evidence/results.json",
+      "sha256": "585c24350f5641585b1806e88bc67e925e4e703e009ee20835d78fed98f7384e"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-live/v12/missing-artwork-retry-evidence/server.json",
+      "sha256": "6d4cb01cd0f6ae8e83d65adb499248da073db4999d01fe988389cd8512eaa367"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-missing-artwork-retry.log",
+      "sha256": "f209ee1887a88f7776c78b875beb654441bd08f8c03a2ece060621897f33f916"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-missing-artwork.log",
+      "sha256": "9b56cb96a6427327b6dab27fd2ea0469889178eb9a2ea2463289c15a3e69c3fc"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-primary-build.log",
+      "sha256": "d823cc81269b2ebcc92c3d80e1d2e70ef1349bdd91db19a1b13f56825849af78"
+    },
+    {
+      "path": "artifacts/push-preparation-20261106-review-refusal.log",
+      "sha256": "e63b39fc70d6489d3f856279415a1ffb39be0047be7c16b4b9c4ae74a5b0d9b8"
+    }
+  ],
+  "limitations": [
+    "Source-matched local attestation only, not committed HEAD certification; scope and open blockers are in the consolidated evidence record."
+  ]
+}

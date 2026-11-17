@@ -1,0 +1,13 @@
+{
+  "caseId": "issue-80",
+  "sourceDigest": "18cccce8ee54105a3c80edb05e03e1a84971113da6a3775da8716bf3be1b96c8",
+  "environment": "Owned Windows Jellyfin 10.11.11 and 12.0.0 with independent fresh data directories. MediaDash DLL SHA-256 58693ddcbec0b98b7653e1b696fedfc4714c306a324644f40f0e6465de45339d.",
+  "checks": [
+    {
+      "name": "newest attempts under load",
+      "passed": true,
+      "skipped": false,
+      "observed": "On each host, 20 requests for 2,000 issues returned the newest attempt per issue against one million history rows. Slowest requests were 106.5 ms (10.11) and 111.3 ms (12). Synthetic history was removed."
+    }
+  ]
+}

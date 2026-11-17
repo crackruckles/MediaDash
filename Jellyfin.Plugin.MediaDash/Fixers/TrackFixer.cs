@@ -352,6 +352,10 @@ public sealed class TrackFixer : IFixer
         var languageRemoves = removeIndexes.ToArray();
 
         var ext = Path.GetExtension(issue.Path).TrimStart('.');
+        if (removeIndexes.Count > 0 && string.IsNullOrEmpty(TranscodeFixer.ContainerToFfmpegFormat(ext)))
+        {
+            return FixResult.Refused(FixReason.UnsupportedFormat, "This container cannot be safely remuxed: " + ext);
+        }
 
         // MP4-family source with bitmap subtitles present: the ipod muxer refuses dvd_subtitle /
         // hdmv_pgs_subtitle / dvb_subtitle under -c copy, and any remux against those streams
@@ -391,9 +395,15 @@ public sealed class TrackFixer : IFixer
             // CLAUDE.md safety invariant 5: rebuild fixers require 2× source-size free. Same
             // temp-alongside-original pattern as TranscodeFixer; fails closed if the drive can't
             // be resolved.
-            if (!FreeSpaceGuard.HasEnoughFreeSpace(issue.Path, multiplier: 2))
+            if (disposal == DisposalMethod.RecycleBin && !_replacement.CanRecycle(issue.Path))
             {
-                return FixResult.Fail(FixReason.InsufficientSpace, "Not enough free disk space to rebuild this file (needs at least twice its own size free on the target drive).");
+                return FixResult.Refused(FixReason.AccessDenied, "No safe recycle location is available for the original.");
+            }
+
+            var rebuildShortfall = FreeSpaceGuard.DescribeShortfall(issue.Path, multiplier: 2);
+            if (rebuildShortfall is not null)
+            {
+                return FixResult.Fail(FixReason.InsufficientSpace, "Cannot rebuild this file — " + rebuildShortfall + ".");
             }
 
             // Issue #39: users on multi-language Blu-ray remuxes (Breaking Bad 3xRus / Ger dubs,
@@ -528,8 +538,8 @@ public sealed class TrackFixer : IFixer
                     {
                         Api.Diagnostics.Record(
                             "Track.SwapAborted",
-                            "Track remux of '" + issue.Path + "' completed but the final rename failed. The rebuilt copy is preserved at '" + replacementResult.RecoveryPath + "' — rename it manually to '" + issue.Path + "'. Do NOT delete this file; it is currently your only copy of the content.");
-                        return FixResult.Fail(FixReason.RecoveryRequired, "The rebuilt copy is preserved at '" + replacementResult.RecoveryPath + "'; rename it to '" + issue.Path + "' manually. The original is no longer at its previous location.", replacementResult.TechnicalDetail);
+                            replacementResult.DescribeRecovery(issue.Path));
+                        return FixResult.Fail(FixReason.RecoveryRequired, replacementResult.DescribeRecovery(issue.Path), replacementResult.TechnicalDetail);
                     }
 
                     if (replacementResult.Reason == FixReason.SourceChanged)
@@ -569,52 +579,60 @@ public sealed class TrackFixer : IFixer
         var additionalRecycled = new List<RecycledSidecar>();
         foreach (var externalFile in externalFiles)
         {
-            var currentConfig = _configProvider.GetSnapshot();
-            var currentItem = issue.ItemId == Guid.Empty ? null : _libraryManager?.GetItemById(issue.ItemId);
-            if (currentConfig.DryRun || !TranscodeFixer.IsTypeAuthorized(currentConfig, IssueType.SubtitleLanguage)
-                || (combinedSubtitle is not null && !EvaluateCombinedPolicy(issue, combinedSubtitle, currentConfig, isStillApproved!).Allowed)
-                || !GetCurrentExternalFiles(issue, currentItem, probe, currentConfig, externalFiles).Contains(externalFile)
-                || (_protection is not null && (_protection.IsFixerBlocked(issue.Path, IssueType.SubtitleLanguage)
-                    || _protection.IsFixerBlocked(externalFile, IssueType.SubtitleLanguage))))
+            try
             {
-                continue;
-            }
-
-            // Defence-in-depth: refuse to touch the video path itself. If a stale DetailsJson (written by
-            // an older scanner build) lists the video as an external sidecar, we'd otherwise recycle the
-            // freshly-remuxed video and credit its size to freed.
-            if (IsSelfReferentialSubtitle(externalFile, issue.Path))
-            {
-                Api.Diagnostics.Record(
-                    "Track.ExternalPathCollision",
-                    "Refused to recycle '" + externalFile + "' as an external subtitle — path matches the video being fixed. Re-scan to rebuild the issue with the current scanner.");
-                continue;
-            }
-
-            if (!File.Exists(externalFile) || !_guard.IsInsideLibrary(externalFile))
-            {
-                continue;
-            }
-
-            freed += new FileInfo(externalFile).Length;
-            if (disposal == DisposalMethod.RecycleBin)
-            {
-                var sidecarBinPath = _recycleBin.MoveToBin(externalFile);
-                // A per-sidecar history row is what makes the Recycle Bin tab's Restore button appear.
-                // Without this row the file lives in the bin but shows "no history" — user report class.
-                additionalRecycled.Add(new RecycledSidecar
+                var currentConfig = _configProvider.GetSnapshot();
+                var currentItem = issue.ItemId == Guid.Empty ? null : _libraryManager?.GetItemById(issue.ItemId);
+                if (currentConfig.DryRun || !TranscodeFixer.IsTypeAuthorized(currentConfig, IssueType.SubtitleLanguage)
+                    || (combinedSubtitle is not null && !EvaluateCombinedPolicy(issue, combinedSubtitle, currentConfig, isStillApproved!).Allowed)
+                    || !GetCurrentExternalFiles(issue, currentItem, probe, currentConfig, externalFiles).Contains(externalFile)
+                    || (_protection is not null && (_protection.IsFixerBlocked(issue.Path, IssueType.SubtitleLanguage)
+                        || _protection.IsFixerBlocked(externalFile, IssueType.SubtitleLanguage))))
                 {
-                    OriginalPath = externalFile,
-                    RecyclePath = sidecarBinPath,
-                    Action = "Recycled external subtitle sidecar during track fix of " + Path.GetFileName(issue.Path) + "."
-                });
-            }
-            else
-            {
-                File.Delete(externalFile);
-            }
+                    continue;
+                }
 
-            _libraryMonitor.ReportFileSystemChanged(externalFile);
+                // Defence-in-depth: refuse to touch the video path itself. If a stale DetailsJson (written by
+                // an older scanner build) lists the video as an external sidecar, we'd otherwise recycle the
+                // freshly-remuxed video and credit its size to freed.
+                if (IsSelfReferentialSubtitle(externalFile, issue.Path))
+                {
+                    Api.Diagnostics.Record(
+                        "Track.ExternalPathCollision",
+                        "Refused to recycle '" + externalFile + "' as an external subtitle — path matches the video being fixed. Re-scan to rebuild the issue with the current scanner.");
+                    continue;
+                }
+
+                if (!File.Exists(externalFile) || !_guard.IsInsideLibrary(externalFile))
+                {
+                    continue;
+                }
+
+                var sidecarSize = new FileInfo(externalFile).Length;
+                if (disposal == DisposalMethod.RecycleBin)
+                {
+                    var sidecarBinPath = _recycleBin.MoveToBin(externalFile);
+                    // A per-sidecar history row is what makes the Recycle Bin tab's Restore button appear.
+                    // Without this row the file lives in the bin but shows "no history" — user report class.
+                    additionalRecycled.Add(new RecycledSidecar
+                    {
+                        OriginalPath = externalFile,
+                        RecyclePath = sidecarBinPath,
+                        Action = "Recycled external subtitle sidecar during track fix of " + Path.GetFileName(issue.Path) + "."
+                    });
+                }
+                else
+                {
+                    File.Delete(externalFile);
+                }
+
+                freed += sidecarSize;
+                _libraryMonitor.ReportFileSystemChanged(externalFile);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _logger.LogWarning(ex, "Could not remove external subtitle {Path}; keeping the committed track result", externalFile);
+            }
         }
 
         _libraryMonitor.ReportFileSystemChanged(issue.Path);

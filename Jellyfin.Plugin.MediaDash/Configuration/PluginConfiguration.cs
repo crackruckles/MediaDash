@@ -34,11 +34,11 @@ public class PluginConfiguration : BasePluginConfiguration
         ThoroughPlayabilityCheck = true;
         TreatEditionsAsDuplicates = true;
         DryRun = true;
-        DuplicateFixMode = FixMode.DetectOnly;
-        TranscodeFixMode = FixMode.DetectOnly;
-        SubtitleFixMode = FixMode.DetectOnly;
-        AudioFixMode = FixMode.DetectOnly;
-        PlayabilityFixMode = FixMode.DetectOnly;
+        DuplicateFixMode = FixMode.ManualApprove;
+        TranscodeFixMode = FixMode.ManualApprove;
+        SubtitleFixMode = FixMode.ManualApprove;
+        AudioFixMode = FixMode.ManualApprove;
+        PlayabilityFixMode = FixMode.ManualApprove;
         DuplicateDisposal = DisposalMethod.RecycleBin;
         TranscodeDisposal = DisposalMethod.RecycleBin;
         SubtitleDisposal = DisposalMethod.RecycleBin;
@@ -64,7 +64,7 @@ public class PluginConfiguration : BasePluginConfiguration
         AnalyticsInstallId = string.Empty;
 #pragma warning restore CS0618
         EnabledLibraries = [];
-        MisplacedFixMode = FixMode.DetectOnly;
+        MisplacedFixMode = FixMode.ManualApprove;
         MoviesTargetPath = string.Empty;
         TvTargetPath = string.Empty;
         MusicTargetPath = string.Empty;
@@ -74,7 +74,7 @@ public class PluginConfiguration : BasePluginConfiguration
         MediaSortSource = MediaSortSource.JellyfinMetadata;
         RenameAfterTranscode = false;
         PreserveExternalIdInFilename = false;
-        MissingSubtitlesFixMode = FixMode.DetectOnly;
+        MissingSubtitlesFixMode = FixMode.ManualApprove;
         SubtitleIgnoreRateLimit = true;
         SubtitleHearingImpairedMode = false;
         ShowSystemPerformance = true;
@@ -82,6 +82,7 @@ public class PluginConfiguration : BasePluginConfiguration
         FixerDisabled = [];
         AnimeTargetPath = string.Empty;
         StaleFixMode = FixMode.Off;
+        StaleDisposal = DisposalMethod.RecycleBin;
         StaleThresholdDays = 365;
         StaleExcludedLibraryIds = [];
         StaleExcludedGenres = [];
@@ -91,33 +92,33 @@ public class PluginConfiguration : BasePluginConfiguration
         // users who want the churning-import buffer can dial it back up in Settings.
         DuplicateMinAgeDays = 0;
         PostV12CleanupCompleted = false;
-        SuspiciousFileFixMode = FixMode.DetectOnly;
+        SuspiciousFileFixMode = FixMode.ManualApprove;
         SuspiciousFileDisposal = DisposalMethod.RecycleBin;
         HistoryHiddenBeforeUtcTicks = 0;
-        TrickplayFixMode = FixMode.DetectOnly;
+        TrickplayFixMode = FixMode.ManualApprove;
         TrickplayWebPQuality = 80;
         TrickplayMinSizeMb = 10;
-        SubtitleFontFixMode = FixMode.DetectOnly;
+        SubtitleFontFixMode = FixMode.ManualApprove;
         SubtitleForceFont = string.Empty;
-        OrphanCleanupFixMode = FixMode.DetectOnly;
+        OrphanCleanupFixMode = FixMode.ManualApprove;
         OrphanCleanupDisposal = DisposalMethod.RecycleBin;
         OrphanScanEmptyFolders = true;
         OrphanScanSubtitles = true;
         OrphanScanTrickplay = true;
         OrphanScanMetadata = true;
-        NfoFixMode = FixMode.DetectOnly;
+        NfoFixMode = FixMode.ManualApprove;
         NfoDisposal = DisposalMethod.RecycleBin;
-        HeavyTranscodeFixMode = FixMode.DetectOnly;
+        HeavyTranscodeFixMode = FixMode.ManualApprove;
         HeavyTranscodeDisposal = DisposalMethod.RecycleBin;
         HeavyTranscodeLookbackDays = 30;
-        FailedTranscodeFixMode = FixMode.DetectOnly;
+        FailedTranscodeFixMode = FixMode.ManualApprove;
         FailedTranscodeDisposal = DisposalMethod.RecycleBin;
-        EmbeddedCoverFixMode = FixMode.DetectOnly;
+        EmbeddedCoverFixMode = FixMode.ManualApprove;
         EmbeddedCoverDisposal = DisposalMethod.RecycleBin;
         EmbeddedCoverStripFromAudio = true;
         EmbeddedCoverFilename = "cover.jpg";
-        UngroupedFixMode = FixMode.DetectOnly;
-        CorruptArtworkFixMode = FixMode.DetectOnly;
+        UngroupedFixMode = FixMode.ManualApprove;
+        CorruptArtworkFixMode = FixMode.ManualApprove;
         // ponytail: 0 = auto = max(1, ProcessorCount/2). Leaves half the cores for Jellyfin/OS/other
         // work; on a 1–2 vCPU host that resolves to 1 thread. Field report A1: default-threaded
         // ffmpeg pinned every core on a Debian/Docker VM and locked up SSH.
@@ -136,7 +137,7 @@ public class PluginConfiguration : BasePluginConfiguration
         DuplicateRuntimeVetoPct = 15;
         QualityMinSavingsPercent = 0;
         QualityMinSavingsBytes = 0;
-        FormatCompatibilityFixMode = FixMode.DetectOnly;
+        FormatCompatibilityFixMode = FixMode.ManualApprove;
         FormatCompatibilityDisposal = DisposalMethod.RecycleBin;
         ConvertEbooks = false;
         ConvertComics = false;
@@ -459,8 +460,8 @@ public class PluginConfiguration : BasePluginConfiguration
     public string[] KeeperPolicyOrder { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether the playability scan test-plays the start, middle and end of every file.
-    /// On by default; the first scan is slow but results are cached for unchanged files.
+    /// Gets or sets a value indicating whether playability scanning runs full multi-track audio
+    /// and interleave checks in addition to decode sampling. When off, playback checks are sampled.
     /// </summary>
     public bool ThoroughPlayabilityCheck { get; set; }
 
@@ -671,10 +672,16 @@ public class PluginConfiguration : BasePluginConfiguration
     public string AnimeTargetPath { get; set; }
 
     /// <summary>
-    /// Gets or sets how the stale-content scanner runs. Off by default because "stale" is a subjective call
-    /// and no fixer exists yet — DetectOnly surfaces the list on the Issues tab so the owner can decide.
+    /// Gets or sets how the stale-content scanner runs. Off by default because "stale" is a subjective call;
+    /// ManualApprove surfaces the list on the Issues tab so the owner can delete per-item. Automatic is
+    /// deliberately not offered (UI hides it; <see cref="NormaliseFixModes"/> clamps it to ManualApprove)
+    /// — nothing age-based should auto-delete without an explicit per-row approval.
     /// </summary>
     public FixMode StaleFixMode { get; set; }
+
+    /// <summary>Gets or sets where stale-content deletions go. RecycleBin default so an unwatched favourite
+    /// is recoverable from the History tab.</summary>
+    public DisposalMethod StaleDisposal { get; set; }
 
     /// <summary>
     /// Gets or sets the age in days above which an unwatched file is considered stale. Both the "no user has
@@ -721,7 +728,7 @@ public class PluginConfiguration : BasePluginConfiguration
     public long HistoryHiddenBeforeUtcTicks { get; set; }
 
     /// <summary>
-    /// Gets or sets how the suspicious-file scanner acts. Defaults to <see cref="FixMode.DetectOnly"/>
+    /// Gets or sets how the suspicious-file scanner acts. Defaults to <see cref="FixMode.ManualApprove"/>
     /// so nothing gets deleted without the user clicking Approve — malware detection is only as good
     /// as the extension list, and we'd rather over-flag than silently nuke a file the user meant to keep.
     /// </summary>
@@ -735,7 +742,7 @@ public class PluginConfiguration : BasePluginConfiguration
     public DisposalMethod SuspiciousFileDisposal { get; set; }
 
     /// <summary>
-    /// Gets or sets how the trickplay-optimise scanner acts. Detect-only by default so the very first
+    /// Gets or sets how the trickplay-optimise scanner acts. Ask-me-first by default so the very first
     /// scan surfaces the projected reclaim size (typically 40-55% of the trickplay data folder) before
     /// the user opts into rewriting sidecar images.
     /// </summary>
@@ -756,7 +763,7 @@ public class PluginConfiguration : BasePluginConfiguration
     public int TrickplayMinSizeMb { get; set; }
 
     /// <summary>
-    /// Gets or sets how the subtitle-font optimiser acts. DetectOnly by default so users see the
+    /// Gets or sets how the subtitle-font optimiser acts. Ask-me-first by default so users see the
     /// projected reclaim size before opting into rewriting .ass sidecars.
     /// </summary>
     public FixMode SubtitleFontFixMode { get; set; }
@@ -791,7 +798,7 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool OrphanScanMetadata { get; set; }
 
     /// <summary>
-    /// Gets or sets how the NFO-integrity task acts. Detect-only by default so the user sees the list
+    /// Gets or sets how the NFO-integrity task acts. Ask-me-first by default so the user sees the list
     /// before opting into deletion — a hand-curated NFO that went corrupt is user work that's easy to
     /// mistake for regenerable metadata.
     /// </summary>
@@ -841,6 +848,60 @@ public class PluginConfiguration : BasePluginConfiguration
     public string EmbeddedCoverFilename { get; set; } = "cover.jpg";
 
     /// <summary>
+    /// Rewrites every <see cref="FixMode.DetectOnly"/> tombstone (left over from pre-1.0.9 configs)
+    /// to <see cref="FixMode.ManualApprove"/>. Returns true when at least one property changed so
+    /// the caller knows to persist. Called by <see cref="Plugin"/>'s constructor; also safe to call
+    /// idempotently (unchanged configs return false). Covered by
+    /// <c>PluginConfigurationNormaliseTests</c>.
+    /// </summary>
+    /// <returns>True if any field was promoted; false otherwise.</returns>
+    public bool NormaliseFixModes()
+    {
+#pragma warning disable CS0618
+        var changed = false;
+        FixMode Promote(FixMode m)
+        {
+            if (m != FixMode.DetectOnly)
+            {
+                return m;
+            }
+
+            changed = true;
+            return FixMode.ManualApprove;
+        }
+
+        // Stale has no safe Automatic path — age-based auto-delete can clear a library overnight.
+        // UI already hides the option; server-side clamp defends against direct XML / API writes.
+        if (StaleFixMode == FixMode.Automatic)
+        {
+            StaleFixMode = FixMode.ManualApprove;
+            changed = true;
+        }
+
+        DuplicateFixMode = Promote(DuplicateFixMode);
+        TranscodeFixMode = Promote(TranscodeFixMode);
+        SubtitleFixMode = Promote(SubtitleFixMode);
+        AudioFixMode = Promote(AudioFixMode);
+        PlayabilityFixMode = Promote(PlayabilityFixMode);
+        MisplacedFixMode = Promote(MisplacedFixMode);
+        MissingSubtitlesFixMode = Promote(MissingSubtitlesFixMode);
+        StaleFixMode = Promote(StaleFixMode);
+        SuspiciousFileFixMode = Promote(SuspiciousFileFixMode);
+        TrickplayFixMode = Promote(TrickplayFixMode);
+        SubtitleFontFixMode = Promote(SubtitleFontFixMode);
+        OrphanCleanupFixMode = Promote(OrphanCleanupFixMode);
+        NfoFixMode = Promote(NfoFixMode);
+        HeavyTranscodeFixMode = Promote(HeavyTranscodeFixMode);
+        FailedTranscodeFixMode = Promote(FailedTranscodeFixMode);
+        EmbeddedCoverFixMode = Promote(EmbeddedCoverFixMode);
+        UngroupedFixMode = Promote(UngroupedFixMode);
+        CorruptArtworkFixMode = Promote(CorruptArtworkFixMode);
+        FormatCompatibilityFixMode = Promote(FormatCompatibilityFixMode);
+        return changed;
+#pragma warning restore CS0618
+    }
+
+    /// <summary>
     /// Gets the fix mode for an issue type.
     /// </summary>
     /// <param name="type">The issue type.</param>
@@ -868,7 +929,7 @@ public class PluginConfiguration : BasePluginConfiguration
             Data.IssueType.Ungrouped => UngroupedFixMode,
             Data.IssueType.CorruptArtwork => CorruptArtworkFixMode,
             Data.IssueType.FormatCompatibility => FormatCompatibilityFixMode,
-            _ => FixMode.DetectOnly
+            _ => FixMode.ManualApprove
         };
     }
 
@@ -882,11 +943,13 @@ public class PluginConfiguration : BasePluginConfiguration
         return type switch
         {
             Data.IssueType.Duplicate => DuplicateDisposal,
+            Data.IssueType.SubtitleFonts => DisposalMethod.RecycleBin,
             Data.IssueType.Quality => TranscodeDisposal,
             Data.IssueType.SubtitleLanguage => SubtitleDisposal,
             Data.IssueType.AudioLanguage => AudioDisposal,
             Data.IssueType.Playability => PlayabilityDisposal,
             Data.IssueType.MalwareRisk => SuspiciousFileDisposal,
+            Data.IssueType.Stale => StaleDisposal,
             Data.IssueType.OrphanedDebris => OrphanCleanupDisposal,
             Data.IssueType.CorruptNfo => NfoDisposal,
             Data.IssueType.HeavyTranscode => HeavyTranscodeDisposal,

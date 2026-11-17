@@ -33,6 +33,7 @@ public sealed class VerifiedReplacementService
     private const int RecoveryNameByteBudget = 240;
 
     private readonly Func<string, string> _recycleToBin;
+    private readonly Func<string, bool> _canRecycle;
     private readonly IReplacementFileOperations _fileOps;
     private readonly ILogger<VerifiedReplacementService>? _logger;
 
@@ -46,7 +47,7 @@ public sealed class VerifiedReplacementService
     /// <param name="recycleBin">The recycle bin.</param>
     /// <param name="logger">Optional logger. Null in unit tests, DI-injected in production.</param>
     public VerifiedReplacementService(RecycleBin recycleBin, ILogger<VerifiedReplacementService>? logger = null)
-        : this(recycleBin.MoveToBin, new SystemIOReplacementFileOperations(), logger)
+        : this(recycleBin.MoveToBin, new SystemIOReplacementFileOperations(), logger, recycleBin.CanRecycle)
     {
     }
 
@@ -60,15 +61,20 @@ public sealed class VerifiedReplacementService
     /// <see cref="ReplacementRequest.RecycleOriginal"/> is false.</param>
     /// <param name="fileOps">The filesystem seam.</param>
     /// <param name="logger">Optional logger.</param>
+    /// <param name="canRecycle">Optional recycle preflight for injected callbacks.</param>
     internal VerifiedReplacementService(
         Func<string, string> recycleToBin,
         IReplacementFileOperations fileOps,
-        ILogger<VerifiedReplacementService>? logger)
+        ILogger<VerifiedReplacementService>? logger,
+        Func<string, bool>? canRecycle = null)
     {
         _recycleToBin = recycleToBin;
+        _canRecycle = canRecycle ?? (_ => true);
         _fileOps = fileOps;
         _logger = logger;
     }
+
+    internal bool CanRecycle(string sourcePath) => _canRecycle(sourcePath);
 
     /// <summary>
     /// Replaces <see cref="ReplacementRequest.SourcePath"/> with the verified output at
@@ -267,6 +273,19 @@ public sealed class VerifiedReplacementService
             // safe to rename — but reporting RecoveryRequired here forces the user to see
             // the failed dispose and decide manually. Caller emits its fixer-specific
             // diagnostic keyed with the pre-existing "*.SwapAborted"-style name.
+            if (_fileOps.FileExists(request.SourcePath))
+            {
+                try
+                {
+                    _fileOps.Move(recoveryPath, request.OutputPath);
+                    return new ReplacementResult(false, FixReason.ProcessFailed, null, null, ex.Message);
+                }
+                catch (Exception demoteError) when (demoteError is IOException or UnauthorizedAccessException)
+                {
+                    _logger?.LogWarning(demoteError, "VerifiedReplacement: could not return recovery file to owned output {Output}", request.OutputPath);
+                }
+            }
+
             _logger?.LogWarning(ex, "VerifiedReplacement: dispose failed for '{Source}', recovery survivor at '{Recovery}'", request.SourcePath, recoveryPath);
             return new ReplacementResult(false, FixReason.RecoveryRequired, null, recoveryPath, ex.Message);
         }
@@ -309,10 +328,15 @@ public sealed class VerifiedReplacementService
             return new ReplacementResult(false, FixReason.Unknown, null, null, "request has empty path");
         }
 
+        if (request.RecycleOriginal && !CanRecycle(request.SourcePath))
+        {
+            return new ReplacementResult(false, FixReason.AccessDenied, null, null, "No safe recycle location is available for the original.");
+        }
+
         // Alias check: OutputPath must not collide with source or destination. This is a
         // caller-bug refusal — the caller must produce OutputPath at a distinct staging path.
-        if (string.Equals(request.OutputPath, request.SourcePath, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(request.OutputPath, request.DestinationPath, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(request.OutputPath, request.SourcePath, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)
+            || string.Equals(request.OutputPath, request.DestinationPath, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
         {
             return new ReplacementResult(false, FixReason.Unknown, null, null, "output path aliases source or destination");
         }
@@ -330,7 +354,7 @@ public sealed class VerifiedReplacementService
         // Destination-collision check. Same-path swap (destination == source) is legal — that
         // is the common case (TrackFixer, EmbeddedCoverArtFixer, same-container Transcode).
         // Preexisting file OR directory at a non-equal destination is a collision.
-        if (!string.Equals(request.SourcePath, request.DestinationPath, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(request.SourcePath, request.DestinationPath, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
         {
             if (_fileOps.FileExists(request.DestinationPath) || _fileOps.DirectoryExists(request.DestinationPath))
             {

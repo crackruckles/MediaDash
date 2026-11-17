@@ -25,11 +25,8 @@ public sealed class FfmpegExecutor
         "dup_frames=", "drop_frames=", "speed=", "progress="
     ];
 
-    // Signatures ffmpeg emits when the SOURCE file (not our args, not the encoder, not disk state)
-    // is malformed / corrupt / truncated. Presence of any one means no re-encode or remux is ever
-    // going to succeed on this file — the ladder should route to Playability, not surface a raw
-    // "ffmpeg failed" error the user can't act on. Kept as literal substrings so it stays greppable
-    // and users can add signatures without a regex.
+    // Source demux/decode signatures. The generic invalid-data message is handled separately
+    // because an output muxer can emit it for an unsupported stream or missing codec parameters.
     // Real-world provenance: reported by users hitting DVR-recorded .mpg with mpeg2video + ac3
     // corruption ("expacc out-of-range", "Invalid frame dimensions 0x0"), plus the well-known
     // fixture cases (moov atom, EBML header, could not find codec parameters).
@@ -37,7 +34,6 @@ public sealed class FfmpegExecutor
     [
         "Invalid frame dimensions", // mpeg2video demuxer confusion
         "error decoding", // covers audio-block + video-block decode failures
-        "Invalid data found when processing", // ffmpeg's universal "input is malformed"
         "could not find codec parameters", // demuxer can't identify streams
         "moov atom not found", // MP4 header damage / truncation
         "EBML header parsing failed", // MKV header damage
@@ -91,6 +87,9 @@ public sealed class FfmpegExecutor
             return "The server has no ffmpeg configured.";
         }
 
+        var media = await Probing.MediaProcess.AcquireAsync(cancellationToken).ConfigureAwait(false);
+        await using var lifetime = media.ConfigureAwait(false);
+
         // Orphan-sweep before spawning: a hot-reloaded plugin or a Jellyfin crash mid-encode can leave a
         // stale ffmpeg still writing to our sidecar path. Two ffmpegs open on the same output produces
         // interleaved garbage. Anything that clearly belongs to us (cmdline contains a mediadash.tmp/new
@@ -99,7 +98,7 @@ public sealed class FfmpegExecutor
 
         var reportProgress = progress is not null && totalDurationSeconds > 0;
 
-        using var process = new Process();
+        var process = media.Process;
         process.StartInfo.FileName = encoderPath;
         process.StartInfo.UseShellExecute = false;
         process.StartInfo.CreateNoWindow = true;
@@ -119,8 +118,8 @@ public sealed class FfmpegExecutor
         // Low system impact mode: throttle ffmpeg to native input rate via `-re`, which caps
         // effective throughput at 1x realtime. Turns a 5-minute encode of a 45-minute episode
         // into a 45-minute encode with much lower CPU peaks — the whole point for users whose
-        // media server is also their daily-driver desktop. Applies to remuxes too (input read
-        // throttles instead of spiking disk IO); no-op on ffmpeg calls with no `-i`.
+        // media server is also their daily-driver desktop. Stream-copy remuxes keep their normal
+        // speed so fixed command timeouts remain usable; no-op on calls with no `-i`.
         var effectiveArgs = (Plugin.Instance?.Configuration?.LowSystemImpactMode ?? false)
             ? InjectRealtimeThrottle(args)
             : args;
@@ -136,7 +135,7 @@ public sealed class FfmpegExecutor
         _logger.LogInformation("Running ffmpeg {Args}", string.Join(' ', effectiveArgs));
         try
         {
-            process.Start();
+            media.Start();
             TryLowerPriority(process);
             var stderrTail = new StringBuilder();
             string? line;
@@ -190,7 +189,6 @@ public sealed class FfmpegExecutor
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            TryKill(process);
             var msg = TimeoutError(timeout);
             if (recordDiagnosticOnTimeout)
             {
@@ -203,7 +201,6 @@ public sealed class FfmpegExecutor
         }
         catch (OperationCanceledException)
         {
-            TryKill(process);
             throw;
         }
         catch (Exception ex)
@@ -244,7 +241,8 @@ public sealed class FfmpegExecutor
             }
         }
 
-        return false;
+        return error.Contains("Invalid data found when processing", StringComparison.OrdinalIgnoreCase)
+            && !error.Contains("Could not write header", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string TimeoutError(TimeSpan timeout) => $"ffmpeg exceeded the {timeout} time limit and was stopped";
@@ -304,6 +302,23 @@ public sealed class FfmpegExecutor
     /// <returns>A new list with <c>-re</c> inserted, or the original list when insertion is a no-op.</returns>
     internal static IReadOnlyList<string> InjectRealtimeThrottle(IReadOnlyList<string> args)
     {
+        var hasCopy = false;
+        var hasEncoder = false;
+        for (var i = 0; i + 1 < args.Count; i++)
+        {
+            if (args[i] == "-c" || args[i] == "-codec" || args[i].StartsWith("-c:", StringComparison.Ordinal)
+                || args[i].StartsWith("-codec:", StringComparison.Ordinal) || args[i] is "-vcodec" or "-acodec" or "-scodec")
+            {
+                hasCopy |= args[i + 1] == "copy";
+                hasEncoder |= args[i + 1] != "copy";
+            }
+        }
+
+        if (hasCopy && !hasEncoder)
+        {
+            return args;
+        }
+
         for (var i = 0; i < args.Count; i++)
         {
             if (string.Equals(args[i], "-re", StringComparison.Ordinal))
@@ -360,22 +375,6 @@ public sealed class FfmpegExecutor
         {
             // Process may have exited, or the host may refuse the change (rootless container without
             // CAP_SYS_NICE, some macOS sandboxes). Silent by design — this is a hint, not a contract.
-        }
-    }
-
-    private void TryKill(Process process)
-    {
-        try
-        {
-            process.Kill(entireProcessTree: true);
-            // Wait for the OS to fully tear down the process before returning — otherwise the caller's
-            // `finally` can hit File.Delete(tempPath) while ffmpeg is still flushing to it and throw
-            // "file in use" on Windows. Bounded so a stuck ffmpeg never blocks the fixer indefinitely.
-            process.WaitForExit(3000);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Could not kill ffmpeg process");
         }
     }
 
@@ -480,6 +479,7 @@ public sealed class FfmpegExecutor
         return s.Contains("mediadash.tmp", StringComparison.Ordinal)
             || s.Contains("mediadash.new", StringComparison.Ordinal)
             || s.Contains("mediadash.swap", StringComparison.Ordinal)
-            || s.Contains("mediadash.strip", StringComparison.Ordinal);
+            || s.Contains("mediadash.strip", StringComparison.Ordinal)
+            || s.Contains("mediadash.repair.", StringComparison.Ordinal);
     }
 }

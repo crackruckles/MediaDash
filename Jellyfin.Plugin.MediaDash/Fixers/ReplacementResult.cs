@@ -18,10 +18,8 @@ namespace Jellyfin.Plugin.MediaDash.Fixers;
 /// otherwise. Non-null RecyclePath + false Applied signals partial commit — recycle
 /// succeeded but final rename didn't.</param>
 /// <param name="RecoveryPath">Path where the verified output survives when the commit
-/// couldn't complete. Non-null in two shapes:
-/// (a) final rename after dispose failed — output is safe outside every sweep pattern; user
-/// must move it back manually (paired with <see cref="FixReason.RecoveryRequired"/>);
-/// (b) cancellation between promote and dispose — output preserved; source intact.</param>
+/// couldn't complete. Non-null if disposal or the final rename failed, or
+/// if cancellation occurred between staging and disposal.</param>
 /// <param name="TechnicalDetail">Underlying exception message or verification failure text.
 /// Optional. Rendered behind the UI's "Technical detail" disclosure — see FixResult.</param>
 internal sealed record ReplacementResult(
@@ -29,4 +27,8 @@ internal sealed record ReplacementResult(
     FixReason Reason,
     string? RecyclePath,
     string? RecoveryPath,
-    string? TechnicalDetail);
+    string? TechnicalDetail)
+{
+    internal string DescribeRecovery(string originalPath)
+        => $"Replacement could not finish. Keep the verified output at '{RecoveryPath}'. Check the original path '{originalPath}' and the recycle bin before restoring. Do not overwrite an existing file.";
+}

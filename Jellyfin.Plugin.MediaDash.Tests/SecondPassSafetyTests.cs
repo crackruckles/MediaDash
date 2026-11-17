@@ -60,18 +60,26 @@ public sealed class SecondPassSafetyTests : IDisposable
         var loser = Path.Combine(folder, "movie.mkv");
         var keeper = Path.Combine(_root, "keeper.mkv");
         var protectedSidecar = Path.Combine(folder, "movie.nfo");
-        var ordinarySidecar = Path.Combine(folder, "poster.jpg");
+        var ordinarySidecar = Path.Combine(folder, "movie.xml");
         File.WriteAllText(loser, "duplicate");
         File.WriteAllText(keeper, "keeper");
         File.WriteAllText(protectedSidecar, "protected metadata");
-        File.WriteAllText(ordinarySidecar, "artwork");
+        File.WriteAllText(ordinarySidecar, "title metadata");
         _db.Protection.Add(new ProtectionRule { Kind = "folder", Target = protectedSidecar, ScannersMask = "*", FixersMask = "*" });
         var paths = DispatchProxy.Create<IApplicationPaths, OriginalLanguageFlowTests.CallProxy>();
         ((OriginalLanguageFlowTests.CallProxy)(object)paths).Call = (_, _) => _root;
         var bin = new RecycleBin(paths, NullLogger<RecycleBin>.Instance, _db.History);
         var monitor = DispatchProxy.Create<ILibraryMonitor, OriginalLanguageFlowTests.CallProxy>();
         var fixer = new DuplicateFixer(new LibraryGuard(_manager), bin, monitor, _manager, NullLogger<DuplicateFixer>.Instance, _protection);
-        var result = await fixer.FixAsync(new Issue { Type = IssueType.Duplicate, Path = loser, DetailsJson = JsonSerializer.Serialize(new { keeperPath = keeper }) }, null, CancellationToken.None);
+        Assert.True(PhysicalFileIdentity.TryRead(keeper, out var keeperIdentity));
+        Assert.True(PhysicalFileIdentity.TryRead(loser, out var loserIdentity));
+        var details = JsonSerializer.Serialize(new
+        {
+            keeperPath = keeper,
+            keeperIdentity = new { vol = keeperIdentity.Volume.ToString(System.Globalization.CultureInfo.InvariantCulture), id = keeperIdentity.FileId.ToString(System.Globalization.CultureInfo.InvariantCulture) },
+            loserIdentity = new { vol = loserIdentity.Volume.ToString(System.Globalization.CultureInfo.InvariantCulture), id = loserIdentity.FileId.ToString(System.Globalization.CultureInfo.InvariantCulture) },
+        });
+        var result = await fixer.FixAsync(new Issue { Type = IssueType.Duplicate, Path = loser, DetailsJson = details }, null, CancellationToken.None);
         Assert.True(result.Success, result.Message);
         Assert.False(File.Exists(loser));
         Assert.False(File.Exists(ordinarySidecar));
@@ -88,7 +96,6 @@ public sealed class SecondPassSafetyTests : IDisposable
 
     [Theory]
     [InlineData(FixMode.Off)]
-    [InlineData(FixMode.DetectOnly)]
     public void CombinedPolicy_RechecksSecondaryMode(FixMode mode)
     {
         var fixer = NewTrackFixer();
@@ -133,7 +140,6 @@ public sealed class SecondPassSafetyTests : IDisposable
 
     [Theory]
     [InlineData("off")]
-    [InlineData("detect")]
     [InlineData("disabled")]
     [InlineData("protected")]
     public async Task Executor_UnauthorizedPartnerFallsBackToAudioOnly(string policy)
@@ -149,7 +155,6 @@ public sealed class SecondPassSafetyTests : IDisposable
         var audio = _db.GetIssues(IssueType.AudioLanguage).Single();
         var subtitle = _db.GetIssues(IssueType.SubtitleLanguage).Single();
         if (policy == "off") _config.SubtitleFixMode = FixMode.Off;
-        if (policy == "detect") _config.SubtitleFixMode = FixMode.DetectOnly;
         if (policy == "disabled") _config.FixerDisabled = ["SubtitleLanguage"];
         if (policy == "protected") _db.Protection.Add(new ProtectionRule { Kind = "folder", Target = path, ScannersMask = "*", FixersMask = "SubtitleLanguage" });
         var executor = new FixExecutor(_db.Issues, [NewTrackFixer()], new PluginConfigurationProvider(() => _config), TimeProvider.System, _protection, NullLogger<FixExecutor>.Instance);

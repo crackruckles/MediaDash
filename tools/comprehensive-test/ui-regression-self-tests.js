@@ -20,6 +20,378 @@ function element() {
     };
 }
 
+function issuesEnvironment(rescan = () => {}) {
+    const nodes = new Map(), pending = [];
+    const node = selector => {
+        if (!nodes.has(selector)) nodes.set(selector, Object.assign(element(), {
+            style: {}, dataset: {}, value: '', textContent: '', innerHTML: '', disabled: false,
+            classList: { add() {}, remove() {} }, querySelector: node,
+            querySelectorAll: selector => selector === '.mdIssueRescan' ? [node(selector)] : [],
+            getAttribute(key) { return this[key]; }, setAttribute(key, value) { this[key] = value; }, removeAttribute(key) { delete this[key]; }
+        }));
+        return nodes.get(selector);
+    };
+    const ctx = { window: { MediaDash: { esc: String } } };
+    vm.runInNewContext(source('dom-helpers.js'), ctx);
+    ctx.window.MediaDash.esc = String;
+    vm.runInNewContext(source('tabs/issues-tab.js'), ctx);
+    const tab = ctx.window.MediaDash.createIssuesTab({
+        root: { querySelector: node, querySelectorAll: () => [] },
+        api: url => new Promise((resolve, reject) => pending.push({ url, resolve, reject })),
+        strings: ctx.window.MediaDash.STR,
+        lifetime: { current: () => 1 }, fmt: ctx.window.MediaDash.fmt, bytes: ctx.window.MediaDash.bytes,
+        fileExtOf: () => 'mkv', mediaCategoryOf: () => 'video', updateTabBadge() {}, rescan
+    });
+    return { tab, node, pending };
+}
+
+test('Active scan fast polling avoids database and recycle queries between cold refreshes', () => {
+    const code = source('page-controller.js');
+    const start = code.indexOf('function refresh(silent)');
+    const end = code.indexOf('// Shared config cache', start);
+    assert(start >= 0 && end > start);
+    const calls = [];
+    const ctx = {
+        _refreshTick: 0, _postUpgradeChecked: true, _postUpgradeAvailable: false,
+        overviewTab: { lastStatus: { IsScanning: true, IsFixing: false } },
+        api: url => { calls.push(url); return new Promise(() => {}); },
+        view: { querySelector: () => ({ style: {}, getAttribute: () => 'overview' }) }
+    };
+    vm.runInNewContext(code.slice(start, end), ctx);
+    for (let tick = 0; tick < 4; tick++) ctx.refresh(true);
+    assert.deepEqual(calls, Array(4).fill('Status/Progress'));
+    ctx.refresh(true);
+    assert.deepEqual(calls.slice(4), ['Status', 'Errors/Count', 'RecycleBin']);
+});
+
+test('Blocked detected and queued issues explain settings instead of promising a fix', async () => {
+    const e = issuesEnvironment();
+    const issue = { Id: 1, Type: 'Quality', Status: 'Detected', Path: '/movie.mkv', FileName: 'movie.mkv', DetailsJson: '{}', FixBlockedReason: 'Detect only is read-only. Choose Ask me first.', Warnings: [] };
+    e.tab.activate(); e.pending[0].resolve([issue]); await new Promise(setImmediate);
+    assert.match(e.node('#mdIssueList').innerHTML, /Detect only is read-only/);
+    assert.match(e.node('#mdIssueList').innerHTML, /mdIssueSettings/);
+    assert.doesNotMatch(e.node('#mdIssueList').innerHTML, /class="[^"]*mdApprove/);
+    assert.equal(e.node('#mdApproveAll').style.display, 'none');
+    assert.equal(e.tab.filteredIds(true).length, 0);
+    e.tab.activate(); e.pending[1].resolve([{ ...issue, Status: 'Queued' }]); await new Promise(setImmediate);
+    assert.doesNotMatch(e.node('#mdIssueList').innerHTML, /Queued for next fix run/);
+    assert.match(e.node('#mdIssueList').innerHTML, /Detect only is read-only/);
+    e.tab.activate(); e.pending[2].resolve([{ ...issue, FixBlockedReason: null }]); await new Promise(setImmediate);
+    assert.match(e.node('#mdIssueList').innerHTML, /class="[^"]*mdApprove/);
+    assert.deepEqual(Array.from(e.tab.filteredIds(true)), [1]);
+});
+
+test('Legacy move findings offer a scan instead of settings or approval', async () => {
+    let scans = 0;
+    const e = issuesEnvironment(() => scans++);
+    e.tab.activate();
+    e.pending[0].resolve([{ Id: 1, Type: 'Ungrouped', Status: 'Detected', Path: '/tv/show',
+        FileName: 'show', DetailsJson: '{}', FixRequiresRescan: true,
+        FixBlockedReason: 'Re-scan this item before approval so you can review its complete, current move preview.' }]);
+    await new Promise(setImmediate);
+    const markup = e.node('#mdIssueList').innerHTML;
+    assert.match(markup, /mdIssueRescan/);
+    assert.match(markup, /Scan now/);
+    assert.doesNotMatch(markup, /mdIssueSettings|class="[^"]*mdApprove/);
+    assert.equal(e.tab.filteredIds(true).length, 0);
+    e.node('.mdIssueRescan').fire('click');
+    assert.equal(scans, 1);
+});
+
+test('Issue rescan uses the existing scan flow and never cancels an active scan', () => {
+    const code = source('page-controller.js');
+    const start = code.indexOf('rescan: function () {');
+    const end = code.indexOf('\n                        },', start);
+    const calls = [];
+    const ctx = { showTab: tab => calls.push(tab), overviewTab: { busy: {}, lastStatus: {} },
+        view: { querySelector: selector => ({ click: () => calls.push(selector) }) } };
+    const rescan = vm.runInNewContext('({' + code.slice(start, end) + '\n}}).rescan', ctx);
+    rescan();
+    assert.deepEqual(calls, ['overview', '#mdScanNow']);
+    calls.length = 0;
+    ctx.overviewTab.lastStatus.IsScanning = true;
+    rescan();
+    assert.deepEqual(calls, ['overview']);
+    calls.length = 0;
+    ctx.overviewTab.lastStatus.IsScanning = false;
+    ctx.overviewTab.busy.scan = true;
+    rescan();
+    assert.deepEqual(calls, ['overview']);
+});
+
+test('Managed artwork shows the metadata path and opens its Jellyfin item instead of Files', async () => {
+    const e = issuesEnvironment();
+    e.tab.activate();
+    e.pending[0].resolve([{ Id: 1, Type: 'CorruptArtwork', Status: 'Detected',
+        Path: '/metadata/library/poster.jpg', FileName: 'poster.jpg', DetailsJson: '{"reason":"missing"}',
+        SuggestedFix: 'Artwork is unreadable. Approve to delete this file.',
+        ItemId: '3f382d12-db31-3a8f-a5c0-1c5236b31210', FixBlockedReason: 'Owner is disabled.' }]);
+    await new Promise(setImmediate);
+    const markup = e.node('#mdIssueList').innerHTML;
+    assert.match(markup, /metadata\/library\/poster.jpg/);
+    assert.doesNotMatch(markup, /class="fieldDescription mdIssuePath"/);
+    assert.match(markup, /mdOpenInJellyfin.*Open item in Jellyfin/);
+    assert.match(markup, /mdIssueTagChip">Missing artwork/);
+    assert.match(markup, /the file was missing when MediaDash checked it/);
+    assert.doesNotMatch(markup, /Approve to delete this file/);
+    const row = e.node('#mdIssueList');
+    e.tab.activate();
+    e.pending[1].resolve([{ Id: 2, Type: 'CorruptArtwork', Status: 'Detected', FileName: 'poster.jpg',
+        Path: '/metadata/library/poster.jpg', DetailsJson: '{"reason":"decode error"}' }]);
+    await new Promise(setImmediate);
+    assert.match(row.innerHTML, /mdIssueTagChip">Corrupt artwork/);
+});
+
+test('Bulk approval excludes blocked, queued and needs-review rows without changing dismissal selection', async () => {
+    const e = issuesEnvironment();
+    const issue = { Type: 'Quality', Status: 'Detected', Path: '/movie.mkv', FileName: 'movie.mkv', DetailsJson: '{}', Warnings: [] };
+    e.tab.activate(); e.pending[0].resolve([
+        { ...issue, Id: 1 }, { ...issue, Id: 2, FixBlockedReason: 'Disabled' },
+        { ...issue, Id: 3, Status: 'Queued' }, { ...issue, Id: 4, Warnings: [{ blocking: true, message: 'Needs consent' }] }
+    ]); await new Promise(setImmediate);
+    assert.deepEqual(Array.from(e.tab.filteredIds(true)), [1]);
+    assert.deepEqual(Array.from(e.tab.filteredIds()), [1, 2, 3, 4]);
+    assert.match(e.node('.mdApproveAllLabel').textContent, /1/);
+    assert.match(e.node('#mdIssueList').innerHTML, /Needs consent/);
+});
+
+test('Failed fix startup clears the busy state and displays the server explanation', async () => {
+    const e = overviewEnvironment(), alerts = [];
+    const ctx = { view: { querySelector: e.node }, overviewTab: e.tab, STR: { fixStartFailed: 'Could not start fixes.' },
+        post: () => Promise.reject({ responseText: 'Task unavailable' }), errorMessage: err => err.responseText,
+        Dashboard: { alert: item => alerts.push(item) }, lifetime: { timeout() {} }, refresh() {} };
+    const code = source('page-controller.js');
+    const start = code.indexOf("view.querySelector('#mdFixNow').addEventListener('click'");
+    const end = code.indexOf('// Right-click (desktop)', start);
+    assert(start >= 0 && end > start);
+    vm.runInNewContext(code.slice(start, end), ctx);
+    e.node('#mdFixNow').fire('click'); await new Promise(setImmediate);
+    assert.equal(e.tab.busy.fix, false);
+    assert.match(e.node('#mdScanState').textContent, /Task unavailable/);
+    assert.equal(alerts[0].message, 'Task unavailable');
+});
+
+test('Rejected approval keeps the row detected and reports the error', async () => {
+    const nodes = new Map();
+    const node = selector => {
+        if (!nodes.has(selector)) nodes.set(selector, { textContent: '', style: {}, getAttribute: () => '1', querySelector: node });
+        return nodes.get(selector);
+    };
+    const ctx = { window: { MediaDash: {} } };
+    vm.runInNewContext(source('tabs/issues-tab.js').replace('filteredIds: function', 'rowAction: rowAction, filteredIds: function'), ctx);
+    const tab = ctx.window.MediaDash.createIssuesTab({
+        root: { querySelector: node }, strings: { issueActionFailed: 'Could not update this issue.' },
+        post: () => Promise.reject({ statusText: 'Settings changed' }), errorMessage: err => err.statusText
+    });
+    const button = { getAttribute: () => '1', closest: () => node('row') };
+    tab.rowAction(button, 'Approve', 'Approved');
+    assert.equal(button.disabled, true);
+    await new Promise(setImmediate);
+    assert.equal(button.disabled, false);
+    assert.match(node('.mdRowMsg').textContent, /Settings changed/);
+    assert.equal(node('row').style.opacity, undefined);
+});
+
+test('Fetch errors expose the server reason and suppress it if the page closes while reading', async () => {
+    const ctx = { window: {} }; vm.createContext(ctx);
+    vm.runInContext(source('page-lifetime.js'), ctx); vm.runInContext(source('api-client.js'), ctx);
+    const life = ctx.window.MediaDash.createPageLifetime(); life.start();
+    let finish;
+    const response = { status: 409, statusText: 'Conflict', text() {}, clone() { return { text: () => new Promise(resolve => { finish = resolve; }) }; } };
+    const api = ctx.window.MediaDash.createApi(life, { ajax: () => Promise.reject(response) });
+    const request = api.ajax({}); await new Promise(setImmediate);
+    finish('"Detect only is read-only"');
+    await assert.rejects(request, error => error === response && error.responseText.includes('Detect only'));
+    let rendered = false;
+    api.ajax({}).catch(() => { rendered = true; }); await new Promise(setImmediate);
+    life.stop(); finish('old failure'); await new Promise(setImmediate);
+    assert.equal(rendered, false);
+});
+
+test('Fetch conflict bodies retain the structured replacement preview', async () => {
+    const ctx = { window: {} }; vm.createContext(ctx);
+    vm.runInContext(source('page-lifetime.js'), ctx); vm.runInContext(source('api-client.js'), ctx);
+    const life = ctx.window.MediaDash.createPageLifetime(); life.start();
+    const preview = { Fingerprint: 'b'.repeat(64), Paths: [], BlockingReasons: ['Changed destination'] };
+    const response = { status: 409, text() {}, clone() { return { text: () => Promise.resolve(JSON.stringify(preview)) }; } };
+    const api = ctx.window.MediaDash.createApi(life, { ajax: () => Promise.reject(response) });
+    await assert.rejects(api.ajax({ dataType: 'json' }), error => error === response && error.responseJSON?.Fingerprint === preview.Fingerprint);
+});
+
+test('Failed playability repair offers Delete and Ignore with disposal explained', async () => {
+    const e = issuesEnvironment();
+    e.tab.activate();
+    e.pending[0].resolve([{ Id: 7, Type: 'Playability', Status: 'Detected', Path: '/owned/movie.mkv', FileName: 'movie.mkv', DetailsJson: '{}', RepairFailed: true, SuggestedFix: 'Repair failed; deletion needs approval.', Warnings: [{ Blocking: true, Message: 'Repair failed.' }] }]);
+    await new Promise(setImmediate);
+    const rendered = e.node('#mdIssueList').innerHTML;
+    assert.match(rendered, /mdApprove[^>]*><span>Delete<\/span>/);
+    assert.match(rendered, /mdDismiss/);
+    assert.match(rendered, /recycle bin after failed repair/);
+});
+
+test('Issues request failure is visible and Retry recovers without an empty-success message', async () => {
+    const e = issuesEnvironment();
+    e.tab.activate(); e.pending[0].reject(new Error('HTTP 500'));
+    await new Promise(setImmediate);
+    assert.equal(e.node('#mdIssueLoadError').style.display, '');
+    assert.match(e.node('#mdIssueLoadErrorText').textContent, /load issues/i);
+    assert.doesNotMatch(e.node('#mdIssueList').innerHTML, /No issues/);
+    e.node('#mdIssueLoadRetry').onclick();
+    assert.equal(e.pending.length, 2);
+    e.pending[1].resolve([]); await new Promise(setImmediate);
+    assert.equal(e.node('#mdIssueLoadError').style.display, 'none');
+    assert.match(e.node('#mdIssueList').innerHTML, /No issues/);
+});
+
+test('A failed or malformed Issues refresh retains previously displayed rows', async () => {
+    const e = issuesEnvironment();
+    e.tab.activate();
+    e.pending[0].resolve([{ Id: 7, Type: 'Quality', Status: 'Detected', Path: '/owned/movie.mkv', FileName: 'movie.mkv', DetailsJson: '{}', Warnings: [] }]);
+    await new Promise(setImmediate);
+    assert.match(e.node('#mdIssueList').innerHTML, /movie\.mkv/);
+    const previous = e.node('#mdIssueList').innerHTML;
+    e.tab.activate(); e.pending[1].reject(new Error('HTTP 500'));
+    await new Promise(setImmediate);
+    assert.equal(e.node('#mdIssueList').innerHTML, previous);
+    assert.equal(e.tab.count(), 1);
+    assert.equal(e.node('#mdIssueLoadError').style.display, '');
+    e.node('#mdIssueLoadRetry').onclick(); e.pending[2].resolve({ wrong: 'shape' });
+    await new Promise(setImmediate);
+    assert.equal(e.tab.count(), 1);
+    assert.equal(e.node('#mdIssueList').innerHTML, previous);
+    assert.equal(e.node('#mdIssueLoadError').style.display, '');
+});
+
+test('A failure for the previous Issues view does not report failure in the new view', async () => {
+    const e = issuesEnvironment();
+    e.tab.activate(); e.tab.toggleShowIgnored();
+    e.pending[0].reject(new Error('old open-view failure'));
+    await new Promise(setImmediate);
+    assert.equal(e.pending.length, 2);
+    assert.equal(e.pending[1].url, 'Issues?status=Dismissed');
+    assert.notEqual(e.node('#mdIssueLoadError').style.display, '');
+    e.pending[1].resolve([]); await new Promise(setImmediate);
+    assert.equal(e.node('#mdIssueLoadError').style.display, 'none');
+});
+
+test('A newer attempt message with the same timestamp replaces the displayed failure', async () => {
+    const e = issuesEnvironment();
+    const row = { Id: 7, Type: 'Quality', Status: 'Queued', Path: '/owned/movie.mkv', FileName: 'movie.mkv', DetailsJson: '{}', Warnings: [], LastAttemptSuccess: false, LastAttemptAtUtc: '2026-10-12T00:00:00Z', LastAttemptMessage: 'older attempt' };
+    e.tab.activate(); e.pending[0].resolve([row]);
+    await new Promise(setImmediate);
+    assert.match(e.node('#mdIssueList').innerHTML, /older attempt/);
+    e.tab.activate(); e.pending[1].resolve([Object.assign({}, row, { LastAttemptMessage: 'newer attempt' })]);
+    await new Promise(setImmediate);
+    assert.match(e.node('#mdIssueList').innerHTML, /newer attempt/);
+});
+
+function overviewEnvironment() {
+    const nodes = new Map();
+    const node = selector => {
+        if (!nodes.has(selector)) nodes.set(selector, Object.assign(element(), {
+            style: {}, textContent: '', innerHTML: '', classList: { toggle() {} },
+            querySelector: node, querySelectorAll: () => []
+        }));
+        return nodes.get(selector);
+    };
+    const ctx = { window: { MediaDash: {} }, localStorage: { getItem: () => null } };
+    vm.runInNewContext(source('dom-helpers.js'), ctx);
+    vm.runInNewContext(source('tabs/overview-tab.js'), ctx);
+    const tab = ctx.window.MediaDash.createOverviewTab({
+        view: { querySelector: node, querySelectorAll: () => [] }, STR: ctx.window.MediaDash.STR,
+        fmt: ctx.window.MediaDash.fmt, esc: String, bytes: String,
+        updateTabBadge() {}, schedulePoll() {}, bannerDismissed: () => false
+    });
+    return { tab, node };
+}
+
+test('Scan progress advances within a long scanner while retaining the completed-stage count', () => {
+    const e = overviewEnvironment();
+    e.tab.renderStatus({ IsScanning: true, ScanProgress: 73.6, ScanScannersDone: 1, ScanScannersTotal: 2 }, true);
+    assert.match(e.node('#mdScanState').textContent, /74%/);
+    assert.match(e.node('#mdScanState').textContent, /1 \/ 2 scanners done/);
+    assert.equal(e.node('#mdProgressFill').style.width, '74%');
+    e.tab.renderStatus({ IsScanning: true, ScanProgress: null, ScanScannersDone: 1, ScanScannersTotal: 2 }, true);
+    assert.equal(e.node('#mdProgressFill').style.width, '50%');
+});
+
+test('Grouping file activity stays visible while the overall scanner percentage is unchanged', () => {
+    const e = overviewEnvironment();
+    const status = { IsScanning: true, ScanProgress: 15, CurrentActivity: '/tv/Show/episode.mkv' };
+    e.tab.renderStatus({ ...status, CurrentActivityLabel: 'Checking move files (1/10; 25% of file)' }, true);
+    assert.match(e.node('#mdActivity').textContent, /25% of file.*episode.mkv/);
+    e.tab.renderStatus({ ...status, CurrentActivityLabel: 'Checking move files (1/10; 50% of file)' }, true);
+    assert.match(e.node('#mdActivity').textContent, /50% of file.*episode.mkv/);
+    assert.equal(e.node('#mdProgressFill').style.width, '15%');
+    e.tab.renderStatus({ IsScanning: false }, true);
+    assert.equal(e.node('#mdActivity').textContent, '');
+});
+
+test('System performance displays disk rates next to GPU and distinguishes zero from unavailable', () => {
+    const e = overviewEnvironment();
+    e.tab.renderStatus({ System: { Platform: 'Linux', Disks: [{ Name: 'sda', ReadBytesPerSecond: 0, WriteBytesPerSecond: 1024 }] } }, true);
+    assert.match(e.node('#mdSystem').innerHTML, /data-kind="gpu-0"[\s\S]*data-kind="disk-io-0"/);
+    assert.match(e.node('[data-field="value"]').innerHTML, /Read 0\/s.*Write 1024\/s/);
+    const title = index => e.node('.mdSysCell[data-kind="disk-io-' + index + '"] [data-field="title"]').textContent;
+    assert.equal(title(0), 'Disk I/O · sda');
+    e.tab.renderStatus({ System: { Platform: 'Linux', Disks: [{ Name: 'sda' }] } }, true);
+    assert.match(e.node('[data-field="value"]').innerHTML, /Read .*N\/A.*Write .*N\/A/);
+    e.tab.renderStatus({ System: { Platform: 'Windows', Disks: [{ Name: '0 C:' }, { Name: '1 D:' }] } }, true);
+    assert.equal(title(0), 'Disk I/O · 0 C:');
+    assert.equal(title(1), 'Disk I/O · 1 D:');
+    const markup = e.node('#mdSystem').innerHTML;
+    assert.match(markup, /aria-describedby="mdSysTip-disk-io-0"/);
+    assert.match(markup, /aria-describedby="mdSysTip-disk-io-1"/);
+    assert.equal((markup.match(/Network drive and NAS disk performance is unavailable/g) || []).length, 2);
+});
+
+test('A fix completing between polls keeps its no-work explanation visible', () => {
+    const e = overviewEnvironment();
+    e.tab.renderStatus({ IsFixing: false }, true);
+    e.tab.busy.fix = true;
+    const status = { IsFixing: false, LastFixRun: { FinishedAtUtc: '2026-10-13T01:00:00Z', NoWorkReason: 'No fixes ran. Re-enable the fixer in Settings → Fix order.' } };
+    status.FixPauseReason = status.LastFixRun.NoWorkReason;
+    e.tab.renderStatus(status, true);
+    assert.equal(e.node('#mdScanState').textContent, status.LastFixRun.NoWorkReason);
+    for (let poll = 0; poll < 3; poll++) e.tab.renderStatus(status, true);
+    assert.equal(e.node('#mdFixPauseNote').style.display, 'flex');
+    assert.equal(e.node('#mdFixPauseText').textContent, status.LastFixRun.NoWorkReason);
+    assert.equal(e.node('#mdFixIgnoreActivity').style.display, 'none');
+    e.tab.renderStatus({ IsFixing: true, LastFixRun: status.LastFixRun }, true);
+    assert.equal(e.node('#mdFixPauseNote').style.display, 'none');
+    // A cancellation can leave the older summary intact, but the new run resets its current note.
+    e.tab.renderStatus({ IsFixing: false, LastFixRun: status.LastFixRun }, true);
+    assert.equal(e.node('#mdFixPauseNote').style.display, 'none');
+    e.tab.renderStatus({ IsFixing: false, LastFixRun: { FinishedAtUtc: '2026-10-13T01:01:00Z', Attempted: 1, Succeeded: 1 } }, true);
+    assert.equal(e.node('#mdFixPauseNote').style.display, 'none');
+});
+
+test('An early safety pause remains visible after the task returns', () => {
+    const e = overviewEnvironment();
+    e.tab.renderStatus({ IsFixing: false, FixPauseReason: 'Recycle bin is full.' }, true);
+    assert.equal(e.node('#mdFixPauseText').textContent, 'Recycle bin is full.');
+    assert.equal(e.node('#mdFixPauseNote').style.display, 'flex');
+    assert.equal(e.node('#mdFixIgnoreActivity').style.display, 'none');
+    e.tab.renderStatus({ IsFixing: true, FixPauseReason: 'Playback is active.' }, true);
+    assert.equal(e.node('#mdFixIgnoreActivity').style.display, '');
+});
+
+test('Run fixes now asks the server for an explanation even with no pending fixes', async () => {
+    const e = overviewEnvironment(), calls = [];
+    const ctx = { view: { querySelector: e.node }, overviewTab: e.tab, STR: {},
+        post: path => { calls.push(path); return Promise.resolve(); }, lifetime: { timeout() {} }, refresh() {} };
+    e.tab.renderStatus({ PendingFixCount: 0 }, true);
+    const code = source('page-controller.js');
+    const start = code.indexOf("view.querySelector('#mdFixNow').addEventListener('click'");
+    const end = code.indexOf('// Right-click (desktop)', start);
+    assert(start >= 0 && end > start);
+    vm.runInNewContext(code.slice(start, end), ctx);
+    e.node('#mdFixNow').fire('click', {});
+    await new Promise(setImmediate);
+    assert.deepEqual(calls, ['Fix']);
+    assert.equal(e.tab.busy.fix, true);
+});
+
 function filesMenuEnvironment() {
     const nodes = new Map(), requests = [], alerts = [], cleanups = [], timers = new Map();
     let timerId = 0;
@@ -135,7 +507,7 @@ function languagePicker(locale = 'sv-SE') {
         esc: s => s, currentLocale: () => locale
     });
     tab.populateLanguageDatalist();
-    const hidden = { value: 'eng' }, input = Object.assign(element(), { value: '' });
+    const hidden = { value: 'eng', closest: () => null }, input = Object.assign(element(), { value: '' });
     const render = { innerHTML: '', querySelectorAll: () => [] };
     const chip = Object.assign(element(), {
         querySelector: s => s === 'input[type=hidden]' ? hidden : s === '.mdChipInputRender' ? render : input
@@ -240,6 +612,7 @@ test('translation finishing after pagehide cannot initialize a hidden view', asy
         ApiClient: { getUrl: x => x }, populateLanguageDatalist() {}, populateGenreDatalist() {},
         settingsTab: { populateLanguageDatalist() {}, populateGenreDatalist() {} },
         loadI18n: () => new Promise(resolve => { finish = resolve; }),
+        api: () => Promise.reject(new Error('probe unavailable')),
         STR: { tagline: 'test' }, initAfterI18n() { initialized++; }
     });
     const code = source('page-controller.js');
@@ -247,7 +620,7 @@ test('translation finishing after pagehide cannot initialize a hidden view', asy
     const end = code.indexOf('function initAfterI18n()', start);
     assert(start >= 0 && end > start);
     vm.runInContext(code.slice(start, end), env.ctx);
-    onShow.call({ querySelector: () => ({}) }); env.ctx.lifetime.stop(); finish();
+    onShow.call({ querySelector: () => ({ style: {} }), querySelectorAll: () => [] }); env.ctx.lifetime.stop(); finish();
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(initialized, 0);
 });
@@ -396,8 +769,10 @@ test('bulk move captures selection before the picker and source before the batch
     const files = ctx.window.MediaDash.createFilesTab({ api, view: { querySelector: () => ({ style: {} }) } });
     files.currentFilePath = 'C:\\A'; files.fileSelection.add('one.mkv'); files.fileSelection.add('two.mkv');
     files.bulkMove(); files.fileSelection.clear(); files.currentFilePath = 'C:\\B';
-    files.picker.onPick('C:\\target'); pending[0](); await Promise.resolve();
-    assert.deepEqual(requests.map(r => r.From), ['C:\\A\\one.mkv', 'C:\\A\\two.mkv']);
+    files.picker.onPick('C:\\target');
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].PreviewOnly, true);
+    assert.deepEqual(requests[0].Selections.map(r => r.From), ['C:\\A\\one.mkv', 'C:\\A\\two.mkv']);
 });
 
 test('uploads retain the selected destination throughout the batch', () => {

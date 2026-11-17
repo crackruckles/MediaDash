@@ -1,0 +1,19 @@
+{
+  "caseId": "media-docker-smoke",
+  "sourceDigest": "18cccce8ee54105a3c80edb05e03e1a84971113da6a3775da8716bf3be1b96c8",
+  "environment": "Disposable Docker guest with fresh per-image config and cache. MediaDash DLL SHA-256 58693ddcbec0b98b7653e1b696fedfc4714c306a324644f40f0e6465de45339d.",
+  "checks": [
+    {
+      "name": "docker-10.11",
+      "passed": true,
+      "skipped": false,
+      "observed": "Jellyfin 10.11.11, image sha256:aefb67e6a7ff1debdd154a78a7bbb780fd0c873d8639210a7f6a2016ad2b35db. Health, MediaDash assembly load, and configuration page marker passed."
+    },
+    {
+      "name": "docker-12",
+      "passed": true,
+      "skipped": false,
+      "observed": "Jellyfin 12.4.0, image sha256:fea863d0cd9ec445985d9c75fc6ed64e38a1d2766cf0c250a33d553f4fc1b771. Health, MediaDash assembly load, and configuration page marker passed."
+    }
+  ]
+}

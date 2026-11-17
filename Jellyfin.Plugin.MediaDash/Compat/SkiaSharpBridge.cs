@@ -101,11 +101,13 @@ public sealed class SkiaSharpBridge
         }
         catch (TargetInvocationException ex)
         {
-            return new SkiaSharpDecodeResult(false, "SkiaSharp decode threw: " + (ex.InnerException?.Message ?? ex.Message), 0, 0);
+            Api.Diagnostics.Record("SkiaSharpBridge.DecodeUnavailable", "Image validation unavailable: " + (ex.InnerException?.Message ?? ex.Message));
+            return new SkiaSharpDecodeResult(false, null, 0, 0);
         }
         catch (Exception ex)
         {
-            return new SkiaSharpDecodeResult(false, "SkiaSharp reflection error: " + ex.Message, 0, 0);
+            Api.Diagnostics.Record("SkiaSharpBridge.DecodeUnavailable", "Image validation unavailable: " + ex.Message);
+            return new SkiaSharpDecodeResult(false, null, 0, 0);
         }
 
         if (bitmap is null)
@@ -115,13 +117,15 @@ public sealed class SkiaSharpBridge
 
         try
         {
+            using var disposable = bitmap as IDisposable;
             var width = _widthProperty!.GetValue(bitmap) as int? ?? 0;
             var height = _heightProperty!.GetValue(bitmap) as int? ?? 0;
             return new SkiaSharpDecodeResult(true, null, width, height);
         }
-        finally
+        catch (Exception ex)
         {
-            (bitmap as IDisposable)?.Dispose();
+            Api.Diagnostics.Record("SkiaSharpBridge.DecodeUnavailable", "Image validation unavailable: " + ex.Message);
+            return new SkiaSharpDecodeResult(false, null, 0, 0);
         }
     }
 }

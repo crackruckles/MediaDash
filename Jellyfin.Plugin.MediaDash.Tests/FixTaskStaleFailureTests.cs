@@ -50,8 +50,7 @@ public sealed class FixTaskStaleFailureTests
         // — which both fixers still emit when a destination file/folder occupies the target path.
         ("already exists at", new[]
         {
-            "Jellyfin.Plugin.MediaDash/Fixers/MediaGrouperFixer.cs",
-            "Jellyfin.Plugin.MediaDash/Fixers/MediaSorterFixer.cs"
+            "Jellyfin.Plugin.MediaDash/Fixers/MediaMoveService.cs"
         }),
         ("Resolve the collision manually and re-scan", new[] { "Jellyfin.Plugin.MediaDash/Fixers/PlayabilityFixer.cs" }),
         ("folder cover already exists at", new[] { "Jellyfin.Plugin.MediaDash/Fixers/EmbeddedCoverArtFixer.cs" }),

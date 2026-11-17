@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+repo=$(git rev-parse --show-toplevel)
+exec python "$repo/tools/reported_issue_gate.py" --pre-push

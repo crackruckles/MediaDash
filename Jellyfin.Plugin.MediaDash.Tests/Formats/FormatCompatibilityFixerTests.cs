@@ -270,6 +270,51 @@ public class FormatCompatibilityFixerTests
         }
     }
 
+    [Fact]
+    public async Task InsufficientSpace_RefusesBeforeConverterRuns()
+    {
+        var source = MakeTempFile(".mobi");
+        try
+        {
+            var (fixer, resolver, registry) = Setup(spaceCheck: (_, multiplier) => multiplier == 2 ? "owned low-space refusal" : null);
+            resolver.AssignByPath(source.FullName, CollectionType.books);
+            registry.Register(new StubConverter("ebook", MediaKind.Ebook, [CollectionType.books], (_, _) => throw new InvalidOperationException("must not convert")));
+            var result = await fixer.FixAsync(MakeIssue(source.FullName), null, default);
+            Assert.Equal(FixReason.InsufficientSpace, result.Reason);
+            Assert.True(File.Exists(source.FullName));
+        }
+        finally
+        {
+            File.Delete(source.FullName);
+        }
+    }
+
+    [Theory]
+    [InlineData("J.R.R. Tolkien - The Hobbit")]
+    [InlineData("Book 1.5 - Title")]
+    public async Task FolderMerge_DottedName_UsesCompleteName(string name)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "md-folder-name-" + Guid.NewGuid().ToString("N"));
+        var folder = Directory.CreateDirectory(Path.Combine(root, name)).FullName;
+        var destination = folder + ".m4b";
+        File.WriteAllBytes(destination, [1, 2, 3]);
+        try
+        {
+            var (fixer, resolver, registry) = Setup();
+            registry.Register(new StubConverter("audiobook", MediaKind.Audiobook, [CollectionType.books]));
+            resolver.AssignByPath(folder, CollectionType.books);
+            var issue = new Issue { Type = IssueType.FormatCompatibility, Path = folder,
+                DetailsJson = JsonSerializer.Serialize(new { sourceExt = "", targetExt = ".m4b", converter = "audiobook", kind = "audiobook-folder-merge", mixedLibrary = false }) };
+            var result = await fixer.FixAsync(issue, null, default);
+            Assert.Equal(FixReason.OutputConflict, result.Reason);
+            Assert.Equal(new byte[] { 1, 2, 3 }, File.ReadAllBytes(destination));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
     // -- P2 fix tests --
 
     /// <summary>
@@ -405,7 +450,8 @@ public class FormatCompatibilityFixerTests
         string ebookPreferredTarget = "",
         string imagePreferredTarget = "",
         Func<Guid, BaseItem?>? getItemById = null,
-        VerifiedReplacementService? replacement = null)
+        VerifiedReplacementService? replacement = null,
+        Func<string, int, string?>? spaceCheck = null)
     {
         var registry = new StubRegistry();
         var resolver = new StubResolver();
@@ -421,7 +467,8 @@ public class FormatCompatibilityFixerTests
             getItemById: getItemById ?? (_ => null),
             libraryManager: null,
             libraryMonitor: null,
-            logger: NullLogger<FormatCompatibilityFixer>.Instance);
+            logger: NullLogger<FormatCompatibilityFixer>.Instance,
+            spaceCheck: spaceCheck);
         return (fixer, resolver, registry);
     }
 

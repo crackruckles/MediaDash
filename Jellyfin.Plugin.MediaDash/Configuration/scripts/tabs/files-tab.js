@@ -17,6 +17,152 @@
             var fileFilter = '';
 
             var picker = { open: false, path: '', listing: null, onPick: null };
+            var moveRequest = 0;
+            var movePreview = null, moveEndpoint = null, moveBody = null, movePathLimit = 100;
+            var renameRequest = 0, renameReturnFocus = null;
+
+            function moveText(key, fallback) { return (deps.strings || {})[key] || fallback; }
+
+            function moveCurrent(request, epoch) {
+                return request === moveRequest && (!deps.lifetime || deps.lifetime.accepts(epoch));
+            }
+
+            function closeFileRename() {
+                renameRequest++;
+                deps.view.querySelector('#mdFileRenameDialog').style.display = 'none';
+                deps.view.querySelector('#mdFileRenameAccept').onclick = null;
+                deps.view.querySelector('#mdFileRenameName').oninput = null;
+                if (renameReturnFocus && renameReturnFocus.isConnected !== false && typeof renameReturnFocus.focus === 'function') renameReturnFocus.focus();
+                renameReturnFocus = null;
+            }
+
+            function openFileRename(full, name) {
+                closeFileRename();
+                closeFileMove();
+                var request = renameRequest;
+                var epoch = deps.lifetime ? deps.lifetime.current() : null;
+                var dialog = deps.view.querySelector('#mdFileRenameDialog');
+                var input = deps.view.querySelector('#mdFileRenameName');
+                var cancel = deps.view.querySelector('#mdFileRenameCancel');
+                var accept = deps.view.querySelector('#mdFileRenameAccept');
+                renameReturnFocus = document.activeElement;
+                function current() { return request === renameRequest && (!deps.lifetime || deps.lifetime.accepts(epoch)); }
+                function review() {
+                    if (!current() || accept.disabled) return;
+                    var newName = input.value;
+                    closeFileRename();
+                    previewFileMove('Files/Rename', { Path: full, NewName: newName });
+                }
+                deps.view.querySelector('#mdFileRenameTitle').textContent = moveText('fileRenameTitle', 'Rename item');
+                deps.view.querySelector('#mdFileRenameLabel').textContent = moveText('fileRenameName', 'New name');
+                cancel.textContent = moveText('cancel', 'Cancel');
+                accept.textContent = moveText('fileRenameReview', 'Review related paths');
+                input.value = name;
+                input.oninput = function () { accept.disabled = !current() || !input.value.trim() || input.value === name; };
+                input.oninput();
+                cancel.onclick = closeFileRename;
+                accept.onclick = review;
+                dialog.onkeydown = function (event) {
+                    if (event.key === 'Escape') { event.preventDefault(); closeFileRename(); return; }
+                    if (event.key === 'Enter' && event.target === input) { event.preventDefault(); review(); return; }
+                    if (event.key !== 'Tab') return;
+                    var controls = [input, cancel, accept].filter(function (control) { return !control.disabled; });
+                    var next = controls.indexOf(document.activeElement) + (event.shiftKey ? -1 : 1);
+                    event.preventDefault();
+                    controls[(next + controls.length) % controls.length].focus();
+                };
+                dialog.style.display = 'flex';
+                input.focus();
+                if (typeof input.select === 'function') input.select();
+                if (deps.lifetime && deps.lifetime.own) deps.lifetime.own(function () { if (request === renameRequest) closeFileRename(); });
+            }
+
+            function closeFileMove() {
+                moveRequest++;
+                movePreview = null;
+                moveBody = null;
+                deps.view.querySelector('#mdFileMoveDialog').style.display = 'none';
+            }
+
+            function renderFileMovePreview(preview) {
+                movePreview = preview;
+                var esc = deps.esc || window.MediaDash.esc;
+                var paths = Array.isArray(preview.Paths) ? preview.Paths : [];
+                var blockers = Array.isArray(preview.BlockingReasons) ? preview.BlockingReasons : [];
+                deps.view.querySelector('#mdFileMoveTitle').textContent = moveText('movePreviewLabel', 'Review complete move');
+                deps.view.querySelector('#mdFileMoveCount').textContent = paths.length + ' ' + moveText('fileMovePaths', 'paths in this complete move');
+                deps.view.querySelector('#mdFileMoveHelp').textContent = preview.DryRun
+                    ? moveText('fileMoveDryRunHelp', 'Dry run is on. Files will stay in place.')
+                    : moveText('fileMoveHelp', 'Move all the paths below together. The complete recorded move can be undone from History when its files are unchanged.');
+                deps.view.querySelector('#mdFileMovePaths').innerHTML = paths.slice(0, movePathLimit).map(function (path) {
+                    return '<div class="mdHistPath">' + esc(path.From) + ' → ' + esc(path.To) + '</div>';
+                }).join('');
+                var more = deps.view.querySelector('#mdFileMoveMore');
+                more.style.display = paths.length > movePathLimit ? '' : 'none';
+                more.textContent = moveText('moveShowMore', 'Show more paths') + ' (' + Math.min(paths.length, movePathLimit) + '/' + paths.length + ')';
+                more.onclick = function () { movePathLimit += 100; renderFileMovePreview(preview); };
+                var accept = deps.view.querySelector('#mdFileMoveAccept');
+                accept.textContent = preview.DryRun ? moveText('fileMoveCheckDryRun', 'Check dry run') : moveText('fileMoveAccept', 'Move these paths');
+                accept.disabled = blockers.length > 0 || !preview.Fingerprint;
+                deps.view.querySelector('#mdFileMoveMessage').textContent = blockers.join('\n');
+            }
+
+            function previewFileMove(endpoint, body) {
+                var request = ++moveRequest;
+                var epoch = deps.lifetime ? deps.lifetime.current() : null;
+                moveEndpoint = endpoint;
+                moveBody = JSON.parse(JSON.stringify(body));
+                movePreview = null;
+                movePathLimit = 100;
+                deps.view.querySelector('#mdFileMoveDialog').style.display = 'none';
+                var previewBody = Object.assign({}, moveBody, { PreviewOnly: true });
+                deps.api.ajax({ type: 'POST', url: ApiClient.getUrl('MediaDash/' + endpoint), dataType: 'json', contentType: 'application/json', data: JSON.stringify(previewBody) }).then(function (preview) {
+                    if (!moveCurrent(request, epoch)) return;
+                    if (!preview || !Array.isArray(preview.Paths) || typeof preview.Fingerprint !== 'string') {
+                        window.alert(moveText('fileMovePreviewFailed', 'The complete move could not be previewed.'));
+                        return;
+                    }
+                    renderFileMovePreview(preview);
+                    deps.view.querySelector('#mdFileMoveDialog').style.display = 'flex';
+                    var cancel = deps.view.querySelector('#mdFileMoveCancel');
+                    cancel.textContent = moveText('cancel', 'Cancel');
+                    cancel.onclick = closeFileMove;
+                    cancel.focus();
+                    deps.view.querySelector('#mdFileMoveAccept').onclick = function () { approveFileMove(request, epoch); };
+                }, function (xhr) {
+                    if (!moveCurrent(request, epoch)) return;
+                    extractErrorMessage(xhr, moveText('fileMovePreviewFailed', 'The complete move could not be previewed.')).then(function (message) {
+                        if (moveCurrent(request, epoch)) window.alert(message);
+                    });
+                });
+            }
+
+            function approveFileMove(request, epoch) {
+                var accept = deps.view.querySelector('#mdFileMoveAccept');
+                if (!moveCurrent(request, epoch) || !movePreview || accept.disabled) return;
+                accept.disabled = true;
+                var body = Object.assign({}, moveBody, { PreviewOnly: false, PlanFingerprint: movePreview.Fingerprint });
+                deps.api.ajax({ type: 'POST', url: ApiClient.getUrl('MediaDash/' + moveEndpoint), dataType: 'json', contentType: 'application/json', data: JSON.stringify(body) }).then(function (result) {
+                    if (!moveCurrent(request, epoch)) return;
+                    closeFileMove();
+                    fileSelection.clear();
+                    loadFiles(currentFilePath);
+                    window.alert(result && result.Message ? result.Message : moveText('fileMoveDone', 'The complete move finished. See History for Undo.'));
+                }, function (xhr) {
+                    if (!moveCurrent(request, epoch)) return;
+                    if (xhr && xhr.responseJSON && Array.isArray(xhr.responseJSON.Paths)) {
+                        movePathLimit = 100;
+                        renderFileMovePreview(xhr.responseJSON);
+                        deps.view.querySelector('#mdFileMoveMessage').textContent = moveText('fileMoveChanged', 'The preview changed. Review the current paths before approving again.') + '\n' + (xhr.responseJSON.BlockingReasons || []).join('\n');
+                        return;
+                    }
+                    extractErrorMessage(xhr, moveText('fileMoveFailed', 'The move stopped. Review its recorded paths in History.')).then(function (message) {
+                        if (!moveCurrent(request, epoch)) return;
+                        deps.view.querySelector('#mdFileMoveMessage').textContent = message;
+                        accept.disabled = false;
+                    });
+                });
+            }
 
 
             function sortEntries(entries, by, dir) {
@@ -249,25 +395,9 @@
                 var names = Array.from(fileSelection);
                 openPicker(sourcePath, function (targetDir) {
                     if (!targetDir) return;
-                    var i = 0, ok = 0, fail = 0;
-                    function next() {
-                        if (i >= names.length) {
-                            window.alert('Moved ' + ok + ' of ' + names.length + (fail ? ' — ' + fail + ' failed.' : '.'));
-                            fileSelection.clear();
-                            loadFiles(currentFilePath);
-                            return;
-                        }
-                        var name = names[i++];
-                        var from = joinPath(sourcePath, name);
-                        var to = joinPath(targetDir, name);
-                        deps.api.ajax({
-                            type: 'POST',
-                            url: ApiClient.getUrl('MediaDash/Files/Move'),
-                            contentType: 'application/json',
-                            data: JSON.stringify({ From: from, To: to })
-                        }).then(function () { ok++; next(); }, function () { fail++; next(); });
-                    }
-                    next();
+                    previewFileMove('Files/Move', { Selections: names.map(function (name) {
+                        return { From: joinPath(sourcePath, name), To: joinPath(targetDir, name) };
+                    }) });
                 });
             }
 
@@ -350,15 +480,13 @@
                     return;
                 }
                 if (act === 'rename') {
-                    var newName = window.prompt('New name for "' + name + '":', name);
-                    if (!newName || newName === name) return;
-                    fileMutate('Files/Rename', { Path: full, NewName: newName });
+                    openFileRename(full, name);
                     return;
                 }
                 if (act === 'move') {
                     openPicker(currentFilePath, function (targetDir) {
                         if (!targetDir) return;
-                        fileMutate('Files/Move', { From: full, To: joinPath(targetDir, name) });
+                        previewFileMove('Files/Move', { From: full, To: joinPath(targetDir, name) });
                     });
                     return;
                 }
@@ -441,6 +569,16 @@
 
 
             function bindFiles() {
+                    var moveDialog = deps.view.querySelector('#mdFileMoveDialog');
+                    moveDialog.addEventListener('keydown', function (event) {
+                        if (event.key === 'Escape') { event.preventDefault(); closeFileMove(); return; }
+                        if (event.key !== 'Tab') return;
+                        var controls = Array.from(moveDialog.querySelectorAll('button')).filter(function (button) { return !button.disabled && button.style.display !== 'none'; });
+                        if (!controls.length) return;
+                        var next = controls.indexOf(document.activeElement) + (event.shiftKey ? -1 : 1);
+                        event.preventDefault();
+                        controls[(next + controls.length) % controls.length].focus();
+                    });
                     deps.view.querySelector('#mdFileUp').addEventListener('click', function () {
                         var parent = this.getAttribute('data-parent');
                         loadFiles(parent || '');
@@ -448,6 +586,9 @@
                     deps.view.querySelector('#mdFileRefresh').addEventListener('click', function () { loadFiles(currentFilePath); });
                     deps.view.querySelector('#mdFileFilter').addEventListener('input', function () {
                         fileFilter = this.value || '';
+                        fileSelection.forEach(function (name) {
+                            if (name.toLowerCase().indexOf(fileFilter.toLowerCase()) === -1) fileSelection.delete(name);
+                        });
                         if (currentFileListing) renderFileList(currentFileListing);
                     });
                     deps.view.querySelector('#mdFileBulkDelete').addEventListener('click', bulkDelete);

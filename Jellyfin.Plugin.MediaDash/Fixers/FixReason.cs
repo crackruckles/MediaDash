@@ -95,9 +95,6 @@ internal enum FixReason
     /// <summary>Swap failed mid-way and the SwapRecoveryHelper preserved the original at a recovery path. Requires operator attention.</summary>
     RecoveryRequired,
 
-    /// <summary>02-B: type is set to DetectOnly — the scanner runs but no fixer is authorized. Distinct from <see cref="TypeDisabled"/> (Off).</summary>
-    TypeDetectOnly,
-
     /// <summary>02-B: this <c>(path, type)</c> was previously restored so auto-queue must skip it; a manual approve bypasses.</summary>
     RestoredPath,
 
@@ -129,4 +126,10 @@ internal enum FixReason
     /// overwriting it would silently replace user content (external review #1 — folder-merge used
     /// to pass <c>overwrite: true</c> to <see cref="System.IO.File.Move(string,string,bool)"/>).</summary>
     OutputConflict,
+
+    /// <summary>Repair exhausted without a verified replacement; preserved source needs explicit delete approval.</summary>
+    RepairFailed,
+
+    /// <summary>A recorded move needs review; its claimed paths must not be replayed or cleaned automatically.</summary>
+    MoveNeedsReview,
 }

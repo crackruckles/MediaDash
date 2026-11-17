@@ -29,7 +29,6 @@
 
             var WIZ_MODE_OPTIONS = [
                 ['Off', 'modeOff'],
-                ['DetectOnly', 'modeDetect'],
                 ['ManualApprove', 'modeManual'],
                 ['Automatic', 'modeAuto']
             ];
@@ -129,8 +128,8 @@
                     ['Suspicious executables', deps.view.querySelector('#mdWizVirusMode').value],
                     ['Orphaned debris', deps.view.querySelector('#mdWizOrphanMode').value],
                     ['Unused subtitle fonts', deps.view.querySelector('#mdWizSubFontMode').value],
-                    ['Stale content', deps.view.querySelector('#mdWizStaleEnabled').checked ? 'DetectOnly' : 'Off'],
-                    ['Format compatibility', (function () { var r = deps.view.querySelector('input[name="mdWizFormatMode"]:checked'); return r && r.value !== 'Skip' ? 'DetectOnly' : 'Off'; }())]
+                    ['Stale content', deps.view.querySelector('#mdWizStaleEnabled').checked ? 'ManualApprove' : 'Off'],
+                    ['Format compatibility', (function () { var r = deps.view.querySelector('input[name="mdWizFormatMode"]:checked'); return r && r.value !== 'Skip' ? 'ManualApprove' : 'Off'; }())]
                 ];
                 var enabled = modes.filter(function (m) { return m[1] !== 'Off'; }).map(function (m) { return m[0]; });
                 var off = modes.filter(function (m) { return m[1] === 'Off'; }).map(function (m) { return m[0]; });
@@ -181,7 +180,7 @@
 
 
             function wizLoadLibraries(config) {
-                deps.api('Libraries').then(function (folders) {
+                return deps.api('Libraries').then(function (folders) {
                     var el = deps.view.querySelector('#mdWizLibraries');
                     var enabled = config.EnabledLibraries || [];
                     var eligible = folders.filter(function (f) {
@@ -216,7 +215,12 @@
                         return !(isDuplicate && o[0] === 'Automatic');
                     }).map(function (o) { return [o[0], deps.STR[o[1]]]; });
                     wizFillSelect(sel, opts);
-                    var current = c[modeFor] || 'DetectOnly';
+                    var current = c[modeFor] || 'ManualApprove';
+                    if (current === 'DetectOnly') {
+                        // pre-1.0.9 tombstone — see Plugin.NormaliseFixModes
+                        current = 'ManualApprove';
+                    }
+
                     if (isDuplicate && current === 'Automatic') {
                         current = 'ManualApprove';
                     }
@@ -266,9 +270,9 @@
                 deps.view.querySelector('#mdWizMusicTarget').value = c.MusicTargetPath || '';
                 deps.view.querySelector('#mdWizBooksTarget').value = c.BooksTargetPath || '';
                 deps.view.querySelector('#mdWizSortSource').value = c.MediaSortSource || 'JellyfinMetadata';
-                // Format compatibility: pre-select radio from existing config. First run defaults to DetectOnly.
+                // Format compatibility: pre-select radio from existing config. First run defaults to ManualApprove.
                 (function () {
-                    var mode = 'DetectOnly';
+                    var mode = 'ManualApprove';
                     if (c.ConvertEbooks || c.ConvertComics || c.ConvertImages || c.ConvertMusic || c.ConvertVideos) {
                         mode = 'Automatic';
                     }
@@ -308,9 +312,12 @@
                         var label = 'GPU ' + g.Index + ' — ' + g.Name + ' (' + (g.Source || '') + ')';
                         html += '<option value="' + g.Index + '">' + deps.esc(label) + '</option>';
                     });
+                    if (currentIndex != null && !(gpus || []).some(function (g) { return String(g.Index) === String(currentIndex); })) {
+                        html += '<option value="' + deps.esc(String(currentIndex)) + '">GPU ' + deps.esc(String(currentIndex)) + ' (not currently detected)</option>';
+                    }
                     sel.innerHTML = html;
                     sel.value = (currentIndex == null) ? '' : String(currentIndex);
-                    deps.view.querySelector('#mdWizGpuIndexRow').style.display = (gpus && gpus.length > 0) ? '' : 'none';
+                    deps.view.querySelector('#mdWizGpuIndexRow').style.display = (currentIndex != null || (gpus && gpus.length > 0)) ? '' : 'none';
                 }
                 var cached = deps.lastStatus && deps.lastStatus.System && deps.lastStatus.System.Gpus;
                 if (cached) {
@@ -407,16 +414,16 @@
                         c.RecycleBinPath = deps.view.querySelector('#mdWizBinPath').value.trim();
                         break;
                     case 14:
-                        c.StaleFixMode = deps.view.querySelector('#mdWizStaleEnabled').checked ? 'DetectOnly' : 'Off';
+                        c.StaleFixMode = deps.view.querySelector('#mdWizStaleEnabled').checked ? 'ManualApprove' : 'Off';
                         var staleDays = parseInt(deps.view.querySelector('#mdWizStaleThreshold').value, 10);
                         if (!isNaN(staleDays) && staleDays > 0) c.StaleThresholdDays = staleDays;
                         break;
                     case 15:
                         var formatMode = deps.view.querySelector('input[name="mdWizFormatMode"]:checked');
-                        var formatModeVal = formatMode ? formatMode.value : 'DetectOnly';
+                        var formatModeVal = formatMode ? formatMode.value : 'ManualApprove';
                         if (formatModeVal === 'Skip') {
-                            // Leave FormatCompatibilityFixMode at its current/default value (DetectOnly), all converters off.
-                            c.FormatCompatibilityFixMode = 'DetectOnly';
+                            // Leave FormatCompatibilityFixMode at its current/default value (ManualApprove), all converters off.
+                            c.FormatCompatibilityFixMode = 'ManualApprove';
                             c.ConvertEbooks = false;
                             c.ConvertComics = false;
                             c.ConvertImages = false;
@@ -431,7 +438,7 @@
                             c.ConvertVideos = true;
                             // ponytail: ConvertAudiobooks deliberately left off — audiobook merge is opt-in only (bigger UX surprise)
                         } else {
-                            c.FormatCompatibilityFixMode = 'DetectOnly';
+                            c.FormatCompatibilityFixMode = 'ManualApprove';
                             c.ConvertEbooks = false;
                             c.ConvertComics = false;
                             c.ConvertImages = false;
@@ -462,11 +469,25 @@
 
 
 
+            var current = 0;
+            var saving = false;
+
+            function reopen() {
+                saving = false;
+                return Promise.all([deps.api.configuration(deps.PLUGIN_ID), deps.populateLanguageDatalist()]).then(function (r) {
+                    wizPopulateFromConfig(r[0]);
+                    return wizLoadLibraries(r[0]).then(function () {
+                        current = 0;
+                        wizShow(0);
+                    });
+                });
+            }
+
             function setupFirstRun() {
-                var current = 0;
                 var total = WIZ_STEP_LABELS.length;
 
                 function saveThen(step, next) {
+                    if (saving) return;
                     var msg = deps.view.querySelector('#mdWizMsg');
                     msg.classList.remove('mdWizErr');
                     // UI-09: refuse to advance past the library step when the user has deselected
@@ -482,9 +503,14 @@
                             return;
                         }
                     }
+                    saving = true;
                     msg.textContent = 'Saving…';
                     deps.api.configuration(deps.PLUGIN_ID).then(function (c) {
+                        var before = Object.assign({}, c);
                         wizApplyStepToConfig(step, c);
+                        var keys = Object.keys(c);
+                        if (keys.some(function (key) { return /FixMode$/.test(key) && c[key] === 'Automatic' && before[key] !== 'Automatic'; }) && !window.confirm(deps.STR.confirmAuto)) { msg.textContent = ''; return; }
+                        if (keys.some(function (key) { return /Disposal$/.test(key) && c[key] === 'Permanent' && before[key] !== 'Permanent'; }) && !window.confirm(deps.STR.confirmPermanent)) { msg.textContent = ''; return; }
                         if (step === total - 1) {
                             c.FirstRunDone = true;
                         }
@@ -494,13 +520,13 @@
                         // save, minus the "Go to Recycle bin card" button — the wizard's own input is
                         // right there on the step.
                         var proceed = (step === 13) ? gateOnBinDiskInfo(c) : Promise.resolve(true);
-                        proceed.then(function (ok) {
+                        return proceed.then(function (ok) {
                             if (!ok) {
                                 msg.textContent = '';
                                 return;
                             }
 
-                            ApiClient.updatePluginConfiguration(deps.PLUGIN_ID, c).then(function (result) {
+                            return ApiClient.updatePluginConfiguration(deps.PLUGIN_ID, c).then(function (result) {
                                 Dashboard.processPluginConfigurationUpdateResult(result);
                                 msg.textContent = '';
                                 next(c);
@@ -509,7 +535,10 @@
                                 msg.classList.add('mdWizErr');
                             });
                         });
-                    });
+                    }).catch(function () {
+                        msg.textContent = 'Could not save — try again.';
+                        msg.classList.add('mdWizErr');
+                    }).finally(function () { saving = false; });
                 }
 
                 function gateOnBinDiskInfo(c) {
@@ -522,10 +551,6 @@
                         if (info && info.MeetsFiveGbMinimum === false) {
                             renderWizBinWarn(info);
                             return false;
-                        }
-
-                        if ((c.RecycleBinPauseFixesAtGb || 0) === 0 && info && info.SuggestedPauseCapGb > 0) {
-                            c.RecycleBinPauseFixesAtGb = info.SuggestedPauseCapGb;
                         }
 
                         return true;
@@ -551,12 +576,7 @@
                 }
 
                 // Await the cultures list so localeToIso3() has real data when picking the default audio language.
-                Promise.all([deps.api.configuration(deps.PLUGIN_ID), deps.populateLanguageDatalist()]).then(function (r) {
-                    var c = r[0];
-                    wizPopulateFromConfig(c);
-                    wizLoadLibraries(c);
-                    wizShow(0);
-                });
+                reopen().catch(function () { deps.view.querySelector('#mdWizMsg').textContent = 'Could not load setup — reopen it to retry.'; });
 
                 deps.loadEnv().then(function (env) {
                     deps.applySubtitleProviderHint(deps.view.querySelector('#mdWizProviderHint'), env);
@@ -581,7 +601,7 @@
                 });
 
                 deps.view.querySelector('#mdWizBack').addEventListener('click', function () {
-                    if (current === 0) return;
+                    if (saving || current === 0) return;
                     current--;
                     wizShow(current);
                 });
@@ -595,7 +615,7 @@
                     deps.postJson('PostUpgradeCleanup/Run').then(function (r) {
                         var freed = (r && r.BytesFreed) || 0;
                         var count = (r && r.OrphanedFoldersDeleted) || 0;
-                        resultEl.textContent = 'Cleanup done. Reclaimed ' + deps.bytes(freed) + ' from ' + count + ' orphaned trickplay folder' + (count === 1 ? '' : 's') + '.';
+                        resultEl.textContent = (r && r.WasDryRun) ? 'Dry-run preview: ' + count + ' orphaned folders could be removed. No files were deleted.' : 'Cleanup done. Reclaimed ' + deps.bytes(freed) + ' from ' + count + ' orphaned trickplay folder' + (count === 1 ? '' : 's') + '.';
                         deps.lifetime.timeout(function () {
                             deps.view.querySelector('#mdWizV12Note').style.display = 'none';
                         }, 3500);
@@ -607,6 +627,7 @@
                 });
 
                 deps.view.querySelector('#mdWizSkip').addEventListener('click', function () {
+                    if (saving) return;
                     // "Skip" leaves everything else alone but marks the wizard done so it stops nagging.
                     // Everything is reachable from Settings — this is the "I know what I'm doing" exit.
                     deps.api.configuration(deps.PLUGIN_ID).then(function (c) {
@@ -748,7 +769,8 @@
         return {
             get WIZ_STEP_LABELS() { return WIZ_STEP_LABELS; },
             get applyAnalyticsToggle() { return applyAnalyticsToggle; },
-            get setupFirstRun() { return setupFirstRun; }
+            get setupFirstRun() { return setupFirstRun; },
+            reopen: reopen
         };
     };
 })();

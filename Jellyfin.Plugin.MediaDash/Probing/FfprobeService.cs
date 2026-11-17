@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -19,6 +20,7 @@ namespace Jellyfin.Plugin.MediaDash.Probing;
 public sealed class FfprobeService
 {
     private static readonly TimeSpan ProbeTimeout = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan DecodeTimeout = TimeSpan.FromMinutes(20);
     private static readonly JsonSerializerOptions JsonOptions = new();
 
     private readonly IMediaEncoder _mediaEncoder;
@@ -61,7 +63,11 @@ public sealed class FfprobeService
         var cached = _probes.GetCachedProbe(path, size, mtimeTicks);
         if (cached is not null)
         {
-            return Deserialize(cached, path);
+            var cachedData = Deserialize(cached, path);
+            if (cachedData is not null && !IsInfrastructureError(cachedData.Error?.Message))
+            {
+                return cachedData;
+            }
         }
 
         var json = await RunFfprobeAsync(path, cancellationToken).ConfigureAwait(false);
@@ -71,6 +77,12 @@ public sealed class FfprobeService
         }
 
         var data = Deserialize(json, path);
+        if (data is not null && IsInfrastructureError(data.Error?.Message))
+        {
+            Api.Diagnostics.Record("Ffprobe.ReadFailed", "Could not read '" + path + "': " + data.Error!.Message + ". The file was skipped; this is not evidence of corruption.");
+            return null;
+        }
+
         if (data is not null)
         {
             _probes.StoreProbe(path, size, mtimeTicks, json);
@@ -101,7 +113,7 @@ public sealed class FfprobeService
         }
 
         var cached = _probes.GetCachedDecode(path, fileInfo.Length, fileInfo.LastWriteTimeUtc.Ticks);
-        if (cached is not null)
+        if (cached is not null && !IsInfrastructureError(cached))
         {
             return cached.Length == 0 ? null : cached;
         }
@@ -130,34 +142,65 @@ public sealed class FfprobeService
         }
         else
         {
-            // Start: decode the first 30s (or the whole file if it's shorter). If ffmpeg's decoded time
-            // falls significantly short of what we asked for, treat that as truncation regardless of any
-            // stderr markers — ffmpeg sometimes hits EOF cleanly without emitting one.
-            var startExpected = Math.Min(30.0, durationSeconds);
-            error = await RunFfmpegDecodeAsync(ConcatArgs(["-i", path, "-t", "30"], streamSelect, ["-f", "null", "-"]), startExpected, tolerantContainer: false, cancellationToken).ConfigureAwait(false);
-
-            if (string.IsNullOrWhiteSpace(error) && durationSeconds > 90)
-            {
-                var middle = ((long)(durationSeconds / 2)).ToString(System.Globalization.CultureInfo.InvariantCulture);
-                // expectedSeconds=0 disables the decoded-time shortfall check for this segment. -ss seeks
-                // land on the nearest keyframe, so on sparse-keyframe MKVs / anime rips ffmpeg legitimately
-                // decodes <90% of the requested 30s window and the shortfall heuristic false-positives on
-                // files that play fine in Jellyfin. Exit code + truncation-marker still catch real breakage.
-                // ponytail: drop this heuristic for seeks; the start-segment shortfall check remains the truth.
-                error = await RunFfmpegDecodeAsync(ConcatArgs(["-ss", middle, "-i", path, "-t", "30"], streamSelect, ["-f", "null", "-"]), expectedSeconds: 0, tolerantContainer: false, cancellationToken).ConfigureAwait(false);
-            }
-
-            if (string.IsNullOrWhiteSpace(error))
-            {
-                // Same reasoning as the middle segment — -sseof seeks are keyframe-anchored, so the
-                // decoded-time shortfall check false-positives here too.
-                error = await RunFfmpegDecodeAsync(ConcatArgs(["-sseof", "-30", "-i", path], streamSelect, ["-f", "null", "-"]), expectedSeconds: 0, tolerantContainer: false, cancellationToken).ConfigureAwait(false);
-            }
+            error = await DecodeWindowsAsync(path, durationSeconds, streamSelect, skipTailForShortFile: false, cancellationToken).ConfigureAwait(false);
         }
 
         var result = string.IsNullOrWhiteSpace(error) ? null : error;
         _probes.StoreDecode(path, fileInfo.Length, fileInfo.LastWriteTimeUtc.Ticks, result ?? string.Empty);
         return result;
+    }
+
+    internal async Task<string?> CheckSampledPlaybackAsync(string path, FfprobeData probe, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        probe.TryGetDuration(out var duration);
+        var signature = string.Create(CultureInfo.InvariantCulture, $"sampled-v1:{duration:R}");
+        var before = ReadAudioDecodeStamp(path, signature);
+        if (before is { } cached && _probes.HasCleanAudioDecode(path, cached.Size, cached.Modified, cached.Signature))
+        {
+            return null;
+        }
+
+        string[] streams = ["-map", "0:V:0?", "-map", "0:a?"];
+        var isAvi = string.Equals(Path.GetExtension(path), ".avi", StringComparison.OrdinalIgnoreCase);
+        var error = isAvi
+            ? await RunFfmpegDecodeAsync(ConcatArgs(["-i", path, "-t", "30"], streams, ["-f", "null", "-"]), expectedSeconds: 0, tolerantContainer: true, cancellationToken).ConfigureAwait(false)
+            : await DecodeWindowsAsync(path, duration, streams, skipTailForShortFile: true, cancellationToken).ConfigureAwait(false);
+        if (error is null)
+        {
+            CacheSuccessfulTrackDecode(path, signature, before);
+        }
+
+        return error;
+    }
+
+    private async Task<string?> DecodeWindowsAsync(string path, double durationSeconds, string[] streamSelect, bool skipTailForShortFile, CancellationToken cancellationToken)
+    {
+        // Start: decode the first 30s (or the whole file if it's shorter). If ffmpeg's decoded time
+        // falls significantly short of what we asked for, treat that as truncation regardless of any
+        // stderr markers — ffmpeg sometimes hits EOF cleanly without emitting one.
+        var startExpected = Math.Min(30.0, durationSeconds);
+        var error = await RunFfmpegDecodeAsync(ConcatArgs(["-i", path, "-t", "30"], streamSelect, ["-f", "null", "-"]), startExpected, tolerantContainer: false, cancellationToken).ConfigureAwait(false);
+
+        if (string.IsNullOrWhiteSpace(error) && durationSeconds > 90)
+        {
+            var middle = ((long)(durationSeconds / 2)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            // expectedSeconds=0 disables the decoded-time shortfall check for this segment. -ss seeks
+            // land on the nearest keyframe, so on sparse-keyframe MKVs / anime rips ffmpeg legitimately
+            // decodes <90% of the requested 30s window and the shortfall heuristic false-positives on
+            // files that play fine in Jellyfin. Exit code + truncation-marker still catch real breakage.
+            // ponytail: drop this heuristic for seeks; the start-segment shortfall check remains the truth.
+            error = await RunFfmpegDecodeAsync(ConcatArgs(["-ss", middle, "-i", path, "-t", "30"], streamSelect, ["-f", "null", "-"]), expectedSeconds: 0, tolerantContainer: false, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (string.IsNullOrWhiteSpace(error) && (!skipTailForShortFile || durationSeconds > 30))
+        {
+            // Same reasoning as the middle segment — -sseof seeks are keyframe-anchored, so the
+            // decoded-time shortfall check false-positives here too.
+            error = await RunFfmpegDecodeAsync(ConcatArgs(["-sseof", "-30", "-i", path], streamSelect, ["-f", "null", "-"]), expectedSeconds: 0, tolerantContainer: false, cancellationToken).ConfigureAwait(false);
+        }
+
+        return error;
     }
 
     /// <summary>
@@ -263,7 +306,9 @@ public sealed class FfprobeService
             return false;
         }
 
-        using var process = new Process();
+        var media = await MediaProcess.AcquireAsync(cancellationToken).ConfigureAwait(false);
+        await using var lifetime = media.ConfigureAwait(false);
+        var process = media.Process;
         process.StartInfo.FileName = probePath;
         process.StartInfo.UseShellExecute = false;
         process.StartInfo.CreateNoWindow = true;
@@ -289,7 +334,7 @@ public sealed class FfprobeService
 
         try
         {
-            process.Start();
+            media.Start();
             TryLowerPriority(process);
             var stderrTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
             while (await process.StandardOutput.ReadLineAsync(timeoutCts.Token).ConfigureAwait(false) is { } line)
@@ -307,18 +352,15 @@ public sealed class FfprobeService
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             _logger.LogWarning("ffprobe packet walk timed out on {Path}", path);
-            TryKill(process);
             return false;
         }
         catch (OperationCanceledException)
         {
-            TryKill(process);
             throw;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "ffprobe packet walk failed on {Path}", path);
-            TryKill(process);
             return false;
         }
     }
@@ -337,11 +379,39 @@ public sealed class FfprobeService
     /// <param name="probe">Its stream inventory.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The first broken audio stream and its decode error, or null.</returns>
-    public async Task<(FfprobeStreamInfo Stream, string Error)?> FindBrokenAudioStreamAsync(string path, FfprobeData probe, CancellationToken cancellationToken)
+    public Task<(FfprobeStreamInfo Stream, string Error)?> FindBrokenAudioStreamAsync(string path, FfprobeData probe, CancellationToken cancellationToken)
+        => FindBrokenAudioStreamAsync(path, probe, useCache: false, cancellationToken);
+
+    internal async Task<(FfprobeStreamInfo Stream, string Error)?> FindBrokenAudioStreamAsync(string path, FfprobeData probe, bool useCache, CancellationToken cancellationToken)
     {
         var audioStreams = probe.Streams?.Where(s => string.Equals(s.CodecType, "audio", StringComparison.OrdinalIgnoreCase)).ToList();
         if (audioStreams is null || audioStreams.Count < 2)
         {
+            return null;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        var indexes = audioStreams.Select(stream => stream.Index.ToString(CultureInfo.InvariantCulture)).ToArray();
+        var tracks = string.Join(',', indexes);
+        var before = useCache ? ReadAudioDecodeStamp(path, tracks) : null;
+        if (before is { } cached && _probes.HasCleanAudioDecode(path, cached.Size, cached.Modified, cached.Signature))
+        {
+            _logger.LogDebug("Reusing successful MediaDash multi-track audio decode");
+            return null;
+        }
+
+        var args = new List<string> { "-i", path };
+        foreach (var index in indexes)
+        {
+            args.Add("-map");
+            args.Add("0:" + index);
+        }
+
+        args.AddRange(["-f", "null", "-"]);
+        var combinedError = await RunFfmpegDecodeAsync(args.ToArray(), expectedSeconds: 0, tolerantContainer: true, cancellationToken).ConfigureAwait(false);
+        if (combinedError is null)
+        {
+            CacheSuccessfulTrackDecode(path, tracks, before);
             return null;
         }
 
@@ -354,7 +424,34 @@ public sealed class FfprobeService
             }
         }
 
-        return null;
+        throw new InvalidOperationException("The combined audio decode failed, but the individual tracks decoded successfully.");
+    }
+
+    private void CacheSuccessfulTrackDecode(string path, string signature, (long Size, long Modified, string Signature)? before)
+    {
+        if (before is not { } decoded)
+        {
+            return;
+        }
+
+        if (ReadAudioDecodeStamp(path, signature) != before)
+        {
+            throw new IOException("The media file changed during the track decode check.");
+        }
+
+        _probes.StoreCleanAudioDecode(path, decoded.Size, decoded.Modified, decoded.Signature);
+    }
+
+    private static (long Size, long Modified, string Signature)? ReadAudioDecodeStamp(string path, string tracks)
+    {
+        var file = new FileInfo(path);
+        if (!file.Exists || !PhysicalFileIdentity.TryRead(path, out var identity) || identity.IsReparsePoint || identity.FileId == 0)
+        {
+            return null;
+        }
+
+        return (file.Length, file.LastWriteTimeUtc.Ticks,
+            string.Create(CultureInfo.InvariantCulture, $"{identity.Volume:X}:{identity.FileId:X}:{file.CreationTimeUtc.Ticks}:{tracks}"));
     }
 
     /// <summary>
@@ -382,10 +479,12 @@ public sealed class FfprobeService
         var encoderPath = _mediaEncoder.EncoderPath;
         if (string.IsNullOrEmpty(encoderPath))
         {
-            return null;
+            throw new InvalidOperationException("The server has no ffmpeg configured; the decode check could not run.");
         }
 
-        using var process = new Process();
+        var media = await MediaProcess.AcquireAsync(cancellationToken).ConfigureAwait(false);
+        await using var lifetime = media.ConfigureAwait(false);
+        var process = media.Process;
         process.StartInfo.FileName = encoderPath;
         process.StartInfo.UseShellExecute = false;
         process.StartInfo.CreateNoWindow = true;
@@ -410,11 +509,11 @@ public sealed class FfprobeService
         }
 
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCts.CancelAfter(ProbeTimeout);
+        timeoutCts.CancelAfter(DecodeTimeout);
 
         try
         {
-            process.Start();
+            media.Start();
             TryLowerPriority(process);
             var stderrTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
             await process.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false);
@@ -426,6 +525,11 @@ public sealed class FfprobeService
             var markerTriggered = !tolerantContainer && HasTruncationMarker(stderr);
             if (process.ExitCode != 0 || markerTriggered)
             {
+                if (IsInfrastructureError(stderr))
+                {
+                    throw new InvalidOperationException("The decode check could not run safely: " + stderr);
+                }
+
                 return string.IsNullOrWhiteSpace(stderr) ? "ffmpeg exited with an error" : stderr;
             }
 
@@ -450,26 +554,30 @@ public sealed class FfprobeService
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            TryKill(process);
-            return "decode check timed out";
+            // A slow or idle-priority read is not evidence of damaged media. Do not cache it.
+            throw new TimeoutException("The decode check timed out; the file could not be checked safely.");
         }
         catch (OperationCanceledException)
         {
-            TryKill(process);
             throw;
         }
     }
 
-    // ffmpeg quirk: "File ended prematurely" during decode is emitted to stderr but treated as clean EOF —
-    // exit code stays 0, even with -xerror. That silently hides truncated files ("sort of plays") from
-    // the shallow decode check. If we see this marker in stderr, treat it as an error regardless of exit code.
-    //
-    // We used to also treat "Truncating packet" as truncation, but multiple field reports (Reddit thread
-    // 2026-08 — friskyapple, oogoom, moonplaza, Commercial-Camp-8052) traced false-positive unplayable
-    // flags back to that warning on files that play fine in Jellyfin. "Truncating packet" fires on
-    // benign container quirks — MKV cluster boundaries, MPEG-TS packet alignment, MP4 mdat overlap — and
-    // is not a reliable signal on its own. Real truncation still fails via exit code (-xerror), the
-    // "File ended prematurely" marker below, and the bitrate-vs-size heuristic in PlayabilityScanner.
+    // Storage/decoder failures cannot establish corruption and must not become cached findings.
+    internal static bool IsInfrastructureError(string? message)
+        => message is not null && (message.Contains("Permission denied", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("Operation not permitted", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("Input/output error", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("Resource temporarily unavailable", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("No such file or directory", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("Cannot allocate memory", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("Connection timed out", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("Network is unreachable", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("Unknown decoder", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("Decoding requested, but no decoder found", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("not found for input stream", StringComparison.OrdinalIgnoreCase));
+
+    // "File ended prematurely" can exit cleanly; benign "Truncating packet" warnings are ignored.
     internal static bool HasTruncationMarker(string? stderr)
     {
         if (string.IsNullOrEmpty(stderr))
@@ -532,7 +640,9 @@ public sealed class FfprobeService
             return null;
         }
 
-        using var process = new Process();
+        var media = await MediaProcess.AcquireAsync(cancellationToken).ConfigureAwait(false);
+        await using var lifetime = media.ConfigureAwait(false);
+        var process = media.Process;
         process.StartInfo.FileName = probePath;
         process.StartInfo.UseShellExecute = false;
         process.StartInfo.CreateNoWindow = true;
@@ -564,7 +674,7 @@ public sealed class FfprobeService
 
         try
         {
-            process.Start();
+            media.Start();
             TryLowerPriority(process);
             var stdoutTask = process.StandardOutput.ReadToEndAsync(timeoutCts.Token);
             var stderrTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
@@ -583,12 +693,10 @@ public sealed class FfprobeService
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             _logger.LogWarning("ffprobe packet count timed out on {Path}", path);
-            TryKill(process);
             return null;
         }
         catch (OperationCanceledException)
         {
-            TryKill(process);
             throw;
         }
         catch (Exception ex)
@@ -620,7 +728,9 @@ public sealed class FfprobeService
             return null;
         }
 
-        using var process = new Process();
+        var media = await MediaProcess.AcquireAsync(cancellationToken).ConfigureAwait(false);
+        await using var lifetime = media.ConfigureAwait(false);
+        var process = media.Process;
         process.StartInfo.FileName = probePath;
         process.StartInfo.UseShellExecute = false;
         process.StartInfo.CreateNoWindow = true;
@@ -641,7 +751,7 @@ public sealed class FfprobeService
 
         try
         {
-            process.Start();
+            media.Start();
             TryLowerPriority(process);
             var stdoutTask = process.StandardOutput.ReadToEndAsync(timeoutCts.Token);
             var stderrTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
@@ -654,12 +764,10 @@ public sealed class FfprobeService
         {
             _logger.LogWarning("ffprobe timed out after {Timeout} on {Path}", ProbeTimeout, path);
             Api.Diagnostics.Record("Ffprobe.Timeout", "ffprobe took more than " + ProbeTimeout.TotalSeconds + "s on " + path + " — the file is being skipped this scan. Very large files or slow storage can hit this.");
-            TryKill(process);
             return null;
         }
         catch (OperationCanceledException)
         {
-            TryKill(process);
             throw;
         }
         catch (Exception ex)
@@ -667,18 +775,6 @@ public sealed class FfprobeService
             _logger.LogError(ex, "Failed to run ffprobe at {ProbePath}", probePath);
             Api.Diagnostics.Record("Ffprobe.RunFailed", "Could not execute ffprobe at '" + probePath + "': " + ex.Message + ". Every scan that depends on file analysis (Playability, Quality, Audio/Sub language) is blocked until this is fixed.");
             return null;
-        }
-    }
-
-    private void TryKill(Process process)
-    {
-        try
-        {
-            process.Kill(entireProcessTree: true);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Could not kill timed-out ffprobe process");
         }
     }
 

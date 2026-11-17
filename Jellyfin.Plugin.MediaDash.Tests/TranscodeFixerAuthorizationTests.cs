@@ -335,7 +335,7 @@ public class TranscodeFixerAuthorizationTests
         Assert.DoesNotContain(TranscodeFixer.GetRetainedTracks(probe, cfg, "mkv", null, true, false), s => s.Index == 2);
         if (change == "language") cfg.AllowedAudioLanguages = ["eng", "jpn"];
         if (change == "unknown-original") cfg.AllowedAudioLanguages = ["eng", "orig"];
-        if (change == "mode") cfg.AudioFixMode = FixMode.DetectOnly;
+        if (change == "mode") cfg.AudioFixMode = FixMode.Off;
         Assert.Contains(TranscodeFixer.GetRetainedTracks(probe, cfg, "mkv", null, change != "approval", false), s => s.Index == 2);
     }
 
@@ -351,9 +351,9 @@ public class TranscodeFixerAuthorizationTests
     }
 
     [Theory]
-    [InlineData(FixMode.DetectOnly)]
+    [InlineData(FixMode.Off)]
     [InlineData(FixMode.Automatic)]
-    public void BuildArgs_KeepsHearingImpairedSubtitlesAndDetectOnlyAudio(FixMode audioMode)
+    public void BuildArgs_KeepsHearingImpairedSubtitlesAndUnauthorizedAudio(FixMode audioMode)
     {
         var cfg = NewConfig();
         cfg.AudioFixMode = audioMode;
@@ -366,7 +366,7 @@ public class TranscodeFixerAuthorizationTests
         var probe = MkvProbe(Vid(0, "h264"), Aud(1, "aac", "eng"), Aud(2, "aac", "fra"), subtitle);
         var maps = ExtractMappedStreams(TranscodeFixer.BuildArgs("in.mkv", "out.mkv", probe, probe.Streams![0], cfg, false, "mkv", null, null));
         Assert.Contains("0:3", maps);
-        Assert.Equal(audioMode == FixMode.DetectOnly, maps.Contains("0:2"));
+        Assert.Equal(audioMode == FixMode.Off, maps.Contains("0:2"));
     }
 
     private static PluginConfiguration NewConfig() => new()

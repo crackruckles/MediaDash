@@ -1,4 +1,4 @@
-﻿# 09-reported-bugs.ps1 — targeted reproductions of GitHub-reported bugs.
+# 09-reported-bugs.ps1 — targeted reproductions of GitHub-reported bugs.
 # One test per open bug we want ongoing coverage for. Each test is anchored to
 # an issue number and stays failing until the underlying scanner/fixer is
 # updated — that way if we ship a fix that regresses, this phase catches it.
@@ -21,10 +21,8 @@ function Invoke-Phase-ReportedBugs {
     #   already properly grouped as three distinct shows), OR each proposal
     #   preserves the year in the target folder name.
     #
-    # This test PASSES today by DOCUMENTING the current bug so we get a
-    # regression signal the moment the fix lands. Update to Assert-Equal 0
-    # once the fix is in and the intent is "no proposals".
-    Invoke-Test "GitHub #43 (Doctor Who reboots) — repro the current buggy proposal" {
+    # A reproduced collision is a failing regression, never a passing demonstration.
+    Invoke-Test "GitHub #43 (Doctor Who reboots) — reject cross-reboot collisions" {
         # Re-scan so any config changes from earlier phases don't hide the issue
         Start-MediaDashScan -Wait -TimeoutSec 600
         $issues = Get-MediaDashIssues -Type "Ungrouped"
@@ -48,7 +46,7 @@ function Invoke-Phase-ReportedBugs {
             # CURRENT BUG: 2+ reboots being collapsed to the same year-less folder.
             # This is the reproduction. We record PASS with a note so summary.md
             # shows it as a documented repro rather than a regression.
-            Write-Log "    ✓ REPRODUCED bug #43: $($dw.Count) reboot folders collapsing to '$($uniqueYearlessTargets[0])'"
+            throw "Bug #43 reproduced: $($dw.Count) reboot folders collapse to '$($uniqueYearlessTargets[0])'."
         } else {
             # Either the scanner didn't emit proposals (unusual — could indicate
             # a fix landed) or the proposals preserve year (fixed). Both are
@@ -67,7 +65,7 @@ function Invoke-Phase-ReportedBugs {
         # This test just verifies no fixer has been run against these
         # proposals — MediaGrouperFixer runs in Manual mode by default and
         # we don't approve here.
-        $issues = Get-MediaDashIssues -Type "Ungrouped"
+        $issues = Get-MediaDashIssues -Type "Ungrouped" -Status 'Queued'
         $dwApproved = @($issues | Where-Object { $_.Path -like "*Doctor Who*" -and $_.Status -eq "Queued" })
         Assert-Equal 0 $dwApproved.Count "no Doctor Who Ungrouped issues should be auto-queued (safety gate)"
     }

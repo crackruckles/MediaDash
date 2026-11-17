@@ -64,7 +64,6 @@
     "binViewShow":  "Inhalt anzeigen",
     "binRestoreHint":  "Um eine Datei zurückzulegen, nutzen Sie die Schaltfläche Wiederherstellen im Reiter Verlauf.",
     "modeOff":  "Aus — gar nicht erst scannen",
-    "modeDetect":  "Nur erkennen — mir zeigen",
     "modeManual":  "Erst fragen",
     "modeAuto":  "Automatisch beheben",
     "disposalRecycle":  "Papierkorb (wiederherstellbar)",

@@ -1,0 +1,180 @@
+{
+  "sourceDigest": "5bb602fa9950197fa215d8e5b21b8d52a22399c07dbf0f6c3c200d8cca4a2d95",
+  "liveDllSha256": "f225958b511271b532254ed3c9f04afe8e525d4610614f3020bec6806eac4e80",
+  "primaryReleaseDllSha256": "ac637264f719a1d7e465b2bdfc2ddf51557ed80b80faa53da6cd0d8b4e2a3387",
+  "purpose": "Local review inventory, not a substitute for committed source-bound acceptance",
+  "cases": [
+    {
+      "caseId": "issue-80",
+      "requiredAcceptance": "Loaded Jellyfin history: Issues remains responsive and returns the newest attempts.",
+      "status": "current-local",
+      "artifact": "docs/testing/reported-issues-evidence/issue-80-20261105-native-target.json",
+      "checkCount": 4,
+      "matchesCommittedHead": false
+    },
+    {
+      "caseId": "issue-81-83",
+      "requiredAcceptance": "Fresh install and real legacy XML upgrade/restart: scan, preview, approve, real fix, rescan and restore; unrelated settings and approvals preserved.",
+      "status": "current-local",
+      "artifact": "docs/testing/reported-issues-evidence/issue-81-83-20261105-native-target.json",
+      "checkCount": 9,
+      "matchesCommittedHead": false
+    },
+    {
+      "caseId": "issue-81-progress",
+      "requiredAcceptance": "Large-library scan: browser progress stays live, requests finish, and scan duration/resource use are measured.",
+      "status": "current-local",
+      "artifact": "docs/testing/reported-issues-evidence/issue-81-progress-20261105-native-target.json",
+      "checkCount": 6,
+      "matchesCommittedHead": false
+    },
+    {
+      "caseId": "issue-86",
+      "requiredAcceptance": "Owned managed artwork and orphan metadata execute with all/selected libraries after a confirming successful host scan; changed observations, returning/disabled owners, custom roots, escapes and protected paths remain safe.",
+      "status": "current-local",
+      "artifact": "docs/testing/reported-issues-evidence/issue-86-20261105-native-target.json",
+      "checkCount": 10,
+      "matchesCommittedHead": false
+    },
+    {
+      "caseId": "issue-87",
+      "requiredAcceptance": "Reporter-equivalent Rafa inventory and saved settings: Spanish original survives scan, approval, real cleanup and rescan; retained stream hashes verified.",
+      "status": "missing"
+    },
+    {
+      "caseId": "issue-88",
+      "requiredAcceptance": "Jellyfin 10.11 and 12 artwork workflows: SVG, healthy replacements and infrastructure failures preserved; real corruption handled recoverably, including persistence/disposal failure.",
+      "status": "current-local",
+      "artifact": "docs/testing/reported-issues-evidence/issue-88-20261105-native-target.json",
+      "checkCount": 9,
+      "matchesCommittedHead": false
+    },
+    {
+      "caseId": "issue-89",
+      "requiredAcceptance": "Windows service-account UNC/NAS: ReportedUncAcceptanceTests passes, then an owned real re-encode preserves source/recycle hashes and restores successfully; measured shortage still blocks.",
+      "status": "missing"
+    },
+    {
+      "caseId": "issue-92",
+      "requiredAcceptance": "Reproduce both reported MKV failure classes with equivalent media/FFmpeg; repair safely, retain streams/dispositions and hashes, expose useful diagnostics and verify restoration.",
+      "status": "missing"
+    },
+    {
+      "caseId": "issue-43",
+      "requiredAcceptance": "Owned loose/TV/shared-artwork/cross-volume moves: partial failures stay reviewable, restart recovery and Undo restore exact paths and hashes.",
+      "status": "missing"
+    },
+    {
+      "caseId": "reddit-disappearing",
+      "requiredAcceptance": "Trace exact issue IDs through preview, no-change, refusal, failure and rescan; unchanged files never appear as completed repairs or earn savings.",
+      "status": "current-local",
+      "artifact": "docs/testing/reported-issues-evidence/reddit-disappearing-20261105-native-target.json",
+      "checkCount": 4,
+      "matchesCommittedHead": false
+    }
+  ],
+  "verification": {
+    "WindowsRelease": {
+      "total": "2088",
+      "executed": "2088",
+      "passed": "2088",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    },
+    "LinuxRelease": {
+      "total": "2088",
+      "executed": "2088",
+      "passed": "2088",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    },
+    "LinuxExternal": {
+      "total": "27",
+      "executed": "27",
+      "passed": "27",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    },
+    "dashboardPassed": 61,
+    "gateSelfTestsPassed": 19,
+    "independentReview": "No findings in the four-file incremental repair; scoped review only",
+    "offlineHarnessSuitesPassed": 11
+  },
+  "mandatoryGate": {
+    "sourceDigest": "5bb602fa9950197fa215d8e5b21b8d52a22399c07dbf0f6c3c200d8cca4a2d95",
+    "passed": false,
+    "externalTests": "Required acceptance evidence; not executed by the offline suite",
+    "problems": [
+      "Acceptance evidence missing/invalid: acceptance index is not committed in HEAD",
+      "issue-80: UNVERIFIED - Loaded Jellyfin history: Issues remains responsive and returns the newest attempts.",
+      "issue-81-83: UNVERIFIED - Fresh install and real legacy XML upgrade/restart: scan, preview, approve, real fix, rescan and restore; unrelated settings and approvals preserved.",
+      "issue-81-progress: UNVERIFIED - Large-library scan: browser progress stays live, requests finish, and scan duration/resource use are measured.",
+      "issue-86: UNVERIFIED - Owned managed artwork and orphan metadata execute with all/selected libraries after a confirming successful host scan; changed observations, returning/disabled owners, custom roots, escapes and protected paths remain safe.",
+      "issue-87: UNVERIFIED - Reporter-equivalent Rafa inventory and saved settings: Spanish original survives scan, approval, real cleanup and rescan; retained stream hashes verified.",
+      "issue-88: UNVERIFIED - Jellyfin 10.11 and 12 artwork workflows: SVG, healthy replacements and infrastructure failures preserved; real corruption handled recoverably, including persistence/disposal failure.",
+      "issue-89: UNVERIFIED - Windows service-account UNC/NAS: ReportedUncAcceptanceTests passes, then an owned real re-encode preserves source/recycle hashes and restores successfully; measured shortage still blocks.",
+      "issue-92: UNVERIFIED - Reproduce both reported MKV failure classes with equivalent media/FFmpeg; repair safely, retain streams/dispositions and hashes, expose useful diagnostics and verify restoration.",
+      "issue-43: UNVERIFIED - Owned loose/TV/shared-artwork/cross-volume moves: partial failures stay reviewable, restart recovery and Undo restore exact paths and hashes.",
+      "reddit-disappearing: UNVERIFIED - Trace exact issue IDs through preview, no-change, refusal, failure and rescan; unchanged files never appear as completed repairs or earn savings."
+    ]
+  },
+  "verificationArtifacts": [
+    {
+      "path": "artifacts/push-preparation-20261105-native-target-integration.json",
+      "sha256": "d74a159d6da8d097ba0178af06cdb7cfa24ddcb102cece21b327cc71c49cbfe2"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-integrated-gate/dotnet.log",
+      "sha256": "bd24172592e3bfa4462f15d66aa3d78a1948589538d0c1c0130f5229438a0974"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-integrated-gate/ui.log",
+      "sha256": "7dafa7ad2ff8ea6c8a3b61e6ce6b1fc42db9ec90405c27987625622479ab58a4"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-native-target-linux.log",
+      "sha256": "0e38c6c11c8acf5900e70b9ff8127f1432992a5dab8adf1aa7fa5410ab0f94f1"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-native-target-linux-external.log",
+      "sha256": "a5dd1c730097a1c02a365b88d58de7615242a1dd5ab6b7d8084d0d28a5c926d2"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-native-target-harnesses/summary.json",
+      "sha256": "a2a55a6ac2bcc3b08bc3bf077c2c523a363459861188e199a0a3af464eec5fc1"
+    }
+  ]
+}

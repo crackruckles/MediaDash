@@ -36,13 +36,15 @@ public sealed class BucketReasonContractTests
             FixTask.BucketReason("Jellyfin lacks write access to /mnt/media/x.mkv. Check that the file (and its folder) is owned by or read+writable by the user Jellyfin runs as (typically 'jellyfin' on Linux)."));
     }
 
-    [Fact]
-    public void BucketReason_MapsFreeSpaceMessagesToFreeSpaceBucket()
+    [Theory]
+    [InlineData("Not enough free space to re-encode this file (needs at least twice its own size free on the target drive).")]
+    [InlineData("Cannot rebuild this file — Not enough free disk space: needs ~2 GB free on /media, only 1 GB available.")]
+    public void BucketReason_MapsFreeSpaceMessagesToFreeSpaceBucket(string message)
     {
         // Message produced by the pre-flight guard in TranscodeFixer / TrackFixer / repair-ladder.
         Assert.Equal(
             "Not enough free disk space",
-            FixTask.BucketReason("Not enough free space to re-encode this file (needs at least twice its own size free on the target drive)."));
+            FixTask.BucketReason(message));
     }
 
     [Fact]

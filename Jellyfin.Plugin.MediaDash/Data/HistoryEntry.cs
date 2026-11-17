@@ -57,6 +57,9 @@ public sealed class HistoryEntry
     /// </summary>
     public string? RecyclePath { get; set; }
 
+    /// <summary>Gets or sets the durable move operation associated with this attempt.</summary>
+    public string? MoveOperationId { get; set; }
+
     /// <summary>
     /// Gets or sets when the action ran (UTC).
     /// </summary>

@@ -1,0 +1,55 @@
+{
+  "caseId": "issue-80",
+  "sourceDigest": "5bb602fa9950197fa215d8e5b21b8d52a22399c07dbf0f6c3c200d8cca4a2d95",
+  "dllSha256": "f225958b511271b532254ed3c9f04afe8e525d4610614f3020bec6806eac4e80",
+  "environment": "Windows interactive account; owned loopback Jellyfin 10.11.11 and 12.0.0; generated fixtures; exact candidate DLL f225958b511271b532254ed3c9f04afe8e525d4610614f3020bec6806eac4e80",
+  "checks": [
+    {
+      "name": "one million owned history rows seeded",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "loaded Issues response has newest attempts",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "loaded Issues HTTP stays below two seconds",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "only expected million synthetic history rows eligible for cleanup",
+      "passed": true,
+      "skipped": false
+    }
+  ],
+  "evidence": [
+    "artifacts/push-preparation-20261105-native-target-live/v10/final-evidence/history-http-timing.json",
+    "artifacts/push-preparation-20261105-native-target-live/v10/final-evidence/trim.json",
+    "artifacts/push-preparation-20261105-native-target-live/v12/final-evidence/history-http-timing.json",
+    "artifacts/push-preparation-20261105-native-target-live/v12/final-evidence/trim.json"
+  ],
+  "limitations": [
+    "One million History rows, 2000 requested issues, 20 requests per host. The reporter service-provider-disposal exception remains unverified."
+  ],
+  "rawArtifactHashes": [
+    {
+      "path": "artifacts/push-preparation-20261105-native-target-live/v10/final-evidence/history-http-timing.json",
+      "sha256": "7e2d1b882416eb2817995c7a69537fbeb713478c62189b5f2735920240979d14"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-native-target-live/v10/final-evidence/trim.json",
+      "sha256": "0758cd14687c796b3c027fe22fdb196b25a48ab9c8811e5fe38084a009d9ee65"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-native-target-live/v12/final-evidence/history-http-timing.json",
+      "sha256": "451dd98dd1b6e35090af6356303f9270ac2a682a2dfdd82c804f719965b3cc2e"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-native-target-live/v12/final-evidence/trim.json",
+      "sha256": "df201490bfa6cc5c98ea67335339c036e8f5d2f7a3c4037fd759ca176e159211"
+    }
+  ]
+}

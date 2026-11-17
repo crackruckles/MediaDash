@@ -1,0 +1,25 @@
+{
+  "caseId": "issue-86",
+  "sourceDigest": "18cccce8ee54105a3c80edb05e03e1a84971113da6a3775da8716bf3be1b96c8",
+  "environment": "Owned Windows Jellyfin 10.11.11 and 12.0.0 with independent fresh data directories. MediaDash DLL SHA-256 58693ddcbec0b98b7653e1b696fedfc4714c306a324644f40f0e6465de45339d.",
+  "checks": [
+    {
+      "name": "confirmed cleanup with all and selected libraries",
+      "passed": true,
+      "skipped": false,
+      "observed": "Default and custom metadata roots passed preview, required a later Jellyfin scan, recycled exactly once, cleared on rescan, and restored exact source hashes with all and selected library scopes."
+    },
+    {
+      "name": "observations and protection",
+      "passed": true,
+      "skipped": false,
+      "observed": "Persisted observation and approval survived restart. Changed bytes with the same length and timestamp and protected children blocked disposal."
+    },
+    {
+      "name": "ownership and containment",
+      "passed": true,
+      "skipped": false,
+      "observed": "Owned metadata boundary checks and actual recycle failure preserved bytes and approval."
+    }
+  ]
+}

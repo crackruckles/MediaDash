@@ -1,5 +1,23 @@
 # MediaDash E2E Testing — Master Index
 
+Current push/release blockers: [reported-issue regression and acceptance gates](REPORTED-ISSUE-PUSH-GATES.md). Run `python -B tools/reported_issue_gate.py`; unresolved tests and missing candidate-specific acceptance evidence must fail.
+
+Integrated candidate, fresh Windows and Linux checks, owned Jellyfin workflows, and read-only NAS results are recorded in the [5 November push preparation report](PUSH-PREPARATION-2026-11-05.md).
+
+Latest local follow-up: [29 October ordered repairs](ORDERED-REPAIRS-2026-10-29.md). Metadata safety and valid-run checks, MKV error reporting, companion collision/reporting, generated original-audio cleanup and local SMB encode/restore are covered. Required recovery, reporter and environment acceptance remains open.
+
+Latest frozen-candidate live proof: [30 October issue workflows](ISSUES-LIVE-2026-10-30.md). Owned Jellyfin 10.11.11 and available 12.0.0 workflows, one-million-row History, 1,000-file scans and browser approval/preview pass within the stated retry and runtime limits; cleanup and shutdown are verified. Mover recovery/Undo and bounded folder indexing remain unfinished.
+
+Latest #86 confirmation checks: [persisted orphan confirmation](ISSUE-86-CONFIRMATION-2026-10-29.md). Successful host-scan confirmation, unchanged observed content and positive cleanup/restore workflows pass; both full offline suites have 1,805 passing tests. Use the 30 October report for fresh local live acceptance; the whole-tree push gate remains blocked.
+
+Local implementation and validation for #80, #81/#83 and #88: [27 October follow-up](ISSUES-80-81-83-88-2026-10-27.md). Isolated Jellyfin 10.11.11 and 12.0.0 acceptance is recorded there; the whole-tree push gate remains blocked.
+
+Managed metadata repair for #86: [28 October authorization and recovery checks](ISSUE-86-MANAGED-METADATA-2026-10-28.md). Historical custom-root artwork and orphan workflows pass on both isolated host versions; use the 29 October follow-up for the current candidate's remaining limits.
+
+Free-space repair for #89 and Ubuntu/LXC media mounts: [27 October mount and UNC checks](ISSUE-89-FREE-SPACE-2026-10-27.md). Linux mount regressions and local Windows SMB pass; production LXC and NAS workflows remain unverified.
+
+Current harness inventory and verification limits: [2026-10-20 harness review](HARNESS-REVIEW-2026-10-20.md) and [runnable harness inventory](../../tools/TEST-HARNESSES.md).
+
 ## Current regression planning (2026-09-19)
 
 Read the [coverage review](REGRESSION-COVERAGE-REVIEW-2026-09-19.md) for current

@@ -5,7 +5,7 @@
 # Usage:
 #   ./tools/release.ps1 -Version 0.5.0 -Changelog "One-line summary of what's new."
 #
-# Requires: committed clean source, dotnet SDK, gh CLI (authenticated), PowerShell 5.1+.
+# Requires: committed clean source, Python 3.11+, dotnet SDK, gh CLI (authenticated), PowerShell 5.1+.
 
 #requires -Version 5.1
 param(
@@ -39,6 +39,10 @@ function Assert-ReleaseSource {
 }
 
 $targetSha = Assert-ReleaseSource
+
+Write-Host "Checking reported-issue regressions and source-bound acceptance evidence..."
+& python -B (Join-Path $PSScriptRoot 'reported_issue_gate.py') --require-clean --expected-revision $targetSha
+if ($LASTEXITCODE -ne 0) { throw "Reported-issue gate failed. No release was published." }
 
 Write-Host "Publishing (Release)..."
 # Stamp the version into the DLL. Without this the compiled AssemblyVersion stays at 0.0.0.0

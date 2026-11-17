@@ -47,6 +47,37 @@
         return true;
     };
 
+    ns.MediaDash.movePreviewHtml = function movePreviewHtml(issue, strings, expanded, limit) {
+        if (!issue || (issue.Type !== 'Ungrouped' && issue.Type !== 'Misplaced')) return '';
+        var plan;
+        try { plan = JSON.parse(issue.DetailsJson || '{}').movePlan; } catch (_) { return ''; }
+        if (!plan || plan.version !== 1 || !Array.isArray(plan.entries)) return '';
+        var esc = ns.MediaDash.esc;
+        var paths = [];
+        function join(base, relative) {
+            if (!relative) return base;
+            return String(base || '').replace(/[\\/]$/, '') + (String(base).indexOf('\\') >= 0 ? '\\' : '/') + relative;
+        }
+        plan.entries.forEach(function (entry) {
+            if (!entry || typeof entry.source !== 'string' || typeof entry.destination !== 'string') return;
+            var inventory = Array.isArray(entry.inventory) && entry.inventory.length ? entry.inventory : [{ relativePath: '', isDirectory: entry.isDirectory }];
+            inventory.forEach(function (payload) {
+                if (!payload || typeof payload.relativePath !== 'string') return;
+                paths.push({ source: join(entry.source, payload.relativePath), target: join(entry.destination, payload.relativePath), directory: payload.isDirectory });
+            });
+        });
+        if (expanded === false) {
+            return '<details class="mdMovePreview" data-id="' + esc(issue.Id) + '"><summary>' + esc(strings.movePreviewLabel || 'Review complete move') + ' (' + paths.length + ')</summary><div class="mdMovePreviewContent"></div></details>';
+        }
+        var shown = typeof limit === 'number' ? limit : paths.length;
+        var html = paths.slice(0, shown).map(function (entry) {
+            return '<div class="fieldDescription"><strong>' + esc(entry.directory ? (strings.moveFolder || 'Folder') : (strings.moveFile || 'File')) + '</strong>' +
+                '<div class="mdHistPath">' + esc(entry.source) + ' → ' + esc(entry.target) + '</div></div>';
+        }).join('');
+        if (paths.length > shown) html += '<button is="emby-button" type="button" class="raised mdMovePreviewMore">' + esc(strings.moveShowMore || 'Show more paths') + ' (' + shown + '/' + paths.length + ')</button>';
+        return html;
+    };
+
     ns.MediaDash.createIssuesTab = function createIssuesTab(deps) {
         var root = deps.root, api = deps.api, strings = deps.strings, lifetime = deps.lifetime;
         var fmt = deps.fmt, bytes = deps.bytes;
@@ -143,6 +174,11 @@
             sel.innerHTML = html;
         }
 
+        function canBulkApprove(issue) {
+            return issue.Status === 'Detected' && !issue.FixBlockedReason &&
+                !(issue.Warnings || []).some(function (w) { return w.Blocking; });
+        }
+
         function renderFiltered() {
             var el = root.querySelector('#mdIssueList');
             var approveAllBtn = root.querySelector('#mdApproveAll');
@@ -154,6 +190,7 @@
                 return issueMatchesFilters(i, typeFilter, textFilter, issueLangFilter);
             });
             lastFilteredIssues = list;
+            var approvableCount = list.filter(canBulkApprove).length;
 
             // Pagination: clamp page after filter changes, then slice.
             var totalPages = Math.max(1, Math.ceil(list.length / ISSUE_PAGE_SIZE));
@@ -167,22 +204,26 @@
             // UI-05: include failure state (success flag + attempt timestamp + list length) so a newly-arrived
             // LastAttemptMessage on an already-queued row forces a re-render, and so a filtered total-count
             // change (bulk ignore of a non-visible page) updates the Approve-all label.
-            var fingerprint = typeFilter + '|' + textFilter + '|' + issueLangFilter + '|' + issuePage + '|' + list.length + '|' +
+            var fingerprint = typeFilter + '|' + textFilter + '|' + issueLangFilter + '|' + issuePage + '|' + list.length + '|' + approvableCount + '|' +
                 pageSlice.map(function (i) {
-                    var f = i.LastAttemptSuccess === false ? ('F:' + (i.LastAttemptAtUtc || '')) : 'O';
-                    return i.Id + ':' + i.Status + ':' + f;
+                    var f = i.LastAttemptSuccess === false ? ('F:' + (i.LastAttemptAtUtc || '') + ':' + (i.LastAttemptMessage || '')) : 'O';
+                    var moveFingerprint = '';
+                    if (i.Type === 'Ungrouped' || i.Type === 'Misplaced') {
+                        try { var movePlan = JSON.parse(i.DetailsJson || '{}').movePlan; moveFingerprint = movePlan && movePlan.fingerprint || ''; } catch (_) { /* Malformed plans remain blocked by the server. */ }
+                    }
+                    return i.Id + ':' + i.Status + ':' + i.RepairFailed + ':' + (i.FixBlockedReason || '') + ':' + JSON.stringify(i.Warnings) + ':' + moveFingerprint + ':' + f;
                 }).join(',');
             if (el.getAttribute('data-fingerprint') === fingerprint) return;
             el.setAttribute('data-fingerprint', fingerprint);
 
-            if (typeFilter && list.length > 1) {
+            if (typeFilter && approvableCount > 1) {
                 var ft = strings.types[typeFilter] || {};
                 approveAllBtn.style.display = '';
-                approveAllBtn.querySelector('.mdApproveAllLabel').textContent = fmt(ft.approveAll || strings.approveAll, list.length);
+                approveAllBtn.querySelector('.mdApproveAllLabel').textContent = fmt(ft.approveAll || strings.approveAll, approvableCount);
                 root.querySelector('#mdApproveAllNote').textContent = strings.approveAllNote;
-            } else if (!typeFilter && list.length > 0) {
+            } else if (!typeFilter && approvableCount > 0) {
                 approveAllBtn.style.display = '';
-                approveAllBtn.querySelector('.mdApproveAllLabel').textContent = fmt(strings.approveAllTypes, list.length);
+                approveAllBtn.querySelector('.mdApproveAllLabel').textContent = fmt(strings.approveAllTypes, approvableCount);
                 root.querySelector('#mdApproveAllNote').textContent = strings.approveAllNote;
             } else {
                 approveAllBtn.style.display = 'none';
@@ -245,8 +286,16 @@
                     ? '<span class="mdBadge" style="background:rgba(239,68,68,.25);color:#fecaca;border:1px solid rgba(239,68,68,.6);" title="Approving this fix also removes something that cannot be restored by the normal recycle-bin round-trip. Read the warning below.">⚠ needs review</span> '
                     : '';
                 var verifyBtn = '';
+                var isManagedArtwork = i.Type === 'CorruptArtwork';
+                var isMissingArtwork = false;
+                if (isManagedArtwork) {
+                    try { isMissingArtwork = JSON.parse(i.DetailsJson || '{}').reason === 'missing'; } catch (_) { /* Older findings may lack a reason. */ }
+                }
                 if (i.Type === 'Playability' && i.ItemId && i.ItemId !== '00000000-0000-0000-0000-000000000000') {
                     verifyBtn = '<button is="emby-button" type="button" class="raised mdOpenInJellyfin" data-item="' + esc(i.ItemId) + '" style="font-size:80%;"><span class="material-icons" style="font-size:1em;vertical-align:middle;margin-right:.2em;">play_arrow</span>Try to play</button>';
+                }
+                if (isManagedArtwork && i.ItemId && i.ItemId !== '00000000-0000-0000-0000-000000000000') {
+                    verifyBtn = '<button is="emby-button" type="button" class="raised mdOpenInJellyfin" data-item="' + esc(i.ItemId) + '"><span>' + esc(strings.openItemInJellyfin) + '</span></button>';
                 }
                 // Split into (buttons-only) and (hint) so the mdIssueActions column stays narrow
                 // and the hint wraps under the body — otherwise the flex column expands to fit
@@ -267,8 +316,9 @@
                         actionHint = '<span class="material-icons" style="font-size:15px;vertical-align:middle;color:var(--md-primary);">schedule</span> Queued for next fix run — click "Run fixes now" on Overview. Change your mind? Click Undo.';
                     }
                 } else {
+                    var actionLabel = isMissingArtwork ? strings.clearMissingArtwork : (i.RepairFailed ? (strings.delete || 'Delete') : (t.action || strings.approve));
                     actionButtons = verifyBtn +
-                        '<button is="emby-button" type="button" class="raised button-submit mdApprove" data-id="' + i.Id + '" style="font-size:80%;" title="' + esc(t.actionHint || '') + '"><span>' + esc(t.action || strings.approve) + '</span></button>' +
+                        '<button is="emby-button" type="button" class="raised button-submit mdApprove" data-id="' + i.Id + '" style="font-size:80%;" title="' + esc(isMissingArtwork ? strings.clearMissingArtworkHint : (i.RepairFailed ? i.SuggestedFix : (t.actionHint || ''))) + '"><span>' + esc(actionLabel) + '</span></button>' +
                         '<button is="emby-button" type="button" class="raised mdDismiss" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(strings.dismiss) + '</span></button>';
                     // UI-02: pick the hint variant that matches the effective disposal (Recycle vs Permanent)
                     // when the scanner provides doRecycle / doPermanent copy, so Approve describes what will
@@ -279,16 +329,30 @@
                     if (disposal === 'Permanent' && t.doPermanent) effectiveHint = t.doPermanent;
                     else if (disposal === 'RecycleBin' && t.doRecycle) effectiveHint = t.doRecycle;
                     else effectiveHint = t.actionHint || strings.approveHint;
+                    if (isMissingArtwork) effectiveHint = strings.clearMissingArtworkHint;
+                    if (i.RepairFailed) effectiveHint = disposal === 'Permanent'
+                        ? 'Permanently delete the file after failed repair.'
+                        : 'Move the file to the recycle bin after failed repair.';
                     if (getDryRun()) {
                         effectiveHint = 'Dry-run: logged to History only — ' + effectiveHint;
                     }
-                    var approveLabel = esc(t.action || strings.approve);
+                    var approveLabel = esc(actionLabel);
                     var dismissLabel = esc(strings.dismiss);
                     actionHint =
                         '<strong>' + approveLabel + ':</strong> ' + esc(effectiveHint) +
                         ' · <strong>' + dismissLabel + ':</strong> ' + esc(strings.dismissHint);
                 }
                 var keeperPath = '';
+                if (!isDismissed && i.FixBlockedReason) {
+                    actionHint = esc(i.FixBlockedReason);
+                    if (!isQueued) {
+                        actionButtons = verifyBtn +
+                            (i.FixRequiresRescan
+                                ? '<button is="emby-button" type="button" class="raised mdIssueRescan"><span>' + esc(strings.scanNowLabel) + '</span></button>'
+                                : (i.Type === 'Stale' ? '' : '<button is="emby-button" type="button" class="raised mdIssueSettings"><span>' + esc(strings.fixSettings) + '</span></button>')) +
+                            '<button is="emby-button" type="button" class="raised mdDismiss" data-id="' + i.Id + '"><span>' + esc(strings.dismiss) + '</span></button>';
+                    }
+                }
                 if (i.Type === 'Duplicate' && i.DetailsJson) {
                     try { var d = JSON.parse(i.DetailsJson); keeperPath = d && d.keeperPath ? d.keeperPath : ''; } catch (e) { keeperPath = ''; }
                 }
@@ -298,6 +362,8 @@
                         '<div class="fieldDescription mdIssuePath" data-path="' + esc(i.Path) + '" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" title="Click to open this folder in the Files tab">' + esc(i.Path) + '</div>' +
                         '<div class="fieldDescription" style="margin-top:.3em;"><b style="color:#22c55e;">Better copy (kept):</b></div>' +
                         '<div class="fieldDescription mdIssuePath" data-path="' + esc(keeperPath) + '" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" title="Click to open the keeper folder in the Files tab">' + esc(keeperPath) + '</div>';
+                } else if (isManagedArtwork) {
+                    pathBlock = '<div class="fieldDescription" style="overflow-wrap:anywhere;">' + esc(i.Path) + '</div>';
                 } else {
                     pathBlock = '<div class="fieldDescription mdIssuePath" data-path="' + esc(i.Path) + '" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" title="Click to open this folder in the Files tab">' + esc(i.Path) + '</div>';
                 }
@@ -307,15 +373,16 @@
                         '<div class="mdIssueBody">' +
                             '<div class="mdIssueTitleRow">' +
                                 '<span class="mdIssueFilename">' + esc(i.FileName) + '</span>' +
-                                '<span class="mdIssueTagChip">' + esc(t.title) + '</span>' +
+                                '<span class="mdIssueTagChip">' + esc(isManagedArtwork ? (isMissingArtwork ? strings.missingArtwork : strings.corruptArtwork) : t.title) + '</span>' +
                                 statusBadge +
                                 restoredBadge +
                                 warningBadge +
                             '</div>' +
                             pathBlock +
-                            '<div class="mdIssueHint">' + esc(i.SuggestedFix) +
+                            '<div class="mdIssueHint">' + esc(isMissingArtwork ? strings.missingArtworkHint : i.SuggestedFix) +
                                 (i.SizeSavings > 0 ? ' <span class="mdIssueSavings">(' + esc(bytes(i.SizeSavings)) + ')</span>' : '') +
                             '</div>' +
+                            ns.MediaDash.movePreviewHtml(i, strings, false) +
                         '</div>' +
                         '<div class="mdIssueActions">' + actionButtons + '</div>' +
                     '</div>' +
@@ -344,8 +411,32 @@
         // but attach to the fresh innerHTML nodes; the previous set dies with
         // the replaced DOM, so no lifetime.own bookkeeping is needed.
         function wireRowHandlers(el) {
+            el.querySelectorAll('.mdMovePreview').forEach(function (preview) {
+                var loaded = false;
+                var shown = 100;
+                function paint() {
+                    var issue = lastIssueList.find(function (candidate) { return String(candidate.Id) === preview.getAttribute('data-id'); });
+                    var content = preview.querySelector('.mdMovePreviewContent');
+                    if (!issue || !content) return;
+                    content.innerHTML = ns.MediaDash.movePreviewHtml(issue, strings, true, shown);
+                    var more = content.querySelector('.mdMovePreviewMore');
+                    if (more) more.addEventListener('click', function () { shown += 100; paint(); });
+                }
+                preview.addEventListener('toggle', function () {
+                    if (!preview.open || loaded) return;
+                    loaded = true;
+                    paint();
+                });
+            });
+
             el.querySelectorAll('.mdApprove').forEach(function (b) {
                 b.addEventListener('click', function () { rowAction(b, 'Approve', strings.approved); });
+            });
+            el.querySelectorAll('.mdIssueSettings').forEach(function (b) {
+                b.addEventListener('click', function () { deps.showTab('settings'); });
+            });
+            el.querySelectorAll('.mdIssueRescan').forEach(function (b) {
+                b.addEventListener('click', function () { deps.rescan(); });
             });
             el.querySelectorAll('.mdDismiss').forEach(function (b) {
                 b.addEventListener('click', function () { rowAction(b, 'Dismiss', strings.dismissed); });
@@ -379,6 +470,7 @@
 
         function rowAction(button, action, doneText) {
             var id = button.getAttribute('data-id');
+            button.disabled = true;
             post('Issues/' + id + '/' + action).then(function () {
                 var row = button.closest('[data-issue]');
                 // Keep the in-memory issue list in sync with the server. Without this the
@@ -419,6 +511,10 @@
                 // Refresh in the background so PendingFixCount reflects the approval right away — otherwise
                 // clicking "Run fixes now" immediately after approving reads the stale count and shows "nothing to fix".
                 refresh(true);
+            }, function (err) {
+                button.disabled = false;
+                button.closest('[data-issue]').querySelector('.mdRowMsg').textContent =
+                    strings.issueActionFailed + ' ' + deps.errorMessage(err);
             });
         }
 
@@ -511,13 +607,19 @@
                         return;
                     }
                     if (!window.confirm(fmt(strings.ctxConfirm || 'Ignore {0} issue(s)?', opt.ids.length))) return;
-                    bulkIssueAction(opt.ids, 'Dismiss').then(function () { activate(); refresh(true); });
+                    bulkIssueAction(opt.ids, 'Dismiss').then(function () { activate(); refresh(true); }).catch(function (err) { window.alert(errorMessage(err)); });
                 });
             });
         }
 
         function renderIssues(list) {
             lastIssueList = list || [];
+            // IssueWarning uses explicit lowercase JSON names even when the issue DTO uses PascalCase.
+            lastIssueList.forEach(function (issue) {
+                issue.Warnings = (Array.isArray(issue.Warnings) ? issue.Warnings : []).filter(Boolean).map(function (w) {
+                    return { Blocking: w.blocking === undefined ? w.Blocking : w.blocking, Message: w.message === undefined ? w.Message : w.message };
+                });
+            });
             // UI-17: openCount tracks the latest open-view fetch and is what the Issues badge
             // reads. Without this, loading the Ignored view overwrites lastIssueList with the
             // ignored rows and the badge drops to that count (or zero if nothing is ignored),
@@ -560,9 +662,25 @@
                         activate();
                         return;
                     }
+                    if (!Array.isArray(list)) throw new Error('Invalid Issues response');
+                    var errorBanner = root.querySelector('#mdIssueLoadError');
+                    if (errorBanner) errorBanner.style.display = 'none';
                     renderIssues(list);
                 })
-                .catch(function () { loading = false; });
+                .catch(function () {
+                    loading = false;
+                    if (requestedView !== showingDismissed) {
+                        activate();
+                        return;
+                    }
+                    var errorBanner = root.querySelector('#mdIssueLoadError');
+                    if (!errorBanner) return;
+                    root.querySelector('#mdIssueLoadErrorText').textContent = strings.issuesLoadFailed || "Couldn't load issues. Previously loaded results may be out of date. Retry, or check Jellyfin's logs if this continues.";
+                    var retry = root.querySelector('#mdIssueLoadRetry');
+                    retry.textContent = strings.retry || 'Retry';
+                    retry.onclick = activate;
+                    errorBanner.style.display = '';
+                });
         }
 
         function setLangFilter(l) {
@@ -610,7 +728,7 @@
             // opens the ignored view, lastIssueList holds ignored rows — using its length would
             // under-report open work. openCount is only touched by open-view fetches.
             count: function () { return showingDismissed ? openCount : lastIssueList.length; },
-            filteredIds: function () { return lastFilteredIssues.map(function (i) { return i.Id; }); },
+            filteredIds: function (approvableOnly) { return lastFilteredIssues.filter(function (i) { return !approvableOnly || canBulkApprove(i); }).map(function (i) { return i.Id; }); },
             installContextMenu: installIssueContextMenu
         };
     };

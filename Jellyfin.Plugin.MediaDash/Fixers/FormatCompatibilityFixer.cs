@@ -51,6 +51,7 @@ public sealed class FormatCompatibilityFixer : IFixer
     private readonly FfprobeService? _ffprobe;
 
     private readonly ILogger<FormatCompatibilityFixer> _logger;
+    private readonly Func<string, int, string?> _spaceCheck;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FormatCompatibilityFixer"/> class for
@@ -108,6 +109,7 @@ public sealed class FormatCompatibilityFixer : IFixer
     /// <param name="libraryMonitor">Optional — used only on the success path for FS change notification.</param>
     /// <param name="ffprobe">Optional — AV output verification seam; tests pass null.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="spaceCheck">Optional free-space preflight for deterministic refusal tests.</param>
     internal FormatCompatibilityFixer(
         IFormatConverterRegistry converters,
         ILibraryCollectionResolver resolver,
@@ -119,7 +121,8 @@ public sealed class FormatCompatibilityFixer : IFixer
         ILibraryManager? libraryManager,
         ILibraryMonitor? libraryMonitor,
         FfprobeService? ffprobe,
-        ILogger<FormatCompatibilityFixer> logger)
+        ILogger<FormatCompatibilityFixer> logger,
+        Func<string, int, string?>? spaceCheck = null)
     {
         _converters = converters;
         _resolver = resolver;
@@ -132,6 +135,7 @@ public sealed class FormatCompatibilityFixer : IFixer
         _libraryMonitor = libraryMonitor;
         _ffprobe = ffprobe;
         _logger = logger;
+        _spaceCheck = spaceCheck ?? FreeSpaceGuard.DescribeShortfall;
     }
 
     // Overload keeping the pre-review ctor shape for tests that haven't been updated yet.
@@ -145,8 +149,9 @@ public sealed class FormatCompatibilityFixer : IFixer
         Func<Guid, BaseItem?> getItemById,
         ILibraryManager? libraryManager,
         ILibraryMonitor? libraryMonitor,
-        ILogger<FormatCompatibilityFixer> logger)
-        : this(converters, resolver, replacement, guard, protection, configProvider, getItemById, libraryManager, libraryMonitor, ffprobe: null, logger)
+        ILogger<FormatCompatibilityFixer> logger,
+        Func<string, int, string?>? spaceCheck = null)
+        : this(converters, resolver, replacement, guard, protection, configProvider, getItemById, libraryManager, libraryMonitor, ffprobe: null, logger, spaceCheck)
     {
     }
 
@@ -279,8 +284,22 @@ public sealed class FormatCompatibilityFixer : IFixer
             return FixResult.DryRun("convert " + Path.GetFileName(issue.Path) + " to " + targetExt, 0);
         }
 
+        var shortfall = _spaceCheck(issue.Path, 2);
+        if (shortfall is not null)
+        {
+            return FixResult.Refused(FixReason.InsufficientSpace, shortfall);
+        }
+
+        if (!isFolderMerge && config.FormatCompatibilityDisposal == DisposalMethod.RecycleBin
+            && _replacement is not null && !_replacement.CanRecycle(issue.Path))
+        {
+            return FixResult.Refused(FixReason.AccessDenied, "No safe recycle location is available for the original.");
+        }
+
         // 12. Conversion.
-        var destinationPath = Path.ChangeExtension(issue.Path, targetExt);
+        var destinationPath = isFolderMerge
+            ? Path.TrimEndingDirectorySeparator(issue.Path) + targetExt
+            : Path.ChangeExtension(issue.Path, targetExt);
 
         // Folder-merge: converter writes a new M4B next to the source folder; the source folder
         // is left untouched (VRS cannot handle a directory source). No recycle, no swap protocol.
@@ -519,7 +538,7 @@ public sealed class FormatCompatibilityFixer : IFixer
         }
 
         var mode = freshConfig.GetFixMode(IssueType.FormatCompatibility);
-        if (mode == FixMode.Off || mode == FixMode.DetectOnly)
+        if (mode == FixMode.Off)
         {
             return PolicyDecision.Refuse(FixReason.TypeDisabled);
         }

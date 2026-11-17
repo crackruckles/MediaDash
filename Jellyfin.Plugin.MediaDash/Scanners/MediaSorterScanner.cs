@@ -27,6 +27,7 @@ namespace Jellyfin.Plugin.MediaDash.Scanners;
 public sealed partial class MediaSorterScanner : IScanner
 {
     private readonly LibraryGuard _guard;
+    private readonly MediaMovePlanner _planner;
     private readonly ILogger<MediaSorterScanner> _logger;
 
     /// <summary>
@@ -34,9 +35,11 @@ public sealed partial class MediaSorterScanner : IScanner
     /// </summary>
     /// <param name="guard">The library path guard, used to short-circuit the scan when the user's target folders sit outside every Jellyfin library.</param>
     /// <param name="logger">The logger.</param>
-    public MediaSorterScanner(LibraryGuard guard, ILogger<MediaSorterScanner> logger)
+    /// <param name="planner">Complete move planning.</param>
+    public MediaSorterScanner(LibraryGuard guard, ILogger<MediaSorterScanner> logger, MediaMovePlanner planner)
     {
         _guard = guard;
+        _planner = planner;
         _logger = logger;
     }
 
@@ -142,114 +145,7 @@ public sealed partial class MediaSorterScanner : IScanner
             picturesTarget = null;
         }
 
-        var issues = new List<Issue>();
-        var processed = 0;
-        foreach (var item in items)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            foreach (var path in MediaFileHelper.GetFilePaths(item))
-            {
-                if (string.IsNullOrEmpty(path))
-                {
-                    continue;
-                }
-
-                try
-                {
-                    var kind = ClassifyItem(item, path, Config.MediaSortSource, animeEnabled: animeTarget is not null);
-                    if (kind is null)
-                    {
-                        // Unidentified: skip (surfaced as-is; user should fix metadata in Jellyfin).
-                        continue;
-                    }
-
-                    // Route each kind to its own target. Opt-in kinds (music/books/comics/pictures/audiobook)
-                    // are skipped when their target isn't set — user hasn't asked for that routing, so we
-                    // don't flag anything under an unrelated pile. AudioBook uses the Books target (same
-                    // physical library shape in practice; splitting would need a separate config setting).
-                    string? expectedRoot = kind switch
-                    {
-                        MediaKind.Movie => moviesTarget,
-                        MediaKind.Tv => tvTarget,
-                        MediaKind.Anime => animeTarget,
-                        MediaKind.Music => musicTarget,
-                        MediaKind.Book => booksTarget,
-                        MediaKind.AudioBook => booksTarget,
-                        MediaKind.Comic => comicsTarget,
-                        MediaKind.Picture => picturesTarget,
-                        _ => null
-                    };
-                    if (expectedRoot is null)
-                    {
-                        // No target path configured for this kind — treat as opt-out, no issue emitted.
-                        continue;
-                    }
-
-                    var otherRoots = new[] { moviesTarget, tvTarget, animeTarget, musicTarget, booksTarget, comicsTarget, picturesTarget }
-                        .Where(r => r is not null && !string.Equals(r, expectedRoot, StringComparison.OrdinalIgnoreCase))
-                        .ToArray();
-                    var fullPath = Path.GetFullPath(path);
-                    if (!otherRoots.Any(r => Fixers.LibraryGuard.IsUnder(fullPath, r!)))
-                    {
-                        // Not misplaced (may or may not be under the correct root — the sorter only
-                        // fixes files that are visibly in the wrong pile).
-                        continue;
-                    }
-
-                    var targetPath = Path.Combine(expectedRoot, Path.GetFileName(path)!);
-                    var savings = 0L;
-                    try
-                    {
-                        savings = File.Exists(path) ? new FileInfo(path).Length : 0;
-                    }
-                    catch (IOException)
-                    {
-                        // Broken file — Playability scanner's problem, not ours.
-                    }
-
-                    issues.Add(new Issue
-                    {
-                        Type = IssueType.Misplaced,
-                        ItemId = item.Id,
-                        Path = path,
-                        Status = IssueStatus.Detected,
-                        DetectedAtUtc = DateTime.UtcNow,
-                        SizeSavings = savings,
-                        SuggestedFix = string.Format(
-                            CultureInfo.InvariantCulture,
-                            "Move to {0}",
-                            expectedRoot),
-                        DetailsJson = JsonSerializer.Serialize(new
-                        {
-                            kind = kind.ToString(),
-                            targetPath,
-                            expectedRoot,
-                            source = Config.MediaSortSource.ToString()
-                        })
-                    });
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "MediaSorter failed on {Path}; skipping", path);
-                    Api.Diagnostics.Record(
-                        "MediaSorter.Classify",
-                        "The media sorter failed while classifying '" + path + "': " + ex.Message + ". The file was skipped; the rest of the scan continued.");
-                }
-            }
-
-            processed++;
-            if (items.Count > 0)
-            {
-                progress.Report(processed * 100.0 / items.Count);
-            }
-        }
-
-        progress.Report(100);
-        return Task.FromResult<IReadOnlyList<Issue>>(issues);
+        return _planner.ScanAsync(Type, items, Config, progress, cancellationToken);
     }
 
     /// <summary>
@@ -279,8 +175,9 @@ public sealed partial class MediaSorterScanner : IScanner
     /// <param name="path">The file path being considered.</param>
     /// <param name="source">Which source to use.</param>
     /// <param name="animeEnabled">True when an Anime target path is configured; controls whether the anime kind is returned. When false, anime collapses back to Movie/Tv so existing behaviour is preserved.</param>
+    /// <param name="comicsEnabled">True when a separate comic target is configured; comic Book items use that enabled destination.</param>
     /// <returns>The kind, or null if unidentifiable.</returns>
-    internal static MediaKind? ClassifyItem(BaseItem item, string path, MediaSortSource source, bool animeEnabled = false)
+    internal static MediaKind? ClassifyItem(BaseItem item, string path, MediaSortSource source, bool animeEnabled = false, bool comicsEnabled = false)
     {
         if (source == MediaSortSource.JellyfinMetadata)
         {
@@ -294,6 +191,11 @@ public sealed partial class MediaSorterScanner : IScanner
             if (baseKind is null)
             {
                 return null;
+            }
+
+            if (comicsEnabled && baseKind == MediaKind.Book && MediaFormats.Comics.Contains(Path.GetExtension(path)))
+            {
+                return MediaKind.Comic;
             }
 
             // Anime override only applies to video content (Movie/Tv). Books/Music are never "anime".

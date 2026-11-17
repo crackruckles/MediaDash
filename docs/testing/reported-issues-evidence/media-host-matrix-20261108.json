@@ -1,0 +1,31 @@
+{
+  "caseId": "media-host-matrix",
+  "sourceDigest": "e99b757687a8a137daf5c8fb9f109642cebd19d8cc9d56441acd5e0125feb374",
+  "environment": "Disposable Debian native, Debian Docker and Windows Server Jellyfin hosts. Run 20261108-093946. MediaDash DLL SHA-256 c012483a02b213062226196a9c34d02421e7b37d05f6d6128d4870df458920f1.",
+  "checks": [
+    {
+      "name": "linux",
+      "passed": true,
+      "skipped": false,
+      "observed": "40 expected detections, 28 applied fixes, eight expected refusals/failures, zero unexpected failures or re-detections. Four baseline known gaps remained. Unknown extension stayed unindexed and its hash matched the baseline; the adjacent supported file was indexed."
+    },
+    {
+      "name": "docker",
+      "passed": true,
+      "skipped": false,
+      "observed": "40 expected detections, 28 applied fixes, eight expected refusals/failures, zero unexpected failures or re-detections. Four baseline known gaps remained. Unknown extension stayed unindexed and its hash matched the baseline; the adjacent supported file was indexed."
+    },
+    {
+      "name": "windows",
+      "passed": true,
+      "skipped": false,
+      "observed": "40 expected detections, 28 applied fixes, eight expected refusals/failures, zero unexpected failures or re-detections. Four baseline known gaps remained. Unknown extension stayed unindexed and its hash matched the baseline; the adjacent supported file was indexed."
+    },
+    {
+      "name": "golden-restored",
+      "passed": true,
+      "skipped": false,
+      "observed": "The runner reported successful golden rollback and shutdown for all three guests. Subsequent Proxmox status checks returned stopped for each guest."
+    }
+  ]
+}

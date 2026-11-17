@@ -1,9 +1,10 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using Jellyfin.Plugin.MediaDash.Fixers;
 using Microsoft.Data.Sqlite;
 
 namespace Jellyfin.Plugin.MediaDash.Data;
@@ -32,6 +33,169 @@ public sealed class IssueStore
         _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
     }
 
+    internal static void InvalidateUndoneMove(SqliteConnection connection, SqliteTransaction transaction, long issueId, string restoredPath)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        TryTransitionOpenIssue(connection, transaction, issueId, [IssueStatus.Detected, IssueStatus.Queued, IssueStatus.Fixed], IssueStatus.Detected);
+        command.CommandText = "UPDATE issues SET path=@path,details=@details,suggested_fix=@message WHERE id=@id AND status<>@dismissed";
+        const string message = "This move was undone. Re-scan and preview the current item before approving another move.";
+        command.Parameters.AddWithValue("@dismissed", (int)IssueStatus.Dismissed);
+        command.Parameters.AddWithValue("@details", JsonSerializer.Serialize(new { requiresRescan = true, warnings = new[] { new IssueWarning { Code = "move-undone", Blocking = true, Message = message } } }));
+        command.Parameters.AddWithValue("@message", message);
+        command.Parameters.AddWithValue("@path", restoredPath);
+        command.Parameters.AddWithValue("@id", issueId);
+        command.ExecuteNonQuery();
+    }
+
+    internal static void InvalidateMovedPaths(SqliteConnection connection, SqliteTransaction transaction, MediaMovePlan plan, long primaryIssueId, string operationId)
+    {
+        var rows = new List<(long Id, string Path, string Details, string ItemId)>();
+        using (var read = connection.CreateCommand())
+        {
+            read.Transaction = transaction;
+            read.CommandText = "SELECT id,path,details,item_id FROM issues WHERE status IN (@detected,@queued,@dismissed) AND id<>@primary";
+            read.Parameters.AddWithValue("@detected", (int)IssueStatus.Detected);
+            read.Parameters.AddWithValue("@queued", (int)IssueStatus.Queued);
+            read.Parameters.AddWithValue("@dismissed", (int)IssueStatus.Dismissed);
+            read.Parameters.AddWithValue("@primary", primaryIssueId);
+            using var reader = read.ExecuteReader();
+            while (reader.Read())
+            {
+                try
+                {
+                    rows.Add((reader.GetInt64(0), reader.GetString(1), reader.GetString(2), reader.GetString(3)));
+                }
+                catch (Exception error) when (error is InvalidCastException or FormatException or OverflowException)
+                {
+                    throw new IOException("A stored finding could not be revalidated after the move. Preserve the recorded move locations for review.", error);
+                }
+            }
+        }
+
+        var affectedItems = plan.ItemBindings.Select(binding => binding.ItemId).Append(plan.ItemId).Where(id => id != Guid.Empty).ToHashSet();
+        foreach (var row in rows)
+        {
+            var mapped = row.Path;
+            foreach (var entry in plan.Entries)
+            {
+                if (plan.CatalogPath.Length > 0 && string.Equals(row.Path, plan.CatalogPath, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)
+                    && LibraryGuard.IsUnder(plan.ItemPath, entry.Source))
+                {
+                    mapped = Path.GetFullPath(Path.Combine(entry.Destination, Path.GetRelativePath(entry.Source, plan.ItemPath)));
+                    break;
+                }
+
+                if (Path.IsPathFullyQualified(row.Path) && LibraryGuard.IsUnder(row.Path, entry.Source))
+                {
+                    mapped = string.Equals(row.Path, entry.Source, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)
+                        ? entry.Destination : Path.GetFullPath(Path.Combine(entry.Destination, Path.GetRelativePath(entry.Source, row.Path)));
+                    break;
+                }
+            }
+
+            var affected = mapped != row.Path || (Guid.TryParse(row.ItemId, out var itemId) && affectedItems.Contains(itemId));
+            affected |= Path.IsPathFullyQualified(row.Path) && plan.Entries.Any(entry => MediaMovePlanner.Overlap(row.Path, entry.Source) || MediaMovePlanner.Overlap(row.Path, entry.Destination));
+            if (!affected)
+            {
+                try
+                {
+                    using var details = JsonDocument.Parse(row.Details);
+                    affected = HasMovedBinding(details.RootElement, plan);
+                }
+                catch (JsonException)
+                {
+                    // Unrelated malformed findings remain handled by their own fixer guards.
+                }
+            }
+
+            if (!affected)
+            {
+                continue;
+            }
+
+            const string message = "A recorded move changed this item's paths or references. Scan again before approving a new fix.";
+            using var update = connection.CreateCommand();
+            update.Transaction = transaction;
+            TryTransitionOpenIssue(connection, transaction, row.Id, [IssueStatus.Detected, IssueStatus.Queued], IssueStatus.Detected);
+            update.CommandText = "UPDATE issues SET path=@path,details=@details,suggested_fix=@message,size_savings=0 WHERE id=@id";
+            update.Parameters.AddWithValue("@path", mapped);
+            update.Parameters.AddWithValue("@details", JsonSerializer.Serialize(new
+            {
+                requiresRescan = true,
+                moveOperationId = operationId,
+                warnings = new[] { new IssueWarning { Code = "move-paths-changed", Blocking = true, Message = message } }
+            }));
+            update.Parameters.AddWithValue("@message", message);
+            update.Parameters.AddWithValue("@id", row.Id);
+            update.ExecuteNonQuery();
+        }
+    }
+
+    private static bool HasMovedBinding(JsonElement value, MediaMovePlan plan, bool pathValue = false)
+    {
+        if (value.ValueKind == JsonValueKind.String && pathValue)
+        {
+            var path = value.GetString();
+            return !string.IsNullOrWhiteSpace(path) && Path.IsPathFullyQualified(path)
+                && (string.Equals(path, plan.CatalogPath, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)
+                    || plan.Entries.Any(entry => LibraryGuard.IsUnder(path, entry.Source) || LibraryGuard.IsUnder(path, entry.Destination)));
+        }
+
+        if (value.ValueKind == JsonValueKind.Array)
+        {
+            return value.EnumerateArray().Any(element => HasMovedBinding(element, plan, pathValue));
+        }
+
+        if (value.ValueKind == JsonValueKind.Object)
+        {
+            return value.EnumerateObject().Any(property => HasMovedBinding(
+                property.Value,
+                plan,
+                property.Name.ToUpperInvariant() is "PATH" or "PATHS" or "FILES" or "SOURCE" or "SOURCEPATH" or "TARGET" or "TARGETPATH"
+                    or "DESTINATION" or "APPROVEDSOURCE" or "KEEPERPATH" or "ORIGINALPATH" or "RECOVERYPATH" or "COMPANIONPATHS"));
+        }
+
+        return false;
+    }
+
+    internal bool InvalidateStaleMoveApproval(long issueId, string fingerprint, string message)
+    {
+        using var connection = _connectionFactory.Open();
+        using var transaction = connection.BeginTransaction(deferred: false);
+        using (var read = connection.CreateCommand())
+        {
+            read.Transaction = transaction;
+            read.CommandText = "SELECT " + IssueRowReader.ProjectionColumns + " FROM issues WHERE id=@id";
+            read.Parameters.AddWithValue("@id", issueId);
+            using var reader = read.ExecuteReader();
+            if (!reader.Read() || !IssueRowReader.TryRead(reader, "issues", out var current) || current.Status != IssueStatus.Queued
+                || MediaMovePlan.ReadIssue(current)?.Fingerprint != fingerprint)
+            {
+                return false;
+            }
+        }
+
+        if (!TryTransitionOpenIssue(connection, transaction, issueId, [IssueStatus.Queued], IssueStatus.Detected))
+        {
+            return false;
+        }
+
+        using var update = connection.CreateCommand();
+        update.Transaction = transaction;
+        update.CommandText = "UPDATE issues SET details=@details,suggested_fix=@message,size_savings=0 WHERE id=@id";
+        update.Parameters.AddWithValue("@details", JsonSerializer.Serialize(new
+        {
+            requiresRescan = true, previousMoveFingerprint = fingerprint,
+            warnings = new[] { new IssueWarning { Code = "move-preview-stale", Blocking = true, Message = message } }
+        }));
+        update.Parameters.AddWithValue("@message", message);
+        update.Parameters.AddWithValue("@id", issueId);
+        update.ExecuteNonQuery();
+        transaction.Commit();
+        return true;
+    }
+
     /// <summary>
     /// Replaces detected issues of a type with fresh scan results, but only for the paths that were actually scanned —
     /// a scan scoped to one library must not wipe findings from other libraries.
@@ -42,25 +206,58 @@ public sealed class IssueStore
     /// <param name="scannedPaths">All file paths covered by this scan; null means the scan covered everything.</param>
     public void ReplaceDetectedIssues(IssueType type, IReadOnlyList<Issue> issues, IReadOnlyCollection<string>? scannedPaths = null)
     {
+        if (type == IssueType.Playability && issues.Count > 0)
+        {
+            var failed = GetIssues(type, IssueStatus.Detected).Where(PlayabilityRepairState.IsCurrent)
+                .GroupBy(i => i.Path, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+            foreach (var issue in issues.Where(i => failed.ContainsKey(i.Path)))
+            {
+                using var prior = JsonDocument.Parse(failed[issue.Path].DetailsJson);
+                var identity = prior.RootElement.GetProperty("repair_failed");
+                PlayabilityRepairState.Apply(issue, identity.GetProperty("length").GetInt64(), identity.GetProperty("mtime_ticks").GetInt64());
+            }
+        }
+
         using var connection = _connectionFactory.Open();
-        using var transaction = connection.BeginTransaction();
+        using var transaction = connection.BeginTransaction(deferred: false);
+        var reserved = MediaMoveStore.CaptureReservationCheck(connection, transaction, out var hasReservations, out var itemReserved);
+        var preserved = new List<long>();
+        if (hasReservations)
+        {
+            using var read = connection.CreateCommand();
+            read.Transaction = transaction;
+            read.CommandText = "SELECT id,path,item_id FROM issues WHERE type=@type AND status=@detected";
+            read.Parameters.AddWithValue("@type", (int)type);
+            read.Parameters.AddWithValue("@detected", (int)IssueStatus.Detected);
+            using var reader = read.ExecuteReader();
+            while (reader.Read())
+            {
+                if ((reader.GetValue(1) is string path && reserved(path))
+                    || (Guid.TryParse(reader.GetString(2), out var itemId) && itemReserved(itemId)))
+                {
+                    preserved.Add(reader.GetInt64(0));
+                }
+            }
+        }
 
         if (scannedPaths is null)
         {
             using var delete = connection.CreateCommand();
             delete.Transaction = transaction;
-            delete.CommandText = "DELETE FROM issues WHERE type = @type AND status = @detected";
+            delete.CommandText = "DELETE FROM issues WHERE type = @type AND status = @detected AND id NOT IN (SELECT value FROM json_each(@preserved))";
             delete.Parameters.AddWithValue("@type", (int)type);
             delete.Parameters.AddWithValue("@detected", (int)IssueStatus.Detected);
+            delete.Parameters.AddWithValue("@preserved", JsonSerializer.Serialize(preserved));
             delete.ExecuteNonQuery();
         }
         else
         {
             using var delete = connection.CreateCommand();
             delete.Transaction = transaction;
-            delete.CommandText = "DELETE FROM issues WHERE type = @type AND status = @detected AND path = @path";
+            delete.CommandText = "DELETE FROM issues WHERE type = @type AND status = @detected AND path = @path AND id NOT IN (SELECT value FROM json_each(@preserved))";
             delete.Parameters.AddWithValue("@type", (int)type);
             delete.Parameters.AddWithValue("@detected", (int)IssueStatus.Detected);
+            delete.Parameters.AddWithValue("@preserved", JsonSerializer.Serialize(preserved));
             var pPath = delete.Parameters.Add("@path", SqliteType.Text);
             foreach (var path in scannedPaths)
             {
@@ -94,6 +291,11 @@ public sealed class IssueStore
 
             foreach (var issue in issues)
             {
+                if (reserved(issue.Path) || itemReserved(issue.ItemId))
+                {
+                    continue;
+                }
+
                 pType.Value = (int)type;
                 pItemId.Value = issue.ItemId.ToString("N");
                 pPath.Value = issue.Path;
@@ -219,7 +421,18 @@ public sealed class IssueStore
         }
 
         using var connection = _connectionFactory.Open();
+        if (TryTransitionOpenIssue(connection, null, issueId, fromAny, to))
+        {
+            return StatusTransitionResult.Applied;
+        }
+
+        return GetIssueStatus(issueId) is null ? StatusTransitionResult.NotFound : StatusTransitionResult.Conflict;
+    }
+
+    private static bool TryTransitionOpenIssue(SqliteConnection connection, SqliteTransaction? transaction, long issueId, IReadOnlyCollection<IssueStatus> fromAny, IssueStatus to)
+    {
         using var cmd = connection.CreateCommand();
+        cmd.Transaction = transaction;
         var names = new List<string>(fromAny.Count);
         var i = 0;
         foreach (var s in fromAny)
@@ -235,14 +448,7 @@ public sealed class IssueStore
 #pragma warning restore CA2100, CA3001
         cmd.Parameters.AddWithValue("@to", (int)to);
         cmd.Parameters.AddWithValue("@id", issueId);
-        if (cmd.ExecuteNonQuery() > 0)
-        {
-            return StatusTransitionResult.Applied;
-        }
-
-        // Row wasn't updated. Distinguish "no such row" from "row exists but wrong current status"
-        // so callers (controller endpoints) can return 404 vs 409 correctly.
-        return GetIssueStatus(issueId) is null ? StatusTransitionResult.NotFound : StatusTransitionResult.Conflict;
+        return cmd.ExecuteNonQuery() > 0;
     }
 
     /// <summary>Reads a single issue's current status.</summary>
@@ -288,7 +494,9 @@ public sealed class IssueStore
         // "cancel this fix" action.
         var sourceFilter = target == IssueStatus.Queued
             ? "status = @detected"
-            : "status IN (@detected, @queued)";
+            : target == IssueStatus.Detected
+                ? "status IN (@dismissed, @queued)"
+                : "status IN (@detected, @queued)";
         using var connection = _connectionFactory.Open();
         var transitioned = new List<long>(ids.Count);
         for (var offset = 0; offset < ids.Count; offset += chunkSize)
@@ -302,6 +510,7 @@ public sealed class IssueStore
             cmd.Parameters.AddWithValue("@target", (int)target);
             cmd.Parameters.AddWithValue("@detected", (int)IssueStatus.Detected);
             cmd.Parameters.AddWithValue("@queued", (int)IssueStatus.Queued);
+            cmd.Parameters.AddWithValue("@dismissed", (int)IssueStatus.Dismissed);
             for (var i = 0; i < count; i++)
             {
                 cmd.Parameters.AddWithValue("@id" + i.ToString(CultureInfo.InvariantCulture), ids[offset + i]);
@@ -322,33 +531,7 @@ public sealed class IssueStore
     /// <returns>Number of rows actually updated.</returns>
     public int BulkRevertDismissedIssues(IReadOnlyList<long> ids)
     {
-        if (ids.Count == 0)
-        {
-            return 0;
-        }
-
-        const int chunkSize = 500;
-        using var connection = _connectionFactory.Open();
-        var total = 0;
-        for (var offset = 0; offset < ids.Count; offset += chunkSize)
-        {
-            var count = Math.Min(chunkSize, ids.Count - offset);
-            using var cmd = connection.CreateCommand();
-            var placeholders = string.Join(",", Enumerable.Range(0, count).Select(i => "@id" + i.ToString(CultureInfo.InvariantCulture)));
-#pragma warning disable CA2100, CA3001 // placeholder list is machine-composed from an int range, ids are bound as parameters
-            cmd.CommandText = "UPDATE issues SET status = @detected WHERE id IN (" + placeholders + ") AND status = @dismissed";
-#pragma warning restore CA2100, CA3001
-            cmd.Parameters.AddWithValue("@detected", (int)IssueStatus.Detected);
-            cmd.Parameters.AddWithValue("@dismissed", (int)IssueStatus.Dismissed);
-            for (var i = 0; i < count; i++)
-            {
-                cmd.Parameters.AddWithValue("@id" + i.ToString(CultureInfo.InvariantCulture), ids[offset + i]);
-            }
-
-            total += cmd.ExecuteNonQuery();
-        }
-
-        return total;
+        return BulkUpdateOpenIssueStatus(ids, IssueStatus.Detected).Count;
     }
 
     /// <summary>Re-points issue rows after a move-style fixer runs. See <see cref="MediaDashDb.RelocateIssuePaths"/>.</summary>
@@ -409,17 +592,20 @@ public sealed class IssueStore
     /// <param name="type">The issue type.</param>
     /// <param name="minConfidence">Optional minimum <c>Issue.Confidence</c> threshold. Only pass a non-null value for confidence-gated types (currently Duplicate).</param>
     /// <returns>The IDs of the rows this call moved from Detected to Queued.</returns>
-    public IReadOnlyList<long> QueueDetectedIssues(IssueType type, double? minConfidence = null)
+    /// <param name="requireConsent">Atomically retain blocking findings as Detected during automatic queuing.</param>
+    public IReadOnlyList<long> QueueDetectedIssues(IssueType type, double? minConfidence = null, bool requireConsent = false)
     {
         using var connection = _connectionFactory.Open();
+        using var transaction = connection.BeginTransaction();
         using var cmd = connection.CreateCommand();
+        cmd.Transaction = transaction;
         // The NOT EXISTS gate against restored_paths implements the "if a user restored a file, no
         // scanner may auto-fix it again" invariant. Manual approval via /Issues/{id}/Approve still
         // goes through the guarded TryTransitionIssueStatus helper and doesn't touch this method.
-        // RETURNING id lets us hand the exact newly-queued set to the consent rollback pass — a
-        // second read-back would race against the fixer picking rows up.
+        // Select consent-safe candidates and transition them in one transaction so a crash
+        // cannot expose a partly approved blocking finding to the next fix run.
         var baseSql = """
-            UPDATE issues SET status = @queued
+            SELECT id, details FROM issues
             WHERE type = @type AND status = @detected
               AND NOT EXISTS (
                   SELECT 1 FROM restored_paths rp
@@ -429,26 +615,41 @@ public sealed class IssueStore
 
         if (minConfidence is double gate)
         {
-            cmd.CommandText = baseSql + " AND (confidence IS NULL OR confidence >= @gate) RETURNING id";
+            cmd.CommandText = baseSql + " AND (confidence IS NULL OR confidence >= @gate)";
             cmd.Parameters.AddWithValue("@gate", gate);
         }
         else
         {
-            cmd.CommandText = baseSql + " RETURNING id";
+            cmd.CommandText = baseSql;
         }
 
-        cmd.Parameters.AddWithValue("@queued", (int)IssueStatus.Queued);
         cmd.Parameters.AddWithValue("@type", (int)type);
         cmd.Parameters.AddWithValue("@detected", (int)IssueStatus.Detected);
         cmd.Parameters.AddWithValue("@any", MediaDashSchema.RestoredPathAnyType);
 
-        var queuedIds = new List<long>();
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
+        var candidates = new List<long>();
+        using (var reader = cmd.ExecuteReader())
         {
-            queuedIds.Add(reader.GetInt64(0));
+            while (reader.Read())
+            {
+                var issue = new Issue { DetailsJson = reader.GetString(1) };
+                if (!requireConsent || (!issue.HasBlockingWarnings && !issue.IsReportOnly && !issue.RequiresRescan))
+                {
+                    candidates.Add(reader.GetInt64(0));
+                }
+            }
         }
 
+        var queuedIds = new List<long>(candidates.Count);
+        foreach (var id in candidates)
+        {
+            if (TryTransitionOpenIssue(connection, transaction, id, [IssueStatus.Detected], IssueStatus.Queued))
+            {
+                queuedIds.Add(id);
+            }
+        }
+
+        transaction.Commit();
         return queuedIds;
     }
 
@@ -466,7 +667,7 @@ public sealed class IssueStore
         // may have already touched some), and (c) carry a blocking warning in DetailsJson.
         var justQueuedSet = new HashSet<long>(justAutoQueuedIds);
         var toRevert = GetIssues(status: IssueStatus.Queued)
-            .Where(i => justQueuedSet.Contains(i.Id) && i.HasBlockingWarnings)
+            .Where(i => justQueuedSet.Contains(i.Id) && (i.HasBlockingWarnings || i.IsReportOnly))
             .Select(i => i.Id)
             .ToList();
 
@@ -476,26 +677,18 @@ public sealed class IssueStore
         }
 
         using var connection = _connectionFactory.Open();
-        using var cmd = connection.CreateCommand();
-        // Parameterize each id — SQLite has no array binding, so we build @id0,@id1,... .
-        // The list is typically 0-few items (bitmap-sub track removals are the main source), so
-        // one parameterised UPDATE is cheaper than a per-row round-trip. The AND status = @queued
-        // guard protects against a manual dismiss/revert landing between our read and this write.
-        var placeholders = new List<string>(toRevert.Count);
-        for (int i = 0; i < toRevert.Count; i++)
+        using var transaction = connection.BeginTransaction();
+        var reverted = 0;
+        foreach (var id in toRevert)
         {
-            var name = "@id" + i.ToString(CultureInfo.InvariantCulture);
-            placeholders.Add(name);
-            cmd.Parameters.AddWithValue(name, toRevert[i]);
+            if (TryTransitionOpenIssue(connection, transaction, id, [IssueStatus.Queued], IssueStatus.Detected))
+            {
+                reverted++;
+            }
         }
 
-#pragma warning disable CA2100, CA3001 // placeholder list is machine-composed from an int range, ids are bound as parameters
-        cmd.CommandText = "UPDATE issues SET status = @detected WHERE status = @queued AND id IN ("
-            + string.Join(",", placeholders) + ")";
-#pragma warning restore CA2100, CA3001
-        cmd.Parameters.AddWithValue("@detected", (int)IssueStatus.Detected);
-        cmd.Parameters.AddWithValue("@queued", (int)IssueStatus.Queued);
-        return cmd.ExecuteNonQuery();
+        transaction.Commit();
+        return reverted;
     }
 
     /// <summary>

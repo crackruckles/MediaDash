@@ -1,5 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
+using Jellyfin.Plugin.MediaDash.Fixers;
+using Microsoft.Data.Sqlite;
 
 namespace Jellyfin.Plugin.MediaDash.Data;
 
@@ -48,8 +53,28 @@ public sealed class RestoreOperationStore
         }
 
         var operationId = Guid.NewGuid().ToString("N");
+        var paths = new[] { sourcePath, destinationPath };
+        MediaMovePathClaims.Claim[] nativeClaims;
+        try
+        {
+            // Native metadata is captured before acquiring the SQLite write lock.
+            nativeClaims = MediaMovePathClaims.Capture(paths);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return null;
+        }
+
         using var connection = _connectionFactory.Open();
+        using var transaction = connection.BeginTransaction(deferred: false);
+        if (MediaMoveStore.HasActivePathConflict(connection, transaction, paths, nativeClaims)
+            || HasActivePathConflict(connection, transaction, paths, nativeClaims))
+        {
+            return null;
+        }
+
         using var cmd = connection.CreateCommand();
+        cmd.Transaction = transaction;
         // ON CONFLICT DO NOTHING makes the INSERT idempotent against the entry_key UNIQUE
         // constraint — the row we care about is "who owns this entry_key right now". Absence of a
         // row + successful INSERT = we won the claim. Any conflict (Pending / NeedsReview /
@@ -57,17 +82,49 @@ public sealed class RestoreOperationStore
         // returns 0 affected rows.
         cmd.CommandText = """
             INSERT INTO restore_operations
-                (operation_id, entry_key, history_id, source_path, destination_path, state, started_utc_ticks, detail)
-            VALUES (@op, @ek, @hid, @src, @dst, 'Pending', @ticks, NULL)
+                (operation_id, entry_key, history_id, source_path, destination_path, state, started_utc_ticks, detail, native_claims_json)
+            VALUES (@op, @ek, @hid, @src, @dst, 'Pending', @ticks, NULL, @claims)
             ON CONFLICT(entry_key) DO NOTHING
             """;
         cmd.Parameters.AddWithValue("@op", operationId);
+        cmd.Parameters.AddWithValue("@claims", JsonSerializer.Serialize(nativeClaims, MediaMovePlan.JsonOptions));
         cmd.Parameters.AddWithValue("@ek", entryKey);
         cmd.Parameters.AddWithValue("@hid", historyId.HasValue ? historyId.Value : (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@src", sourcePath ?? string.Empty);
         cmd.Parameters.AddWithValue("@dst", destinationPath ?? string.Empty);
         cmd.Parameters.AddWithValue("@ticks", DateTime.UtcNow.Ticks);
-        return cmd.ExecuteNonQuery() > 0 ? operationId : null;
+        var acquired = cmd.ExecuteNonQuery() > 0;
+        transaction.Commit();
+        return acquired ? operationId : null;
+    }
+
+    internal static bool HasActivePathConflict(SqliteConnection connection, SqliteTransaction transaction, IEnumerable<string> paths, MediaMovePathClaims.Claim[]? nativeClaims = null)
+    {
+        var incoming = paths.Select(MediaMoveStore.NormalizeClaimPath).ToArray();
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT source_path,destination_path,native_claims_json FROM restore_operations WHERE state<>'Completed'";
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            try
+            {
+                var source = MediaMoveStore.NormalizeClaimPath(reader.GetString(0));
+                var destination = MediaMoveStore.NormalizeClaimPath(reader.GetString(1));
+                if (source is null || destination is null || incoming.Any(path => path is null
+                    || MediaMovePlanner.Overlap(path, source) || MediaMovePlanner.Overlap(path, destination))
+                    || MediaMovePathClaims.Overlap(MediaMovePathClaims.Read(reader.IsDBNull(2) ? null : reader.GetString(2), [source, destination]), nativeClaims))
+                {
+                    return true;
+                }
+            }
+            catch (Exception error) when (error is InvalidCastException or FormatException or OverflowException)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>Marks a Pending restore as successful and removes the row so the entry_key is free to be re-claimed.</summary>

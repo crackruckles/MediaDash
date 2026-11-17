@@ -3,10 +3,8 @@ name: CI
 on:
   push:
     branches: [main]
-    paths-ignore: ['**/*.md']
   pull_request:
     branches: [main]
-    paths-ignore: ['**/*.md']
   workflow_dispatch:
 
 jobs:
@@ -20,18 +18,32 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Python live-harness contracts (offline)
+        run: python -B -m unittest discover -s tools/repair-test -p "test_*.py"
+      - name: Format fixture contracts (offline)
+        run: python -B tools/repair-test/run_formats.py --self-test
+      - name: PowerShell harness syntax
+        shell: pwsh
+        run: pwsh -NoProfile -NonInteractive -File tools/check-harness-syntax.ps1
+      - name: Shell harness syntax
+        shell: bash
+        run: |
+          for file in tools/make-fixtures.sh tools/integration-test.sh tools/audit-migration/migrate.sh; do
+            bash -n "$file"
+          done
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Dashboard lifecycle and regression tests
-        run: node --test tools/comprehensive-test/ui-lifecycle-self-tests.js tools/comprehensive-test/ui-regression-self-tests.js
+        run: node --test tools/comprehensive-test/ui-lifecycle-self-tests.js tools/comprehensive-test/ui-regression-self-tests.js tools/comprehensive-test/ui-issue-fixes-self-tests.js
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '9.0.x'
-      - name: Build
-        run: dotnet build Jellyfin.Plugin.MediaDash.sln --configuration Release
-      - name: Test
-        run: dotnet test Jellyfin.Plugin.MediaDash.sln --configuration Release --no-build --logger "trx;LogFileName=results.trx" --results-directory TestResults/${{ matrix.os }}
+      - name: Reported issue regressions and required acceptance evidence
+        run: python -B tools/reported_issue_gate.py --output TestResults/${{ matrix.os }}
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -63,11 +75,11 @@ jobs:
         run: pwsh -NoProfile -NonInteractive -File tools/release-self-tests.ps1
 
   validator-self-tests:
-    # Windows-only: validate-outputs.ps1 currently uses `cmd /c` to invoke
-    # ffmpeg with -xerror, which is a Windows-only invocation. Linux port is
-    # tracked separately (not in 00-B scope). Mark this gate Windows-only
-    # rather than silently skipping.
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - name: Validator self-tests (repair-test)

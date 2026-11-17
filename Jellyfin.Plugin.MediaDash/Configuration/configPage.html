@@ -65,7 +65,7 @@
 
                 <div id="mdFixPauseNote" style="display:none;max-width:36em;margin:.4em 0 .8em;padding:.7em 1em;border-radius:10px;background:rgba(245,158,11,.16);border:1px solid rgba(245,158,11,.5);align-items:center;gap:.8em;flex-wrap:wrap;">
                     <span class="material-icons" style="color:#f59e0b;">pause_circle</span>
-                    <span id="mdFixPauseText" style="flex:1;min-width:12em;font-size:.9em;"></span>
+                    <span id="mdFixPauseText" role="status" style="flex:1;min-width:12em;font-size:.9em;"></span>
                     <button is="emby-button" type="button" id="mdFixIgnoreActivity" class="raised" style="font-size:80%;" title="Continue the fix run even while someone is watching. Only affects this run.">
                         <span class="material-icons" style="font-size:1.1em;margin-right:.3em;">play_arrow</span><span>Ignore activity</span>
                     </button>
@@ -198,7 +198,7 @@
                                     <input id="mdWizThorough" type="checkbox" is="emby-checkbox" />
                                     <span>Thorough playability check (recommended)</span>
                                 </label>
-                                <div class="fieldDescription">Test-plays three points in every file. Slower on first scan; results are cached for unchanged files. Turn off for a much faster header-only check.</div>
+                                <div class="fieldDescription">On adds full multi-track audio and interleave checks. Off samples video and all audio tracks in short windows. Sampled checks can miss damage between windows.</div>
                             </div>
                         </div>
 
@@ -493,7 +493,7 @@
                                     <input id="mdWizStaleEnabled" type="checkbox" is="emby-checkbox" />
                                     <span>Yes, flag media that has been sitting unwatched</span>
                                 </label>
-                                <div class="fieldDescription">Detect-only. MediaDash never deletes stale files automatically — the list shows on the Issues tab so you decide.</div>
+                                <div class="fieldDescription">Ask me first. MediaDash never deletes stale files automatically — the list shows on the Issues tab so you decide.</div>
                             </div>
                             <div class="inputContainer" style="max-width:14em;margin-top:.6em;">
                                 <label class="inputLabel inputLabelUnfocused" for="mdWizStaleThreshold">Consider stale after (days)</label>
@@ -507,8 +507,8 @@
                             <p class="mdWizIntro">Some files in your library might be in formats Jellyfin's browser player can't open directly — like MOBI ebooks, CBR comics, HEIC photos, or RMVB videos. MediaDash can detect them and (optionally) convert them to formats that just work.</p>
                             <div class="checkboxContainer checkboxContainer-withDescription" style="margin-bottom:.5em;">
                                 <label class="emby-checkbox-label">
-                                    <input id="mdWizFormatDetectOnly" type="radio" name="mdWizFormatMode" value="DetectOnly" checked />
-                                    <span>Detect only (recommended)</span>
+                                    <input id="mdWizFormatManualApprove" type="radio" name="mdWizFormatMode" value="ManualApprove" checked />
+                                    <span>Ask me first (recommended)</span>
                                 </label>
                                 <div class="fieldDescription">Flags incompatible files on the Issues tab — you choose what to convert and when. Nothing changes on disk until you approve.</div>
                             </div>
@@ -674,6 +674,10 @@
                         </div>
                         <div id="mdApproveAllNote" class="mdIssueApproveNote"></div>
                     </div>
+                    <div id="mdIssueLoadError" class="mdWarnStrip" role="alert" style="display:none;">
+                        <span id="mdIssueLoadErrorText"></span>
+                        <button is="emby-button" type="button" id="mdIssueLoadRetry" class="raised">Retry</button>
+                    </div>
                     <div id="mdIssueList"></div>
                     <div id="mdIssuePager" style="display:none;justify-content:center;align-items:center;flex-wrap:wrap;gap:.6em;margin-top:1em;">
                         <button is="emby-button" type="button" id="mdIssuePagePrev" class="raised" style="font-size:80%;"><span class="material-icons">chevron_left</span><span>Prev</span></button>
@@ -687,11 +691,12 @@
                     <div class="mdTabHeader">
                         <div class="mdTabHeaderText">
                             <h2 class="mdTabTitle">History</h2>
-                            <p class="mdTabDesc">Every fix MediaDash has run, with a Restore button for anything sent to the recycle bin. Filter by outcome or clear the list — clearing hides rows here but keeps the underlying totals.</p>
+                            <p class="mdTabDesc">Review fix outcomes, restore recycled files, or undo complete recorded moves. Interrupted moves remain available for review even when History could not be saved. Clearing History hides rows here and keeps the underlying totals and move records.</p>
                         </div>
                         <div id="mdHistorySummary"></div>
                     </div>
                     <div id="mdHistoryChart" class="mdSection"></div>
+                    <div id="mdMoveOperations" class="mdSection"></div>
                     <div class="mdCard mdIssueFilterCard" style="margin-top:22px;padding:14px 24px;gap:8px;">
                         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
                             <div class="mdIssueSearchWrap">
@@ -773,6 +778,33 @@
                         <div class="mdCtxItem" data-ctx="protect" role="button" tabindex="0">
                             <span class="material-icons">shield</span>
                             <span>Protect this path</span>
+                        </div>
+                    </div>
+
+                    <div id="mdFileRenameDialog" class="mdDialog" role="dialog" aria-modal="true" aria-labelledby="mdFileRenameTitle" style="display:none;">
+                        <div class="mdDialogInner">
+                            <h2 id="mdFileRenameTitle">Rename item</h2>
+                            <label id="mdFileRenameLabel" for="mdFileRenameName">New name</label>
+                            <input is="emby-input" id="mdFileRenameName" type="text" autocomplete="off" />
+                            <div class="mdDialogActions">
+                                <button is="emby-button" type="button" id="mdFileRenameCancel" class="raised">Cancel</button>
+                                <button is="emby-button" type="button" id="mdFileRenameAccept" class="raised button-submit">Review related paths</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="mdFileMoveDialog" class="mdDialog" role="dialog" aria-modal="true" aria-labelledby="mdFileMoveTitle" style="display:none;">
+                        <div class="mdDialogInner">
+                            <h2 id="mdFileMoveTitle">Review complete move</h2>
+                            <div id="mdFileMoveHelp" class="fieldDescription"></div>
+                            <div id="mdFileMoveCount" class="fieldDescription"></div>
+                            <div id="mdFileMovePaths" style="max-height:45vh;overflow:auto;word-break:break-all;"></div>
+                            <button is="emby-button" type="button" id="mdFileMoveMore" class="raised" style="display:none;">Show more paths</button>
+                            <div id="mdFileMoveMessage" role="status" class="fieldDescription" style="white-space:pre-line;"></div>
+                            <div class="mdDialogActions">
+                                <button is="emby-button" type="button" id="mdFileMoveCancel" class="raised">Cancel</button>
+                                <button is="emby-button" type="button" id="mdFileMoveAccept" class="raised button-submit">Move these paths</button>
+                            </div>
                         </div>
                     </div>
 

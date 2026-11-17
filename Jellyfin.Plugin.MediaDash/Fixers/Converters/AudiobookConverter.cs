@@ -139,7 +139,7 @@ public sealed class AudiobookConverter : IFormatConverter
             : new[] { "-c:a", "aac", "-b:a", "96k" };
 
         // 3. Write the ffmpeg concat manifest to a temp .txt file.
-        var concatTxt = Path.ChangeExtension(Path.GetTempFileName(), ".txt");
+        var concatTxt = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".txt");
         try
         {
             var sb = new StringBuilder();
@@ -152,7 +152,7 @@ public sealed class AudiobookConverter : IFormatConverter
             await File.WriteAllTextAsync(concatTxt, sb.ToString(), cancellationToken).ConfigureAwait(false);
 
             // 4. Build the chapter metadata file (ffmetadata format).
-            var metadataTxt = Path.ChangeExtension(Path.GetTempFileName(), ".txt");
+            var metadataTxt = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".txt");
             try
             {
                 var meta = new StringBuilder();
@@ -209,7 +209,10 @@ public sealed class AudiobookConverter : IFormatConverter
                 psi.ArgumentList.Add("-vn");
                 psi.ArgumentList.Add(stagedTargetPath);
 
-                using var proc = new Process { StartInfo = psi };
+                var media = await MediaProcess.AcquireAsync(cancellationToken).ConfigureAwait(false);
+                await using var lifetime = media.ConfigureAwait(false);
+                var proc = media.Process;
+                proc.StartInfo = psi;
                 var stderr = new StringBuilder();
                 proc.ErrorDataReceived += (_, e) =>
                 {
@@ -219,7 +222,7 @@ public sealed class AudiobookConverter : IFormatConverter
                     }
                 };
 
-                if (!proc.Start())
+                if (!media.Start())
                 {
                     return new ConversionResult(false, null, "ffmpeg failed to start.");
                 }
@@ -232,14 +235,8 @@ public sealed class AudiobookConverter : IFormatConverter
                 {
                     await proc.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false);
                 }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                 {
-                    TryKill(proc);
-                    throw;
-                }
-                catch (OperationCanceledException)
-                {
-                    TryKill(proc);
                     return new ConversionResult(false, null, "ffmpeg merge timed out after 30 minutes.");
                 }
 
@@ -327,19 +324,5 @@ public sealed class AudiobookConverter : IFormatConverter
         }
 
         return numbered.Select(x => x.Path).ToList();
-    }
-
-    private static void TryKill(Process proc)
-    {
-        try
-        {
-            if (!proc.HasExited)
-            {
-                proc.Kill(true);
-            }
-        }
-        catch (InvalidOperationException)
-        {
-        }
     }
 }

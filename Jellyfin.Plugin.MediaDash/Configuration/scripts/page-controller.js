@@ -225,13 +225,17 @@
             // context menu bulk-ignore actions.
             function bulkIssueAction(ids, action) {
                 if (!ids || !ids.length) return Promise.resolve(0);
-                return api.ajax({
-                    type: 'POST',
-                    url: ApiClient.getUrl('MediaDash/Issues/Bulk'),
-                    data: JSON.stringify({ Ids: ids, Action: action }),
-                    contentType: 'application/json',
-                    dataType: 'json'
-                });
+                var count = 0;
+                var request = Promise.resolve();
+                for (var offset = 0; offset < ids.length; offset += 500) {
+                    (function (batch) {
+                        request = request.then(function () {
+                            return api.ajax({ type: 'POST', url: ApiClient.getUrl('MediaDash/Issues/Bulk'),
+                                data: JSON.stringify({ Ids: batch, Action: action }), contentType: 'application/json', dataType: 'json' });
+                        }).then(function (n) { count += n || 0; });
+                    })(ids.slice(offset, offset + 500));
+                }
+                return request.then(function () { return count; });
             }
 
 
@@ -388,11 +392,23 @@
                 if (!silent) Dashboard.showLoadingMsg();
                 _refreshTick++;
                 var running = overviewTab.lastStatus && (overviewTab.lastStatus.IsScanning || overviewTab.lastStatus.IsFixing);
-                // "Cold" endpoints refresh: on every full (non-silent) call, whenever scan/fix is
-                // running, or once every 15 seconds while idle (5 × 3s poll interval).
-                var refreshCold = !silent || running || (_refreshTick % 5 === 0);
+                // Keep DB and recycle-folder reads on the 15-second cadence during scans too.
+                var refreshCold = !silent || (_refreshTick % 5 === 0);
+                // Fast progress poll during active scan/fix. The full /Status aggregates ~10 DB
+                // queries + drive scan + SMART + system stats; polling that every 3s during a scan
+                // competes with scanner writes and lets the Overview progress bar go stale or
+                // disappear on loaded servers. Switch to /Status/Progress (no DB, no drives) on
+                // fast ticks and keep the full /Status for cold ticks so counts/drives stay fresh.
+                var useProgressEndpoint = silent && running && !!overviewTab.lastStatus && (_refreshTick % 5 !== 0);
+                var statusPath = useProgressEndpoint ? 'Status/Progress' : 'Status';
 
-                api('Status').then(function (s) {
+                api(statusPath).then(function (s) {
+                    if (useProgressEndpoint) {
+                        // Merge the small payload onto the last full status so the renderer still sees
+                        // every field (OpenIssueTotal, drives, counts, ...). Only the live-progress
+                        // fields change tick-to-tick.
+                        s = Object.assign({}, overviewTab.lastStatus, s);
+                    }
                     overviewTab.renderStatus(s, !!silent);
                     if (!silent) Dashboard.hideLoadingMsg();
                     _statusFailStreak = 0;
@@ -790,7 +806,7 @@
                 { prefix: 'FixTask.FileLocked', title: 'Fix run — file locked', icon: 'lock', hint: 'The file was still open after ~7.5s of retries. Long-lived holders: an active playback, Jellyfin trickplay / chapter-thumb / cover-art extraction, a sibling MediaDash scan, or an external tool (Sonarr, Radarr, sync app, antivirus).' },
                 { prefix: 'FixTask.DiskFull', title: 'Fix run — drive full', icon: 'sd_card_alert', hint: 'The target or recycle-bin drive ran out of space mid-fix. Free some space and MediaDash will retry on the next run.' },
                 { prefix: 'FixTask.IOError', title: 'Fix run — I/O error', icon: 'error_outline', hint: 'An I/O error MediaDash can\'t classify — usually a network-path glitch, an ACL edge case, or an antivirus briefly locking the file. The next scheduled fix run will retry.' },
-                { prefix: 'FixTask.NoRunnable', title: 'Fix run — nothing to run', icon: 'info', hint: 'Every approved issue belongs to a type currently set to \'Off\' in Settings → What to fix. Switch the type to \'Ask me first\' or \'Automatic\' to let them run, or dismiss the issues. Not a failure.' },
+                { prefix: 'FixTask.NoRunnable', title: 'Fix run — nothing to run', icon: 'info', hint: 'Approved issues were blocked by the current settings or library scope. The message explains what to check. The issues stay queued. Not a failure.' },
                 { prefix: 'FixTask.SomeSkipped', title: 'Fix run — some issues skipped', icon: 'info', hint: 'The listed count of approved issues did not run because their type is set to \'Off\' in Settings → What to fix. The rest of the queue ran normally. Not a failure.' },
                 { prefix: 'FixTask', title: 'Fix run failed', icon: 'build', hint: 'The fix pipeline threw an unexpected error. Retry from the Errors tab; if it happens again, use "Report an issue".' },
                 { prefix: 'Ffprobe.Timeout', title: 'ffprobe timed out', icon: 'hourglass_empty', hint: 'A file took over 2 minutes to probe and was skipped. Usually a huge file on slow storage or a container ffprobe cannot parse.' },
@@ -901,6 +917,7 @@
                 get applySubtitleProviderHint() { return applySubtitleProviderHint; }
             });
             var filesTab = window.MediaDash.createFilesTab({
+                get strings() { return STR; },
                 get lifetime() { return lifetime; },
                 get ownGlobal() { return ownGlobal; },
                 get esc() { return esc; },
@@ -912,6 +929,35 @@
             document.querySelector('#MediaDashConfigPage').addEventListener('pageshow', function () {
                 view = this;
                 var showToken = lifetime.start();
+                // Page-scoped requests discard stale callbacks; restore their transient UI on return.
+                ['mdPostUpgradeRun', 'mdPostUpgradeDismiss', 'mdBinEmpty', 'mdMaintVirusScan', 'mdHistoryClear', 'mdResetSchedule', 'mdWizV12Run', 'mdWizCheckAccess', 'mdLibAccessTest', 'mdBinAccessTest'].forEach(function (id) {
+                    var button = view.querySelector('#' + id);
+                    if (button) button.disabled = false;
+                });
+                    // Gate v12 migration button on host version — enabled only when Jellyfin ≥ 12.
+                    api('PostUpgradeCleanup/Status').then(function (s) {
+                        var btn = view.querySelector('#mdMaintV12Migration');
+                        var msg = view.querySelector('#mdMaintV12MigrationMsg');
+                        if (!btn) return;
+                        if (s && s.JellyfinMajor >= 12) {
+                            if (s.Completed) {
+                                btn.disabled = true;
+                                msg.textContent = 'Already run once on this server. History has the details.';
+                            } else {
+                                btn.disabled = false;
+                                msg.textContent = 'Sweeps orphaned trickplay folders left behind by the 10.x → 12.x upgrade.';
+                            }
+                        } else {
+                            btn.disabled = true;
+                            btn.setAttribute('title', 'Not applicable — this server is running Jellyfin ' + (s && s.JellyfinMajor ? s.JellyfinMajor : '<12') + '. Nothing to migrate.');
+                            msg.textContent = 'Locked — this cleanup only applies once you upgrade to Jellyfin 12+.';
+                        }
+                    }, function () { /* Status probe failed; leave button disabled with tooltip. */ });
+                var emptyBar = view.querySelector('#mdBinEmptyBar');
+                if (emptyBar) emptyBar.style.display = 'none';
+                var binList = view.querySelector('#mdBinList');
+                if (binList) binList.style.display = '';
+                view.querySelectorAll('.mdRedownloadAck, .mdRedownloadRestoreOpt').forEach(function (button) { button.disabled = false; });
 
                 view.querySelector('#mdLogo').src = ApiClient.getUrl('MediaDash/Logo');
                 var wizLogo = view.querySelector('#mdWizLogo');
@@ -967,6 +1013,13 @@
                         fmt: fmt, bytes: bytes,
                         fileExtOf: fileExtOf, mediaCategoryOf: mediaCategoryOf,
                         refresh: refresh, post: post, bulkIssueAction: bulkIssueAction,
+                        showTab: showTab, errorMessage: errorMessage,
+                        rescan: function () {
+                            showTab('overview');
+                            if (!overviewTab.busy.scan && !(overviewTab.lastStatus && overviewTab.lastStatus.IsScanning)) {
+                                view.querySelector('#mdScanNow').click();
+                            }
+                        },
                         closeIssueContextMenu: closeIssueContextMenu,
                         openInFileBrowser: openInFileBrowser,
                         updateTabBadge: updateTabBadge,
@@ -1005,10 +1058,10 @@
                         if (!ids.length) return;
                         if (issuesTab.showingIgnored()) {
                             if (!window.confirm(fmt(STR.unignoreAllConfirm || 'Unignore {0} issue(s)?', ids.length))) return;
-                            bulkIssueAction(ids, 'Revert').then(function () { issuesTab.activate(); refresh(true); });
+                            bulkIssueAction(ids, 'Revert').then(function () { issuesTab.activate(); refresh(true); }).catch(function (err) { Dashboard.alert({ title: STR.issueActionFailed, message: errorMessage(err) }); });
                         } else {
                             if (!window.confirm(fmt(STR.clearAllConfirm || 'Ignore all {0} issue(s)?', ids.length))) return;
-                            bulkIssueAction(ids, 'Dismiss').then(function () { issuesTab.activate(); refresh(true); });
+                            bulkIssueAction(ids, 'Dismiss').then(function () { issuesTab.activate(); refresh(true); }).catch(function (err) { Dashboard.alert({ title: STR.issueActionFailed, message: errorMessage(err) }); });
                         }
                     });
                     view.querySelector('#mdToggleIgnored').addEventListener('click', function () {
@@ -1092,15 +1145,15 @@
                             post('Fix/Cancel').then(function () { lifetime.timeout(refresh, 700); });
                             return;
                         }
-                        if (overviewTab.lastStatus && (overviewTab.lastStatus.PendingFixCount || 0) === 0) {
-                            view.querySelector('#mdScanState').textContent = STR.fixNothingToDo;
-                            overviewTab.setProgress(false);
-                            return;
-                        }
                         overviewTab.busy.fix = true;
                         view.querySelector('#mdScanState').textContent = STR.fixStarting;
                         overviewTab.setProgress(true, 3);
-                        post('Fix').then(function () { lifetime.timeout(refresh, 700); });
+                        post('Fix').then(function () { lifetime.timeout(refresh, 700); }, function (err) {
+                            overviewTab.busy.fix = false;
+                            overviewTab.setProgress(false);
+                            view.querySelector('#mdScanState').textContent = STR.fixStartFailed + ' ' + errorMessage(err);
+                            Dashboard.alert({ title: STR.fixStartFailed, message: errorMessage(err) });
+                        });
                     });
 
                     // Right-click (desktop) / long-press (touch) on "Run fixes now" opens the fixer
@@ -1179,7 +1232,7 @@
                                 Dashboard.alert({ title: 'Stale queue cleared', message: 'Dismissed ' + n + ' queued item' + (n === 1 ? '' : 's') + '. Revert them from the Issues tab if needed.' });
                             }
                             lifetime.timeout(refresh, 500);
-                        });
+                        }).catch(function (err) { Dashboard.alert({ title: STR.issueActionFailed, message: errorMessage(err) }); });
                     });
 
                     // Delegated so future banners with class="mdDismissBanner" don't need separate wiring.
@@ -1260,7 +1313,7 @@
                             var data = r; // Ajax helpers already return parsed JSON.
                             var freed = (data && data.BytesFreed) || 0;
                             var count = (data && data.OrphanedFoldersDeleted) || 0;
-                            resultEl.textContent = 'Cleanup done. Reclaimed ' + bytes(freed) + ' from ' + count + ' orphaned trickplay folder' + (count === 1 ? '' : 's') + '. Logged to History.';
+                            resultEl.textContent = (data && data.WasDryRun) ? 'Dry-run preview: ' + count + ' orphaned folders could be removed. No files were deleted.' : 'Cleanup done. Reclaimed ' + bytes(freed) + ' from ' + count + ' orphaned trickplay folder' + (count === 1 ? '' : 's') + '. Logged to History.';
                             // Server state just changed — invalidate the once-per-session cache so
                             // the next refresh re-reads (and the banner drops for good).
                             _postUpgradeChecked = false;
@@ -1288,7 +1341,17 @@
                     view.querySelector('#mdGoDryRun').addEventListener('click', function () {
                         showTab('settings');
                         lifetime.timeout(function () {
-                            view.querySelector('#mdDryRun').scrollIntoView({ block: 'center', behavior: 'smooth' });
+                            // Expand the Safety card if the user previously collapsed it — otherwise
+                            // the dry-run checkbox is display:none and scrollIntoView is a no-op, so
+                            // the button appeared to do nothing. Mirrors the jump-bar handler's
+                            // "never land on a hidden card" rule (settings-tab.js wireJumpControl).
+                            var safetyCard = view.querySelector('#mdSet-safety');
+                            if (safetyCard && safetyCard.classList.contains('mdSetCardCollapsed')) {
+                                safetyCard.classList.remove('mdSetCardCollapsed');
+                                try { localStorage.setItem('mdSetCollapse:mdSet-safety', '0'); } catch (e) {}
+                            }
+                            var dry = view.querySelector('#mdDryRun');
+                            if (dry) dry.scrollIntoView({ block: 'center', behavior: 'smooth' });
                         }, 200);
                     });
 
@@ -1300,11 +1363,15 @@
                         // Approve only the currently-filtered set (respects type + text + language),
                         // not the server-wide type totals — otherwise "Approve all 10 shown" queues
                         // hundreds of unshown rows when a text filter narrows the visible list.
-                        var ids = issuesTab.filteredIds();
+                        var ids = issuesTab.filteredIds(true);
                         if (!ids.length) return;
-                        bulkIssueAction(ids, 'Approve').then(function () {
+                        bulkIssueAction(ids, 'Approve').then(function (count) {
+                            if (count < ids.length) Dashboard.alert({ message: fmt(STR.approvePartial, count, ids.length) });
                             issuesTab.activate();
                             refresh(true);
+                        }, function (err) {
+                            Dashboard.alert({ title: STR.issueActionFailed, message: errorMessage(err) });
+                            issuesTab.activate();
                         });
                     });
 
@@ -1313,24 +1380,81 @@
 
                     view.querySelector('#mdBinEmpty').addEventListener('click', function () {
                         var btn = this;
-                        // Fetch the bin's current state before doing anything expensive. If empty, tell
-                        // the user out loud instead of the button silently no-op'ing.
-                        api('RecycleBin').then(function (state) {
-                            if (!state || (state.FileCount || 0) === 0) {
-                                Dashboard.alert({ title: 'Empty recycle bin', message: STR.binEmpty });
+                        // Ask the server what every empty would delete before doing anything. Older bins
+                        // (an earlier bin path, the default bin, batches from older MediaDash versions)
+                        // are offered alongside the current bin so one click can clear all of them.
+                        api('RecycleBin/EmptyPlan').then(function (plan) {
+                            var total = (plan && plan.TotalBatches) || 0;
+                            var current = (plan && plan.CurrentBinBatches) || 0;
+                            if (total === 0) {
+                                Dashboard.alert({ title: STR.emptyAllTitle, message: STR.binEmpty });
                                 return;
                             }
 
-                            if (!window.confirm(STR.confirmEmptyBin)) return;
-                            runEmptyBin(btn);
+                            if (total === current) {
+                                if (!window.confirm(STR.confirmEmptyBin)) return;
+                                runEmptyBin(btn, false);
+                                return;
+                            }
+
+                            chooseEmptyScope(plan, function (everywhere) { runEmptyBin(btn, everywhere); });
                         }, function () {
-                            // Fetch failed — still let the user try; the server will report empty-bin state.
+                            // Plan fetch failed (older server, transient error): fall back to the current bin only.
                             if (!window.confirm(STR.confirmEmptyBin)) return;
-                            runEmptyBin(btn);
+                            runEmptyBin(btn, false);
                         });
                     });
 
-                    function runEmptyBin(btn) {
+                    // Three-way choice: every location, the current bin only, or cancel. A native confirm()
+                    // can only say yes/no, so this is a small in-page dialog. onChoose(true|false) runs
+                    // only when the user picks an empty; cancel, Escape and a backdrop click do nothing.
+                    function chooseEmptyScope(plan, onChoose) {
+                        var old = view.querySelector('#mdEmptyScope');
+                        if (old) old.remove();
+                        var lines = (plan.Locations || []).map(function (l) {
+                            return '<li style="margin:.35em 0;"><code style="word-break:break-all;">' + esc(l.RootPath) + '</code>' +
+                                (l.IsCurrent ? ' <b>(' + esc(STR.emptyCurrentTag) + ')</b>' : '') +
+                                '<div style="opacity:.75;font-size:90%;">' + esc(fmt(STR.emptyLocationLine, l.BatchCount, bytes(l.SizeBytes))) + '</div></li>';
+                        }).join('');
+                        var overlay = document.createElement('div');
+                        overlay.id = 'mdEmptyScope';
+                        overlay.setAttribute('role', 'dialog');
+                        overlay.setAttribute('aria-modal', 'true');
+                        overlay.setAttribute('aria-labelledby', 'mdEmptyScopeTitle');
+                        overlay.style.cssText = 'position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:1em;';
+                        overlay.innerHTML =
+                            '<div style="background:var(--md-panel,#1b2230);color:var(--md-ink,#fff);border-radius:12px;max-width:640px;width:100%;max-height:85vh;overflow:auto;padding:1.4em 1.6em;box-shadow:0 10px 40px rgba(0,0,0,.5);">' +
+                                '<h3 id="mdEmptyScopeTitle" style="margin:0 0 .6em;">' + esc(STR.emptyAllTitle) + '</h3>' +
+                                '<p style="margin:0 0 .6em;">' + esc(STR.emptyAllIntro) + '</p>' +
+                                '<ul style="margin:0 0 1.2em;padding-left:1.2em;">' + lines + '</ul>' +
+                                '<div style="display:flex;gap:.6em;flex-wrap:wrap;justify-content:flex-end;">' +
+                                    '<button is="emby-button" type="button" class="raised" data-choice="cancel">' + esc(STR.emptyCancel) + '</button>' +
+                                    '<button is="emby-button" type="button" class="raised" data-choice="current"' + (plan.CurrentBinBatches ? '' : ' disabled') + '>' + esc(fmt(STR.emptyCurrentButton, plan.CurrentBinBatches || 0)) + '</button>' +
+                                    '<button is="emby-button" type="button" class="raised" data-choice="all" style="background:#b91c1c;color:#fff;">' + esc(fmt(STR.emptyAllButton, bytes(plan.TotalBytes))) + '</button>' +
+                                '</div>' +
+                            '</div>';
+                        function close() {
+                            document.removeEventListener('keydown', onKey, true);
+                            overlay.remove();
+                        }
+                        function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); close(); } }
+                        overlay.addEventListener('click', function (e) {
+                            if (e.target === overlay) { close(); return; }
+                            var b = e.target.closest && e.target.closest('[data-choice]');
+                            if (!b || b.disabled) return;
+                            var choice = b.getAttribute('data-choice');
+                            close();
+                            if (choice === 'all') onChoose(true);
+                            else if (choice === 'current') onChoose(false);
+                        });
+                        document.addEventListener('keydown', onKey, true);
+                        lifetime.own(close);
+                        view.appendChild(overlay);
+                        var cancelBtn = overlay.querySelector('[data-choice="cancel"]');
+                        if (cancelBtn) cancelBtn.focus();
+                    }
+
+                    function runEmptyBin(btn, everywhere) {
                         var infoEl = view.querySelector('#mdBinInfo');
                         btn.disabled = true;
                         view.querySelector('#mdBinList').style.display = 'none';
@@ -1377,7 +1501,7 @@
                             });
                         }
 
-                        post('RecycleBin/Empty').then(poll, function () {
+                        post('RecycleBin/Empty' + (everywhere ? '?everywhere=true' : '')).then(poll, function () {
                             btn.disabled = false;
                             bar.style.display = 'none';
                             Dashboard.alert({ title: 'Empty recycle bin', message: 'The server refused the request. Check the Errors tab for details.' });
@@ -1390,7 +1514,7 @@
                             c.FirstRunDone = false;
                             ApiClient.updatePluginConfiguration(PLUGIN_ID, c).then(function (result) {
                                 Dashboard.processPluginConfigurationUpdateResult(result);
-                                refresh();
+                                wizardTab.reopen().then(function () { refresh(); }, function (err) { Dashboard.alert({ message: errorMessage(err) }); });
                                 window.scrollTo(0, 0);
                             });
                         });
@@ -1426,7 +1550,7 @@
                         postJson('PostUpgradeCleanup/Run').then(function (r) {
                             var freed = (r && r.BytesFreed) || 0;
                             var count = (r && r.OrphanedFoldersDeleted) || 0;
-                            msg.textContent = 'Cleanup done. Reclaimed ' + bytes(freed) + ' from ' + count + ' orphaned folder' + (count === 1 ? '' : 's') + '. Logged to History.';
+                            msg.textContent = (r && r.WasDryRun) ? 'Dry-run preview: ' + count + ' orphaned folders could be removed. No files were deleted.' : 'Cleanup done. Reclaimed ' + bytes(freed) + ' from ' + count + ' orphaned folder' + (count === 1 ? '' : 's') + '. Logged to History.';
                             refresh(true);
                         }, function (err) {
                             msg.textContent = 'Migration failed: ' + ((err && err.statusText) || 'unknown error');
@@ -1434,24 +1558,7 @@
                         });
                     });
 
-                    // Gate v12 migration button on host version — enabled only when Jellyfin ≥ 12.
-                    api('PostUpgradeCleanup/Status').then(function (s) {
-                        var btn = view.querySelector('#mdMaintV12Migration');
-                        var msg = view.querySelector('#mdMaintV12MigrationMsg');
-                        if (!btn) return;
-                        if (s && s.JellyfinMajor >= 12) {
-                            if (s.Completed) {
-                                msg.textContent = 'Already run once on this server. History has the details.';
-                            } else {
-                                btn.disabled = false;
-                                msg.textContent = 'Sweeps orphaned trickplay folders left behind by the 10.x → 12.x upgrade.';
-                            }
-                        } else {
-                            btn.disabled = true;
-                            btn.setAttribute('title', 'Not applicable — this server is running Jellyfin ' + (s && s.JellyfinMajor ? s.JellyfinMajor : '<12') + '. Nothing to migrate.');
-                            msg.textContent = 'Locked — this cleanup only applies once you upgrade to Jellyfin 12+.';
-                        }
-                    }, function () { /* Status probe failed; leave button disabled with tooltip. */ });
+
 
                     filesTab.bindFiles();
 
@@ -1531,11 +1638,11 @@
                         msg.textContent = 'Retrying queued fixes…';
                         // Clear existing errors first — anything that fails again will re-populate the tab.
                         post('Errors/Clear').then(function () {
-                            post('Fix').then(function () {
+                            return post('Fix').then(function () {
                                 lifetime.timeout(function () { errorsTab.activate(); refresh(true); }, 700);
                                 msg.textContent = 'Fix run started — see Overview for progress, and this tab will fill up again if the same errors recur.';
                             });
-                        });
+                        }).catch(function (err) { msg.textContent = STR.fixStartFailed + ' ' + errorMessage(err); });
                     });
 
                     view.querySelector('#mdResetSchedule').addEventListener('click', function () {
@@ -1564,19 +1671,7 @@
                         });
                     });
 
-                    view.querySelector('#mdResetSchedule').addEventListener('click', function () {
-                        var btn = this;
-                        var msg = view.querySelector('#mdResetScheduleMsg');
-                        btn.disabled = true;
-                        var reenable = function () { btn.disabled = false; };
-                        post('Schedule/Apply').then(function () {
-                            msg.textContent = 'Scheduled task restored. It will next fire on the standard 15-minute interval.';
-                            reenable();
-                        }, function (xhr) {
-                            msg.textContent = 'Could not restore the scheduled task (' + (xhr && xhr.status) + '). Check Dashboard → Scheduled Tasks for a MediaDash entry called "Apply approved fixes".';
-                            reenable();
-                        });
-                    });
+
                 }
 
                 refresh();

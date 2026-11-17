@@ -59,6 +59,24 @@ public sealed class VerifiedReplacementTests : IDisposable
         }
     }
 
+    [Fact]
+    public async Task RecycleUnavailable_RefusesBeforeVerifyOrPromote()
+    {
+        var source = MakeFile("unavailable.mkv", new byte[] { 1, 2, 3 });
+        var output = MakeFile("unavailable.tmp", new byte[] { 4, 5, 6 });
+        var service = new VerifiedReplacementService(_ => throw new InvalidOperationException("must not recycle"),
+            new SystemIOReplacementFileOperations(), null, _ => false);
+        var verified = false;
+        var result = await service.ReplaceAsync(BuildRequest(source, output, source, true),
+            _ => { verified = true; return Task.FromResult<string?>(null); }, () => PolicyDecision.Allow, CancellationToken.None);
+        Assert.False(result.Applied);
+        Assert.False(verified);
+        Assert.Null(result.RecoveryPath);
+        Assert.True(File.Exists(source));
+        Assert.True(File.Exists(output));
+        Assert.DoesNotContain(Directory.EnumerateFiles(_tempDir), SwapRecoveryHelper.IsRecoveryCopy);
+    }
+
     // --- Happy path -------------------------------------------------------------------------
 
     [Fact]
@@ -295,7 +313,7 @@ public sealed class VerifiedReplacementTests : IDisposable
     // --- Recycle/disposal fails -------------------------------------------------------------
 
     [Fact]
-    public async Task RecycleDisposalThrows_ReportsRecoveryRequiredWithStagedOutputSurviving()
+    public async Task RecycleDisposalThrows_DemotesOwnedOutputWhenSourceIntact()
     {
         var source = MakeFile("v.mkv", new byte[] { 1, 2, 3 });
         var output = MakeFile("v.mkv.tmp", new byte[] { 9, 9, 9 });
@@ -311,16 +329,15 @@ public sealed class VerifiedReplacementTests : IDisposable
             CancellationToken.None);
 
         Assert.False(result.Applied);
-        Assert.Equal(FixReason.RecoveryRequired, result.Reason);
-        Assert.NotNull(result.RecoveryPath);
-        Assert.True(File.Exists(result.RecoveryPath), "recovery survivor remains outside sweep patterns");
-        Assert.True(SwapRecoveryHelper.IsRecoveryCopy(result.RecoveryPath!));
-        Assert.Equal(new byte[] { 9, 9, 9 }, File.ReadAllBytes(result.RecoveryPath!));
+        Assert.Equal(FixReason.ProcessFailed, result.Reason);
+        Assert.Null(result.RecoveryPath);
+        Assert.Equal(new byte[] { 9, 9, 9 }, File.ReadAllBytes(output));
+        Assert.DoesNotContain(Directory.EnumerateFiles(_tempDir), SwapRecoveryHelper.IsRecoveryCopy);
         Assert.True(File.Exists(source), "recycle didn't run — source remains at its original path");
     }
 
     [Fact]
-    public async Task DeleteDisposalFails_ReportsRecoveryRequiredWithStagedOutputSurviving()
+    public async Task DeleteDisposalFails_DemotesOwnedOutputWhenSourceIntact()
     {
         var source = MakeFile("v.mkv", new byte[] { 1, 2, 3 });
         var output = MakeFile("v.mkv.tmp", new byte[] { 9, 9, 9 });
@@ -340,9 +357,10 @@ public sealed class VerifiedReplacementTests : IDisposable
             CancellationToken.None);
 
         Assert.False(result.Applied);
-        Assert.Equal(FixReason.RecoveryRequired, result.Reason);
-        Assert.NotNull(result.RecoveryPath);
-        Assert.True(File.Exists(result.RecoveryPath));
+        Assert.Equal(FixReason.ProcessFailed, result.Reason);
+        Assert.Null(result.RecoveryPath);
+        Assert.Equal(new byte[] { 9, 9, 9 }, File.ReadAllBytes(output));
+        Assert.DoesNotContain(Directory.EnumerateFiles(_tempDir), SwapRecoveryHelper.IsRecoveryCopy);
         Assert.True(File.Exists(source), "source still present because delete failed");
     }
 

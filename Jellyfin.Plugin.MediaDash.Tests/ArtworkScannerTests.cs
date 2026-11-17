@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text;
 using Jellyfin.Plugin.MediaDash.Scanners;
 using Xunit;
 
@@ -71,6 +72,77 @@ public sealed class ArtworkScannerTests
             var reason = ArtworkScanner.EvaluateFile(tmp, expectedLength: actualLength + 100);
             Assert.NotNull(reason);
             Assert.Contains("size", reason, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            File.Delete(tmp);
+        }
+    }
+
+    [Fact]
+    public void ValidSvg_IsNotFlagged()
+    {
+        // #88: a well-formed SVG was being passed to SkiaSharp's raster decoder, whose
+        // "decode returned null bitmap" was labelled corruption. The scanner must leave
+        // non-raster formats alone instead of asserting on-disk damage.
+        var tmp = Path.GetTempFileName() + ".svg";
+        try
+        {
+            File.WriteAllText(
+                tmp,
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\" height=\"10\">"
+                + "<rect width=\"10\" height=\"10\" fill=\"black\"/></svg>",
+                Encoding.UTF8);
+            var reason = ArtworkScanner.EvaluateFile(tmp, expectedLength: null);
+            Assert.Null(reason);
+        }
+        finally
+        {
+            File.Delete(tmp);
+        }
+    }
+
+    [Fact]
+    public void LockedFile_IsNotFlagged()
+    {
+        // #88 audit check 3: a healthy PNG held with FileShare.None by another process was
+        // being labelled "decode error: sharing violation". A transient access failure is
+        // not proof of corruption; the scanner must stay quiet until a later read succeeds.
+        var tmp = Path.GetTempFileName() + ".png";
+        try
+        {
+            File.WriteAllBytes(tmp, Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="));
+            using (var _ = new FileStream(tmp, FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                var reason = ArtworkScanner.EvaluateFile(tmp, expectedLength: null);
+                Assert.Null(reason);
+            }
+        }
+        finally
+        {
+            File.Delete(tmp);
+        }
+    }
+
+    [Fact]
+    public void UnknownBinarySignature_IsNotFlagged()
+    {
+        // Random bytes with no recognised raster magic are not corruption evidence.
+        // Preventing false flagging matters more than catching every exotic corruption case:
+        // a false-positive deletes healthy artwork; a false-negative leaves it alone.
+        var tmp = Path.GetTempFileName() + ".dat";
+        try
+        {
+            var random = new byte[4096];
+            new Random(99).NextBytes(random);
+            random[0] = 0x00;
+            random[1] = 0x00;
+            random[2] = 0x00;
+            File.WriteAllBytes(tmp, random);
+            var reason = ArtworkScanner.EvaluateFile(tmp, expectedLength: null);
+            Assert.Null(reason);
         }
         finally
         {

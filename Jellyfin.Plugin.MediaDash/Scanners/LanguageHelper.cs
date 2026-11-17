@@ -100,6 +100,7 @@ public static class LanguageHelper
     /// <param name="item">The current library item.</param>
     /// <param name="probe">The current file probe.</param>
     /// <returns>Resolved language codes, or null when original identity is unavailable.</returns>
+    /// <exception cref="InvalidOperationException">Original-language metadata lookup failed; callers must preserve tracks.</exception>
     public static string[]? ResolveLanguages(IReadOnlyList<string> selected, BaseItem? item, FfprobeData? probe)
     {
         var languages = selected.Where(s => !WantsOriginal([s])).Select(Normalize).Distinct().ToList();
@@ -117,9 +118,10 @@ public static class LanguageHelper
                 metadata = item.GetType().GetMethod("GetInheritedOriginalLanguage", Type.EmptyTypes)?.Invoke(item, null) as string
                     ?? item.GetType().GetProperty("OriginalLanguage")?.GetValue(item) as string;
             }
-            catch (TargetInvocationException)
+            catch (TargetInvocationException ex)
             {
-                // Unavailable parent metadata is no evidence that the original can be removed.
+                // A failed parent lookup cannot let a conflicting container flag authorize deletion.
+                throw new InvalidOperationException("Could not read original-language metadata; language cleanup was stopped to preserve the original tracks.", ex.InnerException ?? ex);
             }
         }
 

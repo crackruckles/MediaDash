@@ -89,6 +89,13 @@ public sealed class EbookConverter : IFormatConverter
             };
             psi.ArgumentList.Add(sourcePath);
             psi.ArgumentList.Add(stagedTargetPath);
+            if (Path.GetExtension(sourcePath).Equals(".mobi", StringComparison.OrdinalIgnoreCase)
+                && Path.GetExtension(stagedTargetPath).Equals(".epub", StringComparison.OrdinalIgnoreCase))
+            {
+                // Calibre can preserve MOBI anchors directly under the body, which EPUB 2 disallows.
+                psi.ArgumentList.Add("--epub-version");
+                psi.ArgumentList.Add("3");
+            }
 
             using var proc = new Process { StartInfo = psi };
             var stderr = new StringBuilder();

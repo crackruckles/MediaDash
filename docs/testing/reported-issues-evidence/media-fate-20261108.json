@@ -1,0 +1,25 @@
+{
+  "caseId": "media-fate",
+  "sourceDigest": "e99b757687a8a137daf5c8fb9f109642cebd19d8cc9d56441acd5e0125feb374",
+  "environment": "Owned Windows loopback Jellyfin 12.0.0, MediaDash 1.0.8.2 DLL SHA-256 fa17d0d813864d1ec00d91af9625c92a36c227911fed8d7a53b09fee2bb19dc7. Reference decode used bundled Jellyfin 10.11.11 FFmpeg 7.1.4; FATE reference revision n7.1.4.",
+  "checks": [
+    {
+      "name": "pinned-inputs",
+      "passed": true,
+      "skipped": false,
+      "observed": "https://fate-suite.ffmpeg.org/hevc-conformance/AMP_A_Samsung_6.bit SHA-256 51CE631DB13A8207706182544D9EC9C69AACB85EAD5805DD2B3196E352100183; https://fate-suite.ffmpeg.org/hevc-conformance/DBLK_A_MAIN10_VIXS_3.bit SHA-256 96C4F1A6B824CC51433D87EBC11BFFCC6C2FE3DE3ED18339316803E8BBC9BE17"
+    },
+    {
+      "name": "reference-decode",
+      "passed": true,
+      "skipped": false,
+      "observed": "60 Main and 8 Main 10 frame CRC rows matched the published FATE references exactly."
+    },
+    {
+      "name": "media-conversion",
+      "passed": true,
+      "skipped": false,
+      "observed": "MediaDash removed unwanted Japanese audio from each owned HEVC derivative, preserved decoded video and selected audio, cleared the exact issue after rescan, and restored the original bytes from recycle."
+    }
+  ]
+}

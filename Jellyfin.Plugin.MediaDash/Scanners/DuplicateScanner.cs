@@ -367,8 +367,58 @@ public sealed partial class DuplicateScanner : IScanner
 
     private async Task<List<Issue>> RankGroupAsync(string groupKey, List<(BaseItem Item, string Path)> group, CancellationToken cancellationToken)
     {
-        var candidates = new List<Candidate>();
+        // Task-2 alias exclusion: filter symlinks / junctions / hardlinks BEFORE probing or
+        // hashing. The historical behaviour (push them to the tail and still emit them as losers)
+        // meant a hardlink to the real file got recycled, breaking the hardlink and leaving the
+        // user with a weird "my file is still there but the dedup worked" state. PhysicalIdentity
+        // read failures are inconclusive, not evidence of independence — those paths are also
+        // excluded so an unverifiable candidate can never be marked disposable.
+        var excludedForAlias = 0;
+        var filtered = new List<(BaseItem Item, string Path, Probing.PhysicalFileIdentity.Value Identity, bool IdentityKnown)>();
+        var seenIdentities = new HashSet<Probing.PhysicalFileIdentity.Value>();
         foreach (var (item, path) in group)
+        {
+            if (Probing.PhysicalFileIdentity.TryRead(path, out var ident))
+            {
+                if (ident.IsReparsePoint || ident.LinkCount > 1)
+                {
+                    excludedForAlias++;
+                    continue;
+                }
+
+                if (!seenIdentities.Add(ident))
+                {
+                    // Another candidate in this group already represents this physical file.
+                    excludedForAlias++;
+                    continue;
+                }
+
+                filtered.Add((item, path, ident, IdentityKnown: true));
+            }
+            else
+            {
+                // Platform could not read the identity — refuse to rank it as a disposable loser.
+                // Still keep it as an *identity-unknown* candidate so a conservative keeper tiebreak
+                // can see it, but Rank() must never emit it as a loser.
+                excludedForAlias++;
+            }
+        }
+
+        if (excludedForAlias > 0)
+        {
+            Api.Diagnostics.Record(
+                "DuplicateScanner.AliasExcluded",
+                "Group '" + groupKey + "': " + excludedForAlias.ToString(CultureInfo.InvariantCulture) +
+                " candidate(s) were excluded from duplicate emission because they are symlinks, directory junctions, hardlinked copies of another candidate, or had an unreadable physical identity. Aliases are not independent files and cannot be safely 'recycled'.");
+        }
+
+        if (filtered.Count < 2)
+        {
+            return [];
+        }
+
+        var candidates = new List<Candidate>();
+        foreach (var (item, path, ident, _) in filtered)
         {
             if (item.GetBaseItemKind() == BaseItemKind.Book)
             {
@@ -387,7 +437,8 @@ public sealed partial class DuplicateScanner : IScanner
                     Codec = string.Empty,
                     Bitrate = 0,
                     Resolution = "book",
-                    IsSymlink = fileInfo.Attributes.HasFlag(FileAttributes.ReparsePoint)
+                    IsSymlink = false,
+                    PhysicalIdentity = ident
                 });
                 continue;
             }
@@ -437,11 +488,12 @@ public sealed partial class DuplicateScanner : IScanner
                 Size = fileInfo2.Length,
                 Pixels = isAudioItem ? 0 : (long)(stream.Width ?? 0) * (stream.Height ?? 0),
                 Codec = stream.CodecName ?? string.Empty,
-                Bitrate = long.TryParse(stream.BitRate, NumberStyles.Integer, CultureInfo.InvariantCulture, out var b) ? b : 0,
+                Bitrate = ResolveBitrate(probe, stream, fileInfo2.Length),
                 Resolution = isAudioItem
                     ? (stream.CodecName ?? "audio")
                     : $"{stream.Width}x{stream.Height}",
-                IsSymlink = fileInfo2.Attributes.HasFlag(FileAttributes.ReparsePoint)
+                IsSymlink = false,
+                PhysicalIdentity = ident
             });
         }
 
@@ -483,7 +535,11 @@ public sealed partial class DuplicateScanner : IScanner
                 keeper = new { keeper.Resolution, keeper.Codec, keeper.Size, keeper.Bitrate },
                 thisCopy = new { loser.Resolution, loser.Codec, loser.Size, loser.Bitrate },
                 confidence,
-                signals
+                signals,
+                // Task-2 alias binding: fixer re-reads identity at disposal and refuses when the
+                // keeper or loser became a link to the same physical file between scan and fix.
+                keeperIdentity = new { vol = keeper.PhysicalIdentity.Volume.ToString(CultureInfo.InvariantCulture), id = keeper.PhysicalIdentity.FileId.ToString(CultureInfo.InvariantCulture) },
+                loserIdentity = new { vol = loser.PhysicalIdentity.Volume.ToString(CultureInfo.InvariantCulture), id = loser.PhysicalIdentity.FileId.ToString(CultureInfo.InvariantCulture) }
             });
 
             issues.Add(new Issue
@@ -601,14 +657,29 @@ public sealed partial class DuplicateScanner : IScanner
             return false;
         }
 
-        if (!string.Equals(kDir, lDir, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(kDir, lDir, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
         {
             return false;
         }
 
         var kStem = Path.GetFileNameWithoutExtension(keeperPath);
         var lStem = Path.GetFileNameWithoutExtension(loserPath);
-        return !string.Equals(kStem, lStem, StringComparison.OrdinalIgnoreCase);
+        return !string.Equals(kStem, lStem, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+    }
+
+    internal static long ResolveBitrate(FfprobeData probe, FfprobeStreamInfo stream, long size)
+    {
+        if (long.TryParse(stream.BitRate, NumberStyles.Integer, CultureInfo.InvariantCulture, out var bitrate) && bitrate > 0)
+        {
+            return bitrate;
+        }
+
+        if (long.TryParse(probe.Format?.BitRate, NumberStyles.Integer, CultureInfo.InvariantCulture, out bitrate) && bitrate > 0)
+        {
+            return bitrate;
+        }
+
+        return probe.TryGetDuration(out var duration) ? (long)Math.Min(long.MaxValue, size * 8d / duration) : 0;
     }
 
     internal static List<Candidate> Rank(List<Candidate> candidates, string[] keeperPolicyOrder, string[] codecOrder)
@@ -631,7 +702,7 @@ public sealed partial class DuplicateScanner : IScanner
             {
                 "RESOLUTION" => c => -c.Pixels,
                 "CODEC" => c => CodecRank(c.Codec, codecOrder),
-                "BITRATE" => c => -c.Bitrate,
+                "BITRATE" when pool.All(c => c.Bitrate > 0) => c => -c.Bitrate,
                 // Smaller file wins the final tiebreak: same quality, less space.
                 "SIZE" => c => c.Size,
                 _ => c => 0
@@ -685,8 +756,18 @@ public sealed partial class DuplicateScanner : IScanner
         public string Resolution { get; init; } = string.Empty;
 
         // F-098: True when the path resolves to a reparse point (symbolic link, junction).
-        // The Rank sort MUST never pick a symlink as keeper — the "smaller wins" tiebreak would
-        // otherwise route a 0-byte symlink to keeper and mark the real file "safe to delete".
+        // Task-2 now filters symlinks out before this field is set, so it stays false in practice;
+        // the field remains for backward compatibility with Rank's existing sort tie-breakers and
+        // for the odd pre-Task-2 test fixture that still constructs Candidates by hand.
         public bool IsSymlink { get; init; }
+
+        /// <summary>
+        /// Gets the physical identity (volume + inode/FileID + link count + reparse flag) read
+        /// from the OS at scan time. Default-constructed when the scanner could not read identity
+        /// (and in that case the candidate is already excluded upstream). Used by
+        /// <c>DuplicateFixer</c> to re-verify at disposal time that the loser is still an
+        /// independent file, not a link to the keeper.
+        /// </summary>
+        public Probing.PhysicalFileIdentity.Value PhysicalIdentity { get; init; }
     }
 }

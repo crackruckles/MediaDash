@@ -38,18 +38,21 @@ public sealed partial class MediaGrouperScanner : IScanner
     // into the 2005 reboot entity — the on-disk-year rule must still recognise these as
     // year-suffixed folders instead of falling through to Jellyfin's wrong metadata year.
     private static readonly Regex SeriesYearSuffixRegex = new(
-        @"^(.+?)\s*\((\d{4})\)(?:\s*\[[^\]]+\])*\s*$",
+        @"^(.+?)\s*\((\d{4})\)(?:\s*(?:\[[^\]]+\]|\{[^}]+\}|\([^\)]+\)))*\s*$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private readonly LibraryGuard _guard;
+    private readonly MediaMovePlanner _planner;
     private readonly ILogger<MediaGrouperScanner> _logger;
 
     /// <summary>Initializes a new instance of the <see cref="MediaGrouperScanner"/> class.</summary>
     /// <param name="guard">The library path guard.</param>
     /// <param name="logger">The logger.</param>
-    public MediaGrouperScanner(LibraryGuard guard, ILogger<MediaGrouperScanner> logger)
+    /// <param name="planner">Complete move planning.</param>
+    public MediaGrouperScanner(LibraryGuard guard, ILogger<MediaGrouperScanner> logger, MediaMovePlanner planner)
     {
         _guard = guard;
+        _planner = planner;
         _logger = logger;
     }
 
@@ -66,81 +69,7 @@ public sealed partial class MediaGrouperScanner : IScanner
 
     /// <inheritdoc />
     public Task<IReadOnlyList<Issue>> ScanAsync(IReadOnlyList<BaseItem> items, IProgress<double> progress, CancellationToken cancellationToken)
-    {
-        var moviesRoot = NormalizeDir(Config.MoviesTargetPath);
-        var tvRoot = NormalizeDir(Config.TvTargetPath);
-        // When an Anime target is configured, MediaSorterScanner routes anime-tagged Movies/Episodes
-        // there. The grouper knows only Movies vs Episodes → if it doesn't opt out, it re-classifies
-        // an anime Episode sitting in /anime/ as "TV missing its series folder" and undoes the sort.
-        var animeConfigured = !string.IsNullOrWhiteSpace(Config.AnimeTargetPath);
-
-        if (moviesRoot is null && tvRoot is null)
-        {
-            progress.Report(100);
-            return Task.FromResult<IReadOnlyList<Issue>>([]);
-        }
-
-        var issues = new List<Issue>();
-        var seenSources = new HashSet<string>(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
-        var movieCandidates = new List<MovieCandidate>();
-
-        var total = items.Count;
-        var processed = 0;
-
-        foreach (var item in items)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                // Anime-tagged items belong under AnimeTargetPath — leave them to MediaSorterScanner.
-                if (animeConfigured && MediaSorterScanner.HasAnimeGenre(item))
-                {
-                    // fall through to progress bookkeeping
-                }
-                else if (item is Episode episode && tvRoot is not null)
-                {
-                    var tvIssue = BuildTvIssue(episode, tvRoot);
-                    if (tvIssue is not null && seenSources.Add(tvIssue.Path))
-                    {
-                        issues.Add(tvIssue);
-                    }
-                }
-                else if (item is Movie movie && moviesRoot is not null)
-                {
-                    var candidate = BuildMovieCandidate(movie, moviesRoot);
-                    if (candidate is not null)
-                    {
-                        movieCandidates.Add(candidate.Value);
-                    }
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "MediaGrouper failed on {Path}; skipping", item.Path ?? string.Empty);
-                Api.Diagnostics.Record(
-                    "MediaGrouper.Classify",
-                    "The media grouper failed while classifying '" + (item.Path ?? "?") + "': " + ex.Message + ". The item was skipped; the rest of the scan continued.");
-            }
-
-            processed++;
-            if (total > 0)
-            {
-                progress.Report(processed * 90.0 / total);
-            }
-        }
-
-        if (moviesRoot is not null)
-        {
-            EmitMovieGroupIssues(movieCandidates, moviesRoot, issues, seenSources);
-        }
-
-        progress.Report(100);
-        return Task.FromResult<IReadOnlyList<Issue>>(issues);
-    }
+        => _planner.ScanAsync(Type, items, Config, progress, cancellationToken);
 
     private static void EmitMovieGroupIssues(List<MovieCandidate> candidates, string moviesRoot, List<Issue> issues, HashSet<string> seenSources)
     {

@@ -1,0 +1,25 @@
+{
+  "caseId": "media-matroska",
+  "sourceDigest": "e99b757687a8a137daf5c8fb9f109642cebd19d8cc9d56441acd5e0125feb374",
+  "environment": "Owned Windows loopback Jellyfin 12.0.0, MediaDash 1.0.8.2 DLL SHA-256 fa17d0d813864d1ec00d91af9625c92a36c227911fed8d7a53b09fee2bb19dc7. Seek and full decode used Jellyfin 10.11.11 bundled FFmpeg 7.1.4.",
+  "checks": [
+    {
+      "name": "pinned-inputs",
+      "passed": true,
+      "skipped": false,
+      "observed": "Matroska Wave 1.1 at https://sourceforge.net/projects/matroska/files/test_files/matroska_test_w1_1.zip/download. test2.mkv SHA-256 5B53D306E56F9BDA6E80C3FBD9F3CCD20CC885770449D1FC0B5BEC35C71D61E2; test3.mkv SHA-256 1722B0D93A6EF1A14DD513BD031CD5901C233B45AA3E3C87BE0B0D7348D7D1B5; test6.mkv SHA-256 7CAD84B434116E023D340DD584AC833B93F03FB1BD7EA2727FA45DE50AF0ABB9; test7.mkv SHA-256 95B21C92AD5A4FE00914FF5009E2A64F12FD4C5FB9CB1C3C888AB50BF0FFE483"
+    },
+    {
+      "name": "cue-less-seek",
+      "passed": true,
+      "skipped": false,
+      "observed": "Official test6.mkv decoded a two-second window starting at three seconds, then fully decoded."
+    },
+    {
+      "name": "header-and-corruption-handling",
+      "passed": true,
+      "skipped": false,
+      "observed": "Legal timecode and header controls fully decoded and were not flagged unplayable. The official damaged test7 control was still decodable on this runtime. All four indexed controls were preserved byte-for-byte."
+    }
+  ]
+}

@@ -342,7 +342,7 @@ function ownGlobalRoundTrip() {
     console.log('# settings: sanitizeDuplicateModeOnLoad');
     check('legacy Automatic → ManualApprove', sanitizeDuplicateModeOnLoad('Automatic') === 'ManualApprove');
     check('ManualApprove passes through', sanitizeDuplicateModeOnLoad('ManualApprove') === 'ManualApprove');
-    check('DetectOnly passes through', sanitizeDuplicateModeOnLoad('DetectOnly') === 'DetectOnly');
+    check('legacy DetectOnly → ManualApprove', sanitizeDuplicateModeOnLoad('DetectOnly') === 'ManualApprove');
     check('Off passes through', sanitizeDuplicateModeOnLoad('Off') === 'Off');
 
     console.log('# settings: encoderConfigToValue');

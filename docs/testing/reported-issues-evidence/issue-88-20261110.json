@@ -1,0 +1,25 @@
+{
+  "caseId": "issue-88",
+  "sourceDigest": "18cccce8ee54105a3c80edb05e03e1a84971113da6a3775da8716bf3be1b96c8",
+  "environment": "Owned Windows Jellyfin 10.11.11 and 12.0.0 with independent fresh data directories. MediaDash DLL SHA-256 58693ddcbec0b98b7653e1b696fedfc4714c306a324644f40f0e6465de45339d.",
+  "checks": [
+    {
+      "name": "valid and unverifiable artwork preserved",
+      "passed": true,
+      "skipped": false,
+      "observed": "Healthy artwork, locked artwork and disabled owners were preserved. Ownership scope was checked before disposal."
+    },
+    {
+      "name": "recoverable corruption",
+      "passed": true,
+      "skipped": false,
+      "observed": "Confirmed corrupt artwork was recycled and restored through History. A healthy replacement was preserved during forced restore."
+    },
+    {
+      "name": "persistence and disposal failure",
+      "passed": true,
+      "skipped": false,
+      "observed": "Injected repository write and disposal failures preserved source and queued visibility."
+    }
+  ]
+}

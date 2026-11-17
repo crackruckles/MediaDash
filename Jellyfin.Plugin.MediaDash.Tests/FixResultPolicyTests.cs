@@ -5,12 +5,8 @@ using Xunit;
 namespace Jellyfin.Plugin.MediaDash.Tests;
 
 /// <summary>
-/// Contract tests for <see cref="FixResultPolicy.GetQueueDisposition"/>. Every row here
-/// mirrors an entry in artifacts/refactor/01A/classifier-inventory.md and each row is
-/// the sole reason a specific IsStaleFailure / IsSubtitleProviderQuotaExhausted phrase
-/// currently exists. When 01-B migrates a producer to typed reasons, delete the
-/// matching phrase from FixTask; if a row here regresses to KeepQueued the retry loop
-/// re-appears in production. Do NOT weaken these to accommodate a producer change.
+/// Contract tests for <see cref="FixResultPolicy.GetQueueDisposition"/>. Refused operations
+/// preserve their approval for review; actual no-change outcomes can complete a stale finding.
 /// </summary>
 /// <remarks>
 /// The enums are internal (see <see cref="FixOutcome"/> / <see cref="FixReason"/> /
@@ -37,15 +33,15 @@ public sealed class FixResultPolicyTests
     // Deferred — provider quota MUST stay queued (subtitle-quota reset semantics).
     [InlineData("Deferred", "ProviderQuota", "KeepQueued")]
 
-    // Refused — every currently-classified refusal is terminal for the queue.
-    [InlineData("Refused", "OutsideLibrary", "CompleteLegacy")]
-    [InlineData("Refused", "DrmProtected", "CompleteLegacy")]
-    [InlineData("Refused", "DestinationCollision", "CompleteLegacy")]
-    [InlineData("Refused", "UnsupportedFormat", "CompleteLegacy")]
-    [InlineData("Refused", "IncompatibleContainer", "CompleteLegacy")]
-    [InlineData("Refused", "InvalidCombinedRequest", "CompleteLegacy")]
-    [InlineData("Refused", "TypeDisabled", "CompleteLegacy")]
-    [InlineData("Refused", "LibraryDisabled", "CompleteLegacy")]
+    // Refused — preserve the approval and failed-attempt explanation for review.
+    [InlineData("Refused", "OutsideLibrary", "KeepQueued")]
+    [InlineData("Refused", "DrmProtected", "KeepQueued")]
+    [InlineData("Refused", "DestinationCollision", "KeepQueued")]
+    [InlineData("Refused", "UnsupportedFormat", "KeepQueued")]
+    [InlineData("Refused", "IncompatibleContainer", "KeepQueued")]
+    [InlineData("Refused", "InvalidCombinedRequest", "KeepQueued")]
+    [InlineData("Refused", "TypeDisabled", "KeepQueued")]
+    [InlineData("Refused", "LibraryDisabled", "KeepQueued")]
     // Protected reserves the Never-modify roadmap intent; keep queued in 01-A so no current
     // behavior claims it (Never-modify is a separately-migrated persisted feature).
     [InlineData("Refused", "Protected", "KeepQueued")]

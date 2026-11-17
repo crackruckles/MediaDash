@@ -88,7 +88,7 @@ public sealed class PlayabilityFixerRevalidationResultTests
         Assert.Contains("FindBrokenAudioStreamAsync(issue.Path, probe, cancellationToken)", source);
         Assert.Contains("FindBrokenAudioStreamAsync(outputPath, outputProbe, cancellationToken)", source);
         var scanner = Path.Combine(Path.GetDirectoryName(PlayabilityFixerSourcePath())!, "..", "Scanners", "PlayabilityScanner.cs");
-        Assert.Contains("FindBrokenAudioStreamAsync(path, probe, cancellationToken)", File.ReadAllText(scanner));
+        Assert.Contains("FindBrokenAudioStreamAsync(path, probe, useCache: true, cancellationToken)", File.ReadAllText(scanner));
     }
 
     private static string PlayabilityFixerSourcePath()

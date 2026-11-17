@@ -65,6 +65,9 @@ public sealed class FixResult
     /// </summary>
     public string? RecoveryPath { get; set; }
 
+    /// <summary>Gets or sets the durable move operation, including partial work without History.</summary>
+    public string? MoveOperationId { get; set; }
+
     /// <summary>
     /// Gets or initializes additional files that were recycled during this fix (external subtitle
     /// sidecars, etc.). Each entry gets its own history row so the Recycle Bin tab can render a

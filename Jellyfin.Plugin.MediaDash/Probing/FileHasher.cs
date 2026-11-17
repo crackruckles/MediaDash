@@ -3,6 +3,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Plugin.MediaDash.Configuration;
 using Jellyfin.Plugin.MediaDash.Data;
 using Microsoft.Extensions.Logging;
 
@@ -24,15 +25,18 @@ public sealed class FileHasher
     private const int BufferSize = 1024 * 1024;
 
     private readonly ProbeCacheStore _probes;
+    private readonly IPluginConfigurationProvider _configProvider;
     private readonly ILogger<FileHasher> _logger;
 
     /// <summary>Initializes a new instance of the <see cref="FileHasher"/> class.</summary>
     /// <param name="probes">Probe-cache store (05-C.4) — backs the (path, size, mtime) hash cache.</param>
     /// <param name="logger">The logger.</param>
-    public FileHasher(ProbeCacheStore probes, ILogger<FileHasher> logger)
+    /// <param name="configProvider">Configuration snapshot provider.</param>
+    public FileHasher(ProbeCacheStore probes, ILogger<FileHasher> logger, IPluginConfigurationProvider configProvider)
     {
         _probes = probes;
         _logger = logger;
+        _configProvider = configProvider;
     }
 
     /// <summary>
@@ -93,8 +97,25 @@ public sealed class FileHasher
             });
             await using (stream.ConfigureAwait(false))
             {
-                var digest = await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false);
-                hash = Convert.ToHexString(digest).ToLowerInvariant();
+                // #72: LowSystemImpactMode throttles the hash loop. SHA256.HashDataAsync is a
+                // one-shot read that saturates the disk — on a 50 GB 4K master that pins the drive
+                // for the whole hash. Switching to an incremental read lets us yield briefly between
+                // 1 MiB chunks when the user has opted into low-impact mode, capping throughput at
+                // roughly 100 MB/s per file and leaving headroom for Jellyfin / playback / the OS.
+                var lowImpact = _configProvider.GetSnapshot().LowSystemImpactMode;
+                using var incremental = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                var buffer = new byte[BufferSize];
+                int read;
+                while ((read = await stream.ReadAsync(buffer.AsMemory(), cancellationToken).ConfigureAwait(false)) > 0)
+                {
+                    incremental.AppendData(buffer, 0, read);
+                    if (lowImpact)
+                    {
+                        await Task.Delay(10, cancellationToken).ConfigureAwait(false);
+                    }
+                }
+
+                hash = Convert.ToHexString(incremental.GetCurrentHash()).ToLowerInvariant();
             }
         }
         catch (OperationCanceledException)
@@ -104,6 +125,20 @@ public sealed class FileHasher
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             _logger.LogDebug(ex, "FileHasher: hash failed for {Path}", path);
+            return null;
+        }
+
+        try
+        {
+            info.Refresh();
+            if (!info.Exists || info.Length != size || info.LastWriteTimeUtc.Ticks != mtime)
+            {
+                return null;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogDebug(ex, "FileHasher: post-hash stat failed for {Path}", path);
             return null;
         }
 

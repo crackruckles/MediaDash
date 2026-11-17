@@ -39,6 +39,15 @@ public sealed class FfmpegExecutorCorruptSourceTests
     }
 
     [Fact]
+    public void OutputHeaderFailureIsNotProofOfSourceCorruption()
+    {
+        const string outputFailure = "[out#0/matroska @ 0x1] Could not write header (incorrect codec parameters ?): Invalid data found when processing input";
+        Assert.False(FfmpegExecutor.IsCorruptSourceError(outputFailure));
+        Assert.False(FfmpegExecutor.IsCorruptSourceError(outputFailure.ToUpperInvariant()));
+        Assert.True(FfmpegExecutor.IsCorruptSourceError("[matroska,webm] EBML header parsing failed\n" + outputFailure));
+    }
+
+    [Fact]
     public void NullReturnsFalse()
     {
         Assert.False(FfmpegExecutor.IsCorruptSourceError(null));

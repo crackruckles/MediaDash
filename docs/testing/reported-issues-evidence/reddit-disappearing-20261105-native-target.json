@@ -1,0 +1,61 @@
+{
+  "caseId": "reddit-disappearing",
+  "sourceDigest": "5bb602fa9950197fa215d8e5b21b8d52a22399c07dbf0f6c3c200d8cca4a2d95",
+  "dllSha256": "f225958b511271b532254ed3c9f04afe8e525d4610614f3020bec6806eac4e80",
+  "environment": "Windows interactive account; owned loopback Jellyfin 10.11.11 and 12.0.0; generated fixtures; exact candidate DLL f225958b511271b532254ed3c9f04afe8e525d4610614f3020bec6806eac4e80",
+  "checks": [
+    {
+      "name": "exact issue preview has zero savings and keeps the queued row",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "exact issue refusal writes failed history without savings or recycle",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "all unchanged originals and foreign destination retain exact hashes",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "refused row stays visible through rescan under the exact issue ID",
+      "passed": true,
+      "skipped": false
+    }
+  ],
+  "evidence": [
+    "artifacts/push-preparation-20261105-native-target-live/v10/final-evidence/refused-move.json",
+    "artifacts/push-preparation-20261105-native-target-live/v12/extra-evidence/refused-move.json",
+    "artifacts/push-preparation-20261105-native-target-extra.log",
+    "artifacts/push-preparation-20261105-native-target-extra-recover.log",
+    "artifacts/push-preparation-20261105-native-target-extra-v12.log"
+  ],
+  "limitations": [
+    "Controlled exact-ID unchanged-file/refusal/rescan workflow. The exact Linux Mint reporter state remains unavailable.",
+    "The first v10 extension encountered stale harness load-fixture bookkeeping after the earlier trim. Its recovery restored settings libraries and queues and stopped the owned host; the failed extension is retained."
+  ],
+  "rawArtifactHashes": [
+    {
+      "path": "artifacts/push-preparation-20261105-native-target-live/v10/final-evidence/refused-move.json",
+      "sha256": "01f51e5f417499245fd54306582f2f5faa7a897af57f43e3512773a2da6f453d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-native-target-live/v12/extra-evidence/refused-move.json",
+      "sha256": "9a1574a269889472ccc50e9a51b1c39248993b46bf7ce9307b3209a0fa33e7fc"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-native-target-extra.log",
+      "sha256": "119a8d16c2b8ead7b136c8758cc5a7e00e0545c88577bcb906d409d81472c1a7"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-native-target-extra-recover.log",
+      "sha256": "9acb8c01147fbb811c42ebf66102583b38bb7a89748e2f9548de28b47a71e4f0"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-native-target-extra-v12.log",
+      "sha256": "10f873eed31761ec16dbe2a9c4ea61aabc992c249153f58f4b5374276e5d35d4"
+    }
+  ]
+}

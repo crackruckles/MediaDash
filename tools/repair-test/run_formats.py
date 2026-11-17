@@ -7,6 +7,7 @@ import subprocess
 import sys
 import time
 import traceback
+import urllib.error
 import urllib.parse
 import zipfile
 from pathlib import Path
@@ -21,6 +22,7 @@ VIDEO = [('mp4', 'libx264', 'aac'), ('mkv', 'libx264', 'aac'),
 AUDIO = [('mp3', 'libmp3lame'), ('flac', 'flac'), ('wav', 'pcm_s16le'),
          ('ogg', 'libvorbis'), ('opus', 'libopus'), ('m4a', 'aac'),
          ('aac', 'aac'), ('wma', 'wmav2'), ('m4b', 'aac')]
+REPORT_ONLY_DOCUMENTS = frozenset(('broken-pdf', 'broken-epub', 'broken-cbz'))
 MODES = dict(Playability='PlayabilityFixMode', AudioLanguage='AudioFixMode',
              SubtitleLanguage='SubtitleFixMode', CorruptNfo='NfoFixMode',
              MalwareRisk='SuspiciousFileFixMode', OrphanedDebris='OrphanCleanupFixMode',
@@ -196,18 +198,36 @@ class Formats(Harness):
     def owned_issues(self):
         return [i for i in self.open_issues() if Path(i['Path']).is_relative_to(self.media)]
 
+    def load_fixture_source(self, source_root):
+        source_root = Path(source_root).resolve(strict=True)
+        source_media = source_root / 'media'
+        fixtures = json.loads((source_root / 'fixtures.json').read_text(encoding='utf-8'))
+        if not isinstance(fixtures, list) or not fixtures:
+            raise ValueError('Fixture source is empty or invalid')
+        # Validate the entire tree before copying. Never follow a source link or
+        # continue into a live fix after the original-hash prerequisite failed.
+        if source_media.is_symlink() or any(p.is_symlink() or p.resolve() != p.absolute() for p in source_media.rglob('*')):
+            raise ValueError('Fixture source contains filesystem links')
+        paths = set()
+        for fixture in fixtures:
+            path = Path(fixture['path']).resolve(strict=True)
+            relative = path.relative_to(source_media)
+            if relative in paths:
+                raise ValueError('Duplicate fixture source path')
+            paths.add(relative)
+            if sha(path) != fixture['sha256']:
+                raise ValueError('Fixture source hash mismatch: ' + str(relative))
+            fixture['path'] = str(self.media / relative)
+        shutil.copytree(source_media, self.media, dirs_exist_ok=True)
+        self.fixtures = fixtures
+        self.save('fixtures.json', self.fixtures)
+
     def execute(self):
-        self.setup()
         if self.args.fixtures_source:
-            source_root = Path(self.args.fixtures_source).resolve(strict=True)
-            shutil.copytree(source_root / 'media', self.media, dirs_exist_ok=True)
-            self.fixtures = json.loads((source_root / 'fixtures.json').read_text(encoding='utf-8'))
-            for f in self.fixtures:
-                f['path'] = str(self.media / Path(f['path']).relative_to(source_root / 'media'))
-                self.record(f['case'] + ' fixture source hash', sha(f['path']) == f['sha256'])
-            self.save('fixtures.json', self.fixtures)
+            self.load_fixture_source(self.args.fixtures_source)
         else:
             self.build_fixtures()
+        self.setup()
         names = [self.add_typed(category, kind) for category, kind in
                [('movies', 'movies'), ('music', 'music'), ('audiobooks', 'books'), ('books', 'books'), ('photos', 'homevideos')]]
         self.run_task('RefreshLibrary', '/Library/Refresh')
@@ -249,7 +269,11 @@ class Formats(Harness):
                 time.sleep(1)
         chosen = []
         for f in self.fixtures:
-            chosen.extend(i for i in issues if i['Path'] == f['path'] and i['Type'] in f['expected'])
+            matches = [i for i in issues if i['Path'] == f['path'] and i['Type'] in f['expected']]
+            if f['case'] in REPORT_ONLY_DOCUMENTS:
+                self.verify_report_only(f, matches)
+            else:
+                chosen.extend(matches)
         for i in chosen:
             self.api('/MediaDash/Issues/' + str(i['Id']) + '/Approve', 'POST')
         if {i['Id'] for i in self.open_issues() if i['Status'] == 'Queued'} != {i['Id'] for i in chosen}:
@@ -264,6 +288,11 @@ class Formats(Harness):
         self.configure(cfg)
         for f in self.fixtures:
             if not f['expected']:
+                continue
+            if f['case'] in REPORT_ONLY_DOCUMENTS:
+                source = Path(f['path'])
+                self.record(f['case'] + ' report-only source unchanged', source.is_file() and sha(source) == f['sha256']
+                            and not any(r['path'] == f['path'] for r in self.rows()))
                 continue
             try:
                 self.exercise_format(f)
@@ -281,6 +310,18 @@ class Formats(Harness):
         for f in self.fixtures:
             if not f['expected']:
                 self.record(f['case'] + ' healthy control preserved', Path(f['path']).is_file() and sha(f['path']) == f['sha256'])
+
+    def verify_report_only(self, fixture, issues):
+        name = fixture['case'] + ' report-only approval refused'
+        if len(issues) != 1 or issues[0]['Type'] != 'Playability' or issues[0]['Status'] != 'Detected':
+            self.record(name, False, 'Expected one detected Playability issue')
+            return
+        try:
+            self.api('/MediaDash/Issues/' + str(issues[0]['Id']) + '/Approve', 'POST')
+        except urllib.error.HTTPError as error:
+            self.record(name, error.code == 409 and b'This finding is report-only.' in error.read(), error.code)
+        else:
+            self.record(name, False, 'Report-only issue was approved')
 
     def exercise_format(self, f):
         issues = [i for i in self.owned_issues() if i['Path'] == f['path'] and i['Type'] in f['expected']]
@@ -371,7 +412,7 @@ def main():
         assert exit_code([{'status': 'FAIL'}]) == 1
         print('PASS fixture PDF, format uniqueness, failure exit code')
         return 0
-    if not all((args.ffmpeg, args.output)) or (not args.generate_only and not (args.confirm_live and args.data_dir)):
+    if args.timeout <= 0 or not all((args.ffmpeg, args.output)) or (not args.generate_only and not (args.confirm_live and args.data_dir)):
         p.error('--ffmpeg and --output are required; live runs also require --confirm-live and --data-dir')
     h = Formats(args)
     if args.generate_only:

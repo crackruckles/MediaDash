@@ -1,0 +1,60 @@
+{
+  "caseId": "issue-88",
+  "sourceDigest": "4045428334a7552f9d9afb435efff70ce81e5fe20308911afce7746a1e2c7e5e",
+  "dllSha256": "1b1eaaac59e05928c63f857653d0ed2cd9261c4f7a7ae00f0b7fd321bf071688",
+  "environment": "Windows interactive account, isolated loopback Jellyfin 10.11.11 and 12.0.0, owned generated media",
+  "checks": [
+    {
+      "name": "live host does not flag valid SVG content",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "locked artwork is unverifiable rather than corrupt",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "confirmed artwork corruption repaired by real host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "artwork original recoverable with exact hash",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "force artwork restore preserves healthy replacement and owner binding",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "post-restore primary image is served by Jellyfin",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "real recycle failure preserves source and reports failure",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "repository write failure preserves artwork and reports failure",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "repository write failure preserves ImageInfo binding",
+      "passed": true,
+      "skipped": false
+    }
+  ],
+  "evidence": [
+    "artifacts/push-preparation-20261105-final-live.log",
+    "artifacts/push-preparation-20261105-final-windows-gate/reported-issues.trx"
+  ],
+  "limitations": [
+    "Windows native image decoders in the two available versions. The reporter Linux and Skia configuration remains separate."
+  ]
+}

@@ -65,18 +65,20 @@ public sealed class FixResultRecorder
         var resolvedSet = resolvedIds is ISet<long> asSet ? asSet : new HashSet<long>(resolvedIds);
 
         var historyRows = BuildHistoryRows(plan, execution, resolvedSet, fixedAtUtc);
+        var repairFailed = !result.WasDryRun && result.Reason == Fixers.FixReason.RepairFailed
+            && plan.Primary.Type == IssueType.Playability;
 
         // Dry-run gate: F-206 — a dry-run leaves the queue exactly as it found it. Every id in
         // ResolvedIssueIds still writes history above (with WasDryRun = true) but the status
         // transition slot is empty so the user can re-approve after inspecting the preview.
         IReadOnlyCollection<long> toTransition = result.WasDryRun
             ? Array.Empty<long>()
-            : resolvedIds;
+            : repairFailed ? new[] { plan.Primary.Id } : resolvedIds;
 
         IReadOnlyDictionary<long, bool> transitions;
         try
         {
-            transitions = _db.RecordFixOutcome(historyRows, toTransition, FixedFromQueued, IssueStatus.Fixed);
+            transitions = _db.RecordFixOutcome(historyRows, toTransition, FixedFromQueued, repairFailed ? IssueStatus.Detected : IssueStatus.Fixed, repairFailed ? plan.Primary : null);
         }
         catch (Exception ex)
         {
@@ -162,6 +164,7 @@ public sealed class FixResultRecorder
             BytesFreed = result.Success && !result.WasDryRun ? result.BytesFreed : 0,
             SavedBytes = result.Success && !result.WasDryRun ? result.SavedBytes : 0,
             RecyclePath = result.RecyclePath,
+            MoveOperationId = result.MoveOperationId,
             FixedAtUtc = fixedAtUtc,
             WasDryRun = result.WasDryRun,
             Success = result.Success,

@@ -1,0 +1,25 @@
+{
+  "caseId": "issue-86",
+  "sourceDigest": "e99b757687a8a137daf5c8fb9f109642cebd19d8cc9d56441acd5e0125feb374",
+  "environment": "Owned Jellyfin 12.0.0 Windows managed metadata profiles and candidate Release safety tests. MediaDash DLL SHA-256 fa17d0d813864d1ec00d91af9625c92a36c227911fed8d7a53b09fee2bb19dc7.",
+  "checks": [
+    {
+      "name": "confirmed cleanup with all and selected libraries",
+      "passed": true,
+      "skipped": false,
+      "observed": "Live exact-ID approval stayed pending until a completed Jellyfin scan and then recycled and restored metadata under both default and custom roots."
+    },
+    {
+      "name": "observations and protection",
+      "passed": true,
+      "skipped": false,
+      "observed": "Live protected descendants and same-size, same-mtime edits refused disposal. The custom metadata setting was restored."
+    },
+    {
+      "name": "ownership and containment",
+      "passed": true,
+      "skipped": false,
+      "observed": "Candidate Release tests rejected linked/escaping folders and links planted after observation, plus returning and disabled owners."
+    }
+  ]
+}

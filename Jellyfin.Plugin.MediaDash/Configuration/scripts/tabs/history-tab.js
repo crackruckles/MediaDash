@@ -1,4 +1,4 @@
-// MediaDash History tab. Pure helpers were extracted in 06-D.7; the full-DOM
+﻿// MediaDash History tab. Pure helpers were extracted in 06-D.7; the full-DOM
 // factory createHistoryTab followed on 2026-09-23 (06-FOLLOWUP-1d). Same
 // 06-D pattern as recycle-tab.js / errors-tab.js: served by
 // PluginAssetController, consumed via <script src>, self-tests load it via
@@ -65,9 +65,73 @@
         var failReason = '';
         var hiddenBeforeMs = 0;
         var loadSeq = 0;
+        var movesCache = [];
+        var moveLoadFailed = false;
+
+        function bindMoveUndo(container) {
+            container.querySelectorAll('.mdMoveUndo').forEach(function (button) {
+                button.addEventListener('click', function () {
+                    if (button.disabled) return;
+                    var id = button.getAttribute('data-move');
+                    var row = button.closest('.mdMoveRow') || button.closest('[data-history]');
+                    var message = row.querySelector('.mdRowMsg');
+                    var pageTok = lifetime.current();
+                    button.disabled = true;
+                    message.textContent = strings.moveUndoChecking || 'Checking the complete move and original locations…';
+                    return api.ajax({ type: 'POST', url: ApiClient.getUrl('MediaDash/Moves/' + encodeURIComponent(id) + '/Undo'), dataType: 'json' }).then(function (result) {
+                        if (!lifetime.accepts(pageTok)) return;
+                        message.textContent = result.Message || '';
+                        button.disabled = false;
+                        if (!result.WasDryRun) activate();
+                    }, function (error) {
+                        if (!lifetime.accepts(pageTok)) return;
+                        var detail = error && error.responseText;
+                        try {
+                            var parsed = JSON.parse(detail);
+                            detail = parsed.Message || parsed.message || parsed.detail || parsed.Detail;
+                        } catch (_) { /* Plain-text errors remain readable. */ }
+                        message.textContent = detail || strings.moveUndoFailed || 'Undo could not complete. Review the recorded move and its current files.';
+                        button.disabled = false;
+                    });
+                });
+            });
+        }
+
+        function moveUndoButton(id) {
+            return '<button is="emby-button" type="button" class="raised mdMoveUndo" data-move="' + esc(id) + '"><span class="material-icons">undo</span><span>' + esc(strings.undoCompleteMove || 'Undo complete move') + '</span></button>';
+        }
+
+        function renderMoves() {
+            var element = root.querySelector('#mdMoveOperations');
+            if (!element) return;
+            var html = moveLoadFailed ? '<p class="fieldDescription">' + esc(strings.moveLoadFailed || 'Move recovery records could not be loaded. Refresh this tab to try again.') + '</p>' : '';
+            if (movesCache.length) {
+                html += '<div class="mdCard mdFade"><div class="mdSecHead">' + esc(strings.recordedMoves || 'Recorded moves') + '</div><p class="fieldDescription">' +
+                    esc(strings.moveRecoveryHelp || 'These records remain available if a move stops before History is saved. Undo restores the complete recorded item only when its files are unchanged and the original locations are free. Dry run previews Undo without changing files.') + '</p>';
+                movesCache.forEach(function (move) {
+                    var label = move.State === 'NeedsReview' ? (strings.moveNeedsReview || 'Needs review')
+                        : move.State === 'Undone' ? (strings.moveUndone || 'Undone')
+                        : move.State === 'Completed' ? (move.IsUndo ? (strings.moveUndoCompleted || 'Undo completed') : (strings.moveCompleted || 'Completed'))
+                        : (strings.moveInProgress || 'Move in progress');
+                    html += '<div class="mdMoveRow"><p><strong>' + esc(label) + '</strong></p>' +
+                        (move.Detail ? '<p class="fieldDescription">' + esc(move.Detail) + '</p>' : '') +
+                        (move.UserStatePending ? '<p class="fieldDescription">' + esc(strings.moveUserStatePending || "Run Jellyfin's library scan to finish indexing and restore watched state.") + '</p>' : '') +
+                        '<details><summary>' + esc(strings.moveRecordedPaths || 'Recorded paths') + '</summary>' +
+                        '<div class="mdHistPath">' + esc(strings.moveOriginal || 'Original') + ':<br>' + (move.Sources || []).map(esc).join('<br>') + '</div>' +
+                        '<div class="mdHistPath">' + esc(strings.moveDestination || 'Destination') + ':<br>' + (move.Destinations || []).map(esc).join('<br>') + '</div>' +
+                        ((move.RecoveryPaths || []).length ? '<div class="mdHistPath">' + esc(strings.moveRecovery || 'Recovery locations — preserve these while reviewing') + ':<br>' + move.RecoveryPaths.map(esc).join('<br>') + '</div>' : '') + '</details>' +
+                        '<div class="fieldDescription mdRowMsg"></div>' +
+                        (move.CanUndo && move.State === 'Completed' ? moveUndoButton(move.Id) : '') + '</div>';
+                });
+                html += '</div>';
+            }
+            element.innerHTML = html;
+            bindMoveUndo(element);
+        }
 
         function render(list) {
             if (list) cache = list;
+            renderMoves();
             var full = cache;
             var visible = full.filter(function (h) {
                 return !hiddenBeforeMs || new Date(h.FixedAtUtc).getTime() > hiddenBeforeMs;
@@ -173,6 +237,10 @@
                 var restoreAction;
                 if (kind === 'dryrun') {
                     restoreAction = '<span class="mdHistNoOp">nothing changed</span>';
+                } else if (h.CanUndoMove && h.MoveState === 'Completed') {
+                    restoreAction = moveUndoButton(h.MoveOperationId);
+                } else if (h.MoveOperationId && h.MoveState && h.MoveState !== 'Completed' && h.MoveState !== 'Undone') {
+                    restoreAction = '<span class="mdHistNoOp">' + esc(strings.moveReviewRequired || 'Review the recorded move before continuing') + '</span>';
                 } else if (kind === 'failed') {
                     // UI-10: the previous Retry button carried the mdRestore class and routed
                     // through tryRestore / History/{id}/Restore, which only succeeds for rows that
@@ -209,6 +277,7 @@
                 '</div>';
             });
             el.innerHTML = html;
+            bindMoveUndo(el);
 
             el.querySelectorAll('.mdRestore').forEach(function (b) {
                 b.addEventListener('click', function () { tryRestore(b.getAttribute('data-id'), b, b.closest('[data-history]').querySelector('.mdRowMsg')); });
@@ -221,7 +290,8 @@
             Promise.all([
                 api('History'),
                 ApiClient.getPluginConfiguration(PLUGIN_ID),
-                api('History/Stats').catch(function () { return null; })
+                api('History/Stats').catch(function () { return null; }),
+                api('Moves').catch(function () { return null; })
             ]).then(function (results) {
                 // Two guards: outer page lifetime (already enforced by api() for
                 // /History and /History/Stats, but the plugin-config leg goes
@@ -232,6 +302,8 @@
                 var ticks = results[1].HistoryHiddenBeforeUtcTicks || 0;
                 hiddenBeforeMs = ticks > 0 ? (ticks - 621355968000000000) / 10000 : 0;
                 statsCache = results[2] || null;
+                moveLoadFailed = !Array.isArray(results[3]);
+                if (!moveLoadFailed) movesCache = results[3];
                 render(results[0]);
             });
         }
@@ -246,7 +318,7 @@
         // both scoped to the persistent view DOM, so pagehide does not need
         // to remove them. Reserved for future per-tab cleanups when 06-D
         // pulls the search helper into its own owned lifecycle.
-        function dispose() {}
+        function dispose() { loadSeq++; }
 
         return {
             activate: activate,

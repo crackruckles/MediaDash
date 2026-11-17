@@ -1,0 +1,65 @@
+{
+  "caseId": "issue-86",
+  "sourceDigest": "46ea17d7e7f9f6b730fb4ea539c1e9da5a8304d59a1a7d403069cc0fe605fdc3",
+  "dllSha256": "534d3029c2d70eeb90cbd2a4d3ab50f5d8a2fe20c061fd15bd0074d08ddcbeeb",
+  "environment": "Windows; owned loopback Jellyfin 10.11.11 and 12.0.0; custom managed metadata roots; generated fixtures",
+  "checks": [
+    {
+      "name": "Custom configured metadata roots and all/selected library workflows pass on Jellyfin 10.11.11 and 12.0.0",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "Orphan scan, single/bulk approval, preview, actual recycle, rescan, force restore and occupied-path recovery preserve exact full directory hashes",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "Managed artwork recycles and restores under the custom root; disabled owners preserve bytes and queue",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "Protected descendants and actual recycle failure preserve source and approval; failed non-preview history verified",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "Automated lookup/configuration/link/source-identity/provenance failure regressions pass",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "Both owned hosts stopped with plugin settings, protection rules, empty libraries and original server XML restored",
+      "passed": true,
+      "skipped": false
+    }
+  ],
+  "runs": [
+    {
+      "version": "10.11.11",
+      "evidence": "artifacts/issue-86-live-20261028/v10",
+      "passingChecks": 105,
+      "failedAttempts": [
+        {
+          "test": "setup86 exception",
+          "status": "FAIL",
+          "detail": "'FixBlockedReason'"
+        }
+      ]
+    },
+    {
+      "version": "12.0.0",
+      "evidence": "artifacts/issue-86-live-20261028/v12",
+      "passingChecks": 102,
+      "failedAttempts": []
+    }
+  ],
+  "report": "docs/testing/ISSUE-86-MANAGED-METADATA-2026-10-28.md",
+  "limitations": [
+    "Global metadata cannot be assigned to a deleted owner library; requires explicit metadata toggle, approval and at least one enabled library",
+    "Race/link/provenance fault cases automated; actual failed recycling exercised live",
+    "No Linux/NAS or production disk-exhaustion certification",
+    "Three unrelated regression failures; whole-tree publication gate remains blocked"
+  ]
+}

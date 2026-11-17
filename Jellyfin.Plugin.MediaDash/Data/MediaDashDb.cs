@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Jellyfin.Plugin.MediaDash.Fixers;
 using MediaBrowser.Common.Configuration;
 using Microsoft.Data.Sqlite;
 
@@ -25,6 +28,7 @@ public sealed class MediaDashDb
     private readonly DiagnosticStore _diagnostics;
     private readonly RestoreOperationStore _restoreOps;
     private readonly ProtectionStore _protection;
+    private readonly MediaMoveStore _moves;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MediaDashDb"/> class.
@@ -49,6 +53,7 @@ public sealed class MediaDashDb
         _diagnostics = new DiagnosticStore(_connectionFactory);
         _restoreOps = new RestoreOperationStore(_connectionFactory);
         _protection = new ProtectionStore(_connectionFactory);
+        _moves = new MediaMoveStore(_connectionFactory);
 
         SqliteConnection connection;
         try
@@ -80,6 +85,8 @@ public sealed class MediaDashDb
         // no rows to reconcile so this is a cheap no-op. 05-C.6: delegated to
         // RestoreOperationStore, which opens its own connection through the shared factory.
         _restoreOps.ReconcilePendingRestoresAtStartup();
+        _moves.ReconcileAtStartup();
+        InvalidateLegacyMoverApprovals();
 
         // Wire the persistent diagnostics buffer to this DB. Previously the buffer was in-memory
         // only; recorded errors vanished on every plugin reload / update. Attach reloads persisted
@@ -144,6 +151,51 @@ public sealed class MediaDashDb
     // Consumed by ProtectionService, which caches the ruleset and evaluates path/library matches
     // at scan-emit and fix-execute time.
     internal ProtectionStore Protection => _protection;
+
+    /// <summary>Gets durable media-move operations and their claims.</summary>
+    internal MediaMoveStore Moves => _moves;
+
+    private void InvalidateLegacyMoverApprovals()
+    {
+        foreach (var type in new[] { IssueType.Misplaced, IssueType.Ungrouped })
+        {
+            foreach (var issue in _issues.GetIssues(type, IssueStatus.Queued))
+            {
+                if (MediaMovePlan.ReadIssue(issue) is not null)
+                {
+                    continue;
+                }
+
+                JsonObject details;
+                try
+                {
+                    details = JsonNode.Parse(issue.DetailsJson) as JsonObject ?? new JsonObject { ["legacyDetails"] = issue.DetailsJson };
+                }
+                catch (JsonException)
+                {
+                    details = new JsonObject { ["legacyDetails"] = issue.DetailsJson };
+                }
+
+                const string explanation = "This old move approval needs a complete current preview. Re-scan and approve the new plan; no files were changed.";
+                var warning = JsonSerializer.SerializeToNode(new IssueWarning { Code = "move-plan-upgrade", Blocking = true, Message = explanation });
+                if (details["warnings"] is JsonArray warnings)
+                {
+                    warnings.Add(warning);
+                }
+                else
+                {
+                    details["warnings"] = new JsonArray(warning);
+                }
+
+                details["movePlanUpgradeRequired"] = true;
+                issue.DetailsJson = details.ToJsonString();
+                issue.SuggestedFix = explanation;
+                // Reuse the existing conditional status/details transaction. Do not create a
+                // separate status UPDATE path for a migration or erase unrelated approvals.
+                RecordFixOutcome([], [issue.Id], [IssueStatus.Queued], IssueStatus.Detected, issue);
+            }
+        }
+    }
 
     private static string EnsureDbPath(IApplicationPaths applicationPaths)
     {
@@ -418,12 +470,14 @@ public sealed class MediaDashDb
     /// <param name="idsToTransition">Issue ids to attempt <paramref name="transitionTo"/> against. Pass an empty collection for dry-run success or non-terminal failure to skip the transition pass entirely.</param>
     /// <param name="transitionFromAny">Statuses that authorise the transition. Rows whose current status is outside this set stay put and their transition is reported as <c>false</c>.</param>
     /// <param name="transitionTo">Target status for authorised transitions.</param>
+    /// <param name="reviewIssue">Failed-repair details to persist with the transition back to Detected.</param>
     /// <returns>Per-id map of whether the transition applied. A <c>false</c> value means "row exists but its current status wasn't in <paramref name="transitionFromAny"/>" or "row is gone". A row that was never in <paramref name="idsToTransition"/> is absent from the map.</returns>
     public IReadOnlyDictionary<long, bool> RecordFixOutcome(
         IReadOnlyList<HistoryEntry> historyRows,
         IReadOnlyCollection<long> idsToTransition,
         IReadOnlyCollection<IssueStatus> transitionFromAny,
-        IssueStatus transitionTo)
+        IssueStatus transitionTo,
+        Issue? reviewIssue = null)
     {
         using var connection = Open();
         using var transaction = connection.BeginTransaction();
@@ -433,8 +487,8 @@ public sealed class MediaDashDb
             using var insert = connection.CreateCommand();
             insert.Transaction = transaction;
             insert.CommandText = """
-                INSERT INTO history (issue_id, type, path, action, bytes_freed, recycle_path, fixed_at_utc, dry_run, restored, success, saved_bytes)
-                VALUES (@issueId, @type, @path, @action, @bytesFreed, @recyclePath, @fixedAt, @dryRun, 0, @success, @savedBytes)
+                INSERT INTO history (issue_id, type, path, action, bytes_freed, recycle_path, fixed_at_utc, dry_run, restored, success, saved_bytes, move_operation_id)
+                VALUES (@issueId, @type, @path, @action, @bytesFreed, @recyclePath, @fixedAt, @dryRun, 0, @success, @savedBytes, @move)
                 """;
             var pIssueId = insert.Parameters.Add("@issueId", SqliteType.Integer);
             var pType = insert.Parameters.Add("@type", SqliteType.Integer);
@@ -446,6 +500,7 @@ public sealed class MediaDashDb
             var pDryRun = insert.Parameters.Add("@dryRun", SqliteType.Integer);
             var pSuccess = insert.Parameters.Add("@success", SqliteType.Integer);
             var pSavedBytes = insert.Parameters.Add("@savedBytes", SqliteType.Integer);
+            var pMove = insert.Parameters.Add("@move", SqliteType.Text);
             foreach (var row in historyRows)
             {
                 pIssueId.Value = row.IssueId;
@@ -458,7 +513,12 @@ public sealed class MediaDashDb
                 pDryRun.Value = row.WasDryRun ? 1 : 0;
                 pSuccess.Value = row.Success ? 1 : 0;
                 pSavedBytes.Value = row.SavedBytes;
+                pMove.Value = (object?)row.MoveOperationId ?? DBNull.Value;
                 insert.ExecuteNonQuery();
+                if (row.MoveOperationId is not null)
+                {
+                    MediaMoveStore.LinkInsertedHistory(connection, transaction, row.MoveOperationId);
+                }
             }
         }
 
@@ -488,6 +548,17 @@ public sealed class MediaDashDb
                 pId.Value = id;
                 applied[id] = update.ExecuteNonQuery() > 0;
             }
+        }
+
+        if (reviewIssue is not null && applied.TryGetValue(reviewIssue.Id, out var transitioned) && transitioned)
+        {
+            using var details = connection.CreateCommand();
+            details.Transaction = transaction;
+            details.CommandText = "UPDATE issues SET details = @details, suggested_fix = @fix WHERE id = @id";
+            details.Parameters.AddWithValue("@details", reviewIssue.DetailsJson);
+            details.Parameters.AddWithValue("@fix", reviewIssue.SuggestedFix);
+            details.Parameters.AddWithValue("@id", reviewIssue.Id);
+            details.ExecuteNonQuery();
         }
 
         transaction.Commit();
@@ -594,7 +665,7 @@ public sealed class MediaDashDb
             issuesCmd.ExecuteNonQuery();
         }
 
-        foreach (var table in new[] { "probe_cache", "decode_cache", "format_probe_cache", "interleave_cache" })
+        foreach (var table in new[] { "probe_cache", "decode_cache", "audio_decode_cache", "format_probe_cache", "interleave_cache" })
         {
             using var cmd = connection.CreateCommand();
             cmd.Transaction = transaction;
@@ -722,6 +793,67 @@ public sealed class MediaDashDb
     public void MarkPathRestoredForAnyType(string path)
     {
         MarkPathRestored(path, RestoredPathAnyType);
+    }
+
+    internal bool CompleteMoveUndo(string originalId, string reverseId, string owner)
+    {
+        using var connection = Open();
+        using var transaction = connection.BeginTransaction(deferred: false);
+        if (_moves.CompleteUndo(connection, transaction, originalId, reverseId, owner) is not { } original
+            || MediaMoveManifest.TryRead(original.ManifestJson, originalId) is not { } manifest)
+        {
+            return false;
+        }
+
+        foreach (var entry in manifest.Plan.Entries)
+        {
+            foreach (var payload in entry.Inventory)
+            {
+                var path = payload.RelativePath.Length == 0 ? entry.Source : Path.Combine(entry.Source, payload.RelativePath);
+                using var marker = connection.CreateCommand();
+                marker.Transaction = transaction;
+                marker.CommandText = "INSERT INTO restored_paths(path,type,restored_at_utc) VALUES(@path,@type,@ticks) ON CONFLICT(path,type) DO UPDATE SET restored_at_utc=excluded.restored_at_utc";
+                marker.Parameters.AddWithValue("@path", path);
+                marker.Parameters.AddWithValue("@type", RestoredPathAnyType);
+                marker.Parameters.AddWithValue("@ticks", DateTime.UtcNow.Ticks);
+                marker.ExecuteNonQuery();
+            }
+        }
+
+        IssueStore.InvalidateUndoneMove(
+            connection,
+            transaction,
+            original.IssueId,
+            manifest.Plan.Type == IssueType.ManualMove ? manifest.Plan.ItemPath : manifest.Plan.Entries[0].Source);
+        HistoryStore.Insert(connection, transaction, new HistoryEntry
+        {
+            IssueId = original.IssueId, Type = manifest.Plan.Type, Path = manifest.Plan.Entries[0].Source,
+            Action = "Undid the complete recorded move and restored its original locations.", Success = true,
+            FixedAtUtc = DateTime.UtcNow, MoveOperationId = reverseId
+        });
+        transaction.Commit();
+        return true;
+    }
+
+    internal bool FinalizeMove(string id, string owner, string expectedState, MediaMoveManifest manifest)
+    {
+        if (!manifest.CleanupComplete || !manifest.HasCompletePayloads())
+        {
+            return false;
+        }
+
+        using var connection = Open();
+        using var transaction = connection.BeginTransaction(deferred: false);
+        if (!MediaMoveStore.UpdateWithinTransaction(connection, transaction, id, owner, expectedState, "Completed", manifest.Serialize())
+            || MediaMoveStore.Read(connection, transaction, id) is not { } operation)
+        {
+            return false;
+        }
+
+        IssueStore.InvalidateMovedPaths(connection, transaction, manifest.Plan, operation.IssueId, id);
+        ProbeCacheStore.InvalidateMovedPaths(connection, transaction, manifest.Plan);
+        transaction.Commit();
+        return true;
     }
 
     private void MarkPathRestored(string path, int rawType)

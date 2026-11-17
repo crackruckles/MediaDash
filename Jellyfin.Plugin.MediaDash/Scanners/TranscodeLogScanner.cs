@@ -43,16 +43,19 @@ public sealed class TranscodeLogScanner : IScanner
     private readonly IApplicationPaths _appPaths;
     private readonly ILibraryManager _libraryManager;
     private readonly ILogger<TranscodeLogScanner> _logger;
+    private readonly HistoryStore _history;
 
     /// <summary>Initializes a new instance of the <see cref="TranscodeLogScanner"/> class.</summary>
     /// <param name="appPaths">Application paths — used to locate <c>LogDirectoryPath</c>.</param>
     /// <param name="libraryManager">Library manager — used to correlate a source file to its Jellyfin item id.</param>
     /// <param name="logger">Logger.</param>
-    public TranscodeLogScanner(IApplicationPaths appPaths, ILibraryManager libraryManager, ILogger<TranscodeLogScanner> logger)
+    /// <param name="history">Successful replacements that supersede older sessions.</param>
+    public TranscodeLogScanner(IApplicationPaths appPaths, ILibraryManager libraryManager, ILogger<TranscodeLogScanner> logger, HistoryStore history)
     {
         _appPaths = appPaths;
         _libraryManager = libraryManager;
         _logger = logger;
+        _history = history;
     }
 
     /// <inheritdoc />
@@ -97,9 +100,11 @@ public sealed class TranscodeLogScanner : IScanner
         var cutoff = DateTime.UtcNow.AddDays(-lookbackDays);
 
         var candidates = SafeEnumerateLogs(logDir, cutoff, cancellationToken);
+        var pathComparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        var replacedAt = _history.GetTranscodeLogCutoffs(cutoff, pathComparer);
 
         // Aggregate one row per source path. First seen sample wins for anchoring paths.
-        var perFile = new Dictionary<string, Aggregate>(StringComparer.OrdinalIgnoreCase);
+        var perFile = new Dictionary<string, Aggregate>(pathComparer);
         var processed = 0;
         var total = Math.Max(1, candidates.Count);
 
@@ -110,7 +115,8 @@ public sealed class TranscodeLogScanner : IScanner
             progress.Report(Math.Min(99, processed * 100.0 / total));
 
             var parsed = ReadLogSummary(log.FullName);
-            if (parsed is null || string.IsNullOrWhiteSpace(parsed.SourcePath))
+            if (parsed is null || string.IsNullOrWhiteSpace(parsed.SourcePath)
+                || (replacedAt.TryGetValue(parsed.SourcePath, out var fixedAt) && log.LastWriteTimeUtc.Ticks <= fixedAt))
             {
                 continue;
             }

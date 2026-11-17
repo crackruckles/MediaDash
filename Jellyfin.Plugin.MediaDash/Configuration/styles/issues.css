@@ -105,6 +105,16 @@
 #MediaDashConfigPage #mdIssueFilter::placeholder,
 #MediaDashConfigPage #mdHistorySearch::placeholder,
 #MediaDashConfigPage #mdBinSearch::placeholder { color: var(--md-meta); }
+/* Issues · "Filter by audio language" <select>. Jellyfin's emby-select-withcolor
+   hardcodes a dark fill on 12.x hosts (issue #70); the settings/wizard restyle
+   covers their selects but not this one. Theme-token override brings it in line. */
+#MediaDashConfigPage #mdIssueLangFilter {
+    background: var(--md-inner) !important;
+    color: var(--md-ink) !important;
+    border: 1px solid transparent !important;
+    border-radius: 10px !important;
+    padding: 6px 10px !important;
+}
 #MediaDashConfigPage .mdIssueApproveNote {
     font: 400 12.5px Figtree, sans-serif;
     color: var(--md-meta);

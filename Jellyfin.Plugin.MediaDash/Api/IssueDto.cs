@@ -55,6 +55,12 @@ public sealed class IssueDto
     /// </summary>
     public string Status { get; set; } = string.Empty;
 
+    /// <summary>Gets or sets the current setting, library or protection restriction that blocks approval, or null. Execution still rechecks safety.</summary>
+    public string? FixBlockedReason { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether a fresh scan is required before this finding can be approved.</summary>
+    public bool FixRequiresRescan { get; set; }
+
     /// <summary>
     /// Gets or sets when the issue was detected (UTC).
     /// </summary>
@@ -91,6 +97,9 @@ public sealed class IssueDto
     /// retry" case; UI treats it distinctly from a never-run Queued item.</summary>
     public bool? LastAttemptSuccess { get; set; }
 
+    /// <summary>Gets or sets a value indicating whether repair failed for this unchanged file and Delete needs approval.</summary>
+    public bool RepairFailed { get; set; }
+
     /// <summary>
     /// Maps a database issue to the DTO.
     /// </summary>
@@ -110,7 +119,8 @@ public sealed class IssueDto
             SizeSavings = issue.SizeSavings,
             Status = issue.Status.ToString(),
             DetectedAtUtc = issue.DetectedAtUtc,
-            Warnings = ParseWarnings(issue.DetailsJson)
+            Warnings = ParseWarnings(issue.DetailsJson),
+            RepairFailed = PlayabilityRepairState.IsCurrent(issue)
         };
     }
 

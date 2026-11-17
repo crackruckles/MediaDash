@@ -1,0 +1,35 @@
+{
+  "caseId": "issue-80",
+  "sourceDigest": "4045428334a7552f9d9afb435efff70ce81e5fe20308911afce7746a1e2c7e5e",
+  "dllSha256": "1b1eaaac59e05928c63f857653d0ed2cd9261c4f7a7ae00f0b7fd321bf071688",
+  "environment": "Windows interactive account, isolated loopback Jellyfin 12.0.0, owned generated fixtures",
+  "checks": [
+    {
+      "name": "one million owned history rows seeded",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "loaded Issues response has newest attempts",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "loaded Issues HTTP stays below two seconds",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "only expected million synthetic history rows eligible for cleanup",
+      "passed": true,
+      "skipped": false
+    }
+  ],
+  "evidence": [
+    "artifacts/push-preparation-20261105-benchmark/v12/final-evidence/history-http-timing.json",
+    "artifacts/push-preparation-20261105-benchmark/v12/final-evidence/trim.json"
+  ],
+  "limitations": [
+    "One million History rows, 2,000 requested issues, and 20 HTTP requests. The reported request-service disposal error remains a separate unverified symptom."
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "caseId": "issue-81-83",
+  "sourceDigest": "e99b757687a8a137daf5c8fb9f109642cebd19d8cc9d56441acd5e0125feb374",
+  "environment": "Owned Windows Jellyfin 12.0.0 loopback instance with real plugin XML and a process restart. MediaDash DLL SHA-256 fa17d0d813864d1ec00d91af9625c92a36c227911fed8d7a53b09fee2bb19dc7.",
+  "checks": [
+    {
+      "name": "fresh install and preview",
+      "passed": true,
+      "skipped": false,
+      "observed": "Fresh install defaulted to DryRun. Exact-ID preview preserved source bytes and approval."
+    },
+    {
+      "name": "legacy XML upgrade and approval",
+      "passed": true,
+      "skipped": false,
+      "observed": "Edited owned persisted XML to use the legacy DetectOnly names while Jellyfin was stopped. Restart rewrote ManualApprove, preserved all configuration values and the approved IDs and paths."
+    },
+    {
+      "name": "fix rescan and restore",
+      "passed": true,
+      "skipped": false,
+      "observed": "Real approved remux kept and decoded intended streams, recycled the exact source, cleared the finding after rescan, and recovered the exact source bytes from History."
+    }
+  ]
+}

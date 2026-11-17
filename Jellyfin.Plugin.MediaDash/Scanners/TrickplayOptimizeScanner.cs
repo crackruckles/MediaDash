@@ -319,12 +319,13 @@ public sealed class TrickplayOptimizeScanner : IScanner
     /// <returns>Convertible file count and total bytes.</returns>
     internal static (int Count, long Bytes) MeasureConvertibleJpgs(string trickplayDir, DateTime? cutoffUtc = null)
     {
+        using var operation = ScheduledTasks.RunDiagnostics.Track("enumerate and inspect trickplay directory");
         var count = 0;
         long bytes = 0;
-        IEnumerable<string> files;
+        IEnumerable<FileInfo> files;
         try
         {
-            files = Directory.EnumerateFiles(trickplayDir, "*.jpg", SearchOption.AllDirectories);
+            files = new DirectoryInfo(trickplayDir).EnumerateFiles("*.jpg", SearchOption.AllDirectories);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -333,25 +334,24 @@ public sealed class TrickplayOptimizeScanner : IScanner
 
         foreach (var file in files)
         {
-            if (!LooksLikeJpg(file))
-            {
-                continue;
-            }
-
             try
             {
-                var fi = new FileInfo(file);
                 // Files at-or-before the last successful-fix timestamp were handled by a prior fixer
                 // pass. Without this, folders containing sprites the fixer intentionally left alone
                 // (tiny tiles that grow as WebP) re-flag every scan and the auto-queue re-runs the
                 // fixer forever. Jellyfin trickplay regeneration produces newer mtimes, so a
                 // legitimately-new folder still gets flagged.
-                if (cutoffUtc is { } cutoff && fi.LastWriteTimeUtc <= cutoff)
+                if (cutoffUtc is { } cutoff && file.LastWriteTimeUtc <= cutoff)
                 {
                     continue;
                 }
 
-                bytes += fi.Length;
+                if (!LooksLikeJpg(file.FullName))
+                {
+                    continue;
+                }
+
+                bytes += file.Length;
                 count++;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -375,6 +375,7 @@ public sealed class TrickplayOptimizeScanner : IScanner
         int read;
         try
         {
+            using var operation = ScheduledTasks.RunDiagnostics.Track("read trickplay image header", examinesFile: true);
             using var s = MediaFileHelper.OpenSharedRead(path);
             read = s.Read(buf);
         }

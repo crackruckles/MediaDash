@@ -89,7 +89,7 @@ public sealed class OutputVerifier
         var newDuration = GetVideoDurationSeconds(probe);
         var slack = Math.Max(2.0, originalDuration * 0.02);
         var durationDelta = Math.Abs(originalDuration - newDuration);
-        var durationCheckPasses = originalDuration <= 0 || durationDelta <= slack;
+        var durationCheckPasses = originalDuration > 0 && newDuration > 0 && durationDelta <= slack;
 
         if (durationCheckPasses)
         {

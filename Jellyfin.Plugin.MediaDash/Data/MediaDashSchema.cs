@@ -41,11 +41,13 @@ internal static class MediaDashSchema
     //     doesn't re-use the stale false-positive strings.
     // v11: issue #80 — HistoryStore.GetLatestAttemptsByIssueIds (new in 1.0.8.0) ran a correlated
     //     subquery against history with no supporting index; on users with substantial history +
-    //     many open issues it stalled /MediaDash/Issues long enough for the request pipeline to
-    //     dispose the scope mid-request (ObjectDisposedException at ObjectResult.ExecuteResultAsync).
+    //     many open issues it stalled /MediaDash/Issues. The report also included disposed request
+    //     services/memory-pool errors; their lifecycle cause has not been independently reproduced.
     //     Covering index on (issue_id, dry_run, fixed_at_utc) serves both the IN-filter and the
     //     MAX() subquery. Non-destructive — CREATE INDEX IF NOT EXISTS builds from existing rows.
-    public const int Version = 11;
+    // v12: durable media-move manifests, path claims and the optional History operation link.
+    // v13: native directory-anchor claims for atomic move/restore alias reservations.
+    public const int Version = 14;
 
     // Sentinel stored in restored_paths.type when the restore came from a manifest-only bin entry
     // (RecycleBin/Items/Restore). We don't know which IssueType triggered the original recycle in
@@ -97,6 +99,13 @@ internal static class MediaDashSchema
                 error TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS audio_decode_cache (
+                path TEXT PRIMARY KEY,
+                size INTEGER NOT NULL,
+                mtime_utc INTEGER NOT NULL,
+                signature TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS format_probe_cache (
                 path TEXT PRIMARY KEY,
                 size INTEGER NOT NULL,
@@ -135,7 +144,8 @@ internal static class MediaDashSchema
                 restored INTEGER NOT NULL DEFAULT 0,
                 success INTEGER NOT NULL DEFAULT 1,
                 acknowledged INTEGER NOT NULL DEFAULT 0,
-                saved_bytes INTEGER NOT NULL DEFAULT 0
+                saved_bytes INTEGER NOT NULL DEFAULT 0,
+                move_operation_id TEXT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_history_issue_id_dry_run ON history(issue_id, dry_run, fixed_at_utc);
 
@@ -170,9 +180,30 @@ internal static class MediaDashSchema
                 destination_path TEXT NOT NULL,
                 state TEXT NOT NULL,
                 started_utc_ticks INTEGER NOT NULL,
-                detail TEXT NULL
+                detail TEXT NULL,
+                native_claims_json TEXT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_restore_operations_state ON restore_operations(state);
+
+            CREATE TABLE IF NOT EXISTS media_move_operations (
+                operation_id TEXT PRIMARY KEY,
+                issue_id INTEGER NOT NULL,
+                item_id TEXT NOT NULL,
+                plan_version INTEGER NOT NULL,
+                fingerprint TEXT NOT NULL DEFAULT '',
+                manifest_json TEXT NOT NULL,
+                claim_paths_json TEXT NOT NULL,
+                state TEXT NOT NULL,
+                owner_token TEXT NOT NULL,
+                history_id INTEGER NULL,
+                created_utc_ticks INTEGER NOT NULL,
+                updated_utc_ticks INTEGER NOT NULL,
+                detail TEXT NULL,
+                cleanup_complete INTEGER NOT NULL DEFAULT 0,
+                undo_of TEXT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_media_move_operations_state ON media_move_operations(state, cleanup_complete);
+            CREATE INDEX IF NOT EXISTS idx_media_move_operations_issue ON media_move_operations(issue_id, fingerprint);
 
             CREATE TABLE IF NOT EXISTS protection_rules (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -370,6 +401,28 @@ internal static class MediaDashSchema
             using var create = connection.CreateCommand();
             create.CommandText = "CREATE INDEX IF NOT EXISTS idx_history_issue_id_dry_run ON history(issue_id, dry_run, fixed_at_utc)";
             create.ExecuteNonQuery();
+        }
+
+        if (current < 12 && !HasColumn(connection, "history", "move_operation_id", StringComparison.OrdinalIgnoreCase))
+        {
+            using var addMoveLink = connection.CreateCommand();
+            addMoveLink.CommandText = "ALTER TABLE history ADD COLUMN move_operation_id TEXT NULL";
+            addMoveLink.ExecuteNonQuery();
+        }
+
+        if (current < 13 && !HasColumn(connection, "restore_operations", "native_claims_json", StringComparison.OrdinalIgnoreCase))
+        {
+            using var addClaims = connection.CreateCommand();
+            addClaims.CommandText = "ALTER TABLE restore_operations ADD COLUMN native_claims_json TEXT NULL";
+            addClaims.ExecuteNonQuery();
+        }
+
+        if (current < 14)
+        {
+            using var indexes = connection.CreateCommand();
+            indexes.CommandText = "CREATE INDEX IF NOT EXISTS idx_issues_type_path ON issues(type, path); "
+                + "CREATE INDEX IF NOT EXISTS idx_history_type_path ON history(type, path)";
+            indexes.ExecuteNonQuery();
         }
 
         using var setVersion = connection.CreateCommand();

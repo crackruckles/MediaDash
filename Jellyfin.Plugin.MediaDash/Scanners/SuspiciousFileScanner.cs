@@ -35,7 +35,7 @@ public sealed class SuspiciousFileScanner : IScanner
     private static readonly EnumerationOptions WalkOptions = new()
     {
         RecurseSubdirectories = true,
-        IgnoreInaccessible = true,
+        IgnoreInaccessible = false,
         AttributesToSkip = FileAttributes.ReparsePoint
     };
 
@@ -55,6 +55,8 @@ public sealed class SuspiciousFileScanner : IScanner
         _logger = logger;
         _protection = protection;
     }
+
+    internal List<string> CompletedRoots { get; } = new();
 
     /// <inheritdoc />
     public IssueType Type => IssueType.MalwareRisk;
@@ -97,9 +99,11 @@ public sealed class SuspiciousFileScanner : IScanner
     /// </summary>
     /// <param name="progress">Progress reporter.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="completedRoots">Receives roots whose traversal completed successfully.</param>
     /// <returns>Detected suspicious-file issues.</returns>
-    internal Task<IReadOnlyList<Issue>> RunScanAsync(IProgress<double> progress, CancellationToken cancellationToken)
+    internal Task<IReadOnlyList<Issue>> RunScanAsync(IProgress<double> progress, CancellationToken cancellationToken, List<string>? completedRoots = null)
     {
+        CompletedRoots.Clear();
         var config = Plugin.Instance!.Configuration;
         var enabled = config.EnabledLibraries ?? [];
         var idLookup = enabled.Length == 0 ? null : VirtualFolderIdentity.BuildIdLookup(_libraryManager);
@@ -107,7 +111,7 @@ public sealed class SuspiciousFileScanner : IScanner
             .Where(f => enabled.Length == 0 || enabled.Contains(VirtualFolderIdentity.GetId(f, idLookup), StringComparer.OrdinalIgnoreCase))
             .SelectMany(f => f.Locations ?? [])
             .Where(Directory.Exists)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Distinct(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal)
             .ToList();
 
         var issues = new List<Issue>();
@@ -149,6 +153,9 @@ public sealed class SuspiciousFileScanner : IScanner
                         SuggestedFix = "Executable file inside a media folder. Almost always malware from a pirated release — delete unless you put it there on purpose."
                     });
                 }
+
+                CompletedRoots.Add(root);
+                completedRoots?.Add(root);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {

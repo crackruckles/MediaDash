@@ -5,7 +5,7 @@ namespace Jellyfin.Plugin.MediaDash.Tests;
 
 /// <summary>
 /// Insertion invariants for <see cref="FfmpegExecutor.InjectRealtimeThrottle"/>. Low system impact
-/// mode wraps every ffmpeg call in <c>-re</c> to cap effective throughput at 1x realtime. The
+/// mode wraps encoding ffmpeg calls in <c>-re</c> to cap effective throughput at 1x realtime. The
 /// helper has to (1) put <c>-re</c> as an INPUT option (before <c>-i</c>), (2) never double-add
 /// when the caller was already realtime-aware, and (3) leave input-less calls alone.
 /// </summary>
@@ -14,24 +14,24 @@ public class FfmpegLowImpactTests
     [Fact]
     public void InjectRealtimeThrottle_InsertsBeforeFirstInput()
     {
-        // Typical TrackFixer remux arg shape after 1.0.7.3 (-fflags +genpts is an input option).
-        var input = new[] { "-fflags", "+genpts", "-i", "src.mkv", "-map", "0", "-c", "copy", "out.mkv" };
+        // Typical video encode arg shape after 1.0.7.3 (-fflags +genpts is an input option).
+        var input = new[] { "-fflags", "+genpts", "-i", "src.mkv", "-map", "0", "-c:v", "libx264", "out.mkv" };
 
         var output = FfmpegExecutor.InjectRealtimeThrottle(input);
 
         Assert.Equal(
-            new[] { "-fflags", "+genpts", "-re", "-i", "src.mkv", "-map", "0", "-c", "copy", "out.mkv" },
+            new[] { "-fflags", "+genpts", "-re", "-i", "src.mkv", "-map", "0", "-c:v", "libx264", "out.mkv" },
             output);
     }
 
     [Fact]
     public void InjectRealtimeThrottle_InputAtIndexZero_InsertsAtIndexZero()
     {
-        var input = new[] { "-i", "src.mkv", "-c", "copy", "out.mkv" };
+        var input = new[] { "-i", "src.mkv", "-c:v", "libx264", "out.mkv" };
 
         var output = FfmpegExecutor.InjectRealtimeThrottle(input);
 
-        Assert.Equal(new[] { "-re", "-i", "src.mkv", "-c", "copy", "out.mkv" }, output);
+        Assert.Equal(new[] { "-re", "-i", "src.mkv", "-c:v", "libx264", "out.mkv" }, output);
     }
 
     [Fact]

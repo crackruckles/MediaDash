@@ -1,4 +1,4 @@
-#requires -Version 5.1
+#requires -Version 7.0
 <#
 .SYNOPSIS
 Live integration tests against localhost:8099. Exercises every recycle-bin recovery path.
@@ -15,9 +15,14 @@ param(
     [string]$BaseUrl = 'http://localhost:8099',
     [string]$User = 'test',
     [string]$Pw = 'test',
-    [string]$LibraryPath = 'C:\dev\mediadash-fixtures\movies'
+    [string]$LibraryPath = 'C:\dev\mediadash-fixtures\movies',
+    [switch]$ConfirmLive,
+    [string]$DataDir
 )
 $ErrorActionPreference = 'Stop'
+. "$PSScriptRoot/comprehensive-test/lib/framework.ps1"
+if (-not $ConfirmLive -or -not $DataDir) { throw 'Live recycle tests require -ConfirmLive and -DataDir.' }
+Assert-SafeLiveTarget -Url $BaseUrl
 
 $script:results = New-Object System.Collections.ArrayList
 function Register-Result {
@@ -30,10 +35,8 @@ function Register-Result {
 function Invoke-Md {
     param([string]$Path, [string]$Method = 'GET', $Body = $null, [switch]$AsJson)
     $u = "$BaseUrl/MediaDash/$Path"
-    $sep = if ($u.Contains('?')) { '&' } else { '?' }
-    $u = "$u${sep}ApiKey=$token"
-    $headers = @{ 'Content-Type' = 'application/json' }
-    $params = @{ Uri = $u; Method = $Method; Headers = $headers; UseBasicParsing = $true }
+    $headers = @{ 'Content-Type' = 'application/json'; 'X-Emby-Token' = $token }
+    $params = @{ Uri = $u; Method = $Method; Headers = $headers; UseBasicParsing = $true; MaximumRedirection = 0; TimeoutSec = 30; NoProxy = $true }
     if ($Body -ne $null) { $params['Body'] = ($Body | ConvertTo-Json -Compress) }
     try {
         $r = Invoke-WebRequest @params
@@ -42,7 +45,7 @@ function Invoke-Md {
     } catch {
         $resp = $_.Exception.Response
         $status = if ($resp) { [int]$resp.StatusCode } else { 0 }
-        $bodyText = ''
+        $bodyText = [string]$_.ErrorDetails.Message
         if ($resp) {
             try {
                 $sr = New-Object System.IO.StreamReader($resp.GetResponseStream())
@@ -57,8 +60,10 @@ Write-Host "== auth =="
 $authHeader = 'MediaBrowser Client="test", Device="testdev", DeviceId="mediadash-live-tests", Version="1.0.0"'
 $authBody = @{ Username = $User; Pw = $Pw } | ConvertTo-Json
 $authResp = Invoke-WebRequest -Uri "$BaseUrl/Users/AuthenticateByName" -Method POST -Body $authBody `
-    -Headers @{ 'Authorization' = $authHeader; 'Content-Type' = 'application/json' } -UseBasicParsing
+    -Headers @{ 'Authorization' = $authHeader; 'Content-Type' = 'application/json' } -UseBasicParsing -MaximumRedirection 0 -TimeoutSec 30 -NoProxy
 $script:token = ($authResp.Content | ConvertFrom-Json).AccessToken
+$server = Invoke-RestMethod -Uri "$BaseUrl/System/Info" -Headers @{ 'X-Emby-Token' = $token } -MaximumRedirection 0 -TimeoutSec 30 -NoProxy
+if ([IO.Path]::GetFullPath($server.ProgramDataPath) -ne [IO.Path]::GetFullPath($DataDir)) { throw 'Active server does not match -DataDir.' }
 Write-Host "authed as $User"
 
 # --- Shape tests ---
@@ -100,11 +105,12 @@ Register-Result 'Consolidate with unknown SourceRoot returns 404' ($r.Status -eq
 Write-Host ""
 Write-Host "== end-to-end recycle/restore lifecycle =="
 
-$scratchDir = Join-Path $LibraryPath 'mediadash-live-test'
-if (-not (Test-Path $scratchDir)) { New-Item -ItemType Directory -Path $scratchDir | Out-Null }
+$scratchDir = Join-Path $LibraryPath ('mediadash-live-test-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $scratchDir -ErrorAction Stop | Out-Null
 $fixtureName = "live-test-$([guid]::NewGuid().ToString('N').Substring(0,8)).txt"
 $fixturePath = Join-Path $scratchDir $fixtureName
 'This is a real file MediaDash live tests will recycle and restore.' | Out-File -FilePath $fixturePath -Encoding UTF8
+$fixtureHash = (Get-FileHash -LiteralPath $fixturePath -Algorithm SHA256).Hash
 
 # Delete via Files endpoint (routes through RecycleBin.MoveToBin)
 $r = Invoke-Md -Path 'Files/Delete' -Method 'POST' -Body @{ Path = $fixturePath }
@@ -123,11 +129,11 @@ if ($ourItem) {
     Register-Result 'Item has Reason' (-not [string]::IsNullOrWhiteSpace($ourItem.Reason)) 'empty'
     Register-Result 'Item has RestoreHint' (-not [string]::IsNullOrWhiteSpace($ourItem.RestoreHint)) 'empty'
     # Jellyfin serializes enums as strings; accept either the string name or the numeric value.
-    $provOk = ($ourItem.Provenance -eq 1) -or ($ourItem.Provenance -eq 'Manifest')
-    Register-Result 'Item Provenance is Manifest for Files-tab delete' $provOk "got $($ourItem.Provenance)"
+    $provOk = ($ourItem.Provenance -eq 0) -or ($ourItem.Provenance -eq 'History')
+    Register-Result 'Files-tab delete has History provenance and an exact history ID' ($provOk -and $ourItem.HistoryId -gt 0) "got $($ourItem.Provenance)"
     Register-Result 'Item BinPath is populated for manifest-only restore' (-not [string]::IsNullOrWhiteSpace($ourItem.BinPath)) 'empty'
     Register-Result 'Item OriginalPath matches the seeded path' ($ourItem.OriginalPath -eq $fixturePath) "got $($ourItem.OriginalPath)"
-    Register-Result 'Item RecycledAtUtc is a valid recent timestamp' (([DateTime]$ourItem.RecycledAtUtc) -gt (Get-Date).AddMinutes(-5)) 'stale or invalid'
+    Register-Result 'Item RecycledAtUtc is a valid recent timestamp' (Test-RecentUtcTimestamp $ourItem.RecycledAtUtc) 'stale or invalid'
     Register-Result 'Item AutoPurgesAtUtc is set (retention > 0)' ($ourItem.AutoPurgesAtUtc -ne $null) 'null'
 
     # Restore via BinPath (manifest-only path)
@@ -135,16 +141,19 @@ if ($ourItem) {
     Register-Result 'Restore-by-BinPath returns 200' ($rr.Status -eq 200) "status=$($rr.Status)"
     Register-Result 'Restore response includes RestoredTo path' (-not [string]::IsNullOrWhiteSpace($rr.Body.RestoredTo)) 'empty'
     Register-Result 'File is back at the restored path' (Test-Path $rr.Body.RestoredTo) "not at $($rr.Body.RestoredTo)"
+    Register-Result 'Restored bytes match original SHA-256' ((Get-FileHash -LiteralPath $rr.Body.RestoredTo -Algorithm SHA256).Hash -eq $fixtureHash)
 
     # Second cycle to test collision-suffix path
     Write-Host ""
     Write-Host "== collision -> -restored suffix =="
     'Fresh content.' | Out-File -FilePath $fixturePath -Encoding UTF8
+    $collisionOriginalHash = (Get-FileHash -LiteralPath $fixturePath -Algorithm SHA256).Hash
     $r = Invoke-Md -Path 'Files/Delete' -Method 'POST' -Body @{ Path = $fixturePath }
     Register-Result 'Second cycle: Delete succeeds' ($r.Status -eq 204) "status=$($r.Status)"
 
     # Recreate file at target so restore has to use suffix
     'Collision-holder content.' | Out-File -FilePath $fixturePath -Encoding UTF8
+    $holderHash = (Get-FileHash -LiteralPath $fixturePath -Algorithm SHA256).Hash
 
     Start-Sleep -Milliseconds 300
     $items2 = (Invoke-Md -Path 'RecycleBin/Items' -AsJson).Body
@@ -155,10 +164,15 @@ if ($ourItem) {
         Register-Result 'Collision restore reports Suffixed=true' ($rr2.Body.Suffixed -eq $true) "got $($rr2.Body.Suffixed)"
         Register-Result 'Restored path contains -restored suffix' ($rr2.Body.RestoredTo -like '*-restored*') "got $($rr2.Body.RestoredTo)"
         Register-Result 'Both files coexist after collision restore' ((Test-Path $fixturePath) -and (Test-Path $rr2.Body.RestoredTo)) 'one is missing'
+        Register-Result 'Suffixed restore preserves recovered original bytes' ((Get-FileHash -LiteralPath $rr2.Body.RestoredTo -Algorithm SHA256).Hash -eq $collisionOriginalHash)
+        Register-Result 'Collision holder remains byte-identical' ((Get-FileHash -LiteralPath $fixturePath -Algorithm SHA256).Hash -eq $holderHash)
 
         # Cleanup
         Remove-Item -Path $fixturePath -Force -ErrorAction SilentlyContinue
-        if (Test-Path $rr2.Body.RestoredTo) { Remove-Item -Path $rr2.Body.RestoredTo -Force -ErrorAction SilentlyContinue }
+        if (Test-Path -LiteralPath $rr2.Body.RestoredTo) {
+            Assert-SafeLiveTarget -Url $BaseUrl -AllowedFixturePaths @($scratchDir) -FixturePath $rr2.Body.RestoredTo
+            Remove-Item -LiteralPath $rr2.Body.RestoredTo -Force
+        }
     } else {
         Register-Result 'Collision restore path' $false 'could not find bin item'
     }
@@ -184,19 +198,13 @@ if ($protItem) {
     Register-Result 'Protection cycle: Restore succeeds' ($rr3.Status -eq 200) "status=$($rr3.Status)"
     Register-Result 'Protection cycle: File back at original path' (Test-Path $protPath) 'missing'
 
-    # Now check the issues API — the path shouldn't auto-queue on a scan. This is hard to force
-    # (no fixer will run on a plain txt file), but the DB-level guarantee is that
-    # /Issues/{id}/Approve still works and no auto-queue happens. We verify via the /Issues
-    # payload — WasPreviouslyRestored must appear as a serializable property so the UI can render
-    # the badge. Sanity-check the shape (the field exists on any DTO in the payload).
-    $issues = (Invoke-Md -Path 'Issues?openOnly=true' -AsJson).Body
-    if ($issues -is [array] -and $issues.Count -gt 0) {
-        $hasField = $issues[0].PSObject.Properties.Name -contains 'WasPreviouslyRestored'
-        Register-Result 'Issue DTO exposes WasPreviouslyRestored field' $hasField 'field missing'
-    } else {
-        # No issues right now — just verify the endpoint shape by inspecting the JSON via property names on a probe object.
-        Register-Result 'Issue DTO WasPreviouslyRestored: no issues to inspect (skipped)' $true 'no issues'
-    }
+    # A manifest-only restore records an any-type protection marker. Verify
+    # this exact owned path in the active sandbox DB instead of inspecting an
+    # unrelated issue DTO (or claiming a pass when no issues exist).
+    $database = Join-Path $DataDir 'data/mediadash/mediadash.db'
+    $query = 'import sqlite3,sys; from pathlib import Path; c=sqlite3.connect(Path(sys.argv[1]).as_uri()+"?mode=ro",uri=True); print(c.execute("SELECT COUNT(*) FROM restored_paths WHERE path=? AND type=-1",(sys.argv[2],)).fetchone()[0])'
+    $protectedCount = & python -B -c $query $database $protPath
+    Register-Result 'Manifest restore persists protection for this exact path' ($LASTEXITCODE -eq 0 -and [int]$protectedCount -eq 1) "count=$protectedCount"
 
     Remove-Item -Path $protPath -Force -ErrorAction SilentlyContinue
 } else {
@@ -204,7 +212,11 @@ if ($protItem) {
 }
 
 # Clean up scratch folder
-if (Test-Path $scratchDir) { Remove-Item -Path $scratchDir -Recurse -Force -ErrorAction SilentlyContinue }
+if (Test-Path -LiteralPath $scratchDir) {
+    $expectedScratch = [IO.Path]::GetFullPath((Join-Path $LibraryPath (Split-Path -Leaf $scratchDir)))
+    if ((Resolve-Path -LiteralPath $scratchDir).Path -ne $expectedScratch) { throw 'Unexpected scratch directory; refusing cleanup.' }
+    Remove-Item -LiteralPath $scratchDir -Recurse -Force
+}
 
 # --- Summary ---
 Write-Host ""

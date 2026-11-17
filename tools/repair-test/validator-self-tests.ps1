@@ -56,9 +56,15 @@ function Get-Sha256Hex { param([string]$Path); return (Get-FileHash -Algorithm S
 # The shim always exits 0 so we exercise the decision logic, not codec parsing.
 $ShimDir = Join-Path ([IO.Path]::GetTempPath()) ("mdvalidate-shim-" + [Guid]::NewGuid().ToString('N').Substring(0,8))
 New-Item -ItemType Directory -Force -Path $ShimDir | Out-Null
-$ShimPath = Join-Path $ShimDir 'ffmpeg-shim.cmd'
-'@echo off' | Out-File -Encoding ascii $ShimPath
-'exit /b 0' | Add-Content $ShimPath -Encoding ascii
+$windowsShim = [IO.Path]::DirectorySeparatorChar -eq '\'
+$ShimPath = Join-Path $ShimDir $(if ($windowsShim) { 'ffmpeg-shim.cmd' } else { 'ffmpeg-shim' })
+function Write-DecoderShim {
+    param([int]$ExitCode)
+    $lines = if ($windowsShim) { @('@echo off', "exit /b $ExitCode") } else { @('#!/bin/sh', "exit $ExitCode") }
+    $lines | Set-Content -LiteralPath $ShimPath -Encoding ascii
+    if (-not $windowsShim) { & chmod +x $ShimPath; if ($LASTEXITCODE -ne 0) { throw 'Could not make decoder shim executable.' } }
+}
+Write-DecoderShim 0
 
 function Invoke-ValidatorWithShim {
     param([string]$Fixtures, [string]$Recycle, [string]$Manifest)
@@ -170,18 +176,19 @@ Assert-Case 'H. Both output candidates exist -> nonzero' ($r.ExitCode -ne 0) $r.
 # Failing decoder must fail even with matching recycle evidence.
 $ambiguousFile = Join-Path $s.Fixtures 'one.mkv'
 Remove-Item -LiteralPath $ambiguousFile
-@('@echo off','exit /b 1') | Out-File -Encoding ascii $ShimPath
+Write-DecoderShim 1
 $r = Invoke-ValidatorWithShim -Fixtures $s.Fixtures -Recycle $s.Recycle -Manifest $mp
 Assert-Case 'I. Decoder failure -> nonzero' ($r.ExitCode -ne 0) $r.Output
-@('@echo off','exit /b 0') | Out-File -Encoding ascii $ShimPath
+Write-DecoderShim 0
 
 $missingTool = Join-Path $ShimDir 'does-not-exist.exe'
 $out = & $Script:PsChild -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $Validator -Ffmpeg $missingTool -ManifestPath $mp -FixturesDir $s.Fixtures -RecycleBinRoot $s.Recycle 2>&1 | Out-String
 Assert-Case 'J. Missing decoder -> nonzero' ($LASTEXITCODE -ne 0) $out
 
 $preValidator = Join-Path $here 'validate-fixtures.ps1'
-$probeShim = Join-Path $ShimDir 'ffprobe.cmd'
-@('@echo off','echo 12','exit /b 0') | Out-File -Encoding ascii $probeShim
+$probeShim = Join-Path $ShimDir $(if ($windowsShim) { 'ffprobe.cmd' } else { 'ffprobe' })
+$(if ($windowsShim) { @('@echo off','echo 12','exit /b 0') } else { @('#!/bin/sh','echo 12','exit 0') }) | Set-Content -LiteralPath $probeShim -Encoding ascii
+if (-not $windowsShim) { & chmod +x $probeShim }
 '{"fixtures":[]}' | Out-File -Encoding utf8 $mp
 $out = & $Script:PsChild -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $preValidator -Ffmpeg $ShimPath -ManifestPath $mp -FixturesDir $s.Fixtures 2>&1 | Out-String
 Assert-Case 'K. Empty pre-repair manifest -> nonzero' ($LASTEXITCODE -ne 0) $out

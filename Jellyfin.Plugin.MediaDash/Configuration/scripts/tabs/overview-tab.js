@@ -337,14 +337,24 @@
                 var gpus = sys.Gpus || [];
                 var expectedGpuCells = Math.max(1, gpus.length);
                 var existingGpuCells = el.querySelectorAll('.mdSysCell[data-kind^="gpu"]').length;
+                var disks = sys.Disks && sys.Disks.length ? sys.Disks : [{}];
+                var existingDiskCells = el.querySelectorAll('.mdSysCell[data-kind^="disk-io-"]').length;
 
                 // Only rebuild the DOM structure when the card first appears or when the GPU list changes shape
                 // (adding/removing a card mid-session, or going from "no GPU detected" to detected).
-                if (!el.querySelector('.mdSysCell') || existingGpuCells !== expectedGpuCells) {
-                    el.innerHTML = buildSystemStatsHtml(sys, gpus);
+                if (!el.querySelector('.mdSysCell') || existingGpuCells !== expectedGpuCells || existingDiskCells !== disks.length) {
+                    el.innerHTML = buildSystemStatsHtml(gpus, disks);
+                    el.querySelectorAll('.mdSysInfo').forEach(function (info) {
+                        function restoreTooltip() { info.removeAttribute('data-dismissed'); }
+                        info.addEventListener('mouseenter', restoreTooltip);
+                        info.addEventListener('focusin', restoreTooltip);
+                        info.addEventListener('keydown', function (event) {
+                            if (event.key === 'Escape') info.setAttribute('data-dismissed', '');
+                        });
+                    });
                 }
 
-                updateSystemStatsInPlace(sys, gpus);
+                updateSystemStatsInPlace(sys, gpus, disks);
             }
 
 
@@ -454,10 +464,14 @@
             }
 
 
-            function buildSystemStatsHtml(sys, gpus) {
-                function cellHtml(icon, iconColor, title, kind) {
+            function buildSystemStatsHtml(gpus, disks) {
+                function cellHtml(icon, iconColor, title, kind, tooltip) {
+                    var tipId = 'mdSysTip-' + kind;
+                    var tip = tooltip ? '<span class="mdSysInfo"><button type="button" aria-label="' + deps.esc(title) +
+                        '" aria-describedby="' + tipId + '"><span class="material-icons" aria-hidden="true">info</span></button>' +
+                        '<span id="' + tipId + '" role="tooltip">' + deps.esc(tooltip) + '</span></span>' : '';
                     return '<div class="mdSysCell" data-kind="' + kind + '">' +
-                        '<div class="mdSysHead"><span class="material-icons" style="color:' + iconColor + ';">' + icon + '</span>' + deps.esc(title) + '</div>' +
+                        '<div class="mdSysHead"><span class="material-icons" style="color:' + iconColor + ';">' + icon + '</span><span data-field="title">' + deps.esc(title) + '</span>' + tip + '</div>' +
                         '<div class="mdSysValue" data-field="value"></div>' +
                         '<div class="mdBarTrack" data-field="track"><div class="mdBarFill" data-field="bar" style="width:3%;"></div></div>' +
                         '<div class="mdSysHint" data-field="hint"></div>' +
@@ -485,11 +499,14 @@
                         cellHtml('memory', '#22d3ee', deps.STR.statCpu, 'cpu') +
                         cellHtml('memory_alt', '#8b5cf6', deps.STR.statRam, 'ram') +
                         gpuCellsHtml +
+                        disks.map(function (disk, index) {
+                            return cellHtml('storage', '#f59e0b', deps.STR.statDiskIo, 'disk-io-' + index, deps.STR.statDiskIoTooltip);
+                        }).join('') +
                     '</div></div>';
             }
 
 
-            function updateSystemStatsInPlace(sys, gpus) {
+            function updateSystemStatsInPlace(sys, gpus, disks) {
                 var el = deps.view.querySelector('#mdSystem');
                 var platform = el.querySelector('[data-field="platform"]');
                 if (platform) platform.textContent = deps.fmt(deps.STR.statPlatform, sys.Platform || 'Unknown');
@@ -524,6 +541,18 @@
                         setCellValues(el, 'gpu-' + i, (g.Percent || 0).toFixed(1) + '%', hint, g.Percent, true);
                     }
                 }
+
+                function diskRate(value) {
+                    return Number.isFinite(value) && value >= 0 ? deps.esc(deps.bytes(value)) + '/s' : naPlain;
+                }
+                disks.forEach(function (disk, index) {
+                    var kind = 'disk-io-' + index;
+                    var title = el.querySelector('.mdSysCell[data-kind="' + kind + '"] [data-field="title"]');
+                    if (title) title.textContent = deps.STR.statDiskIo + (disk.Name ? ' · ' + disk.Name : '');
+                    var diskValues = '<div>' + deps.esc(deps.STR.statDiskRead) + ' ' + diskRate(disk.ReadBytesPerSecond) + '</div>' +
+                        '<div>' + deps.esc(deps.STR.statDiskWrite) + ' ' + diskRate(disk.WriteBytesPerSecond) + '</div>';
+                    setCellValues(el, kind, diskValues, disk.Name ? '' : platformHint, null);
+                });
             }
 
 
@@ -733,7 +762,7 @@
                         if (reason === 'Permission denied') {
                             msg += '\n\nFix on the host: give the user Jellyfin runs as (typically "jellyfin" on Linux) read+write on your library folders. Example: sudo chown -R jellyfin:jellyfin /mnt/media && sudo find /mnt/media -type d -exec chmod g+rwx {} +';
                         } else if (reason === 'Not enough free disk space') {
-                            msg += '\n\nFree some space on the target drive, then click "Retry all fixes" on the Errors tab.';
+                            msg += '\n\nEach row on the Errors tab shows the file size, how much the fix needs, and how much is free on the target drive. Free up that much space (or move the file to a drive that has it), then click "Retry all fixes".';
                         }
                         if (window.Dashboard && Dashboard.alert) {
                             Dashboard.alert({ title: 'Fix run finished with failures', message: msg });
@@ -777,16 +806,13 @@
 
                 if (s.IsScanning) {
                     busy.scan = true;
-                    var scanPct = s.ScanProgress || 0;
-                    // Mirror the fix branch below: derive both the percent text and the progress bar
-                    // fill from the server's scanner-count (N done / M total) so the whole progress
-                    // cluster tells one story. Falls back to the server-side ScanProgress while
-                    // ScanScannersTotal is null (very first poll before ScanTask has published).
+                    var scanPct = s.ScanProgress;
+                    // Include progress within the current scanner so a long stage does not look stalled.
                     var scannersDone = s.ScanScannersDone || 0;
                     var scannersTotal = s.ScanScannersTotal || 0;
-                    var scanItemsPct = scannersTotal > 0
-                        ? Math.round(scannersDone / scannersTotal * 100)
-                        : Math.round(scanPct);
+                    var scanItemsPct = typeof scanPct === 'number'
+                        ? Math.round(scanPct)
+                        : (scannersTotal > 0 ? Math.round(scannersDone / scannersTotal * 100) : 0);
                     var scanItemsPart = scannersTotal > 0
                         ? ' · ' + scannersDone + ' / ' + scannersTotal + ' scanners done'
                         : '';
@@ -832,7 +858,7 @@
                     busy.fix = false;
                     progressStart.fixPendingBase = 0;
                     setProgress(false);
-                    state.textContent = deps.STR.fixDone;
+                    state.textContent = curr && curr.FinishedAtUtc !== prevFinishedAt && curr.NoWorkReason ? curr.NoWorkReason : deps.STR.fixDone;
                     if (deps.view.querySelector('#mdTab-history').style.display !== 'none' && deps.historyTab) deps.historyTab.activate();
                 } else if (s.LastScanCompletedUtc || s.LastScanUtc) {
                     setProgress(false);
@@ -866,12 +892,14 @@
                 }
 
                 var pauseNote = deps.view.querySelector('#mdFixPauseNote');
-                if (s.IsFixing && s.FixPauseReason) {
-                    deps.view.querySelector('#mdFixPauseText').textContent = s.FixPauseReason;
+                var fixNote = s.FixPauseReason;
+                if (!s.IsScanning && fixNote) {
+                    deps.view.querySelector('#mdFixPauseText').textContent = fixNote;
                     pauseNote.style.display = 'flex';
                 } else {
                     pauseNote.style.display = 'none';
                 }
+                deps.view.querySelector('#mdFixIgnoreActivity').style.display = s.IsFixing && fixNote && !(curr && curr.NoWorkReason === fixNote) ? '' : 'none';
 
                 // Keep polling while the Overview tab is visible so the system-performance card is actually live
                 // (task-manager-ish). schedulePoll during scan/fix already handles those cases; this adds the idle
@@ -939,7 +967,7 @@
                             ? ' <button type="button" class="mdRedownloadRestoreOpt" data-history-id="' + w.HistoryId + '" style="background:transparent;border:1px solid #f59e0b;color:#f59e0b;border-radius:6px;padding:.05em .5em;margin-left:.4em;font-size:.85em;cursor:pointer;" title="Find the smaller remuxed copy in the recycle bin and restore it here. Acknowledges the row after.">Restore optimized</button>'
                             : '';
                         var ackBtn = ' <button type="button" class="mdRedownloadAck" data-history-id="' + w.HistoryId + '" style="background:transparent;border:1px solid #94a3b8;color:#94a3b8;border-radius:6px;padding:.05em .5em;margin-left:.4em;font-size:.85em;cursor:pointer;" title="Acknowledge this warning. The row stays in history; the banner stops flagging it on future scans.">Acknowledge</button>';
-                        return '<li title="' + deps.esc(w.Path) + '" data-history-id="' + w.HistoryId + '">' + deps.esc(w.Path.split('/').pop()) +
+                        return '<li title="' + deps.esc(w.Path) + '" data-history-id="' + w.HistoryId + '">' + deps.esc(w.Path.split(/[\\/]/).pop()) +
                                ' — original ' + mb(w.OriginalBytes) + ' → shrunk → now back at ' + mb(w.CurrentBytes) +
                                ' (fixed ' + new Date(w.FixedAtUtc).toLocaleDateString() + ')' + artifactTag + restoreBtn + ackBtn + '</li>';
                     }).join('');
@@ -1031,7 +1059,7 @@
                     }
                     var panelBg = getComputedStyle(deps.view).getPropertyValue('--md-panel').trim() || '#242b36';
                     // Left panel is exclusively about space reclaim. Filter out types that don't free
-                    // any bytes (Ungrouped is a move, MissingSubtitles adds a file, Stale is detect-only,
+                    // any bytes (Ungrouped is a move, MissingSubtitles adds a file, Stale is informational-only,
                     // etc.) — they showed up here with a count but no savings, which was confusing.
                     var reclaimCounts = counts.filter(function (c) { return (c.PotentialSavings || 0) > 0; });
                     var reclaimHtml =

@@ -1,18 +1,21 @@
 using System;
+using System.IO;
+using Jellyfin.Plugin.MediaDash.Fixers;
+using Microsoft.Data.Sqlite;
 
 namespace Jellyfin.Plugin.MediaDash.Data;
 
 /// <summary>
-/// Owns the four probe-cache tables: <c>probe_cache</c> (ffprobe JSON), <c>file_hashes</c>
+/// Owns probe-cache tables including <c>probe_cache</c> (ffprobe JSON), <c>file_hashes</c>
 /// (Duplicate scanner's Tier-0 SHA-256), <c>format_probe_cache</c> (book/comic container
-/// validation) and <c>decode_cache</c> (Playability scanner's decode-check result). Extracted
+/// validation), <c>decode_cache</c> (Playability decode results), and <c>audio_decode_cache</c> (successful multi-track audio checks). Extracted
 /// from <see cref="MediaDashDb"/> in 05-C.4; the facade retains one-line forwarders so pre-existing
 /// callers (tests + un-migrated call sites) keep working while consumers (FfprobeService,
 /// FileHasher, BookProbeService, ComicProbeService) are pointed at the narrower type.
 /// </summary>
 /// <remarks>
 /// Every method is one connection, one statement — no cross-store atomicity concerns here. All
-/// four caches are pure convenience caches: the plugin re-computes the underlying result if the
+/// caches are pure convenience caches: the plugin re-computes the underlying result if the
 /// cached row is missing, so a lost entry is a performance issue, never a correctness issue.
 /// </remarks>
 public sealed class ProbeCacheStore
@@ -24,6 +27,70 @@ public sealed class ProbeCacheStore
     public ProbeCacheStore(MediaDashConnectionFactory connectionFactory)
     {
         _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
+    }
+
+    internal static void InvalidateMovedPaths(SqliteConnection connection, SqliteTransaction transaction, MediaMovePlan plan)
+    {
+        var collation = OperatingSystem.IsWindows() ? "NOCASE" : "BINARY";
+        foreach (var table in new[] { "probe_cache", "file_hashes", "format_probe_cache", "decode_cache", "audio_decode_cache" })
+        {
+            foreach (var entry in plan.Entries)
+            {
+                foreach (var path in new[] { entry.Source, entry.Destination, plan.CatalogPath })
+                {
+                    if (string.IsNullOrEmpty(path))
+                    {
+                        continue;
+                    }
+
+                    using var command = connection.CreateCommand();
+                    command.Transaction = transaction;
+                    // Identifiers are a fixed internal whitelist; all paths are bound values.
+#pragma warning disable CA2100 // Both identifiers are fixed internal whitelists. Every path is bound as a value.
+                    command.CommandText = "DELETE FROM " + table + " WHERE path=@path COLLATE " + collation;
+                    command.Parameters.AddWithValue("@path", path);
+                    if (entry.IsDirectory)
+                    {
+                        var prefix = Path.TrimEndingDirectorySeparator(path) + Path.DirectorySeparatorChar;
+                        var upper = prefix[..^1] + (char)(prefix[^1] + 1);
+                        command.CommandText += " OR (path>=@prefix COLLATE " + collation + " AND path<@upper COLLATE " + collation + ")";
+                        command.Parameters.AddWithValue("@prefix", prefix);
+                        command.Parameters.AddWithValue("@upper", upper);
+                    }
+#pragma warning restore CA2100
+
+                    command.ExecuteNonQuery();
+                }
+            }
+        }
+    }
+
+    internal bool HasCleanAudioDecode(string path, long size, long mtime, string signature)
+    {
+        using var connection = _connectionFactory.Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT 1 FROM audio_decode_cache WHERE path=@path AND size=@size AND mtime_utc=@mtime AND signature=@signature";
+        cmd.Parameters.AddWithValue("@path", path);
+        cmd.Parameters.AddWithValue("@size", size);
+        cmd.Parameters.AddWithValue("@mtime", mtime);
+        cmd.Parameters.AddWithValue("@signature", signature);
+        return cmd.ExecuteScalar() is not null;
+    }
+
+    internal void StoreCleanAudioDecode(string path, long size, long mtime, string signature)
+    {
+        using var connection = _connectionFactory.Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO audio_decode_cache (path, size, mtime_utc, signature)
+            VALUES (@path, @size, @mtime, @signature)
+            ON CONFLICT(path) DO UPDATE SET size=@size, mtime_utc=@mtime, signature=@signature
+            """;
+        cmd.Parameters.AddWithValue("@path", path);
+        cmd.Parameters.AddWithValue("@size", size);
+        cmd.Parameters.AddWithValue("@mtime", mtime);
+        cmd.Parameters.AddWithValue("@signature", signature);
+        cmd.ExecuteNonQuery();
     }
 
     /// <summary>Looks up a cached ffprobe result that is still valid for the file's current size and modification time.</summary>
@@ -161,7 +228,8 @@ public sealed class ProbeCacheStore
     {
         using var connection = _connectionFactory.Open();
         using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT error FROM decode_cache WHERE path = @path AND size = @size AND mtime_utc = @mtime";
+        // Older builds cached infrastructure timeouts as corruption; retry those instead.
+        cmd.CommandText = "SELECT error FROM decode_cache WHERE path = @path AND size = @size AND mtime_utc = @mtime AND error <> 'decode check timed out'";
         cmd.Parameters.AddWithValue("@path", path);
         cmd.Parameters.AddWithValue("@size", size);
         cmd.Parameters.AddWithValue("@mtime", mtimeUtcTicks);

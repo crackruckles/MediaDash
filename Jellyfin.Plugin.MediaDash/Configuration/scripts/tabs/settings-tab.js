@@ -24,7 +24,7 @@
                 'MalwareRisk', 'Playability', 'Duplicate', 'OrphanedDebris', 'Misplaced', 'Ungrouped',
                 'MissingSubtitles', 'SubtitleLanguage', 'AudioLanguage', 'Quality',
                 'HeavyTranscode', 'FailedTranscode', 'SubtitleFonts', 'EmbeddedCoverArt',
-                'CorruptNfo', 'CorruptArtwork', 'Stale', 'LargeTrickplay'
+                'CorruptNfo', 'CorruptArtwork', 'Stale', 'LargeTrickplay', 'FormatCompatibility'
             ];
 
 
@@ -54,9 +54,10 @@
                 { key: 'Misplaced', mode: 'MisplacedFixMode' },
                 // Missing-subtitle fixes add a file rather than remove one; no disposal choice.
                 { key: 'MissingSubtitles', mode: 'MissingSubtitlesFixMode' },
-                // Stale content is detect-only for now — no fixer, no disposal choice; the "How it runs" select
-                // hides its Automatic option (see buildFixTypeRows) since there's nothing to automate.
-                { key: 'Stale', mode: 'StaleFixMode' },
+                // Stale content: fixer deletes the unwatched file per-row. Automatic is intentionally
+                // suppressed (modeSegments autoSuppressed flag; NormaliseFixModes clamps server-side)
+                // so a mis-set threshold can't batch-delete someone's library. Off + Ask me first only.
+                { key: 'Stale', mode: 'StaleFixMode', disposal: 'StaleDisposal' },
                 { key: 'MalwareRisk', mode: 'SuspiciousFileFixMode', disposal: 'SuspiciousFileDisposal' },
                 // Trickplay conversion rewrites in place — no disposal choice, and no separate disposal
                 // config on the C# side. Just a fix mode + a quality slider.
@@ -116,6 +117,8 @@
 
 
             var currentBitrateFactor = 1;
+            var hydratedBitrateBase = null;
+            var bitrateSliderEdited = false;
 
 
             function bitrateFactor() {
@@ -124,6 +127,8 @@
 
 
             function setBitrateSliderForResolution(base1080) {
+                hydratedBitrateBase = base1080;
+                bitrateSliderEdited = false;
                 currentBitrateFactor = bitrateFactor();
                 var slider = deps.view.querySelector('#mdMaxBitrate');
                 slider.max = Math.ceil(40 * currentBitrateFactor);
@@ -139,6 +144,7 @@
 
 
             function bitrateBaseFromSlider() {
+                if (!bitrateSliderEdited && hydratedBitrateBase != null) return hydratedBitrateBase;
                 // Divide by the factor the slider was DISPLAYED with, not the freshly selected resolution's factor.
                 return Math.round((parseFloat(deps.view.querySelector('#mdMaxBitrate').value) / currentBitrateFactor) * 10) / 10 || 8;
             }
@@ -160,7 +166,6 @@
 
             function modeOptions() {
                 return '<option value="Off">' + deps.esc(deps.STR.modeOff) + '</option>' +
-                    '<option value="DetectOnly">' + deps.esc(deps.STR.modeDetect) + '</option>' +
                     '<option value="ManualApprove">' + deps.esc(deps.STR.modeManual) + '</option>' +
                     '<option value="Automatic">' + deps.esc(deps.STR.modeAuto) + '</option>';
             }
@@ -296,31 +301,35 @@
 
 
             function modeSegments(key) {
-                var canAuto = key !== 'Stale';
+                // Stale is approval-only — age-based auto-delete can clear a library overnight,
+                // so Automatic is hidden here and clamped server-side by NormaliseFixModes.
+                // Ask me first stays available so the scanner can actually be turned on; the earlier
+                // "canAuto = false" shortcut suppressed both Automatic AND Ask me first and left
+                // Off as the sole option, hiding any way to enable the scanner.
+                var autoSuppressed = key === 'Stale';
                 // Duplicate: Automatic disabled while the new confidence-ladder detection stabilises
-                // (rework landed in 1.0.6, still tuning against real reporter data). Detect-only or
-                // Ask-me-first is the safe posture for now; a stray auto-delete on a false-positive
-                // pair is irreversible where a false-negative leaves a duplicate for next scan.
+                // (rework landed in 1.0.6, still tuning against real reporter data). Ask-me-first is
+                // the safe posture for now; a stray auto-delete on a false-positive pair is
+                // irreversible where a false-negative leaves a duplicate for next scan.
                 var duplicateAutoDisabled = key === 'Duplicate';
                 var opts = [
                     { v: 'Off', l: deps.STR.modeOff || 'Off' },
-                    { v: 'DetectOnly', l: deps.STR.modeDetect || 'Detect only' }
+                    { v: 'ManualApprove', l: deps.STR.modeManual || 'Ask me first' }
                 ];
-                if (canAuto) {
-                    opts.push({ v: 'ManualApprove', l: deps.STR.modeManual || 'Ask me first' });
-                    if (!duplicateAutoDisabled) {
-                        opts.push({ v: 'Automatic', l: deps.STR.modeAuto || 'Automatic' });
-                    }
+                if (!autoSuppressed && !duplicateAutoDisabled) {
+                    opts.push({ v: 'Automatic', l: deps.STR.modeAuto || 'Automatic' });
                 }
                 var tooltip = duplicateAutoDisabled
-                    ? ' title="Automatic mode is temporarily disabled while duplicate detection is being reworked and isn\'t reliable enough for hands-off auto-delete. Use Detect only (safest) or Ask me first."'
-                    : '';
+                    ? ' title="Automatic mode is temporarily disabled while duplicate detection is being reworked and isn\'t reliable enough for hands-off auto-delete. Use Ask me first."'
+                    : (autoSuppressed
+                        ? ' title="Stale is approval-only — each row needs an explicit Approve on the Issues tab before the file is deleted. Automatic is deliberately not offered."'
+                        : '');
                 return '<div class="mdTaskModes" role="radiogroup"' + tooltip + '>' + opts.map(function (o) {
                     var i = o.l.indexOf(' — ');
                     var inner = i < 0 ? deps.esc(o.l) : deps.esc(o.l.slice(0, i)) + '<span class="mdModeHint"> — ' + deps.esc(o.l.slice(i + 3)) + '</span>';
                     return '<button type="button" data-mode="' + o.v + '">' + inner + '</button>';
                 }).join('') + '</div>' +
-                    '<input type="hidden" id="mdMode' + key + '" value="DetectOnly" />';
+                    '<input type="hidden" id="mdMode' + key + '" value="ManualApprove" />';
                 // The "Automatic disabled" explanation lives in the Duplicate task-card BODY
                 // (see buildTaskCard's `key === 'Duplicate'` branch) — putting it here made the
                 // header flex row wrap the amber banner alongside the mode segments, squashing
@@ -368,7 +377,7 @@
                     // 1.0.6 rework in flight — surface why Automatic isn't offered before the user
                     // scrolls through the confidence-gate knobs. Rendered inside the card BODY
                     // (not the header flex row) so it doesn't squash the title.
-                    return '<div class="fieldDescription" style="margin:0 0 .8em;padding:.6em .8em;border-radius:6px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);font-size:.9em;"><span class="material-icons" style="font-size:1em;vertical-align:-3px;color:#f59e0b;">construction</span> <b>Automatic mode is temporarily disabled for duplicates.</b> The detection pipeline is being reworked (see 1.0.6 changelog); it isn\'t reliable enough for hands-off auto-delete yet. <b>Detect only</b> or <b>Ask me first</b> are the recommended settings until this notice is removed.</div>' +
+                    return '<div class="fieldDescription" style="margin:0 0 .8em;padding:.6em .8em;border-radius:6px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);font-size:.9em;"><span class="material-icons" style="font-size:1em;vertical-align:-3px;color:#f59e0b;">construction</span> <b>Automatic mode is temporarily disabled for duplicates.</b> The detection pipeline is being reworked (see 1.0.6 changelog); it isn\'t reliable enough for hands-off auto-delete yet. <b>Ask me first</b> is the recommended setting until this notice is removed.</div>' +
                         '<div class="mdFieldGrid mdFieldGrid-2">' +
                         '<div class="mdField">' +
                             '<label for="mdKeeperPolicy" title="How the duplicate scanner picks which copy stays. Best-quality is the safe default; codec-first favours modern re-encodes; size-first ruthlessly picks the smallest file even if it\'s lower quality.">When duplicates are found, keep</label>' +
@@ -425,12 +434,12 @@
                 if (key === 'Playability') {
                     return '<div class="mdFieldGrid mdFieldGrid-2">' +
                         disposalField('Playability', 'Broken files go to') +
-                        '<label class="mdInsetRow--stack" style="cursor:pointer;" title="Test-plays start, middle and end (30s each). Slower first scan; cached after.">' +
+                        '<label class="mdInsetRow--stack" style="cursor:pointer;">' +
                             '<span class="mdInsetRowMain">' +
                                 '<input id="mdThorough" type="checkbox" class="mdInsetCheck" checked />' +
                                 '<span style="font-size:13px;font-weight:600;">Thorough playability check</span>' +
                             '</span>' +
-                            '<span class="mdFieldHint mdInsetRowHint">Test-plays start, middle and end (30s each). Slower first scan; cached after.</span>' +
+                            '<span class="mdFieldHint mdInsetRowHint">On adds full multi-track audio and interleave checks. Off samples video and all audio tracks in short windows. Sampled checks can miss damage between windows.</span>' +
                         '</label>' +
                         '</div>' +
                         '<div class="mdFieldGrid mdFieldGrid-1" style="margin-top:12px;">' +
@@ -617,10 +626,9 @@
                         '</div>' +
                         '<div class="mdFieldGrid mdFieldGrid-2">' +
                             '<div class="mdField">' +
-                                '<label for="mdModeSubtitleFonts" title="Detect only surfaces reclaimable bytes without touching files. Ask me first queues the fix; Automatic runs it in the next fix window.">Font optimizer mode</label>' +
+                                '<label for="mdModeSubtitleFonts" title="Ask me first queues the fix for review; Automatic runs it in the next fix window.">Font optimizer mode</label>' +
                                 '<select is="emby-select" id="mdModeSubtitleFonts" class="emby-select-withcolor emby-select">' +
                                     '<option value="Off">Off</option>' +
-                                    '<option value="DetectOnly">Detect only</option>' +
                                     '<option value="ManualApprove">Ask me first</option>' +
                                     '<option value="Automatic">Automatic</option>' +
                                 '</select>' +
@@ -769,7 +777,7 @@
                             '</label>' +
                             '<label class="emby-checkbox-label" style="display:flex;align-items:center;gap:.6em;margin:.35em 0;">' +
                                 '<input id="mdOrphanMetadata" type="checkbox" is="emby-checkbox" />' +
-                                '<span>Jellyfin metadata folders (in the internal metadata dir) whose item GUID no longer resolves</span>' +
+                                '<span>Jellyfin metadata folders whose item no longer exists (global cleanup; missing owners cannot be assigned to a selected library)</span>' +
                             '</label>' +
                             '<span class="mdFieldHint">Every fix is re-verified at delete time — if a video reappeared between scan and fix, the orphan is left alone.</span>' +
                         '</div>' +
@@ -798,6 +806,7 @@
                             '<input id="mdStaleThresholdDays" type="number" min="1" max="3650" is="emby-input" />' +
                             '<span class="mdFieldHint">Item must also have been on the server this long, so fresh imports don\'t immediately flag.</span>' +
                         '</div>' +
+                        disposalField('Stale', 'Deleted stale files go to') +
                         '<div class="mdField">' +
                             '<label for="mdStaleExcludedGenres" title="Media tagged with any of these genres is skipped by the Stale scanner. Draws from the genres actually present in your libraries — start typing to see suggestions.">Skip these genres</label>' +
                             '<input id="mdStaleExcludedGenres" type="text" is="emby-input" list="mdGenreList" placeholder="Documentary, Christmas" />' +
@@ -808,7 +817,7 @@
                             '<div id="mdStaleExcludedLibs" class="mdFieldHint">Loading libraries…</div>' +
                         '</div>' +
                         '</div>' +
-                        '<span class="mdFieldHint">Detect-only — Stale content never gets deleted automatically.</span>';
+                        '<span class="mdFieldHint">Approval-only — Automatic is deliberately not offered. Each stale item needs an explicit Approve on the Issues tab before the file is deleted.</span>';
                 }
                 if (key === 'FormatCompatibility') {
                     return '<div class="mdFieldGrid mdFieldGrid-2">' +
@@ -1004,6 +1013,7 @@
                 if (newMode === oldMode) return;
                 if (newMode === 'Automatic' && !window.confirm(deps.STR.confirmAuto)) return;
                 hidden.value = newMode;
+                markSettingsDirty();
                 syncModeSegments(key);
                 applyTaskState(key);
                 updateActiveCount();
@@ -1033,11 +1043,11 @@
                 var mode = el ? el.value : 'Off';
                 card.classList.toggle('mdTaskOff', mode === 'Off');
                 card.classList.toggle('mdTaskOn', mode !== 'Off');
-                // Disposal only takes effect when fixes actually run. Detect only + Off leave the file
-                // alone entirely, so grey the disposal select to reflect that it's not doing anything.
+                // Disposal only takes effect when fixes actually run. Off leaves the file alone
+                // entirely, so grey the disposal select to reflect that it's not doing anything.
                 var disp = deps.view.querySelector('#mdDisposal' + key);
                 if (disp) {
-                    var inert = mode === 'Off' || mode === 'DetectOnly';
+                    var inert = mode === 'Off';
                     disp.disabled = inert;
                     disp.style.opacity = inert ? '.45' : '';
                     disp.title = inert ? 'This only applies once fixes run — switch to Ask me first or Automatic.' : '';
@@ -1139,7 +1149,6 @@
 
 
             function modeLabelFor(mode) {
-                if (mode === 'DetectOnly') return 'Detect only';
                 if (mode === 'ManualApprove') return 'Ask me first';
                 if (mode === 'Automatic') return 'Automatic';
                 return 'On';
@@ -1164,7 +1173,7 @@
                 }
                 if (key === 'Playability') {
                     var thorough = deps.view.querySelector('#mdThorough');
-                    return (thorough && thorough.checked ? 'Thorough check on · ' : 'Basic check · ') + 'broken files go to the recycle bin';
+                    return (thorough && thorough.checked ? 'Thorough check · ' : 'Sampled check · ') + 'broken files go to the recycle bin';
                 }
                 if (key === 'Quality') {
                     var res = deps.view.querySelector('#mdMaxRes');
@@ -1276,7 +1285,7 @@
                 var modeTag = '';
                 if (r.taskKey) {
                     var mode = (deps.view.querySelector('#mdMode' + r.taskKey) || {}).value || 'Off';
-                    var short = { Off: 'off', DetectOnly: 'detect', ManualApprove: 'ask', Automatic: 'auto' }[mode] || mode.toLowerCase();
+                    var short = { Off: 'off', ManualApprove: 'ask', Automatic: 'auto' }[mode] || mode.toLowerCase();
                     modeTag = '<span class="mdJumpRowMode">' + short + '</span>';
                 }
                 return '<a class="mdJumpRow mdSetChip' + (isCurrent ? ' mdJumpCurrentRow' : '') + '" href="' + r.href + '"' + attr +
@@ -1346,7 +1355,7 @@
                     var key = row.getAttribute('data-task-chip');
                     var el = deps.view.querySelector('#mdMode' + key);
                     var mode = (el && el.value) || 'Off';
-                    var short = { Off: 'off', DetectOnly: 'detect', ManualApprove: 'ask', Automatic: 'auto' }[mode] || mode.toLowerCase();
+                    var short = { Off: 'off', ManualApprove: 'ask', Automatic: 'auto' }[mode] || mode.toLowerCase();
                     var tag = row.querySelector('.mdJumpRowMode');
                     if (tag) tag.textContent = short;
                 });
@@ -1377,7 +1386,7 @@
                             var code = b.parentElement.getAttribute('data-code');
                             hidden.value = currentCodes().filter(function (c) { return c !== code; }).join(', ');
                             redraw();
-                            notifyLangChange();
+                            notifyLangChange(hidden);
                         });
                     });
                 }
@@ -1400,7 +1409,7 @@
                     hidden.value = codes.join(', ');
                     input.value = '';
                     redraw();
-                    notifyLangChange();
+                    notifyLangChange(hidden);
                     return true;
                 }
                 input.addEventListener('keydown', function (e) {
@@ -1411,7 +1420,7 @@
                         var codes2 = currentCodes(); codes2.pop();
                         hidden.value = codes2.join(', ');
                         redraw();
-                        notifyLangChange();
+                        notifyLangChange(hidden);
                     }
                 });
                 // A typed prefix can itself be another language: fi (Finnish) starts
@@ -1450,12 +1459,13 @@
                     if (btn.getAttribute('data-preset') !== 'clear') return;
                     hidden.value = '';
                     if (chip._redraw) chip._redraw();
-                    notifyLangChange();
+                    notifyLangChange(hidden);
                 });
             }
 
 
-            function notifyLangChange() {
+            function notifyLangChange(hidden) {
+                if (hidden && hidden.closest('#mdSettingsForm')) markSettingsDirty();
                 updateSummary('SubtitleLanguage');
                 updateSummary('AudioLanguage');
                 updateSummary('MissingSubtitles');
@@ -1531,6 +1541,7 @@
                     var input = deps.view.querySelector('#' + s.id);
                     var label = deps.view.querySelector('#' + s.val);
                     input.addEventListener('input', function () {
+                        if (s.id === 'mdMaxBitrate') bitrateSliderEdited = true;
                         label.textContent = sliderLabelText(s, input.value);
                     });
                 });
@@ -1886,7 +1897,10 @@
                         initTaskCardsAfterLoad();
                     }
                     // Empty library selections mean all libraries. Save must wait for both lists.
-                    return Promise.all([loadLibraries(c), loadStaleExcludedLibraries(c)]).then(function () {
+                    return Promise.all([
+                        dirtyBeforeApply && deps.view.querySelector('#mdLibraries .mdLib') ? Promise.resolve() : loadLibraries(c),
+                        dirtyBeforeApply && deps.view.querySelector('#mdStaleExcludedLibs .mdStaleExcludeLib') ? Promise.resolve() : loadStaleExcludedLibraries(c)
+                    ]).then(function () {
                         mdConfigLoaded = true;
                     });
                 }).catch(function () {
@@ -1933,6 +1947,9 @@
                     var label = 'GPU ' + g.Index + ' — ' + g.Name + ' (' + (g.Source || '') + ')';
                     html += '<option value="' + g.Index + '">' + deps.esc(label) + '</option>';
                 });
+                if (useHw && currentIndex != null && !gpus.some(function (g) { return String(g.Index) === String(currentIndex); })) {
+                    html += '<option value="' + deps.esc(String(currentIndex)) + '">GPU ' + deps.esc(String(currentIndex)) + ' (not currently detected)</option>';
+                }
                 sel.innerHTML = html;
                 sel.value = deps.encoderConfigToValue(useHw, currentIndex);
             }
@@ -1992,7 +2009,7 @@
                 c.RenameAfterTranscode = view.querySelector('#mdRenameAfterTranscode').checked;
                 c.PreserveExternalIdInFilename = view.querySelector('#mdPreserveExternalIdInFilename').checked;
                 c.RecycleBinPath = view.querySelector('#mdBinPath').value.trim();
-                c.RecycleBinRetentionDays = parseInt(view.querySelector('#mdRetention').value, 10) || 30;
+                c.RecycleBinRetentionDays = Math.max(1, parseInt(view.querySelector('#mdRetention').value, 10) || 30);
                 var warnGb = parseInt(view.querySelector('#mdBinWarnThreshold').value, 10);
                 c.RecycleBinWarnThresholdGb = isNaN(warnGb) ? 10 : Math.max(0, warnGb);
                 var pauseGb = parseInt(view.querySelector('#mdBinPauseAt').value, 10);
@@ -2061,11 +2078,17 @@
             // user-cancellation without polling the dirty flag.
             function saveSettings(e) {
                 if (e) e.preventDefault();
-                saveSettingsAsync();
+                saveSettingsAsync().catch(showSaveError);
                 return false;
             }
 
-            function saveSettingsAsync() {
+            function showSaveError(error) {
+                if (error && ['cancelled', 'low-space-warn', 'not-loaded'].indexOf(error.message) >= 0) return;
+                deps.view.querySelector('#mdSaveMsg').textContent = 'Could not save settings — ' + ((error && (error.responseText || error.message || error.statusText)) || 'unknown error');
+            }
+
+            function saveSettingsAsync(forceSaveDespiteLowSpace) {
+                deps.view.querySelector('#mdSaveMsg').textContent = '';
                 // Race gate — refuse to save until the load pass has hydrated every checkbox
                 // from the server-side config. Without this, an early click of Save persists
                 // every un-hydrated checkbox as `false` (DryRun silently off → real deletes,
@@ -2096,14 +2119,12 @@
                     }
 
                     readFormIntoConfig(deps.view, c);
-                    return validateAndSaveConfig(c, deps.view.querySelector('#mdBinPath').value.trim());
+                    return validateAndSaveConfig(c, deps.view.querySelector('#mdBinPath').value.trim(), forceSaveDespiteLowSpace === true);
                 });
             }
 
 
-            // Pre-flight the recycle bin volume before saving: ≥5 GB free is required and, when the
-            // pause-cap is still at the 0 (disabled) default, seed it with the disk's suggestion so
-            // fills can't drive the volume below the 3 GB safety floor unseen. Soft-warns on
+            // Pre-flight the recycle bin volume before saving. Soft-warns on
             // insufficient space with a jump-to-card button and a "Save anyway" override — GitHub
             // #58: users on smaller volumes were completely blocked from saving unrelated settings
             // because the refusal was hard. forceSaveDespiteLowSpace=true skips the check and
@@ -2160,10 +2181,7 @@
                         var card = deps.view.querySelector('#mdSet-recycle');
                         if (!card) return;
                         // Uncollapse the card if it's collapsed (mdSetHead click toggles collapsed state).
-                        if (card.classList.contains('mdSetCard--collapsed')) {
-                            var head = card.querySelector('.mdSetHead');
-                            if (head) head.click();
-                        }
+                        setSetCardCollapsed(card, false);
                         card.scrollIntoView({ behavior: 'smooth', block: 'start' });
                         var pathInput = deps.view.querySelector('#mdBinPath');
                         if (pathInput) {
@@ -2175,7 +2193,7 @@
                 var forceBtn = warnEl.querySelector('#mdBinDiskWarnForce');
                 if (forceBtn && pendingConfig) {
                     forceBtn.addEventListener('click', function () {
-                        validateAndSaveConfig(pendingConfig, pendingBinPath, true);
+                        saveSettingsAsync(true).catch(showSaveError);
                     });
                 }
             }
@@ -2222,7 +2240,7 @@
                     if (!target) { Dashboard.alert({ message: 'Target is required.', title: 'Protected paths' }); return; }
                     if (!mask) { Dashboard.alert({ message: 'Pick at least one issue type to block (or tick All).', title: 'Protected paths' }); return; }
                     var body = { Kind: kind, Target: target, ScannersMask: mask, FixersMask: mask, Note: (view.querySelector('#mdProtNote').value || '').trim() };
-                    ApiClient.ajax({
+                    deps.api.ajax({
                         type: 'POST',
                         url: ApiClient.getUrl('MediaDash/Protection'),
                         contentType: 'application/json',
@@ -2376,7 +2394,7 @@
                     host.querySelectorAll('.mdProtRemove').forEach(function (btn) {
                         btn.addEventListener('click', function () {
                             var id = btn.getAttribute('data-id');
-                            ApiClient.ajax({ type: 'DELETE', url: ApiClient.getUrl('MediaDash/Protection/' + id) })
+                            deps.api.ajax({ type: 'DELETE', url: ApiClient.getUrl('MediaDash/Protection/' + id) })
                                 .then(reloadProtectionRows, function (xhr) {
                                     Dashboard.alert({ message: (xhr && xhr.responseText) || 'Failed to remove rule.', title: 'Protected paths' });
                                 });

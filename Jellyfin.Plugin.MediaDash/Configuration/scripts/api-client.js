@@ -1,5 +1,5 @@
 // Server-aware requests scoped to the current page generation.
-// Stale successes and failures never render; active HTTP errors propagate unchanged.
+// Stale successes and failures never render; active HTTP errors retain their server explanation.
 (function () {
     'use strict';
     var ns = (typeof window !== 'undefined') ? window : globalThis;
@@ -13,6 +13,18 @@
                 return r;
             }, function (error) {
                 if (!lifetime.accepts(token)) return new Promise(function () {});
+                // Jellyfin versions using fetch reject with a Response, rather than an XHR.
+                if (error && typeof error.clone === 'function' && typeof error.text === 'function') {
+                    return error.clone().text().catch(function () { return ''; }).then(function (body) {
+                        if (!lifetime.accepts(token)) return new Promise(function () {});
+                        error.responseText = body;
+                        try {
+                            var parsed = JSON.parse(body);
+                            if (parsed && typeof parsed === 'object') error.responseJSON = parsed;
+                        } catch (_) { /* Keep non-JSON server explanations in responseText. */ }
+                        throw error;
+                    });
+                }
                 throw error;
             });
         }

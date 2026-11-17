@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
+using Microsoft.Data.Sqlite;
 
 namespace Jellyfin.Plugin.MediaDash.Data;
 
@@ -35,10 +37,18 @@ public sealed class HistoryStore
     public void AddHistory(HistoryEntry entry)
     {
         using var connection = _connectionFactory.Open();
+        using var transaction = connection.BeginTransaction();
+        Insert(connection, transaction, entry);
+        transaction.Commit();
+    }
+
+    internal static void Insert(SqliteConnection connection, SqliteTransaction transaction, HistoryEntry entry)
+    {
         using var cmd = connection.CreateCommand();
+        cmd.Transaction = transaction;
         cmd.CommandText = """
-            INSERT INTO history (issue_id, type, path, action, bytes_freed, recycle_path, fixed_at_utc, dry_run, restored, success, saved_bytes)
-            VALUES (@issueId, @type, @path, @action, @bytesFreed, @recyclePath, @fixedAt, @dryRun, 0, @success, @savedBytes)
+            INSERT INTO history (issue_id, type, path, action, bytes_freed, recycle_path, fixed_at_utc, dry_run, restored, success, saved_bytes, move_operation_id)
+            VALUES (@issueId, @type, @path, @action, @bytesFreed, @recyclePath, @fixedAt, @dryRun, 0, @success, @savedBytes, @move)
             """;
         cmd.Parameters.AddWithValue("@issueId", entry.IssueId);
         cmd.Parameters.AddWithValue("@type", (int)entry.Type);
@@ -50,7 +60,12 @@ public sealed class HistoryStore
         cmd.Parameters.AddWithValue("@dryRun", entry.WasDryRun ? 1 : 0);
         cmd.Parameters.AddWithValue("@success", entry.Success ? 1 : 0);
         cmd.Parameters.AddWithValue("@savedBytes", entry.SavedBytes);
+        cmd.Parameters.AddWithValue("@move", (object?)entry.MoveOperationId ?? DBNull.Value);
         cmd.ExecuteNonQuery();
+        if (entry.MoveOperationId is { } operationId)
+        {
+            MediaMoveStore.LinkInsertedHistory(connection, transaction, operationId);
+        }
     }
 
     /// <summary>Gets fix history, newest first.</summary>
@@ -75,6 +90,43 @@ public sealed class HistoryStore
         }
 
         return result;
+    }
+
+    /// <summary>Gets all unrestored recycle history, including entries older than the History page.</summary>
+    /// <returns>History rows with an active recycle reference.</returns>
+    public IReadOnlyList<HistoryEntry> GetActiveRecycleEntries()
+    {
+        using var connection = _connectionFactory.Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT " + HistoryRowReader.ProjectionColumns
+            + " FROM history WHERE recycle_path IS NOT NULL AND restored = 0 AND dry_run = 0 ORDER BY id DESC";
+        var result = new List<HistoryEntry>();
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            if (HistoryRowReader.TryRead(reader, "history", out var entry))
+            {
+                result.Add(entry);
+            }
+        }
+
+        return result;
+    }
+
+    internal long? FindActiveManagedMetadataRecycleHistory(string recyclePath, string originalPath)
+    {
+        using var connection = _connectionFactory.Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            SELECT id FROM history WHERE recycle_path = @recycle AND path = @original
+                AND type IN (@artwork, @orphan) AND success = 1 AND restored = 0 AND dry_run = 0
+            ORDER BY id DESC LIMIT 1
+            """;
+        cmd.Parameters.AddWithValue("@recycle", recyclePath);
+        cmd.Parameters.AddWithValue("@original", originalPath);
+        cmd.Parameters.AddWithValue("@artwork", (int)IssueType.CorruptArtwork);
+        cmd.Parameters.AddWithValue("@orphan", (int)IssueType.OrphanedDebris);
+        return cmd.ExecuteScalar() is long id ? id : null;
     }
 
     /// <summary>
@@ -158,6 +210,38 @@ public sealed class HistoryStore
         return raw is long ticks and > 0 ? RowHydration.SafeUtcFromTicks(ticks, "history (GetLastSuccessfulFixUtc MAX)") : null;
     }
 
+    internal Dictionary<string, long> GetTranscodeLogCutoffs(DateTime cutoff, StringComparer pathComparer)
+    {
+        using var connection = _connectionFactory.Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            SELECT path, MAX(fixed_at_utc) FROM history
+            WHERE type IN (@quality, @heavy, @failed)
+                AND success = 1 AND dry_run = 0 AND restored = 0
+                AND fixed_at_utc >= @cutoff AND fixed_at_utc <= @now
+            GROUP BY path
+            """;
+        cmd.Parameters.AddWithValue("@quality", (int)IssueType.Quality);
+        cmd.Parameters.AddWithValue("@heavy", (int)IssueType.HeavyTranscode);
+        cmd.Parameters.AddWithValue("@failed", (int)IssueType.FailedTranscode);
+        cmd.Parameters.AddWithValue("@cutoff", cutoff.Ticks);
+        cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.Ticks);
+        var result = new Dictionary<string, long>(pathComparer);
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            if (reader.IsDBNull(0) || reader.GetValue(1) is not long ticks)
+            {
+                continue;
+            }
+
+            var path = reader.GetString(0);
+            result[path] = Math.Max(ticks, result.GetValueOrDefault(path));
+        }
+
+        return result;
+    }
+
     /// <summary>
     /// Batch lookup: for each issue id, returns the most recent non-dry-run history row
     /// (successful or failed). Used by the Issues tab to render "last attempt: X, Y ago" on
@@ -165,9 +249,11 @@ public sealed class HistoryStore
     /// throw on a "show 500 issues at once" page.
     /// </summary>
     /// <param name="issueIds">Issue ids to look up (deduplicated inside; empty is a no-op).</param>
+    /// <param name="cancellationToken">Request cancellation token.</param>
     /// <returns>Dictionary keyed by issue id; ids without any history row are absent.</returns>
-    public IReadOnlyDictionary<long, HistoryEntry> GetLatestAttemptsByIssueIds(IReadOnlyList<long> issueIds)
+    public IReadOnlyDictionary<long, HistoryEntry> GetLatestAttemptsByIssueIds(IReadOnlyList<long> issueIds, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var result = new Dictionary<long, HistoryEntry>();
         if (issueIds is null || issueIds.Count == 0)
         {
@@ -184,14 +270,16 @@ public sealed class HistoryStore
         using var connection = _connectionFactory.Open();
         for (var offset = 0; offset < distinct.Count; offset += chunkSize)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var count = Math.Min(chunkSize, distinct.Count - offset);
             using var cmd = connection.CreateCommand();
-            var placeholders = string.Join(",", Enumerable.Range(0, count).Select(i => "@id" + i.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            var requestedValues = string.Join(",", Enumerable.Range(0, count).Select(i => "(@id" + i.ToString(System.Globalization.CultureInfo.InvariantCulture) + ")"));
 #pragma warning disable CA2100, CA3001 // placeholder list is machine-composed from an int range
-            cmd.CommandText = "SELECT " + HistoryRowReader.ProjectionColumns
-                + " FROM history h1"
-                + " WHERE h1.issue_id IN (" + placeholders + ") AND h1.dry_run = 0"
-                + " AND h1.fixed_at_utc = (SELECT MAX(h2.fixed_at_utc) FROM history h2 WHERE h2.issue_id = h1.issue_id AND h2.dry_run = 0)";
+            // One indexed seek per requested issue, rather than revisiting every prior retry.
+            cmd.CommandText = "WITH requested(issue_id) AS (VALUES " + requestedValues + ")"
+                + " SELECT " + HistoryRowReader.ProjectionColumns + " FROM history WHERE id IN"
+                + " (SELECT (SELECT h.id FROM history h WHERE h.issue_id = requested.issue_id AND h.dry_run = 0"
+                + " ORDER BY h.fixed_at_utc DESC, h.id DESC LIMIT 1) FROM requested)";
 #pragma warning restore CA2100, CA3001
             for (var i = 0; i < count; i++)
             {
@@ -201,6 +289,7 @@ public sealed class HistoryStore
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (HistoryRowReader.TryRead(reader, "history", out var entry) && !result.ContainsKey(entry.IssueId))
                 {
                     result[entry.IssueId] = entry;

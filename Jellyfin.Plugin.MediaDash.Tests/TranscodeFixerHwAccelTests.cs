@@ -157,15 +157,28 @@ public class TranscodeFixerHwAccelTests
 
     // --- QSV ---
 
-    [Fact]
-    public void Qsv_HevcInput_WithDownscale_EmitsFullHwPipeline()
+    [Theory]
+    [InlineData("hevc", "hevc_qsv", 3840, 2160, 1080, "nv12")]
+    [InlineData("vp9", "hevc_qsv", 2560, 1440, 1080, "nv12")]
+    [InlineData("h264", "h264_qsv", 1920, 1080, 720, "yuv420p")]
+    [InlineData("hevc", "hevc_qsv", 1918, 1080, 720, "nv12")]
+    public void Qsv_WithDownscale_UsesEvenWidthExpression(string codec, string encoder, int width, int height, int maxHeight, string pixelFormat)
     {
-        var (probe, video) = Make(codec: "hevc", height: 2160);
-        var args = TranscodeFixer.BuildArgs("in.mkv", "out.mkv", probe, video, Config(1080), needsDownscale: true, "mkv", "hevc_qsv", vaapiDevice: null);
+        var (probe, video) = Make(codec, height, width);
+        var args = TranscodeFixer.BuildArgs("in.mkv", "out.mkv", probe, video, Config(maxHeight), needsDownscale: true, "mkv", encoder, vaapiDevice: null);
 
         Assert.True(ContainsPair(args, "-hwaccel", "qsv"));
         Assert.True(ContainsPair(args, "-hwaccel_output_format", "qsv"));
-        Assert.Equal("scale_qsv=w=-2:h=1080:format=nv12", ValueOf(args, "-vf"));
+        Assert.Equal($"scale_qsv=w=trunc(iw*oh/ih/2)*2:h={maxHeight}:format={pixelFormat}", ValueOf(args, "-vf"));
+    }
+
+    [Fact]
+    public void Qsv_WithoutDownscale_KeepsInputDimensions()
+    {
+        var (probe, video) = Make("hevc", height: 1080);
+        var args = TranscodeFixer.BuildArgs("in.mkv", "out.mkv", probe, video, Config(), needsDownscale: false, "mkv", "hevc_qsv", vaapiDevice: null);
+
+        Assert.Equal("scale_qsv=w=iw:h=ih:format=nv12", ValueOf(args, "-vf"));
     }
 
     // --- VAAPI ---

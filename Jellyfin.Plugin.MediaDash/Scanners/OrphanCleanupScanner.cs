@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -8,10 +8,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.MediaDash.Data;
 using Jellyfin.Plugin.MediaDash.Fixers;
-using MediaBrowser.Common.Configuration;
+using MediaBrowser.Controller;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Entities;
+using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.MediaDash.Scanners;
@@ -88,22 +89,28 @@ public sealed class OrphanCleanupScanner : IScanner
 
     private const string TrickplaySuffix = ".trickplay";
 
-    private readonly IApplicationPaths _appPaths;
+    private readonly IServerApplicationPaths _appPaths;
+    private readonly LibraryGuard _libraryGuard;
     private readonly ILibraryManager _libraryManager;
     private readonly ILogger<OrphanCleanupScanner> _logger;
     private readonly ProtectionService? _protection;
+    private readonly MediaMoveStore? _moves;
 
     /// <summary>Initializes a new instance of the <see cref="OrphanCleanupScanner"/> class.</summary>
     /// <param name="appPaths">Jellyfin's application paths — used to reach the metadata folder root.</param>
     /// <param name="libraryManager">Used to enumerate library locations and resolve item GUIDs.</param>
     /// <param name="protection">Rules excluding protected files from analysis.</param>
     /// <param name="logger">The logger.</param>
-    public OrphanCleanupScanner(IApplicationPaths appPaths, ILibraryManager libraryManager, ILogger<OrphanCleanupScanner> logger, ProtectionService? protection = null)
+    /// <param name="taskManager">Host library-refresh state, when available.</param>
+    /// <param name="moves">Durable move paths excluded from orphan detection.</param>
+    public OrphanCleanupScanner(IServerApplicationPaths appPaths, ILibraryManager libraryManager, ILogger<OrphanCleanupScanner> logger, ProtectionService? protection = null, ITaskManager? taskManager = null, MediaMoveStore? moves = null)
     {
         _appPaths = appPaths;
+        _libraryGuard = new LibraryGuard(libraryManager, appPaths, taskManager, moves: moves);
         _libraryManager = libraryManager;
         _logger = logger;
         _protection = protection;
+        _moves = moves;
     }
 
     /// <inheritdoc />
@@ -117,6 +124,8 @@ public sealed class OrphanCleanupScanner : IScanner
     {
         var config = Plugin.Instance!.Configuration;
         var issues = new List<Issue>();
+        var reservations = _moves?.CaptureReservations();
+        var reserved = reservations?.Path;
 
         // Respect EnabledLibraries via the shared helper. AlwaysUnscoped only means "skip the
         // DB scoped-delete branch" — never "walk every folder on disk regardless of the user's
@@ -130,22 +139,22 @@ public sealed class OrphanCleanupScanner : IScanner
         var passes = new List<(string Name, Action<List<Issue>> Run)>();
         if (config.OrphanScanEmptyFolders)
         {
-            passes.Add(("empty folders", i => DetectEmptyFolders(libraryLocations, i, cancellationToken, _protection)));
+            passes.Add(("empty folders", i => DetectEmptyFolders(libraryLocations, i, cancellationToken, _protection, reserved)));
         }
 
         if (config.OrphanScanSubtitles)
         {
-            passes.Add(("subtitles", i => DetectOrphanSubtitles(libraryLocations, i, cancellationToken, _protection)));
+            passes.Add(("subtitles", i => DetectOrphanSubtitles(libraryLocations, i, cancellationToken, _protection, reserved)));
         }
 
         if (config.OrphanScanTrickplay)
         {
-            passes.Add(("trickplay", i => DetectOrphanTrickplay(libraryLocations, i, cancellationToken, _protection)));
+            passes.Add(("trickplay", i => DetectOrphanTrickplay(libraryLocations, i, cancellationToken, _protection, reserved)));
         }
 
         if (config.OrphanScanMetadata)
         {
-            passes.Add(("metadata", i => DetectOrphanMetadata(i, cancellationToken)));
+            passes.Add(("metadata", i => DetectOrphanMetadata(i, reserved, reservations?.Item, cancellationToken)));
         }
 
         for (var i = 0; i < passes.Count; i++)
@@ -167,7 +176,8 @@ public sealed class OrphanCleanupScanner : IScanner
 
         progress.Report(100);
         _logger.LogInformation("OrphanCleanupScanner: {Count} orphan(s) across {Passes} pass(es).", issues.Count, passes.Count);
-        return Task.FromResult<IReadOnlyList<Issue>>(issues);
+        var currentReservations = _moves?.CaptureReservations();
+        return Task.FromResult<IReadOnlyList<Issue>>(currentReservations is null ? issues : issues.Where(issue => !currentReservations.Value.Path(issue.Path) && !currentReservations.Value.Item(issue.ItemId)).ToList());
     }
 
     /// <summary>
@@ -179,17 +189,18 @@ public sealed class OrphanCleanupScanner : IScanner
     /// <param name="issues">Accumulator.</param>
     /// <param name="cancellationToken">Cancellation.</param>
     /// <param name="protection">Rules excluding protected paths from analysis.</param>
-    internal static void DetectEmptyFolders(IReadOnlyList<string> libraryLocations, List<Issue> issues, CancellationToken cancellationToken, ProtectionService? protection = null)
+    /// <param name="reserved">Move paths excluded from detection.</param>
+    internal static void DetectEmptyFolders(IReadOnlyList<string> libraryLocations, List<Issue> issues, CancellationToken cancellationToken, ProtectionService? protection = null, Func<string, bool>? reserved = null)
     {
         foreach (var root in libraryLocations)
         {
-            WalkForEmpty(root, issues, isRoot: true, protection, cancellationToken);
+            WalkForEmpty(root, issues, isRoot: true, protection, reserved, cancellationToken);
         }
     }
 
-    private static void WalkForEmpty(string dir, List<Issue> issues, bool isRoot, ProtectionService? protection, CancellationToken cancellationToken)
+    private static void WalkForEmpty(string dir, List<Issue> issues, bool isRoot, ProtectionService? protection, Func<string, bool>? reserved, CancellationToken cancellationToken)
     {
-        if (protection?.IsScannerBlocked(dir, IssueType.OrphanedDebris) == true)
+        if (protection?.IsScannerBlocked(dir, IssueType.OrphanedDebris) == true || (!isRoot && reserved?.Invoke(dir) == true))
         {
             return;
         }
@@ -214,7 +225,7 @@ public sealed class OrphanCleanupScanner : IScanner
             return;
         }
 
-        var hasMedia = protection?.IsAnyDescendantProtected(dir, IssueType.OrphanedDebris, scanners: true) == true || SubtreeHasMedia(dir);
+        var hasMedia = protection?.IsAnyDescendantProtected(dir, IssueType.OrphanedDebris, scanners: true) == true || SubtreeHasMediaOrCompanions(dir);
 
         // Never flag the library root itself, even when it's media-free — that's a config artefact,
         // not user debris. But do recurse so a Junk/ subdirectory under an empty root still gets found.
@@ -244,7 +255,7 @@ public sealed class OrphanCleanupScanner : IScanner
 
         foreach (var sub in subdirs)
         {
-            WalkForEmpty(sub, issues, isRoot: false, protection, cancellationToken);
+            WalkForEmpty(sub, issues, isRoot: false, protection, reserved, cancellationToken);
         }
     }
 
@@ -260,13 +271,14 @@ public sealed class OrphanCleanupScanner : IScanner
         return name.EndsWith(TrickplaySuffix, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool SubtreeHasMedia(string dir)
+    internal static bool SubtreeHasMediaOrCompanions(string dir)
     {
         try
         {
             foreach (var f in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
             {
-                if (MediaExtensions.Contains(Path.GetExtension(f)))
+                var extension = Path.GetExtension(f);
+                if (MediaExtensions.Contains(extension) || (SubtitleExtensions.Contains(extension) && HasCompanionVideo(f)))
                 {
                     return true;
                 }
@@ -291,7 +303,8 @@ public sealed class OrphanCleanupScanner : IScanner
     /// <param name="issues">Accumulator.</param>
     /// <param name="cancellationToken">Cancellation.</param>
     /// <param name="protection">Rules excluding protected paths from analysis.</param>
-    internal static void DetectOrphanSubtitles(IReadOnlyList<string> libraryLocations, List<Issue> issues, CancellationToken cancellationToken, ProtectionService? protection = null)
+    /// <param name="reserved">Move paths excluded from detection.</param>
+    internal static void DetectOrphanSubtitles(IReadOnlyList<string> libraryLocations, List<Issue> issues, CancellationToken cancellationToken, ProtectionService? protection = null, Func<string, bool>? reserved = null)
     {
         foreach (var root in libraryLocations)
         {
@@ -310,7 +323,7 @@ public sealed class OrphanCleanupScanner : IScanner
 
             foreach (var file in files)
             {
-                if (protection?.IsScannerBlocked(file, IssueType.OrphanedDebris) == true || protection?.IsAnyDescendantProtected(file, IssueType.OrphanedDebris, scanners: true) == true)
+                if (reserved?.Invoke(file) == true || protection?.IsScannerBlocked(file, IssueType.OrphanedDebris) == true || protection?.IsAnyDescendantProtected(file, IssueType.OrphanedDebris, scanners: true) == true)
                 {
                     continue;
                 }
@@ -479,7 +492,8 @@ public sealed class OrphanCleanupScanner : IScanner
     /// <param name="issues">Accumulator.</param>
     /// <param name="cancellationToken">Cancellation.</param>
     /// <param name="protection">Rules excluding protected paths from analysis.</param>
-    internal static void DetectOrphanTrickplay(IReadOnlyList<string> libraryLocations, List<Issue> issues, CancellationToken cancellationToken, ProtectionService? protection = null)
+    /// <param name="reserved">Move paths excluded from detection.</param>
+    internal static void DetectOrphanTrickplay(IReadOnlyList<string> libraryLocations, List<Issue> issues, CancellationToken cancellationToken, ProtectionService? protection = null, Func<string, bool>? reserved = null)
     {
         foreach (var root in libraryLocations)
         {
@@ -495,7 +509,7 @@ public sealed class OrphanCleanupScanner : IScanner
 
             foreach (var tp in tps)
             {
-                if (protection?.IsScannerBlocked(tp, IssueType.OrphanedDebris) == true || protection?.IsAnyDescendantProtected(tp, IssueType.OrphanedDebris, scanners: true) == true)
+                if (reserved?.Invoke(tp) == true || protection?.IsScannerBlocked(tp, IssueType.OrphanedDebris) == true || protection?.IsAnyDescendantProtected(tp, IssueType.OrphanedDebris, scanners: true) == true)
                 {
                     continue;
                 }
@@ -582,20 +596,16 @@ public sealed class OrphanCleanupScanner : IScanner
     /// folders whose GUID no longer resolves via <see cref="ILibraryManager.GetItemById(Guid)"/>.
     /// </summary>
     /// <param name="issues">Accumulator.</param>
+    /// <param name="reserved">Move paths excluded from detection.</param>
+    /// <param name="reservedItem">Move item identities excluded from detection.</param>
     /// <param name="cancellationToken">Cancellation.</param>
-    private void DetectOrphanMetadata(List<Issue> issues, CancellationToken cancellationToken)
+    private void DetectOrphanMetadata(List<Issue> issues, Func<string, bool>? reserved, Func<Guid, bool>? reservedItem, CancellationToken cancellationToken)
     {
-        var libraryRoot = Path.Combine(_appPaths.DataPath, "..", "metadata", "library");
-        libraryRoot = Path.GetFullPath(libraryRoot);
-        if (!Directory.Exists(libraryRoot))
+        var locations = _libraryGuard.GetEnabledLibraryLocations(Plugin.Instance!.Configuration.EnabledLibraries);
+        var libraryRoot = Path.Combine(_appPaths.InternalMetadataPath, "library");
+        if (!Directory.Exists(libraryRoot) || locations.Count == 0)
         {
-            // Fallback for installs where InternalMetadataPath lives elsewhere; try DataPath-relative
-            // "metadata/library" too so unusual layouts still get swept.
-            libraryRoot = Path.Combine(_appPaths.DataPath, "metadata", "library");
-            if (!Directory.Exists(libraryRoot))
-            {
-                return;
-            }
+            return;
         }
 
         foreach (var shard in Directory.EnumerateDirectories(libraryRoot))
@@ -613,39 +623,46 @@ public sealed class OrphanCleanupScanner : IScanner
 
             foreach (var itemDir in itemDirs)
             {
-                if (_protection?.IsScannerBlocked(itemDir, Type) == true || _protection?.IsAnyDescendantProtected(itemDir, Type, scanners: true) == true)
+                if (reserved?.Invoke(itemDir) == true || _protection?.IsScannerBlocked(itemDir, Type) == true || _protection?.IsAnyDescendantProtected(itemDir, Type, scanners: true) == true)
                 {
                     continue;
                 }
 
                 var name = Path.GetFileName(itemDir);
-                if (!Guid.TryParse(name, out var itemId))
+                if (!Guid.TryParse(name, out var itemId) || reservedItem?.Invoke(itemId) == true)
                 {
                     continue;
                 }
 
-                if (_libraryManager.GetItemById(itemId) is not null)
+                if (!_libraryGuard.IsOrphanMetadataInEnabledLocations(itemDir, itemId, locations) || !LibraryGuard.HasOnlyManagedMetadata(itemDir))
+                {
+                    continue;
+                }
+
+                if (!OrphanMetadataObservation.TryCapture(itemDir, out var observation, cancellationToken))
                 {
                     continue;
                 }
 
                 var size = TrySubtreeSize(itemDir);
+                var observedAt = DateTime.UtcNow;
                 issues.Add(new Issue
                 {
                     Type = IssueType.OrphanedDebris,
                     ItemId = itemId,
                     Path = itemDir,
                     Status = IssueStatus.Detected,
-                    DetectedAtUtc = DateTime.UtcNow,
+                    DetectedAtUtc = observedAt,
                     SizeSavings = size,
                     DetailsJson = JsonSerializer.Serialize(new
                     {
                         kind = KindOrphanMetadata,
-                        bytesEstimate = size
+                        bytesEstimate = size,
+                        metadataObservation = new { version = 1, observedAtUtcTicks = observedAt.Ticks, signature = observation.Signature }
                     }),
                     SuggestedFix = string.Format(
                         CultureInfo.InvariantCulture,
-                        "Delete orphan Jellyfin metadata folder for missing item {0} (approx. {1} bytes).",
+                        "Delete orphan metadata for missing item {0} (approx. {1} bytes) after Jellyfin's Scan Media Library task confirms it is still missing.",
                         itemId,
                         size)
                 });

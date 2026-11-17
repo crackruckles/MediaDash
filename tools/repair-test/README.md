@@ -63,7 +63,7 @@ Use `--pause-for-ui` for browser checks between detection and fixing. When `ui-r
 ## Harness self-tests
 
 ```powershell
-python -B -m unittest discover -s tools/repair-test -p test_run_live.py
+python -B -m unittest discover -s tools/repair-test -p "test_*.py"
 ./tools/repair-test/validator-self-tests.ps1
 ./tools/comprehensive-test/task-wait-self-tests.ps1
 ./tools/comprehensive-test/self-tests.ps1
@@ -83,3 +83,5 @@ The Python tests cover safety boundaries, task completion attribution, nonzero f
 ```
 
 These validators reject empty manifests and missing tools; the output validator additionally requires original hashes and rejects ambiguous outputs. They invoke ffmpeg directly, with all audio/video streams mapped, so shell punctuation in a filename is not executed as commands. Offline recycle hashes alone cannot establish which run created an entry. Use the live runner for that attribution and for Jellyfin integration. Historical target-rung hints in the legacy manifest do not prove which method actually ran.
+
+For the combined offline gate, run `pwsh -NoProfile -File tools/test-harnesses.ps1` from the repository root. The old `torture-malformed-rows.ps1` now invokes isolated production-parser/timestamp regression tests; it does not mutate a running database or certify live HTTP endpoint behavior. See [the current harness inventory](../TEST-HARNESSES.md).

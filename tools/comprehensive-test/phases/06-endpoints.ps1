@@ -14,7 +14,8 @@ function Test-Endpoint {
     try {
         $r = Invoke-JfApi -Method $Method -Path $Path -Body $Body -Raw
         return $r.StatusCode
-    } catch [System.Net.WebException] {
+    } catch {
+        if (-not $_.Exception.Response) { throw }
         return [int]$_.Exception.Response.StatusCode
     }
 }
@@ -49,9 +50,9 @@ function Invoke-Phase-Endpoints {
         Assert-True ($null -eq $s0.SubtitleLanguages) "SubtitleLanguages absent (reverted)"
     }
 
-    Invoke-Test "GET /MediaDash/Issues returns paginated shape with Items array" {
-        $r = Invoke-JfApi -Method GET -Path "/MediaDash/Issues"
-        Assert-True ($null -ne $r.Items) "Items field present"
+    Invoke-Test 'GET /MediaDash/Issues returns a JSON array' {
+        $r = Invoke-JfApi -Method GET -Path '/MediaDash/Issues' -Raw
+        Assert-Match '^\s*\[' $r.Content 'Issues is a bare array, including the empty case'
     }
 
     Invoke-Test "GET /MediaDash/RecycleBin returns paginated shape" {

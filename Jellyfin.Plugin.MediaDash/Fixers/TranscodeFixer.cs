@@ -32,7 +32,7 @@ public sealed class TranscodeFixer : IFixer
     /// Jellyfin's real-time monitor and library scan skip them mid-encode. Preserves the
     /// existing <c>.mediadash.tmp</c> / <c>.new</c> / <c>.swap</c> / <c>.strip</c> middle
     /// infix so <see cref="LibraryGuard.SweepOrphanSidecars"/> patterns still match.</summary>
-    public const string InflightTail = ".mediaDash.tmp";
+    public const string InflightTail = ".mediadash.tmp";
 
     private static readonly TimeSpan TranscodeTimeout = TimeSpan.FromHours(6);
 
@@ -59,6 +59,9 @@ public sealed class TranscodeFixer : IFixer
     private readonly IssueStore _issues;
     private readonly ProtectionService _protection;
     private readonly ILogger<TranscodeFixer> _logger;
+    private readonly MediaMovePlanner? _movePlanner;
+    private readonly MediaMoveService? _moves;
+    private readonly HistoryStore? _moveHistory;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TranscodeFixer"/> class.
@@ -77,6 +80,9 @@ public sealed class TranscodeFixer : IFixer
     /// <param name="issues">Issue-table store (05-C.2), used to spot same-path queued siblings and re-point sibling issues after a container change or canonical rename.</param>
     /// <param name="protection">Never-modify protection service (roadmap i-110-protected-media). Re-consulted at commit time so protection added during a long encode still aborts the replacement.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="movePlanner">Complete optional-rename previews.</param>
+    /// <param name="moves">Durable optional-rename execution.</param>
+    /// <param name="moveHistory">Separate rename History, whose Undo preserves the re-encode.</param>
     public TranscodeFixer(
         FfprobeService ffprobe,
         FfmpegExecutor ffmpeg,
@@ -89,7 +95,10 @@ public sealed class TranscodeFixer : IFixer
         IServerConfigurationManager serverConfig,
         IssueStore issues,
         ProtectionService protection,
-        ILogger<TranscodeFixer> logger)
+        ILogger<TranscodeFixer> logger,
+        MediaMovePlanner? movePlanner = null,
+        MediaMoveService? moves = null,
+        HistoryStore? moveHistory = null)
     {
         _ffprobe = ffprobe;
         _ffmpeg = ffmpeg;
@@ -103,6 +112,9 @@ public sealed class TranscodeFixer : IFixer
         _issues = issues;
         _protection = protection;
         _logger = logger;
+        _movePlanner = movePlanner;
+        _moves = moves;
+        _moveHistory = moveHistory;
     }
 
     /// <inheritdoc />
@@ -136,6 +148,11 @@ public sealed class TranscodeFixer : IFixer
 
         var originalSize = new FileInfo(issue.Path).Length;
         var targetContainer = string.IsNullOrWhiteSpace(config.TargetContainer) ? "mkv" : config.TargetContainer.TrimStart('.').ToLowerInvariant();
+        if (string.IsNullOrEmpty(ContainerToFfmpegFormat(targetContainer)))
+        {
+            return FixResult.Refused(FixReason.UnsupportedFormat, "The requested output container is unsupported: " + targetContainer);
+        }
+
         var targetPath = Path.ChangeExtension(issue.Path, "." + targetContainer);
         var needsDownscale = video.Height is > 0 && video.Height.Value > config.MaxResolutionHeight;
         var disposal = config.GetDisposal(issue.Type);
@@ -149,8 +166,8 @@ public sealed class TranscodeFixer : IFixer
         // that only ends when the user notices and switches Settings → Quality → target container
         // to MKV. Refuse cleanly here instead: the message names the offending codec + points at
         // the exact setting to change, and the typed FixReason.IncompatibleContainer routes to
-        // CompleteLegacy via FixResultPolicy so the scheduler stops beating on it. Once the user
-        // changes the target container the next scan re-emits the issue and the fix runs normally.
+        // KeepQueued via FixResultPolicy so the refusal stays reviewable. Once the user changes
+        // the target container the approved issue can run with the new setting.
         // ponytail: refusal is the shortest safe fix. A future round can add either a blocking-
         // warning consent gate (matches the bitmap-sub pattern — user Approve = accept audio
         // transcode to AAC) or an automatic AAC fallback when a preference lands.
@@ -184,9 +201,15 @@ public sealed class TranscodeFixer : IFixer
         // aborted if it ever reaches originalSize; the original is only removed after the swap.
         // Worst case we hold source + full-size temp simultaneously = 2× source. Fails closed if
         // the target drive can't be resolved.
-        if (!FreeSpaceGuard.HasEnoughFreeSpace(issue.Path, multiplier: 2))
+        if (disposal == DisposalMethod.RecycleBin && !_replacement.CanRecycle(issue.Path))
         {
-            return FixResult.Fail(FixReason.InsufficientSpace, "Not enough free disk space to re-encode this file (needs at least twice its own size free on the target drive).");
+            return FixResult.Refused(FixReason.AccessDenied, "No safe recycle location is available for the original.");
+        }
+
+        var transcodeShortfall = FreeSpaceGuard.DescribeShortfall(issue.Path, multiplier: 2);
+        if (transcodeShortfall is not null)
+        {
+            return FixResult.Fail(FixReason.InsufficientSpace, "Cannot re-encode this file — " + transcodeShortfall + ".");
         }
 
         var durationSeconds = double.TryParse(probe.Format?.Duration, NumberStyles.Float, CultureInfo.InvariantCulture, out var d) ? d : 0;
@@ -230,6 +253,7 @@ public sealed class TranscodeFixer : IFixer
                 if (error is not null)
                 {
                     _logger.LogWarning("Hardware encoder {Encoder} failed on {Path}; retrying with software. Details: {Error}", hwEncoder, issue.Path, Truncate(error));
+                    actionText += " Hardware encoding failed; used software encoding.";
                     if (File.Exists(tempPath))
                     {
                         File.Delete(tempPath);
@@ -350,8 +374,8 @@ public sealed class TranscodeFixer : IFixer
                     // logs via ILogger; the diagnostic here is the user-facing signal.
                     Api.Diagnostics.Record(
                         "Transcode.SwapAborted",
-                        "Re-encode of '" + issue.Path + "' completed but the final rename to '" + targetPath + "' failed. The re-encoded copy is preserved at '" + replacementResult.RecoveryPath + "' — rename it manually. Do NOT delete this file; it is currently your only copy of the content.");
-                    return FixResult.Fail(FixReason.RecoveryRequired, "The re-encoded copy is preserved at '" + replacementResult.RecoveryPath + "'; rename it to '" + targetPath + "' manually. The original is no longer at its previous location.", replacementResult.TechnicalDetail);
+                        replacementResult.DescribeRecovery(issue.Path));
+                    return FixResult.Fail(FixReason.RecoveryRequired, replacementResult.DescribeRecovery(issue.Path), replacementResult.TechnicalDetail);
                 }
 
                 if (replacementResult.Reason == FixReason.SourceChanged)
@@ -383,13 +407,18 @@ public sealed class TranscodeFixer : IFixer
             var finalPath = targetPath;
             if (config.RenameAfterTranscode)
             {
-                // Rename is best-effort: any failure (missing metadata, collision, permission) keeps the
-                // re-encoded file under its original basename, which is a safe fallback.
-                var renamed = TryRenameToCanonical(targetPath, issue.ItemId, video.Height ?? 0, targetContainer, issue.Path);
-                if (renamed is not null)
+                // Rename has its own complete journal and Undo. A stopped rename remains visible
+                // with its recorded recovery locations; it never reverses the verified re-encode.
+                var rename = await TryRenameToCanonicalAsync(targetPath, issue, needsDownscale ? config.MaxResolutionHeight : video.Height ?? 0, targetContainer, cancellationToken).ConfigureAwait(false);
+                if (rename.Path is not null)
                 {
-                    finalPath = renamed;
-                    actionText += " (renamed to " + Path.GetFileName(renamed) + ")";
+                    finalPath = rename.Path;
+                    actionText += " (renamed to " + Path.GetFileName(rename.Path) + ")";
+                }
+
+                if (rename.Warning is not null)
+                {
+                    actionText += " " + rename.Warning;
                 }
             }
 
@@ -769,6 +798,8 @@ public sealed class TranscodeFixer : IFixer
             }
             else if (hardwareEncoder.EndsWith("_qsv", StringComparison.Ordinal))
             {
+                // QSV rejects -2; calculate an even width from the decoded frame dimensions.
+                w = needsDownscale ? "trunc(iw*oh/ih/2)*2" : w;
                 args.AddRange(["-vf", "scale_qsv=w=" + w + ":h=" + h + ":format=" + pixFmt]);
             }
             else if (hardwareEncoder.EndsWith("_vaapi", StringComparison.Ordinal))
@@ -858,7 +889,7 @@ public sealed class TranscodeFixer : IFixer
     /// <returns>True when the type is authorized to run and the caller may apply its filter.</returns>
     internal static bool IsTypeAuthorized(PluginConfiguration config, IssueType type)
     {
-        if (config.GetFixMode(type) is FixMode.Off or FixMode.DetectOnly)
+        if (config.GetFixMode(type) == FixMode.Off)
         {
             return false;
         }
@@ -908,80 +939,137 @@ public sealed class TranscodeFixer : IFixer
     /// <summary>Maps a MediaDash container name (e.g. "mkv", "mp3", "png") to the ffmpeg
     /// <c>-f</c> muxer name. R09 (2026-09-20): every sidecar output now ends in
     /// <see cref="InflightTail"/> so ffmpeg can't infer format from the extension — callers
-    /// pass this value via <c>-f</c> to the output-args block. Unknown containers pass
-    /// through unchanged (ffmpeg then errors clearly instead of writing a broken file).</summary>
+    /// pass this value via <c>-f</c> to the output-args block. Unknown containers return an
+    /// empty string so fixers refuse them before starting ffmpeg.</summary>
     /// <param name="container">The MediaDash container name (no leading dot).</param>
     /// <returns>The ffmpeg muxer name.</returns>
     internal static string ContainerToFfmpegFormat(string container)
     {
         return container.ToLowerInvariant() switch
         {
-            "mkv" => "matroska",
+            "mkv" or "mka" => "matroska",
             "mp4" or "m4v" => "mp4",
             "m4a" or "m4b" => "ipod",
             "mov" => "mov",
-            "avi" => "avi",
+            "avi" or "divx" => "avi",
             "webm" => "webm",
-            "ts" or "m2ts" or "mts" => "mpegts",
+            "ts" or "m2ts" or "mts" or "m2t" => "mpegts",
             "mpeg" or "mpg" => "mpeg",
             "flv" => "flv",
-            "ogg" or "oga" => "ogg",
+            "ogg" or "oga" or "ogm" => "ogg",
             "opus" => "opus",
             "mp3" => "mp3",
             "flac" => "flac",
             "wav" => "wav",
             "aac" => "adts",
-            "wma" => "asf",
+            "aif" or "aiff" or "aifc" => "aiff",
+            "wma" or "wmv" => "asf",
             "webp" => "webp",
             "png" or "jpg" or "jpeg" or "bmp" => "image2",
-            _ => container.ToLowerInvariant()
+            "asf" => "asf",
+            "ogv" => "ogg",
+            "3gp" => "3gp",
+            "3g2" => "3g2",
+            "vob" => "vob",
+            "mxf" => "mxf",
+            "rm" or "rmvb" => "rm",
+            _ => string.Empty
         };
     }
 
-    private string? TryRenameToCanonical(string currentPath, Guid itemId, int height, string extension, string sourcePath)
+    internal async Task<(string? Path, string? Warning)> TryRenameToCanonicalAsync(string currentPath, Issue issue, int height, string extension, CancellationToken cancellationToken)
     {
-        var item = itemId == Guid.Empty ? null : _libraryManager.GetItemById(itemId);
-        if (item is null)
+        if (!_configProvider.GetSnapshot().RenameAfterTranscode)
         {
-            return null;
-        }
-
-        var preserveId = Plugin.Instance?.Configuration.PreserveExternalIdInFilename ?? false;
-        var canonical = RenameTemplate.Build(item, height, extension, sourcePath, preserveId);
-        if (canonical is null)
-        {
-            return null;
-        }
-
-        var dir = Path.GetDirectoryName(currentPath);
-        if (string.IsNullOrEmpty(dir))
-        {
-            return null;
-        }
-
-        var targetPath = Path.Combine(dir, canonical);
-        if (string.Equals(Path.GetFullPath(targetPath), Path.GetFullPath(currentPath), StringComparison.OrdinalIgnoreCase))
-        {
-            // Already canonically named — nothing to do.
-            return currentPath;
-        }
-
-        if (File.Exists(targetPath))
-        {
-            _logger.LogInformation("Skip canonical rename: {Target} already exists", targetPath);
-            return null;
+            return (null, null);
         }
 
         try
         {
-            File.Move(currentPath, targetPath);
-            return targetPath;
+            if (_movePlanner is null || _moves is null || _moveHistory is null)
+            {
+                return (null, "Optional rename skipped because durable move recovery is unavailable. The verified encode stays at its current name.");
+            }
+
+            var item = issue.ItemId == Guid.Empty ? null : _libraryManager.GetItemById(issue.ItemId);
+            var config = _configProvider.GetSnapshot();
+            var canonical = item is null ? null : RenameTemplate.Build(item, height, extension, issue.Path, config.PreserveExternalIdInFilename);
+            if (canonical is null)
+            {
+                return (null, "Optional rename skipped because the item's naming metadata is incomplete. The verified encode stays at its current name.");
+            }
+
+            var target = Path.Combine(Path.GetDirectoryName(currentPath)!, canonical);
+            if (string.Equals(target, currentPath, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+            {
+                return (null, null);
+            }
+
+            var peers = _libraryManager.GetItemList(MediaMovePlanner.CatalogQuery());
+            var plan = await _movePlanner.BuildExplicitAsync([(currentPath, target)], peers, config, cancellationToken).ConfigureAwait(false);
+            // The verified replacement may have a new extension before Jellyfin updates its Path.
+            // This catalog binding is built only here, after replacement, never from a Files request.
+            plan = (plan with { ItemId = item!.Id, ItemPath = currentPath, CatalogPath = item.Path, Identity = MediaMovePlanner.Identity(item), IndependentFiles = false }).Seal();
+            var declared = item is Video video ? video.LocalAlternateVersions.Concat(video.AdditionalParts).Concat(video.AudioFiles).Concat(video.SubtitleFiles) : [];
+            if (declared.Any(path => !string.Equals(path, item.Path, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)
+                && !plan.Entries.Any(entry => string.Equals(entry.Source, path, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))))
+            {
+                return (null, "Optional rename skipped because a declared version, part or external stream is outside the complete rename preview. The verified encode stays at its current name.");
+            }
+
+            var result = await _moves.ExecuteExplicitAsync(plan, plan.Fingerprint, null, cancellationToken, issue.Id, authorize: () =>
+            {
+                var currentConfig = _configProvider.GetSnapshot();
+                BaseItem? owner;
+                try
+                {
+                    owner = _libraryManager.GetItemById(issue.ItemId);
+                }
+                catch (InvalidOperationException error)
+                {
+                    throw new IOException("Jellyfin's current metadata could not authorize the optional rename. Preserve the recorded locations for review.", error);
+                }
+
+                if (!currentConfig.RenameAfterTranscode || owner is null || MediaMovePlanner.Identity(owner, plan) != plan.Identity
+                    || !FixPolicyEvaluator.Evaluate(currentConfig, issue.Type, IssueStatus.Queued, FixIntent.Approved, true, false, false).Allowed
+                    || (issue.Id > 0 && _issues.GetIssueStatus(issue.Id) != IssueStatus.Queued)
+                    || _protection.IsFixerBlocked(currentPath, issue.Type) || _protection.IsFixerBlocked(issue.Path, issue.Type))
+                {
+                    throw new IOException("The optional rename's consent, metadata or protection changed. Preserve the recorded move locations for review.");
+                }
+            }).ConfigureAwait(false);
+            if (!result.Success)
+            {
+                return (null, "The re-encode completed, but its optional rename stopped. " + result.Message);
+            }
+
+            if (result.WasDryRun)
+            {
+                return (null, "The optional rename was a dry run. The verified encode stays at its current name.");
+            }
+
+            string? warning = null;
+            try
+            {
+                _moveHistory.AddHistory(new HistoryEntry
+                {
+                    IssueId = issue.Id, Type = IssueType.ManualMove, Path = currentPath, Success = true, FixedAtUtc = DateTime.UtcNow,
+                    Action = "Renamed the verified encode and its companions. Undo reverses only this rename and keeps the re-encode.", MoveOperationId = result.MoveOperationId
+                });
+            }
+            catch (Microsoft.Data.Sqlite.SqliteException error)
+            {
+                warning = "The rename completed. Its durable move record remains available even though its separate History entry could not be saved.";
+                Api.Diagnostics.Record("Transcode.RenameHistory", warning + " " + error.Message);
+            }
+
+            return (target, warning);
         }
-        catch (IOException ex)
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or OperationCanceledException or Microsoft.Data.Sqlite.SqliteException or InvalidOperationException)
         {
-            _logger.LogWarning(ex, "Canonical rename failed for {Path}", currentPath);
-            Api.Diagnostics.Record("Transcode.RenameFailed", "Re-encode of '" + currentPath + "' succeeded, but the canonical rename step could not run: " + ex.Message + ". The re-encoded file is at its old name — you can rename it by hand or ignore it. Turn off 'Rename after re-encode' in Settings > Quality to stop this attempt.");
-            return null;
+            _logger.LogWarning(error, "Optional canonical rename stopped for {Path}; preserve recorded recovery locations", currentPath);
+            Api.Diagnostics.Record("Transcode.RenameFailed", "The re-encode completed, but the optional rename stopped. Preserve its recorded move locations for review. " + error.Message);
+            return (null, "The re-encode completed, but the optional rename stopped. Review its recorded move locations before continuing.");
         }
     }
 }

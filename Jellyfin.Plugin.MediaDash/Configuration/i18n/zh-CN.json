@@ -64,7 +64,6 @@
     "binViewShow":  "查看内容",
     "binRestoreHint":  "要放回文件,请使用\"历史\"标签中的恢复按钮。",
     "modeOff":  "关闭 — 甚至不扫描",
-    "modeDetect":  "仅检测 — 只显示",
     "modeManual":  "先询问我",
     "modeAuto":  "自动修复",
     "disposalRecycle":  "回收站(可恢复)",

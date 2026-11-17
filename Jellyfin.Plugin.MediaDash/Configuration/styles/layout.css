@@ -96,6 +96,11 @@
     font: 500 12.5px Figtree, sans-serif;
     border-top: 1px solid var(--md-border-inner);
 }
+@media (prefers-color-scheme: light) {
+    /* Light-mode: amber on near-white modal body is unreadable; drop to the
+       darker amber used by .mdWarnStrip + .mdProtOrphanBanner overrides. */
+    .mdModalWarn { color: #92400e; }
+}
 .mdModalFooter {
     padding: 12px 16px;
     border-top: 1px solid var(--md-border-inner);

@@ -79,7 +79,7 @@ public sealed class StatusQueryService
             .Select(l => Fixers.RecycleBin.FindDriveForPath(l))
             .Where(d => d is not null)
             .Select(d => Path.TrimEndingDirectorySeparator(d!.RootDirectory.FullName))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            .ToHashSet(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
 
         var recycleDrive = Fixers.RecycleBin.FindDriveForPath(_recycleBin.GetEffectiveRoot());
         var recycleRoot = recycleDrive is null ? null : Path.TrimEndingDirectorySeparator(recycleDrive.RootDirectory.FullName);
@@ -134,6 +134,38 @@ public sealed class StatusQueryService
             catch (UnauthorizedAccessException ex)
             {
                 Diagnostics.Record("SystemStats.DriveStat", "Access denied reading drive '" + drive.Name + "' for the Overview: " + ex.Message + ". Grant Jellyfin's user read permission on the drive root to include it.");
+            }
+        }
+
+        // Library mounts can be network/unknown drives and still need capacity warnings.
+        foreach (var root in libraryRoots)
+        {
+            if (drives.Any(d => string.Equals(Path.TrimEndingDirectorySeparator(d.Root), root, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            try
+            {
+                var drive = new DriveInfo(root);
+                var usage = new DriveUsage
+                {
+                    Root = drive.Name,
+                    FreeBytes = drive.AvailableFreeSpace,
+                    TotalBytes = drive.TotalSize,
+                    IsLibraryDrive = true,
+                    IsRecycleBinDrive = string.Equals(root, recycleRoot, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal),
+                    IsPluginDataDrive = string.Equals(root, pluginDataRoot, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal),
+                    LowSpaceWarning = ComputeLowSpaceWarning(drive, alwaysCheck: true)
+                };
+                CopySmartFields(usage, Probing.SmartHealthProbe.Get(drive.Name));
+                drives.Add(usage);
+                freeDisk += usage.FreeBytes;
+                totalDisk += usage.TotalBytes;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                Diagnostics.Record("SystemStats.DriveStat", "Could not read library drive '" + root + "': " + ex.Message);
             }
         }
 
@@ -251,6 +283,32 @@ public sealed class StatusQueryService
             CurrentOperationProgress = fixSnapshot.CurrentOperationProgress,
             RedownloadWarnings = Plugin.RedownloadWarnings,
             Repair = _db.GetRepairSummary(DateTime.UtcNow.AddDays(-30).Ticks)
+        };
+    }
+
+    /// <summary>
+    /// Builds the lightweight live-progress payload. Zero DB queries, zero drive scan, zero SMART
+    /// probe, zero system-stats sampling. Safe to poll every tick during an active scan/fix without
+    /// contending with scanner DB writes. See <see cref="ProgressSnapshot"/> for why this exists.
+    /// </summary>
+    /// <returns>The progress snapshot.</returns>
+    public ProgressSnapshot BuildProgress()
+    {
+        var scanTask = _taskManager.ScheduledTasks.FirstOrDefault(w => w.ScheduledTask is ScanTask);
+        var fixTask = _taskManager.ScheduledTasks.FirstOrDefault(w => w.ScheduledTask is FixTask);
+        var fixSnapshot = _runState.ReadSnapshot(RunRole.Fix);
+        return new ProgressSnapshot
+        {
+            IsScanning = scanTask is not null && scanTask.State != TaskState.Idle,
+            ScanProgress = scanTask?.CurrentProgress,
+            IsFixing = fixTask is not null && fixTask.State != TaskState.Idle,
+            FixProgress = fixTask?.CurrentProgress,
+            ScanScannersDone = Plugin.ScanScannersDone,
+            ScanScannersTotal = Plugin.ScanScannersTotal,
+            CurrentActivity = Plugin.CurrentActivity,
+            CurrentActivityLabel = Plugin.CurrentActivityLabel,
+            CurrentOperationProgress = fixSnapshot.CurrentOperationProgress,
+            FixPauseReason = fixSnapshot.PauseReason
         };
     }
 

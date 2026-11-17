@@ -1,0 +1,25 @@
+{
+  "caseId": "media-fate",
+  "sourceDigest": "18cccce8ee54105a3c80edb05e03e1a84971113da6a3775da8716bf3be1b96c8",
+  "environment": "Owned Jellyfin 12.0.0 instance and bundled Jellyfin 10.11.11 FFmpeg reference checks. MediaDash DLL SHA-256 58693ddcbec0b98b7653e1b696fedfc4714c306a324644f40f0e6465de45339d.",
+  "checks": [
+    {
+      "name": "pinned-inputs",
+      "passed": true,
+      "skipped": false,
+      "observed": "AMP_A_Samsung_6 SHA-256 51CE631DB13A8207706182544D9EC9C69AACB85EAD5805DD2B3196E352100183; DBLK_A_MAIN10_VIXS_3 SHA-256 96C4F1A6B824CC51433D87EBC11BFFCC6C2FE3DE3ED18339316803E8BBC9BE17"
+    },
+    {
+      "name": "reference-decode",
+      "passed": true,
+      "skipped": false,
+      "observed": "AMP_A_Samsung_6 matched all 60 published frame CRC rows; DBLK_A_MAIN10_VIXS_3 matched all 8 published frame CRC rows"
+    },
+    {
+      "name": "media-conversion",
+      "passed": true,
+      "skipped": false,
+      "observed": "Both derivatives were indexed, approved and remuxed. Decoded video and selected audio matched, exact issues cleared on rescan, and originals restored byte-for-byte."
+    }
+  ]
+}

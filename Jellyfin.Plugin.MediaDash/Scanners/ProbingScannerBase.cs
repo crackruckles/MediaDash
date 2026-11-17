@@ -87,6 +87,7 @@ public abstract class ProbingScannerBase : IScanner
                     Plugin.CurrentActivity = path;
                     try
                     {
+                        using var operation = ScheduledTasks.RunDiagnostics.Track("probe and evaluate media", examinesFile: true);
                         var probe = await Ffprobe.ProbeAsync(path, cancellationToken).ConfigureAwait(false);
                         var issue = await EvaluateAsync(item, path, probe, cancellationToken).ConfigureAwait(false);
                         if (issue is not null)

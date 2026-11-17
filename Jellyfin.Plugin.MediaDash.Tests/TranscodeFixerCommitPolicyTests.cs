@@ -55,7 +55,6 @@ public sealed class TranscodeFixerCommitPolicyTests : IDisposable
 
     [Theory]
     [InlineData(FixMode.Off)]
-    [InlineData(FixMode.DetectOnly)]
     public void EvaluateCommitPolicy_ModeRevokedMidEncode_Refuses(FixMode mode)
     {
         var config = new PluginConfiguration { DryRun = false, TranscodeFixMode = mode };

@@ -42,4 +42,7 @@ public sealed class FixRunSummary
     /// is not currently enabled in Settings → Libraries. Non-blocking (the items stay queued),
     /// but surfaced on the dashboard so a "0 fixed" outcome has a visible explanation.</summary>
     public int SkippedLibraryDisabled { get; set; }
+
+    /// <summary>Gets or sets why no fixes were attempted, including the next step for the user.</summary>
+    public string? NoWorkReason { get; set; }
 }

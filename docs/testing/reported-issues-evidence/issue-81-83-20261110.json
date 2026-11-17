@@ -1,0 +1,25 @@
+{
+  "caseId": "issue-81-83",
+  "sourceDigest": "18cccce8ee54105a3c80edb05e03e1a84971113da6a3775da8716bf3be1b96c8",
+  "environment": "Owned Windows Jellyfin 10.11.11 and 12.0.0 with independent fresh data directories. MediaDash DLL SHA-256 58693ddcbec0b98b7653e1b696fedfc4714c306a324644f40f0e6465de45339d.",
+  "checks": [
+    {
+      "name": "fresh install and preview",
+      "passed": true,
+      "skipped": false,
+      "observed": "Fresh install required approval and preview preserved source bytes and approval."
+    },
+    {
+      "name": "legacy XML upgrade and approval",
+      "passed": true,
+      "skipped": false,
+      "observed": "Actual DetectOnly XML was upgraded through restart. Other configuration fields and the approval were preserved."
+    },
+    {
+      "name": "fix rescan and restore",
+      "passed": true,
+      "skipped": false,
+      "observed": "Upgraded approval executed a real audio fix. Rescan cleared it and restore recovered the original bytes."
+    }
+  ]
+}

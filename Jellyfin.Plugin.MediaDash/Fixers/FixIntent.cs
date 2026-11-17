@@ -9,14 +9,14 @@ internal enum FixIntent
 {
     /// <summary>
     /// Scheduled opportunistic run — the row was auto-queued or already Queued and the fixer is
-    /// running unattended. ManualApprove types refuse; DetectOnly refuses; restored paths refuse.
+    /// running unattended. ManualApprove types refuse; restored paths refuse.
     /// </summary>
     Scheduled,
 
     /// <summary>
     /// User explicitly approved this issue (via <c>/Issues/{id}/Approve</c>) and the fixer is
     /// running against that approval. Restored-path gate does not apply (manual is stronger
-    /// than the auto-queue block). DetectOnly still refuses — there is no fixer to run at all.
+    /// than the auto-queue block).
     /// </summary>
     Approved,
 

@@ -29,10 +29,6 @@ public class FixPolicyEvaluatorTests
     // Manual approve bypasses restored-path gate (per plan — a user's explicit approve is stronger).
     [InlineData("Quality", "Automatic", "Queued", "Approved", true, true, false, "None")]
 
-    // Rule 5: DetectOnly refuses fix regardless of intent.
-    [InlineData("Playability", "DetectOnly", "Queued", "Approved", true, false, false, "TypeDetectOnly")]
-    [InlineData("Quality", "DetectOnly", "Detected", "Scheduled", true, false, false, "TypeDetectOnly")]
-
     // Rule 6: ManualApprove + Scheduled refuses.
     [InlineData("SubtitleLanguage", "ManualApprove", "Detected", "Scheduled", true, false, false, "ManualApprovalRequired")]
 

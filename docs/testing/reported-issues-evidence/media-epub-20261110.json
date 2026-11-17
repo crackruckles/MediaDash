@@ -1,0 +1,25 @@
+{
+  "caseId": "media-epub",
+  "sourceDigest": "18cccce8ee54105a3c80edb05e03e1a84971113da6a3775da8716bf3be1b96c8",
+  "environment": "Owned Jellyfin 10.11.11 instance, installed Calibre, and EPUBCheck 5.4.0. MediaDash DLL SHA-256 58693ddcbec0b98b7653e1b696fedfc4714c306a324644f40f0e6465de45339d.",
+  "checks": [
+    {
+      "name": "epubcheck-output",
+      "passed": true,
+      "skipped": false,
+      "observed": "Both actual conversion outputs passed with no warnings. plain-text SHA-256 cf5ecf8335921cd167d260d01525d5c2ab27d2511eba85af690036183fdcffed; healthy-mobi SHA-256 dc42b9a89bf3fb93b86be9780a93f61984f22c85f71a812e7d750683156cb4ac"
+    },
+    {
+      "name": "converted-content-retained",
+      "passed": true,
+      "skipped": false,
+      "observed": "Parsed XHTML contained all expected text from the plain-text and MOBI fixtures."
+    },
+    {
+      "name": "source-restored",
+      "passed": true,
+      "skipped": false,
+      "observed": "History restored both original files. Their SHA-256 hashes match the pre-conversion fixture manifest."
+    }
+  ]
+}

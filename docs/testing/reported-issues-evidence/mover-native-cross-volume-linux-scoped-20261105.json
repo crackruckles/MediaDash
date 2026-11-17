@@ -1,0 +1,513 @@
+{
+  "caseId": "issue-43",
+  "sourceDigest": "5bb602fa9950197fa215d8e5b21b8d52a22399c07dbf0f6c3c200d8cca4a2d95",
+  "dllSha256": "f225958b511271b532254ed3c9f04afe8e525d4610614f3020bec6806eac4e80",
+  "mandatoryScenarioComplete": false,
+  "environment": "Ubuntu WSL native Jellyfin 10.11.11 with Jellyfin FFmpeg 7.1.4; non-root interactive account; ext4 to existing /dev/shm tmpfs and reverse Undo",
+  "runtimeDownloads": {
+    "server": "https://repo.jellyfin.org/files/server/linux/stable/v10.11.11/amd64/jellyfin_10.11.11-amd64.tar.gz",
+    "ffmpeg": "https://repo.jellyfin.org/files/ffmpeg/linux/latest-7.x/amd64/jellyfin-ffmpeg_7.1.4-3_portable_linux64-gpl.tar.xz"
+  },
+  "verified": {
+    "sourceDigest": "5bb602fa9950197fa215d8e5b21b8d52a22399c07dbf0f6c3c200d8cca4a2d95",
+    "dllSha256": "f225958b511271b532254ed3c9f04afe8e525d4610614f3020bec6806eac4e80",
+    "nativePlaybackRestartUndo": true,
+    "metadata": {
+      "mode": 416,
+      "uid": 1000,
+      "gid": 1000,
+      "mtimeNs": 1700000000123456700,
+      "xattrs": {
+        "user.mediadash-owned": "6f776e6564204c696e757820786174747200ff"
+      }
+    },
+    "hashes": {
+      "Owned Cross Volume (2026).mkv": "16e9870a45b2c26150f5137ba8089ae01eefe6ab48e3f83b12a953ee6497efb9",
+      "Owned Cross Volume (2026).en.srt": "61dc1a96d3a2e610b273ff5505b6d56ace7bc9fd043c6adba279aa6a8d0012db",
+      "notes.txt": "f1ea261912e09a6be459684805267d55c1c033a8430f9f0e795092838c2f7ff5"
+    },
+    "sourceDevice": 2096,
+    "destinationDevice": 63
+  },
+  "cleanup": {
+    "userConfigRestored": true,
+    "internalBookkeepingDifferences": {},
+    "libraries": [],
+    "queued": [],
+    "protection": [],
+    "verifiedSourceHashes": {
+      "/var/tmp/mediadash-owned-native-20261105/retry-1/v10/media/Audio fixture (2026)/Audio fixture (2026).mkv": "16e9870a45b2c26150f5137ba8089ae01eefe6ab48e3f83b12a953ee6497efb9"
+    },
+    "testTaskTriggersDisabled": true
+  },
+  "tmpfsCleanup": {
+    "removedOwnedEmptyFixtureRoot": true,
+    "customMountCreated": false
+  },
+  "journal": [
+    {
+      "operation_id": "c453a91d1697486684951806bbdbbf86",
+      "state": "Undone",
+      "cleanup_complete": 1,
+      "undo_of": null
+    },
+    {
+      "operation_id": "995c01b5c75547f99046ec04342eeeb1",
+      "state": "Completed",
+      "cleanup_complete": 1,
+      "undo_of": "c453a91d1697486684951806bbdbbf86"
+    }
+  ],
+  "checks": [
+    {
+      "name": "owned Linux port is unoccupied",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "Linux installed exact candidate DLL",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "Linux native runtime ready",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "three required tasks registered",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "task idle before isolation MediaDashFix",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "task idle before isolation MediaDashScan",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "task idle before isolation RefreshLibrary",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "fresh host has no libraries",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "fresh host has no queued issues",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "fresh install defaults to preview",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "fresh audio and artwork require approval",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "generated two-audio fixture decodes",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "RefreshLibrary fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "indexed library only contains owned media",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "MediaDashScan fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "source and destination use genuinely different devices",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "RefreshLibrary fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "native Linux catalog contains exact destination",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "Linux full native playback hash and decode",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "native cross-volume preview includes entire payload",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "native cross-volume move preserves every payload and empty directory",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "Linux cross-volume metadata preserved",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "native Linux catalog contains exact destination",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "Linux full native playback hash and decode",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "native cross-volume favorite preserved",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "owned Linux process fully exited",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "owned Linux port released",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "owned Linux port is unoccupied",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "Linux installed exact candidate DLL",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "Linux native runtime ready",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "three required tasks registered",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "task idle before isolation MediaDashFix",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "task idle before isolation MediaDashScan",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "task idle before isolation RefreshLibrary",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "native Linux catalog contains exact destination",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "Linux full native playback hash and decode",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "native restart cross-volume Undo restores paths payloads and metadata",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "native Linux catalog contains exact destination",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "Linux full native playback hash and decode",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "native cross-volume Undo preserves favorite",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "native cross-volume attributed History has zero savings",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "MediaDashScan fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "native cross-volume rescan retains exact payloads",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "tmpfs library registration is exact owned root",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "no queued work before restoration",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "every repaired or refused media fixture retains its exact original hash",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "cleanup library path is owned",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "RefreshLibrary fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "three required tasks registered",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "task idle before isolation MediaDashFix",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "task idle before isolation MediaDashScan",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "task idle before isolation RefreshLibrary",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "initial user configuration and empty library list restored",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "no approval or protection rule remains",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "owned Linux process fully exited",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "owned Linux port released",
+      "passed": true,
+      "skipped": false
+    }
+  ],
+  "limitations": [
+    "This is one small generated MKV with subtitle, user notes and empty directory on local ext4/tmpfs. Windows cross-volume, Jellyfin 12 cross-volume, NAS/service-account/quota, LXC, network interruption and large transfers remain unverified.",
+    "Linux metadata covers uid/gid, 0640 mode, one user extended attribute and an exactly representable 100 ns modification timestamp. ACLs, capabilities, security labels and sub-100 ns precision are not certified.",
+    "The first Linux profile was interrupted during startup; its log ended before fixture generation or any move. A fresh profile completed this workflow after WSL restarted.",
+    "No custom mount was created. The exact owned empty tmpfs fixture root was removed after Undo and host shutdown."
+  ],
+  "evidence": [
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/live.py",
+      "sha256": "c8a1b9d16d324b98b4746db175cfe4921deb0d9d4ac336a3736e94dc8a85795f"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/record.py",
+      "sha256": "a7e89785f449b1d06f2476b3a42d2c1bb6a0dabe1eb0d678392ae7b293736067"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/prepare.sh",
+      "sha256": "613a45166b4dc8f9f9b06c7f56876dc8a4239e829643dcc97c4543ac25624160"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native.log",
+      "sha256": "030c943e4c26b6e55dce9aa1d53c558bbb9052224cc9741ee3008515bc661961"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-retry-1.log",
+      "sha256": "6fbbd710b4c87a290a368a691b60e770854096f215d015bb2e7d940536b27178"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/prepare.log",
+      "sha256": "d0a6b3ac2987cff4c8e4aa136f1639c7f704f0412e3867b64bf154df769cc811"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/jellyfin.tar.gz",
+      "sha256": "9f7f194a7e37777cfde0d107c088fc47e81c7904440046ac0ceb7a289546cf79"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/ffmpeg.tar.xz",
+      "sha256": "cab9ff40a47e4232d231e4eb7e4e85fabfeec56c6905266bc94291fc0881f83f"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/v10-retry-1-evidence/final-evidence/cleanup.json",
+      "sha256": "70c64c1f1f27c3b14f274acd276168b7e13b00fa2b80de665162637a30726e5d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/v10-retry-1-evidence/final-evidence/config-fresh.json",
+      "sha256": "6c3276cd36fae6649bf364ae75ad70b986bccb4c2ea5ea3a1c68a4a7cf1f273a"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/v10-retry-1-evidence/final-evidence/config-workflow.json",
+      "sha256": "835a50773cfd558f4088ee3f0618acc7f3d3bda6b4998fc8ac338aace8b6caaa"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/v10-retry-1-evidence/final-evidence/cross-volume-history.json",
+      "sha256": "b306a256ae2373518c609485d353c5bcd38b3b0f868e7bb51f0c4442aed58968"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/v10-retry-1-evidence/final-evidence/cross-volume-move.json",
+      "sha256": "1e0a63a9cf0bfeb43775bb754ca61bcb5154257331d884eb147eee1bb0c47b7f"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/v10-retry-1-evidence/final-evidence/cross-volume-original.json",
+      "sha256": "f284cdf66530dcd27ec679d951d18e3c2f4b1efd48d3e355713d22aded4f3fa6"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/v10-retry-1-evidence/final-evidence/cross-volume-preview.json",
+      "sha256": "54fdb81dda34c9a32fa6b40b709ead560a4bf880b2661ef9040bfcb0108a1f26"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/v10-retry-1-evidence/final-evidence/cross-volume-undo.json",
+      "sha256": "1fc92d8b241965a4232deea2780b368f5bf4c1d5e8a54e6c842c07de5ed00e5a"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/v10-retry-1-evidence/final-evidence/cross-volume-verified.json",
+      "sha256": "ac831edf82edfc9fa08e833f2ede817ce74d3c9652a48174108b044248987197"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/v10-retry-1-evidence/final-evidence/fixture.json",
+      "sha256": "5b85efbd2784797d25203edfb4cea85fa19efe33f5b1f470d3b4ee6b23e0a910"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/v10-retry-1-evidence/final-evidence/issues-initial.json",
+      "sha256": "f194f597c9d688b69dc3c2690aaa41b1716c000aaa9a4cd4d5b830e633cee1be"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/v10-retry-1-evidence/final-evidence/plugin.json",
+      "sha256": "6e43bf3a6f89a77f2ce3985c2b545dbde860d04b4d95d78dbf684dc92a310f61"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/v10-retry-1-evidence/final-evidence/post-shutdown-journal.json",
+      "sha256": "c9e11419683ebb1fd4ef2a25dd34e6a07631a5a123a25ccc511c04d6ae1a8448"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/v10-retry-1-evidence/final-evidence/results.json",
+      "sha256": "f860ac4f485e44510c457879a4c0971af6d9ce9dd515f3a189f8d61f1b5ac458"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/v10-retry-1-evidence/final-evidence/server.json",
+      "sha256": "117510d357844a4a4b230704e38deb95a74d602cfc7cb7dcb46bc243f6798707"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/v10-retry-1-evidence/final-evidence/tmpfs-cleanup.json",
+      "sha256": "9c10ffb445c9f91783c1c5d861051a27828eb4f2ee633136317a92bb648a9201"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/v10-retry-1-evidence/console-1.err.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/v10-retry-1-evidence/console-1.out.log",
+      "sha256": "6b74433c3bc8b98b3f21bf31a493be195f0da76699d187e190c8ed4c5a6efec9"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/v10-retry-1-evidence/console-2.err.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-linux-native-tools/v10-retry-1-evidence/console-2.out.log",
+      "sha256": "0072ce87c3d728b4cab83a3362079b20479268d718d661cb908fd29294645ebc"
+    }
+  ]
+}

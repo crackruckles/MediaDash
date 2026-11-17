@@ -1,0 +1,25 @@
+{
+  "caseId": "media-matroska",
+  "sourceDigest": "18cccce8ee54105a3c80edb05e03e1a84971113da6a3775da8716bf3be1b96c8",
+  "environment": "Owned Jellyfin 12.0.0 instance and bundled Jellyfin 10.11.11 FFmpeg. MediaDash DLL SHA-256 58693ddcbec0b98b7653e1b696fedfc4714c306a324644f40f0e6465de45339d.",
+  "checks": [
+    {
+      "name": "pinned-inputs",
+      "passed": true,
+      "skipped": false,
+      "observed": "Wave 1.1 test2.mkv SHA-256 5B53D306E56F9BDA6E80C3FBD9F3CCD20CC885770449D1FC0B5BEC35C71D61E2; Wave 1.1 test3.mkv SHA-256 1722B0D93A6EF1A14DD513BD031CD5901C233B45AA3E3C87BE0B0D7348D7D1B5; Wave 1.1 test6.mkv SHA-256 7CAD84B434116E023D340DD584AC833B93F03FB1BD7EA2727FA45DE50AF0ABB9; Wave 1.1 test7.mkv SHA-256 95B21C92AD5A4FE00914FF5009E2A64F12FD4C5FB9CB1C3C888AB50BF0FFE483"
+    },
+    {
+      "name": "cue-less-seek",
+      "passed": true,
+      "skipped": false,
+      "observed": "test6.mkv decoded a two-second window after seeking to three seconds and then passed full decode."
+    },
+    {
+      "name": "header-and-corruption-handling",
+      "passed": true,
+      "skipped": false,
+      "observed": "Legal controls decoded and were not flagged unplayable. Damaged test7 also decoded on this runtime. All four controls remained byte-identical."
+    }
+  ]
+}

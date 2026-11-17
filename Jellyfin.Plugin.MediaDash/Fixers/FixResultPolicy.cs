@@ -6,8 +6,7 @@ namespace Jellyfin.Plugin.MediaDash.Fixers;
 /// depending on friendly-language substrings of <see cref="FixResult.Message"/>.
 /// </summary>
 /// <remarks>
-/// Values are chosen to preserve current behaviour verbatim — see
-/// <c>artifacts/refactor/01A/classifier-inventory.md</c> for the source table.
+/// Refusals remain visible for review; no-change outcomes can complete stale findings.
 /// The conservative default is <see cref="QueueDisposition.KeepQueued"/>: an
 /// outcome we did not migrate yet, or a Failed outcome without a matching
 /// terminal reason, must remain visible on the queue rather than be silently
@@ -63,25 +62,10 @@ internal static class FixResultPolicy
             return QueueDisposition.KeepQueued;
         }
 
-        // Refused: hard preconditions failed. Every currently-classified refusal is terminal
-        // for the queue (LibraryGuard, DRM, collision, unsupported format, invalid combined
-        // request, incompatible container). Protected (future Never-modify) is conservatively
-        // KeepQueued — see the master plan's "Preserve consent changes as roadmap work" note.
+        // A refusal changed nothing; preserve the approval and explanation for review.
         if (outcome == FixOutcome.Refused)
         {
-            return reason switch
-            {
-                FixReason.OutsideLibrary => QueueDisposition.CompleteLegacy,
-                FixReason.DrmProtected => QueueDisposition.CompleteLegacy,
-                FixReason.DestinationCollision => QueueDisposition.CompleteLegacy,
-                FixReason.UnsupportedFormat => QueueDisposition.CompleteLegacy,
-                FixReason.IncompatibleContainer => QueueDisposition.CompleteLegacy,
-                FixReason.InvalidCombinedRequest => QueueDisposition.CompleteLegacy,
-                FixReason.TypeDisabled => QueueDisposition.CompleteLegacy,
-                FixReason.LibraryDisabled => QueueDisposition.CompleteLegacy,
-                FixReason.Protected => QueueDisposition.KeepQueued,
-                _ => QueueDisposition.KeepQueued
-            };
+            return QueueDisposition.KeepQueued;
         }
 
         // Failed: the two current terminal shapes are SourceMissing (file/directory gone).

@@ -1,0 +1,1137 @@
+{
+  "caseId": "issue-43",
+  "sourceDigest": "5bb602fa9950197fa215d8e5b21b8d52a22399c07dbf0f6c3c200d8cca4a2d95",
+  "dllSha256": "f225958b511271b532254ed3c9f04afe8e525d4610614f3020bec6806eac4e80",
+  "mandatoryScenarioComplete": false,
+  "environment": "Windows NTFS, interactive account, fresh owned loopback Jellyfin 10.11.11 and 12.0.0 profiles; generated local HTTP media source",
+  "verifiedFamilies": {
+    "v10": {
+      "STRM": {
+        "type": "Movie",
+        "originalHashes": {
+          "notes.txt": "10f8faa456b011ac6c3b942ba728a4df4c0a2fe3223f081db45d1a8cb2928562",
+          "Owned STRM (2026).nfo": "fcda01eeacc2f20ac7eb7617e7d6a47ce9a3fd6f96891f8c6aefaa6e584a5287",
+          "Owned STRM (2026).strm": "26210b8e777f71366824e1685cdc0af9262b7e8585e48a3502329cf074eaa51c"
+        },
+        "restartUndoVerified": true,
+        "fullNativePlaybackVerified": true,
+        "historyIds": [
+          1
+        ]
+      },
+      "changedAfterPreview": {
+        "staleApprovalRefused": true,
+        "freshApprovalAndUndoVerified": true,
+        "hashes": {
+          "notes.txt": "e256cd52d715fd767d737581f1dd9a8a1994806af2dbc5f920a07b79240b322b",
+          "Owned STRM (2026).nfo": "fcda01eeacc2f20ac7eb7617e7d6a47ce9a3fd6f96891f8c6aefaa6e584a5287",
+          "Owned STRM (2026).strm": "26210b8e777f71366824e1685cdc0af9262b7e8585e48a3502329cf074eaa51c"
+        },
+        "scope": "Completed write between preview and apply; not a writer during copy/commit"
+      },
+      "NTFS": {
+        "sourceDigest": "5bb602fa9950197fa215d8e5b21b8d52a22399c07dbf0f6c3c200d8cca4a2d95",
+        "dllSha256": "f225958b511271b532254ed3c9f04afe8e525d4610614f3020bec6806eac4e80",
+        "verified": {
+          "creationTicks": "638449381230000000",
+          "modifiedTicks": "638450355060000000",
+          "attributes": 33,
+          "adsSha256": "9b32047c6f12eb222b05bfb852dc9a4e40e5ddc9a9a765ae614921e876f6fd55",
+          "sha256": "b1f4bbbc1b03f34b6707c96e5b59dabf9e079d27be3a4d873719eda9e902b168",
+          "aclSddlSha256": "bc30ecfca9d40feb3ed4f5bdff8b9c833c97d8124117fc9a23fd1c556ad04e58"
+        },
+        "exclusiveHandleRefusalVerified": true,
+        "scope": "Windows NTFS same-volume complete-folder move and Undo; protected DACL, owner/group, read-only/archive attributes, creation/modified timestamps, alternate-stream bytes; exclusive open handle before apply"
+      },
+      "cleanup": {
+        "userConfigRestored": true,
+        "internalBookkeepingDifferences": {},
+        "libraries": [],
+        "queued": [],
+        "protection": [],
+        "verifiedSourceHashes": {
+          "C:\\dev\\mediadash\\artifacts\\push-preparation-20261105-strm-boundaries-verified\\v10\\media\\Audio fixture (2026)\\Audio fixture (2026).mkv": "b1f4bbbc1b03f34b6707c96e5b59dabf9e079d27be3a4d873719eda9e902b168"
+        },
+        "testTaskTriggersDisabled": true
+      },
+      "passingChecks": 81
+    },
+    "v12": {
+      "STRM": {
+        "type": "Movie",
+        "originalHashes": {
+          "notes.txt": "10f8faa456b011ac6c3b942ba728a4df4c0a2fe3223f081db45d1a8cb2928562",
+          "Owned STRM (2026).nfo": "fcda01eeacc2f20ac7eb7617e7d6a47ce9a3fd6f96891f8c6aefaa6e584a5287",
+          "Owned STRM (2026).strm": "5b26a19d75ec6e36bffc1a221bddb99b667dabda445b9edc3b8b95825243caa7"
+        },
+        "restartUndoVerified": true,
+        "fullNativePlaybackVerified": true,
+        "historyIds": [
+          1
+        ]
+      },
+      "changedAfterPreview": {
+        "staleApprovalRefused": true,
+        "freshApprovalAndUndoVerified": true,
+        "hashes": {
+          "notes.txt": "e256cd52d715fd767d737581f1dd9a8a1994806af2dbc5f920a07b79240b322b",
+          "Owned STRM (2026).nfo": "fcda01eeacc2f20ac7eb7617e7d6a47ce9a3fd6f96891f8c6aefaa6e584a5287",
+          "Owned STRM (2026).strm": "5b26a19d75ec6e36bffc1a221bddb99b667dabda445b9edc3b8b95825243caa7"
+        },
+        "scope": "Completed write between preview and apply; not a writer during copy/commit"
+      },
+      "NTFS": {
+        "sourceDigest": "5bb602fa9950197fa215d8e5b21b8d52a22399c07dbf0f6c3c200d8cca4a2d95",
+        "dllSha256": "f225958b511271b532254ed3c9f04afe8e525d4610614f3020bec6806eac4e80",
+        "verified": {
+          "creationTicks": "638449381230000000",
+          "modifiedTicks": "638450355060000000",
+          "attributes": 33,
+          "adsSha256": "9b32047c6f12eb222b05bfb852dc9a4e40e5ddc9a9a765ae614921e876f6fd55",
+          "sha256": "774eafa42ddc6fc75b916d82289b16889892fa3dbcec7eaae6b9f3ff67656b11",
+          "aclSddlSha256": "bc30ecfca9d40feb3ed4f5bdff8b9c833c97d8124117fc9a23fd1c556ad04e58"
+        },
+        "exclusiveHandleRefusalVerified": true,
+        "scope": "Windows NTFS same-volume complete-folder move and Undo; protected DACL, owner/group, read-only/archive attributes, creation/modified timestamps, alternate-stream bytes; exclusive open handle before apply"
+      },
+      "cleanup": {
+        "userConfigRestored": true,
+        "internalBookkeepingDifferences": {},
+        "libraries": [],
+        "queued": [],
+        "protection": [],
+        "verifiedSourceHashes": {
+          "C:\\dev\\mediadash\\artifacts\\push-preparation-20261105-strm-boundaries-verified\\v12\\media\\Audio fixture (2026)\\Audio fixture (2026).mkv": "774eafa42ddc6fc75b916d82289b16889892fa3dbcec7eaae6b9f3ff67656b11"
+        },
+        "testTaskTriggersDisabled": true
+      },
+      "passingChecks": 81
+    }
+  },
+  "checks": [
+    {
+      "name": "v10: port 8096 is unoccupied",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: installed candidate DLL hash matches",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: owned server became ready",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: three required tasks registered",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: task idle before isolation MediaDashFix",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: task idle before isolation MediaDashScan",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: task idle before isolation RefreshLibrary",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: fresh host has no libraries",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: fresh host has no queued issues",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: fresh install defaults to preview",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: fresh audio and artwork require approval",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: generated two-audio fixture decodes",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: RefreshLibrary fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: indexed library only contains owned media",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: MediaDashScan fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: RefreshLibrary fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: one native item at C:\\dev\\mediadash\\artifacts\\push-preparation-20261105-strm-boundaries-verified\\v10\\media\\Owned STRM (2026)\\Owned STRM (2026).strm",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: STRM native playback resolves owned HTTP backing",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: STRM full native playback body equals backing media",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: STRM complete folder preview owns every payload",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: STRM complete folder preserves exact payloads and empty directory",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: one native item at C:\\dev\\mediadash\\artifacts\\push-preparation-20261105-strm-boundaries-verified\\v10\\media\\Owned STRM Renamed (2026)\\Owned STRM (2026).strm",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: STRM native playback resolves owned HTTP backing",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: STRM full native playback body equals backing media",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: STRM move preserves favorite",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: shutdown targets this owned data directory",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: owned server process exited",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: port 8096 is unoccupied",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: installed candidate DLL hash matches",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: owned server became ready",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: three required tasks registered",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: task idle before isolation MediaDashFix",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: task idle before isolation MediaDashScan",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: task idle before isolation RefreshLibrary",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: one native item at C:\\dev\\mediadash\\artifacts\\push-preparation-20261105-strm-boundaries-verified\\v10\\media\\Owned STRM Renamed (2026)\\Owned STRM (2026).strm",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: STRM native playback resolves owned HTTP backing",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: STRM full native playback body equals backing media",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: STRM restart Undo restores exact original folder",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: one native item at C:\\dev\\mediadash\\artifacts\\push-preparation-20261105-strm-boundaries-verified\\v10\\media\\Owned STRM (2026)\\Owned STRM (2026).strm",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: STRM native playback resolves owned HTTP backing",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: STRM full native playback body equals backing media",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: STRM Undo preserves favorite",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: STRM linked successful History reports zero savings",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: MediaDashScan fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: STRM rescan preserves every source byte",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: changed-after-preview approval refuses and preserves writer bytes",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: fresh approval accepts changed manifest",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: fresh approval Undo preserves writer bytes",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: original moves Undone and reverse operations Completed with cleanup",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: RefreshLibrary fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: one native item at C:\\dev\\mediadash\\artifacts\\push-preparation-20261105-strm-boundaries-verified\\v10\\media\\Owned Metadata (2026)\\Owned Metadata (2026).mkv",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: Windows metadata fixture accepted by complete preview",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: owned exclusive file handle opened",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: exclusive handle refuses approved move without journal or payload changes",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: Windows metadata move succeeds with exact ACL, ADS, attributes and timestamps",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: one native item at C:\\dev\\mediadash\\artifacts\\push-preparation-20261105-strm-boundaries-verified\\v10\\media\\Owned Metadata Renamed (2026)\\Owned Metadata (2026).mkv",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: Windows metadata moved primary has exact full playback and decode",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: Windows metadata Undo restores exact ACL, ADS, attributes and timestamps",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: one native item at C:\\dev\\mediadash\\artifacts\\push-preparation-20261105-strm-boundaries-verified\\v10\\media\\Owned Metadata (2026)\\Owned Metadata (2026).mkv",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: no queued work before restoration",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: every repaired or refused media fixture retains its exact original hash",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: cleanup library path is owned",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: RefreshLibrary fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: three required tasks registered",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: task idle before isolation MediaDashFix",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: task idle before isolation MediaDashScan",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: task idle before isolation RefreshLibrary",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: initial user configuration and empty library list restored",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: no approval or protection rule remains",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: shutdown targets this owned data directory",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: owned server process exited",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: port 8096 is unoccupied",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: installed candidate DLL hash matches",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: owned server became ready",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: three required tasks registered",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: task idle before isolation MediaDashFix",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: task idle before isolation MediaDashScan",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: task idle before isolation RefreshLibrary",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: fresh host has no libraries",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: fresh host has no queued issues",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: fresh install defaults to preview",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: fresh audio and artwork require approval",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: generated two-audio fixture decodes",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: RefreshLibrary fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: indexed library only contains owned media",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: MediaDashScan fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: RefreshLibrary fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: one native item at C:\\dev\\mediadash\\artifacts\\push-preparation-20261105-strm-boundaries-verified\\v12\\media\\Owned STRM (2026)\\Owned STRM (2026).strm",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: STRM native playback resolves owned HTTP backing",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: STRM full native playback body equals backing media",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: STRM complete folder preview owns every payload",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: STRM complete folder preserves exact payloads and empty directory",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: one native item at C:\\dev\\mediadash\\artifacts\\push-preparation-20261105-strm-boundaries-verified\\v12\\media\\Owned STRM Renamed (2026)\\Owned STRM (2026).strm",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: STRM native playback resolves owned HTTP backing",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: STRM full native playback body equals backing media",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: STRM move preserves favorite",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: shutdown targets this owned data directory",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: owned server process exited",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: port 8096 is unoccupied",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: installed candidate DLL hash matches",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: owned server became ready",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: three required tasks registered",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: task idle before isolation MediaDashFix",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: task idle before isolation MediaDashScan",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: task idle before isolation RefreshLibrary",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: one native item at C:\\dev\\mediadash\\artifacts\\push-preparation-20261105-strm-boundaries-verified\\v12\\media\\Owned STRM Renamed (2026)\\Owned STRM (2026).strm",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: STRM native playback resolves owned HTTP backing",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: STRM full native playback body equals backing media",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: STRM restart Undo restores exact original folder",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: one native item at C:\\dev\\mediadash\\artifacts\\push-preparation-20261105-strm-boundaries-verified\\v12\\media\\Owned STRM (2026)\\Owned STRM (2026).strm",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: STRM native playback resolves owned HTTP backing",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: STRM full native playback body equals backing media",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: STRM Undo preserves favorite",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: STRM linked successful History reports zero savings",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: MediaDashScan fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: STRM rescan preserves every source byte",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: changed-after-preview approval refuses and preserves writer bytes",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: fresh approval accepts changed manifest",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: fresh approval Undo preserves writer bytes",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: original moves Undone and reverse operations Completed with cleanup",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: RefreshLibrary fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: one native item at C:\\dev\\mediadash\\artifacts\\push-preparation-20261105-strm-boundaries-verified\\v12\\media\\Owned Metadata (2026)\\Owned Metadata (2026).mkv",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: Windows metadata fixture accepted by complete preview",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: owned exclusive file handle opened",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: exclusive handle refuses approved move without journal or payload changes",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: Windows metadata move succeeds with exact ACL, ADS, attributes and timestamps",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: one native item at C:\\dev\\mediadash\\artifacts\\push-preparation-20261105-strm-boundaries-verified\\v12\\media\\Owned Metadata Renamed (2026)\\Owned Metadata (2026).mkv",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: Windows metadata moved primary has exact full playback and decode",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: Windows metadata Undo restores exact ACL, ADS, attributes and timestamps",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: one native item at C:\\dev\\mediadash\\artifacts\\push-preparation-20261105-strm-boundaries-verified\\v12\\media\\Owned Metadata (2026)\\Owned Metadata (2026).mkv",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: no queued work before restoration",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: every repaired or refused media fixture retains its exact original hash",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: cleanup library path is owned",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: RefreshLibrary fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: three required tasks registered",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: task idle before isolation MediaDashFix",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: task idle before isolation MediaDashScan",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: task idle before isolation RefreshLibrary",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: initial user configuration and empty library list restored",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: no approval or protection rule remains",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: shutdown targets this owned data directory",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: owned server process exited",
+      "passed": true,
+      "skipped": false
+    }
+  ],
+  "evidence": [
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/run.py",
+      "sha256": "1466491cac5b76fe6f176e2a9539a8ccfce3d28937a18ee2a48d65b03d1105d1"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/metadata.py",
+      "sha256": "85f235a3fdb7eec13352e76b1b38321e6b5daf5a587994861db735eb20bfbf60"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/metadata.ps1",
+      "sha256": "f59f9e21425748b9a1cf620fc08081ef1141af4b9300d200be305a4d081f8528"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/record.py",
+      "sha256": "c22207ce4575833d3277a472e6c0497c6b7cf85a7e4e7d55df1b5c1e14d230d2"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-v10.log",
+      "sha256": "23d5759aae80c3b226c5b5a87cd9efc36ef013759596eeb1f77dfd40495af989"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified.log",
+      "sha256": "eb496409a2bb9128bef903b2512b759ff6cbad2fe642bc8a48a88de4e6a1a13e"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v10/final-evidence/candidate.json",
+      "sha256": "3a6a18b31e02b8af0c9999a13971cc91adf2059ed27610d58b1f787af415050b"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v10/final-evidence/results.json",
+      "sha256": "90420492230bb20252ca4b17d89d2c94b05a5aa4cd427b35af206d5f8f397bb3"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v10/final-evidence/cleanup.json",
+      "sha256": "6e015f038b687125475e033824fd8c59a5267e257e55abfc133d7a60b6672c74"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v10/final-evidence/server.json",
+      "sha256": "664c1cf777a77dce0ed6632dddf70b15ee1fb62a2d34b38bf0992049e2f9a4ce"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v10/final-evidence/plugin.json",
+      "sha256": "15ad030f337f5897cb55a7b32115639b3f8f6bc56080f9cdbd99f51afad3fd87"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v10/final-evidence/STRM-original.json",
+      "sha256": "02637f20a9bcab327c4837ebbd25b652c21e8efa0870ef5ba067ed257c5406ed"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v10/final-evidence/STRM-preview.json",
+      "sha256": "24a97135fe230e9008986670f4a54de354d91a2118a9fdc7249fe9fa368a6891"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v10/final-evidence/STRM-move.json",
+      "sha256": "09ccabb934fc44664d4e8ea7f8b860159bbe198f5f539559686c82335d9c0ffe"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v10/final-evidence/STRM-undo.json",
+      "sha256": "3b78bbb99b8d9d7a7b6a07df3180eb9cba1d911e03a0c57286956dd7ba43fa17"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v10/final-evidence/STRM-history.json",
+      "sha256": "61ce317739c82e6e49c24e7061c4e39138406d8d143e9b2afde4a2da2e6651f1"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v10/final-evidence/STRM-verified.json",
+      "sha256": "2d7520694ae661a0e8b360117e3a3d53e18df065cfa4e75fb8afd5e7d7376964"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v10/final-evidence/writer-stale-preview.json",
+      "sha256": "cb00491e96b06bf1f682a3052d80704def700d3c7d69697517e6e9aa882b322e"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v10/final-evidence/writer-verified.json",
+      "sha256": "6c62fc1bfaa73f90813d3ec1f11760511dfb5bea6bcc261b97b5ff272e15174f"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v10/final-evidence/final-move-journal.json",
+      "sha256": "1f6fbbef41b7099d8b676d00301eded96efa51b22ca69c7e85bd43ccfdc20465"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v10/final-evidence/metadata-before.json",
+      "sha256": "3db5c926baae0967d3cf5162f9617b5f5ed7010e5ad09f5a9e4df735479923e8"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v10/final-evidence/metadata-preview.json",
+      "sha256": "fc946bb1d848f26b29e1ba14f22c4ed1e736960c624de5f7e19311765259e74d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v10/final-evidence/metadata-move.json",
+      "sha256": "aaa08c5d347f6b819496f0d6e014513b6d72b1602585ddd848d0cb623f34927e"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v10/final-evidence/metadata-undo.json",
+      "sha256": "112eea7f809f0f3069178c137de016dffade7d2330525bc34a167374af8c7ffe"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v10/final-evidence/metadata-verified.json",
+      "sha256": "f41f07d3c6531050a8c991778adbabb340d6fe9ecf6cbed76d68bc317849ea00"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v10/final-evidence/exclusive-handle-refusal.json",
+      "sha256": "cb3e50eab11d90a7e7d531f36ab36c9bdea63fdaa69bb9461daf120876c42997"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v10/final-evidence/post-shutdown-journal.json",
+      "sha256": "f6bf75d1243c1610e8e0bb4e1c4020d9e212cb653e321b75aaa81ad8ca6f53ce"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v10/server/plugins/MediaDash_acceptance/Jellyfin.Plugin.MediaDash.dll",
+      "sha256": "f225958b511271b532254ed3c9f04afe8e525d4610614f3020bec6806eac4e80"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v12/final-evidence/candidate.json",
+      "sha256": "3a6a18b31e02b8af0c9999a13971cc91adf2059ed27610d58b1f787af415050b"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v12/final-evidence/results.json",
+      "sha256": "ba420b4824b2840167754a8d9b7fe7bf56c40f50fadee1436e2a590af5ece832"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v12/final-evidence/cleanup.json",
+      "sha256": "269e4d5f050e019aead080b8685e80a50c24b7644d21f7093f84e66d1d5795fd"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v12/final-evidence/server.json",
+      "sha256": "fcea1296c1865d5cd7dddc3d2a78eb83f1586613f94d159c1da0d01b0f2c9f02"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v12/final-evidence/plugin.json",
+      "sha256": "15ad030f337f5897cb55a7b32115639b3f8f6bc56080f9cdbd99f51afad3fd87"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v12/final-evidence/STRM-original.json",
+      "sha256": "a5c456493b01357f765bdc197ccdd6e7d6e7f49f6e896036a20dfcfe6f82b78a"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v12/final-evidence/STRM-preview.json",
+      "sha256": "a774e64b999ea535bb541f4d684b8fd0726e0d8cab8d32ad40a6c3ca56e2ff3d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v12/final-evidence/STRM-move.json",
+      "sha256": "b73c43b9c241e197d12f9a6cd295e46cff6a8d47468a6d330fb9372b52fcf3e2"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v12/final-evidence/STRM-undo.json",
+      "sha256": "72c850eedd5a68aa4a15747e3b0514f9a7123f95a1dcee872c3b2c91e78a210d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v12/final-evidence/STRM-history.json",
+      "sha256": "313b540d5f3849607bc455633cfcce8e7d15bc71bc7523e43954bf845ccd93ce"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v12/final-evidence/STRM-verified.json",
+      "sha256": "3a0c3752ce0c85248829bb0caf1940f8cc2b6dca88ab3bf96de38adffee82f83"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v12/final-evidence/writer-stale-preview.json",
+      "sha256": "ebca0b9f80206a1346228ccab9dc658a93adc8f3ab1fe35c4b519b958cb83b32"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v12/final-evidence/writer-verified.json",
+      "sha256": "e90276ca4fa165e2ec43cebb44a679de32edc6676a3004f31eda04cf3ae47626"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v12/final-evidence/final-move-journal.json",
+      "sha256": "c76c51fc8e41268d46e0d04c5a53f2675df6dbe1a02e3fbb04362502daff19e3"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v12/final-evidence/metadata-before.json",
+      "sha256": "620074a8ede43a6459eb43a290ad1e623997072522ee037800066ef1ecf041cd"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v12/final-evidence/metadata-preview.json",
+      "sha256": "1f91f2fc054847a2a6e649ac503820a94a89cb114fc77219a39eaa5c25890064"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v12/final-evidence/metadata-move.json",
+      "sha256": "5bb3d5924dcee615a3af0f5efaf72af26c0043b1be99e7fea3329bbbf2c7499e"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v12/final-evidence/metadata-undo.json",
+      "sha256": "c0d2691998fda08030a74e02f5e5fdc0b5497e46639ae51dded660fd9c93068b"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v12/final-evidence/metadata-verified.json",
+      "sha256": "97a4e25b5a9ace775e91071a45760d0fd84c66c69880aa57e634c627817f8e02"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v12/final-evidence/exclusive-handle-refusal.json",
+      "sha256": "ed04779267d996206811d067f1afb62edb2f9b32fbba5e60572d7a8dfc633f21"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v12/final-evidence/post-shutdown-journal.json",
+      "sha256": "7420a658965f69c5a23a5b2a88145a4507837dcea8e4cea6acbabdb6bb56d9bd"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-strm-boundaries-verified/v12/server/plugins/MediaDash_acceptance/Jellyfin.Plugin.MediaDash.dll",
+      "sha256": "f225958b511271b532254ed3c9f04afe8e525d4610614f3020bec6806eac4e80"
+    }
+  ],
+  "remaining": [
+    "Native disc/ISO/DVD/Blu-ray acceptance with playable owned fixtures",
+    "Full native cross-volume playback and Undo",
+    "Writer during copy/commit, remote interruption and remaining platform metadata boundaries",
+    "Reporter-equivalent original-audio and MKV failure media, writable service-account NAS/quota, committed candidate gate and complete intended-change review"
+  ],
+  "limitations": [
+    "Exclusive handle control is held before apply; no writer is injected during copy or commit.",
+    "NTFS metadata result covers same-volume complete-folder moves only; no cross-volume, Linux metadata or remote-share metadata certification.",
+    "STRM points to owned loopback HTTP content; authenticated, unavailable or external stream providers were not exercised.",
+    "The first v10 attempt passed payload/refusal checks but failed a harness journal assertion that incorrectly expected reverse operations to be Undone. The fresh run verifies original Undone and reverse Completed with cleanup. The failed log is retained."
+  ]
+}

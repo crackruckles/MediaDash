@@ -37,6 +37,18 @@ public class DiagnosticLifecycleTests : IDisposable
     }
 
     [Fact]
+    public void ConnectionFactory_OpenFailure_WithAttachedDiagnosticStore_ThrowsOnceAndDoesNotRecurse()
+    {
+        var service = new DiagnosticService();
+        var factory = new Data.MediaDashConnectionFactory(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder
+        { DataSource = System.IO.Path.GetTempPath(), Pooling = false }.ToString());
+        service.Attach(new Data.DiagnosticStore(factory));
+        var before = service.Recent().Where(e => e.Source == "MediaDashDb.Open").Sum(e => e.Count);
+        Assert.Throws<Microsoft.Data.Sqlite.SqliteException>(() => factory.Open());
+        Assert.Equal(before + 1, service.Recent().Where(e => e.Source == "MediaDashDb.Open").Sum(e => e.Count));
+    }
+
+    [Fact]
     public void Record_WithoutAttach_BuffersInMemory()
     {
         var svc = new DiagnosticService();

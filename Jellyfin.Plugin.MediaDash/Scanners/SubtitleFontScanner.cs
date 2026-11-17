@@ -52,6 +52,7 @@ public sealed class SubtitleFontScanner : IScanner
     public Task<IReadOnlyList<Issue>> ScanAsync(IReadOnlyList<BaseItem> items, IProgress<double> progress, CancellationToken cancellationToken)
     {
         var issues = new List<Issue>();
+        var seen = new HashSet<string>(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
         var forceFont = Plugin.Instance?.Configuration.SubtitleForceFont?.Trim() ?? string.Empty;
         var forceFontActive = !string.IsNullOrEmpty(forceFont);
 
@@ -66,11 +67,12 @@ public sealed class SubtitleFontScanner : IScanner
             var sidecars = FindSidecars(video.Path);
             foreach (var sidecar in sidecars)
             {
-                if (_protection?.IsScannerBlocked(sidecar, Type) == true)
+                if (!seen.Add(sidecar) || _protection?.IsScannerBlocked(sidecar, Type) == true)
                 {
                     continue;
                 }
 
+                using var operation = ScheduledTasks.RunDiagnostics.Track("read and parse subtitle sidecar", examinesFile: true);
                 var result = MeasureReclaim(sidecar, forceFontActive);
                 if (result is null)
                 {
@@ -149,7 +151,12 @@ public sealed class SubtitleFontScanner : IScanner
             IEnumerable<string> files;
             try
             {
-                files = Directory.EnumerateFiles(dir, basename + "*" + ext);
+                files = Directory.EnumerateFiles(dir, "*" + ext).Where(file =>
+                {
+                    var stem = Path.GetFileNameWithoutExtension(file);
+                    var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+                    return stem.Equals(basename, comparison) || stem.StartsWith(basename + ".", comparison);
+                }).ToList();
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {

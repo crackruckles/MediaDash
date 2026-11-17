@@ -44,6 +44,10 @@ function Backup-BaseFixtures {
     }
 
     if ((Test-Path -LiteralPath $BackupRoot) -and -not $Force) {
+        $existingManifest = Join-Path $BackupRoot 'manifest.json'
+        if (-not (Test-Path -LiteralPath $existingManifest)) { throw 'Existing fixture backup has no manifest; use a fresh fixture root.' }
+        $existing = Get-Content -LiteralPath $existingManifest -Raw | ConvertFrom-Json
+        if ($existing.method -ne 'copy' -or @($existing.files).Count -eq 0) { throw 'Existing fixture backup is not a complete independent copy.' }
         Write-Log "Backup already exists at $BackupRoot — skipping (use -Force to refresh)"
         return $BackupRoot
     }
@@ -129,13 +133,19 @@ function Test-FixtureIntegrity {
     )
     $manifestPath = Join-Path $BackupRoot "manifest.json"
     if (-not (Test-Path -LiteralPath $manifestPath)) {
-        Write-Log "No manifest at $manifestPath — cannot check integrity"
-        return @()
+        throw "No manifest at $manifestPath; fixture integrity cannot be established."
     }
     $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    if (@($manifest.files).Count -eq 0) { throw 'Fixture backup manifest is empty.' }
     $changes = @()
     foreach ($entry in $manifest.files) {
         $current = Join-Path $FixturesRoot $entry.path
+        $backup = Join-Path $BackupRoot $entry.path
+        Assert-SafeLiveTarget -Url 'http://localhost:8099' -AllowedFixturePaths @($FixturesRoot) -FixturePath $current
+        Assert-SafeLiveTarget -Url 'http://localhost:8099' -AllowedFixturePaths @($BackupRoot) -FixturePath $backup
+        if ([string]$entry.sha256 -notmatch '^[a-fA-F0-9]{64}$' -or (Get-FileHash -LiteralPath $backup -Algorithm SHA256).Hash -ne $entry.sha256) {
+            throw "Fixture backup hash does not match its manifest: $($entry.path)"
+        }
         if (-not (Test-Path -LiteralPath $current)) {
             $changes += [PSCustomObject]@{ path = $entry.path; kind = "DELETED"; expectedSha = $entry.sha256; actualSha = "" }
             continue
@@ -155,7 +165,7 @@ function Test-FixtureIntegrity {
 function New-ScratchFixtureRoot {
     $root = Join-Path $Script:RunState.FixturesRoot "_test-scratch"
     if (Test-Path -LiteralPath $root) {
-        Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $root -Recurse -Force
     }
     New-Item -ItemType Directory -Force -Path $root | Out-Null
     Write-Log "Scratch fixture root: $root"
@@ -203,6 +213,7 @@ function New-SyntheticVideo {
         )
     }
     & $ffmpeg @argList 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed with exit $LASTEXITCODE for $OutPath" }
     if (-not (Test-Path -LiteralPath $OutPath)) { throw "ffmpeg failed to produce $OutPath" }
 }
 
@@ -254,7 +265,10 @@ Style: Default,Impact,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 Dialogue: 0,0:00:01.00,0:00:05.00,Default,,0,0,0,,Test line
 "@
-    Set-Content -LiteralPath (Join-Path $assDir "Ass Sub Test (2020).en.ass") -Value $ass -Encoding utf8
+    # The scanner finds unused embedded font blocks, not ordinary font names.
+    # Exceed the scanner's 50 KiB reclaim floor even after ASS decoding.
+    $ass += "`n[Fonts]`nfontname: OwnedUnusedFont_R0.ttf`n" + ((@('!' * 80) * 1000) -join "`n") + "`n"
+    [IO.File]::WriteAllText((Join-Path $assDir "Ass Sub Test (2020).en.ass"), $ass.Replace("`r`n", "`n"), [Text.UTF8Encoding]::new($false))
 
     # 6. 5.1 audio movie — needed for future audio scanner + combined-pass tests
     Write-Log "  building: 5.1 audio fixture"
@@ -267,14 +281,19 @@ Dialogue: 0,0:00:01.00,0:00:05.00,Default,,0,0,0,,Test line
     $trickDir = Join-Path $ScratchRoot "movies\Trickplay Test (2020)"
     New-Item -ItemType Directory -Force -Path $trickDir | Out-Null
     New-SyntheticVideo -OutPath (Join-Path $trickDir "Trickplay Test (2020).mkv") -DurationSec 3
-    # Write a simple .trickplay sibling folder with fake-JPG bytes (real JPG magic)
+    # Real JPEG sprites with harmless trailing padding exercise actual decode
+    # and compression; magic bytes alone cannot be converted by the fixer.
     $tpFolder = Join-Path $trickDir "Trickplay Test (2020).trickplay"
     New-Item -ItemType Directory -Force -Path $tpFolder | Out-Null
-    $jpgMagic = [byte[]]@(0xFF,0xD8,0xFF,0xE0,0x00,0x10,0x4A,0x46,0x49,0x46)
-    # Pad to trigger min-size threshold (10 MB default) — write 15 fake ~750 KB JPGs
+    $sprite = Join-Path $tpFolder '0.jpg'
+    $ffmpeg = Get-JellyfinFfmpegPath
+    & $ffmpeg -nostdin -y -v error -f lavfi -i 'testsrc2=size=640x360:rate=1' -frames:v 1 -q:v 2 -threads 1 $sprite 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Could not generate a decodable trickplay sprite.' }
+    $jpgBytes = [IO.File]::ReadAllBytes($sprite)
+    # Pad to trigger min-size threshold — 15 decodable ~750 KB JPEGs.
     $padding = New-Object byte[] 750000
     for ($i = 0; $i -lt 15; $i++) {
-        $bytes = $jpgMagic + $padding
+        $bytes = $jpgBytes + $padding
         [System.IO.File]::WriteAllBytes((Join-Path $tpFolder "$i.jpg"), $bytes)
     }
 
@@ -299,6 +318,16 @@ Dialogue: 0,0:00:01.00,0:00:05.00,Default,,0,0,0,,Test line
     $zeroDir = Join-Path $ScratchRoot "movies\Zero Byte (2020)"
     New-Item -ItemType Directory -Force -Path $zeroDir | Out-Null
     New-Item -ItemType File -Force -Path (Join-Path $zeroDir "Zero Byte (2020).mkv") | Out-Null
+
+    # A Quality + unwanted-audio fixture for the transcode-companion route.
+    $companionDir = Join-Path $ScratchRoot 'movies/Companion Quality (2026)'
+    $companionSource = Join-Path $companionDir 'Companion Quality (2026).mkv'
+    $companionTemp = Join-Path $companionDir 'source.tmp.mkv'
+    New-SyntheticVideo -OutPath $companionTemp -Width 3840 -Height 2160 -DurationSec 4 -VideoBitrate '16M'
+    $ffmpeg = Get-JellyfinFfmpegPath
+    & $ffmpeg -nostdin -y -v error -i $companionTemp -map '0:v:0' -map '0:a:0' -map '0:a:0' -c copy -metadata:s:a:0 language=eng -metadata:s:a:1 language=fra $companionSource 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Could not generate the transcode-companion fixture.' }
+    Remove-Item -LiteralPath $companionTemp
 
     Write-Log "Scratch fixtures written to $ScratchRoot"
     return $ScratchRoot
@@ -334,7 +363,8 @@ function New-DoctorWhoFixture {
 function Remove-ScratchFixtures {
     $root = Join-Path $Script:RunState.FixturesRoot "_test-scratch"
     if (Test-Path -LiteralPath $root) {
-        Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
+        if ((Resolve-Path -LiteralPath $root).Path -ne [IO.Path]::GetFullPath($root)) { throw 'Unexpected scratch directory.' }
+        Remove-Item -LiteralPath $root -Recurse -Force
         Write-Log "Removed scratch fixtures"
     }
 }

@@ -109,7 +109,7 @@ public sealed class StaleContentScanner : IScanner
                 continue;
             }
 
-            if (excludedPrefixes.Count > 0 && excludedPrefixes.Any(p => item.Path.StartsWith(p, StringComparison.OrdinalIgnoreCase)))
+            if (excludedPrefixes.Count > 0 && excludedPrefixes.Any(p => item.Path.StartsWith(p, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)))
             {
                 continue;
             }

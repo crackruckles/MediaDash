@@ -12,10 +12,10 @@
 #   - MediaDash 1.0.7.5+ plugin loaded (fresh publish before running)
 #   - C:\dev\mediadash-fixtures\* present (base fixtures from make-fixtures.sh)
 #   - Jellyfin's bundled ffmpeg available (jellyfin\ffmpeg.exe)
-#   - PowerShell 5.1 or higher
+#   - PowerShell 7 or higher
 #
 # Usage:
-#   .\run-full-tests.ps1                          # full run
+#   .\run-full-tests.ps1 -ConfirmLive -DataDir <isolated-data-dir> # full run
 #   .\run-full-tests.ps1 -SkipPhases 07,08        # skip UI + edge case phases
 #   .\run-full-tests.ps1 -OnlyPhases 02,03        # only scanners + fixers
 #   .\run-full-tests.ps1 -RunId 2026-09-04-a      # named run (default: timestamp)
@@ -31,6 +31,7 @@
 #   test-results\<runid>\results.jsonl      — one JSON per test (grep/jq-able)
 #   test-results\<runid>\failures\<test>\   — DB/config/log snapshot per failure
 
+#requires -Version 7.0
 [CmdletBinding()]
 param(
     [string]$JellyfinUrl = "http://localhost:8099",
@@ -42,6 +43,8 @@ param(
     [string[]]$OnlyPhases = @(),
     [switch]$Quick,
     [switch]$HaltOnFailure,
+    [switch]$ConfirmLive,
+    [string]$DataDir,
     [int]$DefaultTimeoutSec = 600
 )
 
@@ -57,6 +60,7 @@ Set-StrictMode -Version 1.0
 # Paths + run directory
 # ─────────────────────────────────────────────────────────────────────────────
 $Script:TestRoot   = Split-Path -Parent $PSCommandPath
+if ($RunId -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]*$') { throw 'RunId must be a single directory name.' }
 $Script:PluginRoot = Split-Path -Parent (Split-Path -Parent $Script:TestRoot)
 $Script:ResultsDir = Join-Path $Script:TestRoot "test-results\$RunId"
 $Script:LogPath    = Join-Path $Script:ResultsDir "run.log"
@@ -66,7 +70,8 @@ $Script:FailuresDir = Join-Path $Script:ResultsDir "failures"
 $Script:ArtifactsDir = Join-Path $Script:ResultsDir "artifacts"
 $Script:SummaryPath = Join-Path $Script:ResultsDir "summary.md"
 
-New-Item -ItemType Directory -Force -Path $Script:ResultsDir | Out-Null
+if (Test-Path -LiteralPath $Script:ResultsDir) { throw 'RunId already exists; use a new run ID to prevent stale evidence.' }
+New-Item -ItemType Directory -Path $Script:ResultsDir | Out-Null
 New-Item -ItemType Directory -Force -Path $Script:FailuresDir | Out-Null
 New-Item -ItemType Directory -Force -Path $Script:ArtifactsDir | Out-Null
 
@@ -107,6 +112,9 @@ $Script:RunState = [PSCustomObject]@{
     CreatedFixturePaths = @()
     OriginalDryRun = $null
     OriginalConfigSnapshot = $null
+    OriginalBinPaths = $null
+    OriginalTasks = @()
+    DataDir = $DataDir
 
     # Timings
     PhaseTimings = @{}
@@ -182,6 +190,8 @@ if ($OnlyPhases.Count -gt 0 -and $PhasesToRun.Id -notcontains "00" -and "00" -no
 # ─────────────────────────────────────────────────────────────────────────────
 # Banner + main loop
 # ─────────────────────────────────────────────────────────────────────────────
+if (-not $ConfirmLive -or -not $DataDir) { throw 'Live runs require -ConfirmLive and -DataDir for a dedicated fixture-only Jellyfin instance.' }
+Assert-SafeLiveTarget -Url $JellyfinUrl
 Write-Log ""
 Write-Log "═══════════════════════════════════════════════════════════════════════"
 Write-Log "  MediaDash comprehensive test — Run $RunId"
@@ -204,6 +214,9 @@ foreach ($phase in $PhasesToRun) {
     $Script:RunState.PhasesRun += $phase.Name
     $phaseStart = [DateTime]::UtcNow
     $preTotal = $Script:RunState.TotalTests
+    $preFailures = $Script:RunState.TestsFailed + $Script:RunState.TestsErrored
+    # Cleanup must continue to the next independent step even with HaltOnFailure.
+    if ($phase.Id -eq '99') { $Script:RunState.HaltOnFailure = $false }
     Write-Log ""
     Write-Log "─── PHASE $($phase.Id) · $($phase.Name.ToUpper()) ─────────────────────────"
     Update-Status
@@ -223,6 +236,10 @@ foreach ($phase in $PhasesToRun) {
         }
     }
     $Script:RunState.PhaseCounters[$phase.Name] = $Script:RunState.TotalTests - $preTotal
+    if ($phase.Id -in @('00','01') -and ($Script:RunState.TestsFailed + $Script:RunState.TestsErrored) -gt $preFailures) {
+        $aborted = $true
+        Write-Log 'Preflight/setup failed; halting dependent phases.'
+    }
     $Script:RunState.PhaseTimings[$phase.Name] = ([DateTime]::UtcNow - $phaseStart).TotalSeconds
     Update-Status
 }
@@ -233,7 +250,7 @@ foreach ($phase in $PhasesToRun) {
 Write-Summary
 Update-Status -Final
 
-$verdict = Get-RunVerdict -RunState $Script:RunState
+$verdict = Get-RunVerdict -RunState $Script:RunState -RequiredPhasesRun @($PhasesToRun.Name)
 
 Write-Log ""
 Write-Log "═══════════════════════════════════════════════════════════════════════"

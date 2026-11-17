@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using System.Text.Json.Serialization;
 
 namespace Jellyfin.Plugin.MediaDash.Probing;
@@ -25,4 +27,19 @@ public sealed class FfprobeData
     /// </summary>
     [JsonPropertyName("error")]
     public FfprobeError? Error { get; set; }
+
+    // Container duration can be N/A while individual audio/video streams have valid durations.
+    internal bool TryGetDuration(out double duration)
+    {
+        if (double.TryParse(Format?.Duration, NumberStyles.Float, CultureInfo.InvariantCulture, out duration)
+            && double.IsFinite(duration) && duration > 0)
+        {
+            return true;
+        }
+
+        duration = Streams?.Where(s => (s.CodecType is "audio" or "video") && !s.IsAttachedPicture)
+            .Select(s => double.TryParse(s.Duration, NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
+                && double.IsFinite(d) && d > 0 ? d : 0).DefaultIfEmpty().Max() ?? 0;
+        return duration > 0;
+    }
 }

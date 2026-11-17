@@ -64,7 +64,6 @@
     "binViewShow":  "Vedi contenuto",
     "binRestoreHint":  "Per rimettere un file, usa il pulsante Ripristina nella scheda Cronologia.",
     "modeOff":  "Disattivato — non scansionare nemmeno",
-    "modeDetect":  "Solo rileva — solo mostrare",
     "modeManual":  "Chiedimi prima",
     "modeAuto":  "Correggi automaticamente",
     "disposalRecycle":  "Cestino (recuperabile)",
