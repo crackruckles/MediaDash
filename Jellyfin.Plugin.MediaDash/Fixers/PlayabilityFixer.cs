@@ -808,6 +808,26 @@ public sealed class PlayabilityFixer : IFixer
         }
 
         var tempPath = TranscodeFixer.SidecarPath(issue.Path, "repair.tmp4a", ext);
+        var audioEncoder = ext.ToLowerInvariant() switch
+        {
+            "mp3" or "avi" or "divx" => "libmp3lame",
+            "flac" => "flac",
+            "wav" or "aif" or "aiff" or "aifc" when audioStreams[0].CodecName?.StartsWith("pcm_", StringComparison.Ordinal) == true => audioStreams[0].CodecName,
+            "wav" => "pcm_s32le",
+            "aif" or "aiff" or "aifc" => "pcm_s32be",
+            "ogg" or "oga" or "ogm" or "ogv" => "libvorbis",
+            "opus" or "webm" => "libopus",
+            "wma" or "wmv" or "asf" => "wmav2",
+            "mpeg" or "mpg" or "vob" => "mp2",
+            "mkv" or "mka" or "mp4" or "m4v" or "m4a" or "m4b" or "mov"
+                or "ts" or "m2ts" or "mts" or "m2t" or "flv" or "3gp" or "3g2" or "aac" => "aac",
+            _ => null
+        };
+        if (audioEncoder is null)
+        {
+            return null;
+        }
+
         var keepOutput = false;
         try
         {
@@ -818,15 +838,21 @@ public sealed class PlayabilityFixer : IFixer
                 "-i", issue.Path,
                 "-map", "0",
                 "-c:v", "copy",
-                "-c:a", "aac",
-                "-b:a", "192k",
+                "-c:a", audioEncoder
+            };
+            if (audioEncoder != "flac" && !audioEncoder.StartsWith("pcm_", StringComparison.Ordinal))
+            {
+                args.AddRange(["-b:a", "192k"]);
+            }
+
+            args.AddRange([
                 "-c:s", "copy",
                 "-c:d", "copy",
                 "-c:t", "copy",
                 "-avoid_negative_ts", "make_zero",
                 "-f", TranscodeFixer.ContainerToFfmpegFormat(ext),
                 tempPath
-            };
+            ]);
 
             var error = await _ffmpeg.RunAsync(args, RepairRungTimeout, cancellationToken).ConfigureAwait(false);
             if (error is not null)

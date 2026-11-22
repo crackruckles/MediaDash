@@ -41,6 +41,76 @@ public sealed class BugReportBackendTests : IDisposable
             ? (registered ? new[] { worker } : Array.Empty<MediaBrowser.Model.Tasks.IScheduledTaskWorker>()) : null;
         var controller = new MediaDashController(null!, null!, null!, manager, null!, null!, null!, null!, [], [], null!, null!, new RunState(), null!, null!, null!);
         Assert.Equal(status, Assert.IsAssignableFrom<ObjectResult>(controller.StartScan()).StatusCode);
+        Assert.Equal(status, Assert.IsAssignableFrom<ObjectResult>(controller.StartUngroupedScan()).StatusCode);
+    }
+
+    [Fact]
+    public void UngroupedScanArmsOnlyGroupingAndAFullScanClearsTheFilter()
+    {
+        var scan = (ScanTask)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(ScanTask));
+        var worker = DispatchProxy.Create<MediaBrowser.Model.Tasks.IScheduledTaskWorker, OriginalLanguageFlowTests.CallProxy>();
+        ((OriginalLanguageFlowTests.CallProxy)(object)worker).Call = (method, _) => method.Name switch
+        {
+            "get_ScheduledTask" => scan,
+            "get_State" => MediaBrowser.Model.Tasks.TaskState.Idle,
+            _ => null
+        };
+        var executions = 0;
+        var manager = DispatchProxy.Create<MediaBrowser.Model.Tasks.ITaskManager, OriginalLanguageFlowTests.CallProxy>();
+        ((OriginalLanguageFlowTests.CallProxy)(object)manager).Call = (method, _) =>
+        {
+            if (method.Name == "get_ScheduledTasks") return new[] { worker };
+            if (method.Name == "Execute") executions++;
+            return null;
+        };
+        var state = new RunState();
+        var controller = new MediaDashController(null!, null!, null!, manager, null!, null!, null!, null!, [], [], null!, null!, state, null!, null!, null!);
+        Assert.IsType<NoContentResult>(controller.StartUngroupedScan());
+        Assert.Equal(IssueType.Ungrouped, Assert.Single(state.ConsumeNextScanTypeFilter()!));
+        Assert.True(state.ConsumeBypassIdleCheck(RunRole.Scan));
+        state.ArmNextScanTypeFilter(new System.Collections.Generic.HashSet<IssueType> { IssueType.Ungrouped });
+        Assert.IsType<NoContentResult>(controller.StartScan());
+        Assert.Null(state.ConsumeNextScanTypeFilter());
+        Assert.Equal(2, executions);
+    }
+
+    [Fact]
+    public void SelectedScanArmsOnlyTheTickedTypes()
+    {
+        var scan = (ScanTask)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(ScanTask));
+        var worker = DispatchProxy.Create<MediaBrowser.Model.Tasks.IScheduledTaskWorker, OriginalLanguageFlowTests.CallProxy>();
+        ((OriginalLanguageFlowTests.CallProxy)(object)worker).Call = (method, _) => method.Name switch
+        {
+            "get_ScheduledTask" => scan,
+            "get_State" => MediaBrowser.Model.Tasks.TaskState.Idle,
+            _ => null
+        };
+        var executions = 0;
+        var manager = DispatchProxy.Create<MediaBrowser.Model.Tasks.ITaskManager, OriginalLanguageFlowTests.CallProxy>();
+        ((OriginalLanguageFlowTests.CallProxy)(object)manager).Call = (method, _) =>
+        {
+            if (method.Name == "get_ScheduledTasks") return new[] { worker };
+            if (method.Name == "Execute") executions++;
+            return null;
+        };
+        var state = new RunState();
+        var controller = new MediaDashController(null!, null!, null!, manager, null!, null!, null!, null!, [], [], null!, null!, state, null!, null!, null!);
+
+        Assert.IsType<NoContentResult>(controller.StartSelectedScan(new ScanSelectionRequest { Types = ["Ungrouped", "duplicate", "Ungrouped"] }));
+        var filter = state.ConsumeNextScanTypeFilter()!;
+        Assert.Equal(2, filter.Count);
+        Assert.Contains(IssueType.Ungrouped, filter);
+        Assert.Contains(IssueType.Duplicate, filter);
+        Assert.True(state.ConsumeBypassIdleCheck(RunRole.Scan));
+
+        // Empty / unknown / record-only selections never start a run (an empty filter would scan everything).
+        Assert.IsType<BadRequestObjectResult>(controller.StartSelectedScan(new ScanSelectionRequest()));
+        Assert.IsType<BadRequestObjectResult>(controller.StartSelectedScan(new ScanSelectionRequest { Types = [" "] }));
+        Assert.IsType<BadRequestObjectResult>(controller.StartSelectedScan(new ScanSelectionRequest { Types = ["Ungrouped", "NotAType"] }));
+        Assert.IsType<BadRequestObjectResult>(controller.StartSelectedScan(new ScanSelectionRequest { Types = ["ManualMove"] }));
+        Assert.IsType<BadRequestObjectResult>(controller.StartSelectedScan(new ScanSelectionRequest { Types = ["10"] }));
+        Assert.Null(state.ConsumeNextScanTypeFilter());
+        Assert.Equal(1, executions);
     }
 
     [Fact]

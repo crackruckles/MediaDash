@@ -24,6 +24,9 @@ namespace Jellyfin.Plugin.MediaDash.Scanners;
 /// </summary>
 public sealed partial class DuplicateScanner : IScanner
 {
+    /// <summary>Details kind for one file listed under two library names.</summary>
+    internal const string KindLibraryAlias = "LibraryAlias";
+
     private static readonly string[] MovieProviders = ["Tmdb", "Imdb", "Tvdb"];
 
     // Jellyfin's per-item sidecar naming convention. Any file whose basename (without extension)
@@ -71,46 +74,7 @@ public sealed partial class DuplicateScanner : IScanner
     /// <inheritdoc />
     public async Task<IReadOnlyList<Issue>> ScanAsync(IReadOnlyList<BaseItem> items, IProgress<double> progress, CancellationToken cancellationToken)
     {
-        var groups = new Dictionary<string, List<(BaseItem Item, string Path)>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var item in items)
-        {
-            var key = GetGroupKey(item);
-            if (key is null || string.IsNullOrEmpty(item.Path))
-            {
-                continue;
-            }
-
-            // Only the item's primary path. MediaFileHelper.GetFilePaths also yields every
-            // LocalAlternateVersions[] path — those are user-declared merged versions (or a
-            // scraper auto-merged them), i.e. intentional by definition. Feeding them here made
-            // DuplicateScanner flag them against each other and pick a "keeper" for each merged
-            // Movie/Episode item, which is exactly the "all episodes of Firefly / Doctor Who
-            // Classic / Six Million Dollar Man look like duplicates of one keeper" symptom in the
-            // 2026-08-21 field report (A4). True cross-item duplicates (two distinct Jellyfin
-            // items whose paths happen to collide, or two items that scraped to the same
-            // provider ID) still surface via the group key.
-            var path = item.Path;
-            if (IsSidecarPath(path))
-            {
-                continue;
-            }
-
-            if (!groups.TryGetValue(key, out var list))
-            {
-                list = [];
-                groups[key] = list;
-            }
-
-            list.Add((item, path));
-        }
-
-        // Same-item collapse: a group whose entries all share one BaseItem.Id is not a duplication
-        // finding — the user's library has one item there. Belt-and-braces alongside the
-        // "only primary path" change above.
-        var duplicateGroups = groups
-            .Where(g => g.Value.Select(v => v.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
-            .Where(g => g.Value.Select(v => v.Item.Id).Distinct().Count() > 1)
-            .ToList();
+        var duplicateGroups = CandidateGroups(items);
 
         // Skip groups where any copy is younger than DuplicateMinAgeDays — Jellyfin's metadata scrape hasn't
         // stabilised yet, so a fresh import can transiently look like a duplicate of itself before provider IDs
@@ -142,7 +106,7 @@ public sealed partial class DuplicateScanner : IScanner
         foreach (var group in duplicateGroups)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            foreach (var editionGroup in SplitByEdition(group.Value))
+            foreach (var editionGroup in SplitByEdition(group.Key, group.Value))
             {
                 if (editionGroup.Count < 2)
                 {
@@ -156,8 +120,161 @@ public sealed partial class DuplicateScanner : IScanner
             progress.Report(processed * 100.0 / duplicateGroups.Count);
         }
 
+        // Separate from copies: one file reachable under two library names (hardlinks), which
+        // Jellyfin lists as two items. Removing the extra name frees nothing but ends the double entry.
+        issues.AddRange(FindLibraryAliases(items));
         progress.Report(100);
         return issues;
+    }
+
+    /// <summary>
+    /// One physical file reachable under two or more library paths (hardlinks), listed by Jellyfin as
+    /// separate items: production 2026-11-22, every Haunting of Bly Manor episode appeared under both
+    /// "The Haunting of Bly Manor (2020)" and a mis-identified "The Haunting (2023)". The name whose
+    /// show or movie folder best matches the filename is kept; each other name is a finding whose fix
+    /// removes only that name. The file and any links outside the library are untouched.
+    /// </summary>
+    /// <param name="items">Library items.</param>
+    /// <returns>One finding per extra name.</returns>
+    internal static List<Issue> FindLibraryAliases(IReadOnlyList<BaseItem> items)
+    {
+        var byFile = new Dictionary<(ulong Volume, ulong FileId), List<(BaseItem Item, string Path)>>();
+        foreach (var item in items)
+        {
+            if (item is not Video || string.IsNullOrEmpty(item.Path) || IsSidecarPath(item.Path)
+                || !Probing.PhysicalFileIdentity.TryRead(item.Path, out var identity) || identity.IsReparsePoint || identity.LinkCount < 2)
+            {
+                continue;
+            }
+
+            var key = (identity.Volume, identity.FileId);
+            if (!byFile.TryGetValue(key, out var names))
+            {
+                names = [];
+                byFile[key] = names;
+            }
+
+            names.Add((item, item.Path));
+        }
+
+        var issues = new List<Issue>();
+        foreach (var (file, names) in byFile)
+        {
+            var distinct = names.DistinctBy(entry => entry.Path, StringComparer.OrdinalIgnoreCase).ToList();
+            if (distinct.Count < 2 || distinct.Select(entry => entry.Item.Id).Distinct().Count() < 2)
+            {
+                continue;
+            }
+
+            var keeper = distinct.OrderByDescending(entry => FolderFit(entry.Path)).ThenBy(entry => entry.Path, StringComparer.Ordinal).First();
+            var identity = new { vol = file.Volume.ToString(CultureInfo.InvariantCulture), id = file.FileId.ToString(CultureInfo.InvariantCulture) };
+            foreach (var alias in distinct.Where(entry => !ReferenceEquals(entry.Item, keeper.Item) || entry.Path != keeper.Path))
+            {
+                issues.Add(new Issue
+                {
+                    Type = IssueType.Duplicate,
+                    ItemId = alias.Item.Id,
+                    Path = alias.Path,
+                    Status = IssueStatus.Detected,
+                    DetectedAtUtc = DateTime.UtcNow,
+                    SizeSavings = 0,
+                    Confidence = 0.95,
+                    DetailsJson = JsonSerializer.Serialize(new
+                    {
+                        kind = KindLibraryAlias,
+                        keeperPath = keeper.Path,
+                        keeperIdentity = identity,
+                        loserIdentity = identity
+                    }),
+                    SuggestedFix = "Remove this extra library entry. It is the same file as '" + Path.GetFileName(keeper.Path) + "' in '"
+                        + Path.GetFileName(Path.GetDirectoryName(keeper.Path)) + "', which stays. No space is freed; the double listing goes away."
+                });
+            }
+        }
+
+        return issues;
+
+        // How well a path's folders name what the file is: the best title overlap between the
+        // filename and any of its three nearest folders.
+        static double FolderFit(string path)
+        {
+            var name = Path.GetFileName(path);
+            var best = 0.0;
+            var folder = Path.GetDirectoryName(path);
+            for (var depth = 0; depth < 3 && !string.IsNullOrEmpty(folder); depth++, folder = Path.GetDirectoryName(folder))
+            {
+                var fit = DuplicateSignals.TitleTokenJaccard(name, Path.GetFileName(folder));
+                if (!double.IsNaN(fit) && fit > best)
+                {
+                    best = fit;
+                }
+            }
+
+            return best;
+        }
+    }
+
+    /// <summary>
+    /// Groups items that name the same movie or episode. Each item contributes its primary path; an
+    /// episode also contributes the versions Jellyfin merged into it when every one of those
+    /// filenames carries the same episode number as the primary (S09E05 and S09E05).
+    /// </summary>
+    /// <remarks>
+    /// Merged versions are otherwise left alone: Jellyfin also merges different episodes into one
+    /// item ("all episodes of Firefly look like duplicates of one keeper", 2026-08-21 field report A4),
+    /// and those never share an episode number. Production 2026-11-22: three releases of one Rick and
+    /// Morty episode were merged as versions and so were never offered as duplicates.
+    /// </remarks>
+    /// <param name="items">Library items.</param>
+    /// <returns>Groups holding more than one distinct copy.</returns>
+    internal static List<KeyValuePair<string, List<(BaseItem Item, string Path)>>> CandidateGroups(IReadOnlyList<BaseItem> items)
+    {
+        var groups = new Dictionary<string, List<(BaseItem Item, string Path)>>(StringComparer.OrdinalIgnoreCase);
+        var mergedVersionGroups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in items)
+        {
+            var key = GetGroupKey(item);
+            if (key is null || string.IsNullOrEmpty(item.Path))
+            {
+                continue;
+            }
+
+            // Only the item's primary path, plus same-episode merged versions (see remarks). Other
+            // LocalAlternateVersions[] paths are user-declared or scraper-merged versions, which
+            // are intentional or not duplicates at all (field report A4).
+            var path = item.Path;
+            if (IsSidecarPath(path))
+            {
+                continue;
+            }
+
+            if (!groups.TryGetValue(key, out var list))
+            {
+                list = [];
+                groups[key] = list;
+            }
+
+            list.Add((item, path));
+            if (item is Episode && item is Video video && video.LocalAlternateVersions is { Length: > 0 } versions
+                && Fixers.MoveProvenance.ParseEpisodeMarker(Path.GetFileNameWithoutExtension(path)) is { } marker
+                && versions.All(version => !string.IsNullOrWhiteSpace(version)
+                    && Fixers.MoveProvenance.ParseEpisodeMarker(Path.GetFileNameWithoutExtension(version)) == marker))
+            {
+                foreach (var version in versions.Where(version => !IsSidecarPath(version)))
+                {
+                    list.Add((item, version));
+                }
+
+                mergedVersionGroups.Add(key);
+            }
+        }
+
+        // Same-item collapse: a group whose entries all share one BaseItem.Id is not a duplication
+        // finding, unless it holds same-episode merged versions.
+        return groups
+            .Where(g => g.Value.Select(v => v.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
+            .Where(g => mergedVersionGroups.Contains(g.Key) || g.Value.Select(v => v.Item.Id).Distinct().Count() > 1)
+            .ToList();
     }
 
     internal static string? GetGroupKey(BaseItem item)
@@ -329,12 +446,55 @@ public sealed partial class DuplicateScanner : IScanner
         return false;
     }
 
-    private static IEnumerable<List<(BaseItem Item, string Path)>> SplitByEdition(List<(BaseItem Item, string Path)> group)
+    internal static IEnumerable<List<(BaseItem Item, string Path)>> SplitByEdition(string groupKey, List<(BaseItem Item, string Path)> group, bool treatEditionsAsDuplicates = false)
     {
         var distinct = group.DistinctBy(e => e.Path, StringComparer.OrdinalIgnoreCase).ToList();
-        if (Config.TreatEditionsAsDuplicates)
+        if (treatEditionsAsDuplicates || Plugin.Instance?.Configuration.TreatEditionsAsDuplicates == true)
         {
             yield return distinct;
+            yield break;
+        }
+
+        if (groupKey.StartsWith("episode:", StringComparison.Ordinal))
+        {
+            // Episodes: different release names are copies of one episode, not editions. Using the
+            // whole filename as the edition meant no two releases of an episode could ever be
+            // flagged (production 2026-11-22). Only an explicit {edition-X} tag, or Jellyfin's
+            // labelled versions ("Show S01E01 - 1080p" beside "Show S01E01 - 4K"), mark copies kept
+            // on purpose.
+            foreach (var tagged in distinct.GroupBy(e => ExplicitEdition(e.Path) ?? string.Empty, StringComparer.OrdinalIgnoreCase))
+            {
+                var copies = tagged.ToList();
+                var prefixes = copies.Select(e => VersionPrefix(e.Path)).ToList();
+                if (copies.Count > 1 && prefixes.All(prefix => prefix is not null)
+                    && prefixes.Distinct(StringComparer.OrdinalIgnoreCase).Count() == 1)
+                {
+                    foreach (var labelled in copies)
+                    {
+                        yield return [labelled];
+                    }
+
+                    continue;
+                }
+
+                yield return copies;
+            }
+
+            yield break;
+        }
+
+        if (groupKey.StartsWith("movie:", StringComparison.Ordinal))
+        {
+            // Movies matched to one title: the release name (BluRay or WEB, x264 or HEVC, PROPER, the
+            // group) does not make an edition. Production 2026-11-22: two 1080p releases of Mr. Bean's
+            // Holiday were never offered as duplicates. Kept apart: an explicit {edition-X} tag, a
+            // labelled version ("Movie - Directors Cut"), a named cut, or a different resolution tier
+            // (users keep 4K beside 1080p on purpose).
+            foreach (var edition in distinct.GroupBy(e => MovieEdition(e.Path), StringComparer.OrdinalIgnoreCase))
+            {
+                yield return edition.ToList();
+            }
+
             yield break;
         }
 
@@ -342,6 +502,55 @@ public sealed partial class DuplicateScanner : IScanner
         {
             yield return editionGroup.ToList();
         }
+    }
+
+    /// <summary>What keeps one copy of a movie apart from another; empty when only the release differs.</summary>
+    /// <param name="path">The movie file.</param>
+    /// <returns>The edition key.</returns>
+    internal static string MovieEdition(string path)
+    {
+        var stem = Metadata.MediaIdentityService.StripSite(Path.GetFileNameWithoutExtension(path));
+        if (ExplicitEdition(path) is { } tagged)
+        {
+            return "edition:" + tagged;
+        }
+
+        var label = LabelSuffix().Match(stem);
+        if (label.Success)
+        {
+            return "label:" + NormalizeName(label.Groups[1].Value);
+        }
+
+        var cuts = MovieCut().Matches(stem).Select(match => NormalizeName(match.Value).Replace(" ", string.Empty, StringComparison.Ordinal))
+            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
+        var resolution = ResolutionTier().Match(stem) is { Success: true } tier
+            ? tier.Value.ToLowerInvariant() switch { "4k" or "uhd" or "2160p" => "2160", var other => other.TrimEnd('p', 'i') }
+            : string.Empty;
+        return "cut:" + string.Join("+", cuts) + "|res:" + resolution;
+    }
+
+    // " - Directors Cut", " -finalcut", " - 1080p": Jellyfin's labelled versions.
+    [GeneratedRegex(@"\s-\s*([^-]+)$", RegexOptions.CultureInvariant)]
+    private static partial Regex LabelSuffix();
+
+    [GeneratedRegex(@"(?i)\b(?:director'?s[ ._-]?cut|extended|unrated|uncut|theatrical|remaster(?:ed)?|imax|special[ ._-]?edition|final[ ._-]?cut|ultimate[ ._-]?cut|redux|criterion|anniversary|despecialized|open[ ._-]?matte|alternate[ ._-]?ending|3d)\b")]
+    private static partial Regex MovieCut();
+
+    [GeneratedRegex(@"(?i)\b(?:2160p|4k|uhd|1080[pi]|720p|576[pi]|480[pi])\b")]
+    private static partial Regex ResolutionTier();
+
+    private static string? ExplicitEdition(string path)
+    {
+        var match = EditionRegex().Match(Path.GetFileNameWithoutExtension(path));
+        return match.Success ? match.Groups[1].Value.Trim().ToLowerInvariant() : null;
+    }
+
+    // Jellyfin's version naming: "<shared name> - <label>". Null when the stem has no " - ".
+    private static string? VersionPrefix(string path)
+    {
+        var stem = Path.GetFileNameWithoutExtension(path);
+        var split = stem.LastIndexOf(" - ", StringComparison.Ordinal);
+        return split > 0 ? stem[..split].Trim() : null;
     }
 
     internal static string GetEdition(string path)
@@ -545,7 +754,10 @@ public sealed partial class DuplicateScanner : IScanner
             issues.Add(new Issue
             {
                 Type = IssueType.Duplicate,
-                ItemId = loser.Item!.Id,
+
+                // A merged version shares its item with the copy that is kept; the fixer reaps the
+                // loser's item after recycling, so a version that is not the item's own file has none.
+                ItemId = string.Equals(loser.Item!.Path, loser.Path, StringComparison.OrdinalIgnoreCase) ? loser.Item.Id : Guid.Empty,
                 Path = loser.Path,
                 Status = IssueStatus.Detected,
                 DetectedAtUtc = DateTime.UtcNow,
@@ -598,6 +810,16 @@ public sealed partial class DuplicateScanner : IScanner
             ["hashesMatch"] = hashesMatch
         };
 
+        // Both filenames name the same episode (S09E05 and S09E05). Release names differ in how much
+        // of the episode title they carry ("…S09E05.Jer.Bud.1080p…" vs "…s09e05.multi.1080p…"), which
+        // dragged title similarity under the veto and silently dropped real duplicate episodes
+        // (production 2026-11-22). The veto exists for distinct titles sharing one metadata slot,
+        // which never carry the same episode marker; the runtime veto below still applies.
+        var keeperEpisode = Fixers.MoveProvenance.ParseEpisodeMarker(System.IO.Path.GetFileNameWithoutExtension(keeper.Path));
+        var sameEpisodeMarker = keeperEpisode is not null
+            && keeperEpisode == Fixers.MoveProvenance.ParseEpisodeMarker(System.IO.Path.GetFileNameWithoutExtension(loser.Path));
+        signals["sameEpisodeMarker"] = sameEpisodeMarker;
+
         // Tier 0: byte-identical wins outright — no veto path can override.
         if (hashesMatch)
         {
@@ -609,7 +831,7 @@ public sealed partial class DuplicateScanner : IScanner
         // skipped when the signal is NaN — the caller literally cannot judge it, so we fall
         // back to the runtime veto alone. Do NOT collapse NaN to 0.0 here (would veto
         // everything unnamed after noise-stripping).
-        if (!double.IsNaN(jaccard) && jaccard < cfg.DuplicateTitleJaccardVeto)
+        if (!sameEpisodeMarker && !double.IsNaN(jaccard) && jaccard < cfg.DuplicateTitleJaccardVeto)
         {
             signals["vetoReason"] = "titleJaccardBelowThreshold";
             return (0.0, Vetoed: true, signals);

@@ -253,6 +253,32 @@ d="$M/music/Test Artist/Format FLAC"; mkdir -p "$d"
 cp "$COVER" "$d/cover.jpg"
 expect "music/Test Artist/Format FLAC/Format FLAC.flac" none "control: FLAC with embedded JPEG artwork and an existing folder cover"
 
+# Issue #94: one recoverable MP3 frame must not make a playable song disposable.
+d="$M/music/Test Artist/Glitch Controls"; mkdir -p "$d"; cp "$COVER" "$d/cover.jpg"
+track "$d/01 - Recoverable Cover.mp3" "Recoverable Cover" 1 "Glitch Controls"
+track "$d/02 - Recoverable Audio.mp3" "Recoverable Audio" 2 "Glitch Controls"
+"$FF" -y -v error -i "$d/02 - Recoverable Audio.mp3" -map 0:a -c copy "$TMP/no-cover.mp3"
+mv "$TMP/no-cover.mp3" "$d/02 - Recoverable Audio.mp3"
+track "$d/03 - Severe Damage.mp3" "Severe Damage" 3 "Glitch Controls"
+python3 - "$FF" "$d" <<'PY'
+import json, pathlib, subprocess, sys
+probe = str(pathlib.Path(sys.argv[1]).with_name('ffprobe'))
+for path in pathlib.Path(sys.argv[2]).glob('*.mp3'):
+    packets = json.loads(subprocess.check_output([probe, '-v', 'error', '-select_streams', 'a', '-show_packets',
+        '-show_entries', 'packet=pos,size', '-of', 'json', str(path)]))['packets']
+    severe = path.name.startswith('03')
+    damaged = packets[2:-2] if severe else packets[len(packets)//2:len(packets)//2+1]
+    data = bytearray(path.read_bytes())
+    for packet in damaged:
+        pos, size = int(packet['pos']), int(packet['size'])
+        data[pos+4:pos+size] = b'\xff' * (size-4)
+    path.write_bytes(data)
+PY
+expect "music/Test Artist/Glitch Controls/01 - Recoverable Cover.mp3" none "issue #94: one bad frame with cover art still decodes to the end"
+expect "music/Test Artist/Glitch Controls/02 - Recoverable Audio.mp3" none "issue #94: one bad frame without cover art still decodes to the end"
+expect "music/Test Artist/Glitch Controls/03 - Severe Damage.mp3" Playability "issue #94: nearly every audio frame is damaged"
+fixfails "music/Test Artist/Glitch Controls/03 - Severe Damage.mp3" Playability "Repair failed" "severe audio loss cannot pass duration verification; original must be preserved"
+
 # ---------- books ----------
 # epub <out> <title> <isbn>  -- minimal valid EPUB 2
 epub() {

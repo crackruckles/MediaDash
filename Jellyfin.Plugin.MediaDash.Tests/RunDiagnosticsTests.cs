@@ -41,7 +41,7 @@ public sealed class RunDiagnosticsTests
         Assert.Null(DiskIo.BytesPerSecond(10, 20, 0));
     }
 
-    private sealed class TestClock : TimeProvider
+    internal sealed class TestClock : TimeProvider
     {
         private long _ticks;
 

@@ -766,6 +766,23 @@ public sealed class IssueStore
         return cmd.ExecuteNonQuery() > 0;
     }
 
+    /// <summary>Replaces one finding's details and suggested fix with a fresh plan for the same item.</summary>
+    /// <param name="issueId">The issue id.</param>
+    /// <param name="replacement">The re-planned finding.</param>
+    /// <returns>True when the row was still open and was updated.</returns>
+    internal bool ReplacePlan(long issueId, Issue replacement)
+    {
+        using var connection = _connectionFactory.Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "UPDATE issues SET path = @path, details = @details, suggested_fix = @fix WHERE id = @id AND status = @detected";
+        cmd.Parameters.AddWithValue("@path", replacement.Path);
+        cmd.Parameters.AddWithValue("@details", replacement.DetailsJson);
+        cmd.Parameters.AddWithValue("@fix", replacement.SuggestedFix);
+        cmd.Parameters.AddWithValue("@id", issueId);
+        cmd.Parameters.AddWithValue("@detected", (int)IssueStatus.Detected);
+        return cmd.ExecuteNonQuery() > 0;
+    }
+
     /// <summary>Gets a single issue by id.</summary>
     /// <param name="issueId">The issue id.</param>
     /// <returns>The issue, or null when the row is gone or malformed.</returns>

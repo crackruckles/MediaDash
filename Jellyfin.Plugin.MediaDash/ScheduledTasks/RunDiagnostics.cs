@@ -12,10 +12,10 @@ namespace Jellyfin.Plugin.MediaDash.ScheduledTasks;
 internal sealed class RunDiagnostics : IDisposable
 {
     private static readonly AsyncLocal<RunDiagnostics?> Current = new();
-    private static readonly bool Enabled = Environment.GetEnvironmentVariable("MEDIADASH_RUN_DIAGNOSTICS") == "1";
     private readonly object _lock = new();
     private readonly ILogger _logger;
     private readonly TimeProvider _time;
+    private readonly RunDiagnosticsRecording? _capture;
     private readonly string _kind;
     private readonly string _component;
     private readonly Guid _id = Guid.NewGuid();
@@ -40,27 +40,30 @@ internal sealed class RunDiagnostics : IDisposable
     private long? _systemMemoryPeak;
     private double? _networkReadPeak;
     private double? _networkWritePeak;
+    private double? _diskPeak;
+    private double? _networkPeak;
 
-    internal RunDiagnostics(ILogger logger, string kind, string component, TimeProvider time)
+    internal RunDiagnostics(ILogger logger, string kind, string component, TimeProvider time, RunDiagnosticsRecording? capture = null)
     {
         _logger = logger;
         _kind = kind;
         _component = component;
         _time = time;
+        _capture = capture;
         _started = _lastProgress = time.GetTimestamp();
     }
 
     internal static RunDiagnostics? Start(ILogger logger, string kind, string component)
     {
-        if (!Enabled || !logger.IsEnabled(LogLevel.Information))
+        if (Plugin.Instance?.Configuration.DiagnosticsEnabled != true)
         {
             return null;
         }
 
-        var scope = new RunDiagnostics(logger, kind, component, TimeProvider.System);
+        var scope = new RunDiagnostics(logger, kind, component, TimeProvider.System, RunDiagnosticsRecording.Active(kind));
         scope._previous = Current.Value;
         Current.Value = scope;
-        logger.LogInformation("MediaDash run diagnostics start {DiagnosticId} {Kind} {Component}", scope._id, kind, component);
+        scope.Log("start");
         scope._timer = new Timer(static state => ((RunDiagnostics)state!).Tick(), scope, TimeSpan.Zero, TimeSpan.FromSeconds(10));
         return scope;
     }
@@ -143,6 +146,11 @@ internal sealed class RunDiagnostics : IDisposable
 
     private void Tick()
     {
+        if (Plugin.Instance?.Configuration.DiagnosticsEnabled != true)
+        {
+            return;
+        }
+
         if (Interlocked.Exchange(ref _sampling, 1) != 0)
         {
             return;
@@ -158,30 +166,7 @@ internal sealed class RunDiagnostics : IDisposable
 
             var sample = new Sample(_time.GetTimestamp(), DiskIo.ReadCounters(), ReadNetwork());
             var system = SystemStats.SampleCore(includeDisk: false);
-            lock (_lock)
-            {
-                if (_disposed)
-                {
-                    return;
-                }
-
-                if (_latest is { } previous)
-                {
-                    var seconds = _time.GetElapsedTime(previous.Timestamp, sample.Timestamp).TotalSeconds;
-                    _networkReadPeak = Peak(_networkReadPeak, DiskIo.BytesPerSecond(previous.Network?.Read, sample.Network?.Read, seconds));
-                    _networkWritePeak = Peak(_networkWritePeak, DiskIo.BytesPerSecond(previous.Network?.Write, sample.Network?.Write, seconds));
-                }
-
-                _first ??= sample;
-                _latest = sample;
-                _samples++;
-                _cpuPeak = Peak(_cpuPeak, system.CpuPercent);
-                _systemCpuPeak = Peak(_systemCpuPeak, system.SystemCpuPercent);
-                _gpuPeak = Peak(_gpuPeak, system.GpuPercent);
-                _gpuSource ??= system.GpuSource;
-                _memoryPeak = Peak(_memoryPeak, (long?)system.RamUsedBytes);
-                _systemMemoryPeak = Peak(_systemMemoryPeak, system.SystemRamUsedBytes);
-            }
+            RecordSample(sample, system);
         }
         catch (Exception ex)
         {
@@ -193,9 +178,8 @@ internal sealed class RunDiagnostics : IDisposable
         }
     }
 
-    private void Log(string phase, string? outcome = null, int? candidateItems = null, int? findings = null, int? fixTargets = null, int? resolvedIssues = null)
+    internal void RecordSample(Sample sample, SystemStats system)
     {
-        string record;
         lock (_lock)
         {
             if (_disposed)
@@ -203,10 +187,44 @@ internal sealed class RunDiagnostics : IDisposable
                 return;
             }
 
+            if (_latest is { } previous)
+            {
+                var seconds = _time.GetElapsedTime(previous.Timestamp, sample.Timestamp).TotalSeconds;
+                var networkRead = DiskIo.BytesPerSecond(previous.Network?.Read, sample.Network?.Read, seconds);
+                var networkWrite = DiskIo.BytesPerSecond(previous.Network?.Write, sample.Network?.Write, seconds);
+                _networkReadPeak = Peak(_networkReadPeak, networkRead);
+                _networkWritePeak = Peak(_networkWritePeak, networkWrite);
+                _diskPeak = Peak(_diskPeak, DiskIo.BytesPerSecond(previous.Disk?.Read, sample.Disk?.Read, seconds)
+                    + DiskIo.BytesPerSecond(previous.Disk?.Write, sample.Disk?.Write, seconds));
+                _networkPeak = Peak(_networkPeak, networkRead + networkWrite);
+            }
+
+            _first ??= sample;
+            _latest = sample;
+            _samples++;
+            _cpuPeak = Peak(_cpuPeak, system.CpuPercent);
+            _systemCpuPeak = Peak(_systemCpuPeak, system.SystemCpuPercent);
+            _gpuPeak = Peak(_gpuPeak, system.GpuPercent);
+            _gpuSource ??= system.GpuSource;
+            _memoryPeak = Peak(_memoryPeak, (long?)system.RamUsedBytes);
+            _systemMemoryPeak = Peak(_systemMemoryPeak, system.SystemRamUsedBytes);
+        }
+    }
+
+    private void Log(string phase, string? outcome = null, int? candidateItems = null, int? findings = null, int? fixTargets = null, int? resolvedIssues = null)
+    {
+        JsonElement record;
+        lock (_lock)
+        {
+            if (_disposed || Plugin.Instance?.Configuration.DiagnosticsEnabled == false)
+            {
+                return;
+            }
+
             var state = ReadState();
             var seconds = _first is { } first && _latest is { } latest
                 ? _time.GetElapsedTime(first.Timestamp, latest.Timestamp).TotalSeconds : 0;
-            record = JsonSerializer.Serialize(new
+            record = JsonSerializer.SerializeToElement(new
             {
                 Id = _id,
                 Kind = _kind,
@@ -234,17 +252,20 @@ internal sealed class RunDiagnostics : IDisposable
                 HostGpuPeakPercent = _gpuPeak,
                 GpuSource = _gpuSource,
                 HostDiskSource = DiskIo.Source,
+                HostDiskPeakBytesPerSecond = _diskPeak,
+                NetworkInterfacePeakBytesPerSecond = _networkPeak,
                 HostDiskReadAverageBytesPerSecond = DiskIo.BytesPerSecond(_first?.Disk?.Read, _latest?.Disk?.Read, seconds),
                 HostDiskWriteAverageBytesPerSecond = DiskIo.BytesPerSecond(_first?.Disk?.Write, _latest?.Disk?.Write, seconds),
                 NetworkInterfaceReceivePeakBytesPerSecond = _networkReadPeak,
                 NetworkInterfaceSendPeakBytesPerSecond = _networkWritePeak,
             });
+            _capture?.Record(record);
         }
 
-        _logger.LogInformation("MediaDash run diagnostics {DiagnosticRecord}", record);
+        _logger.LogInformation("MediaDash run diagnostics {DiagnosticRecord}", record.GetRawText());
     }
 
-    private readonly record struct Sample(long Timestamp, (long Read, long Write)? Disk, (long Read, long Write)? Network);
+    internal readonly record struct Sample(long Timestamp, (long Read, long Write)? Disk, (long Read, long Write)? Network);
 
     private sealed class Operation(RunDiagnostics owner, long id, bool examinesFile) : IDisposable
     {

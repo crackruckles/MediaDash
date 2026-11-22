@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Threading;
+using System.Threading.Tasks;
 using Jellyfin.Data.Events;
 using Jellyfin.Plugin.MediaDash.ScheduledTasks;
 using MediaBrowser.Model.Tasks;
@@ -63,7 +65,7 @@ public sealed class LibraryScanCancellationTests
         return manager;
     }
 
-    private static IScheduledTaskWorker Worker(string key, TaskState state)
+    internal static IScheduledTaskWorker Worker(string key, TaskState state)
     {
         var task = DispatchProxy.Create<IScheduledTask, IdleCheckTests.ProxyHandler>();
         ((IdleCheckTests.ProxyHandler)(object)task).Handler = method => method.Name == "get_Key" ? key : null;
@@ -82,11 +84,17 @@ public sealed class LibraryScanCancellationTests
         public IScheduledTaskWorker[] Workers { get; set; } = Array.Empty<IScheduledTaskWorker>();
         public EventHandler<GenericEventArgs<IScheduledTaskWorker>>? Executing { get; private set; }
 
+        public List<IScheduledTaskWorker> Cancelled { get; } = new();
+
+        public List<IScheduledTaskWorker> Executed { get; } = new();
+
         protected override object? Invoke(MethodInfo? method, object?[]? args)
         {
             switch (method!.Name)
             {
                 case "get_ScheduledTasks": return Workers;
+                case "Cancel": Cancelled.Add((IScheduledTaskWorker)args![0]!); break;
+                case "Execute": Executed.Add((IScheduledTaskWorker)args![0]!); return Task.CompletedTask;
                 case "add_TaskExecuting": Executing += (EventHandler<GenericEventArgs<IScheduledTaskWorker>>)args![0]!; break;
                 case "remove_TaskExecuting": Executing -= (EventHandler<GenericEventArgs<IScheduledTaskWorker>>)args![0]!; break;
             }

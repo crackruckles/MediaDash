@@ -2,7 +2,11 @@
 
 ## Collect diagnostics from Jellyfin
 
-Set `MEDIADASH_RUN_DIAGNOSTICS=1` in the Jellyfin process environment before starting the server. Search the local Jellyfin log for `MediaDash run diagnostics`. Records contain component timing, results, observed file checks, and periodic resource samples. A running component emits heartbeats after 30 seconds with its active operations and time since progress. The diagnostic records stay in the server log and contain no media paths.
+Enable **Settings → Maintenance → Diagnostics mode**, save changes, and run a scan. The **Diagnostics** tab appears next to Errors and retains the latest diagnostic scan across restarts. Turning the mode off hides the tab and blocks its data endpoint. This setting replaces the former `MEDIADASH_RUN_DIAGNOSTICS` environment switch.
+
+The Diagnostics tab shows one table row per scanner: completion time, items found, and maximum sampled host/container CPU, disk I/O, network, RAM and GPU usage. I/O combines read/write throughput; network combines receive/send throughput. A dash means no valid measurement was available. Run a new diagnostic scan to populate the combined throughput peaks in older recordings.
+
+The full recording remains available through the administrator-only `GET /MediaDash/Diagnostics/LastScan` endpoint while diagnostics is enabled. Stage records include periodic heartbeats, active operations and time since progress, and remain in the Jellyfin log under `MediaDash run diagnostics` when information logging is enabled. Error messages may include media paths.
 
 CPU and memory identify their Jellyfin-process or host/container scope. GPU, disk, and network samples describe activity visible to the host or container. Other workloads can contribute, and local disk counters do not measure a remote NAS disk. The disk rate covers Windows physical disks in aggregate or Linux `sda`, including Docker when that counter is visible. Missing counters and phases too short to establish a rate are reported as unavailable.
 

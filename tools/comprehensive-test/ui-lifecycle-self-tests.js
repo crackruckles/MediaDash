@@ -33,7 +33,8 @@ function loadAsset(relative) {
     path.join('tabs', 'history-tab.js'),
     path.join('tabs', 'recycle-tab.js'),
     path.join('tabs', 'issues-tab.js'),
-    path.join('tabs', 'errors-tab.js')
+    path.join('tabs', 'errors-tab.js'),
+    path.join('tabs', 'diagnostics-tab.js')
 ].forEach(loadAsset);
 
 // Fatal check every registration up front so a broken loader fails the whole run before
@@ -45,7 +46,7 @@ var expected = [
     'historyFailReasonOf', 'historyMatches',
     'binProvenanceChipClass', 'binRestoreVariant',
     'badgeText', 'issueMatchesFilters',
-    'createErrorsTab', 'createRecycleTab', 'createHistoryTab', 'createIssuesTab',
+    'createErrorsTab', 'createRecycleTab', 'createHistoryTab', 'createIssuesTab', 'createDiagnosticsTab',
     'fmt', 'bytes',
     'libIconFor', 'libStackBar', 'libLegend', 'libSegmentsFromMap', 'libCardHtml', 'donutSvg'
 ];

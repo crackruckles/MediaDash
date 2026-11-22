@@ -233,7 +233,8 @@
 
 
 /* ── Phase B: Approve/dismiss issue action buttons ── */
-#MediaDashConfigPage .mdIssueCard .mdApprove {
+#MediaDashConfigPage .mdIssueCard .mdApprove,
+#MediaDashConfigPage .mdIssueCard .mdIssueRescan {
     background: var(--md-issue-accent, var(--md-primary)) !important;
     color: var(--md-issue-accent-ink, var(--md-primary-ink)) !important;
     border: 0 !important;
@@ -242,6 +243,7 @@
     font-weight: 700 !important;
     min-height: 40px;
 }
+#MediaDashConfigPage .mdIssueCard .mdIssueRescan { font: 700 13px Figtree, sans-serif !important; }
 #MediaDashConfigPage .mdIssueCard .mdDismiss {
     background: transparent !important;
     border: 1px solid var(--md-border-btn) !important;

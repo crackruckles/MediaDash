@@ -229,8 +229,12 @@ public sealed class ReportedScannerIntegrationRegressionTests : IDisposable
     public void FormatCompatibilityCustomOrder_DoesNotOverflow()
     {
         _config.FixerOrder = ["Quality"];
-        var rank = (int)typeof(FixTask).GetMethod("FixerRank", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [IssueType.FormatCompatibility])!;
-        Assert.Equal(1018, rank);
+        var rank = typeof(FixTask).GetMethod("FixerRank", BindingFlags.Static | BindingFlags.NonPublic)!;
+        var plans = FixPlanBuilder.Build(
+            [new Issue { Id = 1, Type = IssueType.FormatCompatibility, Path = "/library/format.wmv" },
+             new Issue { Id = 2, Type = IssueType.Quality, Path = "/library/quality.mkv" }],
+            type => (int)rank.Invoke(null, [type])!, _ => 0, StringComparer.Ordinal);
+        Assert.Equal(new[] { IssueType.Quality, IssueType.FormatCompatibility }, plans.Select(plan => plan.Primary.Type));
     }
 
     [Fact]

@@ -53,6 +53,7 @@ public class MediaDashController : ControllerBase
     private readonly Fixers.ProtectionService _protection;
     private readonly IEnumerable<IFixer>? _fixers;
     private readonly MediaMoveService? _moves;
+    private readonly MediaMovePlanner? _planner;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MediaDashController"/> class.
@@ -75,6 +76,7 @@ public class MediaDashController : ControllerBase
     /// <param name="protection">Roadmap i-110-protected-media: applied to targeted rescans; also backs the /Protection CRUD endpoints.</param>
     /// <param name="fixers">Registered handlers used to explain unsupported approvals.</param>
     /// <param name="moves">Complete move recovery and Undo.</param>
+    /// <param name="planner">Re-plans one move after the user supplies a missing season.</param>
     public MediaDashController(
         MediaDashDb db,
         IssueStore issues,
@@ -93,8 +95,10 @@ public class MediaDashController : ControllerBase
         StatusQueryService statusQuery,
         Fixers.ProtectionService protection,
         IEnumerable<IFixer>? fixers = null,
-        MediaMoveService? moves = null)
+        MediaMoveService? moves = null,
+        MediaMovePlanner? planner = null)
     {
+        _planner = planner;
         _db = db;
         _issues = issues;
         _history = history;
@@ -196,6 +200,8 @@ public class MediaDashController : ControllerBase
             var dto = IssueDto.FromIssue(issue);
             dto.FixBlockedReason = GetFixBlockedReason(config, issue, out var requiresRescan, enabledLocations, typeReasons, protectionCheck);
             dto.FixRequiresRescan = requiresRescan;
+            dto.CanMoveAnyway = issue.Status == IssueStatus.Detected && IsBlockedOnlyByParkedMove(issue);
+            dto.NeedsSeason = issue.Status == IssueStatus.Detected && IsBlockedOnlyByUnknownSeason(issue);
             if (!restoredByType.TryGetValue(issue.Type, out var restored))
             {
                 restored = _db.GetRestoredPathsBlockingAutoQueue(issue.Type);
@@ -223,6 +229,74 @@ public class MediaDashController : ControllerBase
     [HttpPost("Scan")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public ActionResult StartScan()
+        => StartScanCore(null);
+
+    /// <summary>Starts only the ungrouped-media scanner.</summary>
+    /// <returns>No content when the scan is scheduled.</returns>
+    [HttpPost("Scan/Ungrouped")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public ActionResult StartUngroupedScan()
+        => StartScanCore(new HashSet<IssueType> { IssueType.Ungrouped });
+
+    /// <summary>Starts only the scanners for the chosen issue types (Scan now's right-click / long-press picker).</summary>
+    /// <param name="request">The issue type names to scan.</param>
+    /// <returns>No content when the scan is scheduled; bad request when the selection is empty or unknown.</returns>
+    [HttpPost("Scan/Selected")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public ActionResult StartSelectedScan([FromBody] ScanSelectionRequest request)
+    {
+        if (!TryParseScanSelection(request?.Types, out var types, out var error))
+        {
+            return BadRequest(new { Error = error });
+        }
+
+        return StartScanCore(types);
+    }
+
+    /// <summary>
+    /// Parses a scan-picker selection into scanner issue types. Rejects an empty selection (an
+    /// empty filter would mean "run everything", the opposite of what the user ticked), unknown
+    /// names, and record-only types that no scanner produces.
+    /// </summary>
+    /// <param name="names">The submitted issue type names.</param>
+    /// <param name="types">The parsed types.</param>
+    /// <param name="error">The validation error, when parsing fails.</param>
+    /// <returns>True when at least one valid scanner type was selected.</returns>
+    internal static bool TryParseScanSelection(IEnumerable<string>? names, out HashSet<IssueType> types, out string? error)
+    {
+        types = new HashSet<IssueType>();
+        error = null;
+        foreach (var name in names ?? Array.Empty<string>())
+        {
+            var trimmed = (name ?? string.Empty).Trim();
+            if (trimmed.Length == 0)
+            {
+                continue;
+            }
+
+            if (int.TryParse(trimmed, out _)
+                || !Enum.TryParse<IssueType>(trimmed, true, out var type)
+                || !Enum.IsDefined(type)
+                || type is IssueType.ManualDelete or IssueType.ManualMove)
+            {
+                error = "Unknown scan type '" + trimmed + "'.";
+                return false;
+            }
+
+            types.Add(type);
+        }
+
+        if (types.Count == 0)
+        {
+            error = "Choose at least one scan to run.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private ActionResult StartScanCore(IReadOnlySet<IssueType>? types)
     {
         var scanTask = GetScanTask();
         if (scanTask is null)
@@ -235,6 +309,7 @@ public class MediaDashController : ControllerBase
             return Conflict("A scan is already running or cancelling.");
         }
 
+        _runState.ArmNextScanTypeFilter(types);
         _runState.ArmBypassIdleCheck(ScheduledTasks.RunRole.Scan);
         _taskManager.Execute(scanTask, new TaskOptions());
         return NoContent();
@@ -281,6 +356,103 @@ public class MediaDashController : ControllerBase
             ElapsedMs = (long)(DateTime.UtcNow - start).TotalMilliseconds,
         });
     }
+
+    /// <summary>
+    /// "Move anyway" for a move blocked by an earlier move left needing review: each such parked move is
+    /// finished forward when that is safe, otherwise its reservation is released with every file left
+    /// in place. Ungrouped/Misplaced media is then rescanned so the item gets a fresh, movable plan.
+    /// </summary>
+    /// <param name="id">The issue id.</param>
+    /// <returns>What was done.</returns>
+    [HttpPost("Issues/{id}/MoveAnyway")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public ActionResult<string> MoveAnyway([FromRoute] long id)
+    {
+        var issue = _issues.GetIssue(id);
+        if (issue is null)
+        {
+            return NotFound();
+        }
+
+        if (issue.Type is not (IssueType.Ungrouped or IssueType.Misplaced) || MediaMovePlan.ReadIssue(issue) is not { } plan || _moves is null)
+        {
+            return Conflict("Move anyway only applies to a move blocked by an earlier move.");
+        }
+
+        var parked = _db.Moves.FindParkedBlocking(plan);
+        var outcomes = parked.Select(operation => _moves.ResolveParked(operation)).ToArray();
+        var scan = StartScanCore(new HashSet<IssueType> { issue.Type });
+        var rescanning = scan is NoContentResult;
+        var message = (outcomes.Length == 0 ? "Nothing reserves this item any more." : string.Join(" ", outcomes))
+            + (rescanning ? " Scanning again now; approve the item when it reappears with a fresh plan." : " Scan again when the current scan finishes, then approve the item.");
+        return Ok(message);
+    }
+
+    /// <summary>
+    /// "Enter season number" for an episode Jellyfin could not place in a season: the number is kept
+    /// for the episode (later scans use it too), the item is planned again into that season folder,
+    /// approved, and a fix run starts.
+    /// </summary>
+    /// <param name="id">The issue id.</param>
+    /// <param name="season">The season number the user entered (0 for specials).</param>
+    /// <param name="cancellationToken">Request cancellation.</param>
+    /// <returns>What happens next, or why the item still cannot move.</returns>
+    [HttpPost("Issues/{id}/Season")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<string>> SetSeason([FromRoute] long id, [FromQuery] int season, CancellationToken cancellationToken)
+    {
+        if (season is < 0 or > 999)
+        {
+            return BadRequest("Enter a season number from 0 (specials) to 999.");
+        }
+
+        var issue = _issues.GetIssue(id);
+        if (issue is null)
+        {
+            return NotFound();
+        }
+
+        if (_planner is null || issue.Status != IssueStatus.Detected || !IsBlockedOnlyByUnknownSeason(issue) || MediaMovePlan.ReadIssue(issue) is not { } current)
+        {
+            return Conflict("A season number can only be entered for a move waiting on an unknown season.");
+        }
+
+        var config = Plugin.Instance?.Configuration ?? new PluginConfiguration();
+        _db.SetState(MediaMovePlanner.SeasonOverrideKey(current.ItemId), season.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        var items = _libraryManager.GetItemList(MediaMovePlanner.CatalogQuery());
+        var planned = await _planner.PlanItemAsync(issue.Type, items, config, current.ItemId, cancellationToken).ConfigureAwait(false);
+        if (planned is null || MediaMovePlan.ReadIssue(planned) is not { } plan)
+        {
+            return Conflict("Season " + season + " was saved, but this item no longer needs a move. Scan again to refresh the list.");
+        }
+
+        _issues.ReplacePlan(issue.Id, planned);
+        if (plan.BlockingReasons.Length > 0)
+        {
+            return Conflict("Season " + season + " was saved, but the move still needs review: " + plan.BlockingReasons[0]);
+        }
+
+        _issues.TryTransitionIssueStatus(issue.Id, [IssueStatus.Detected], IssueStatus.Queued);
+        var started = StartFix() is NoContentResult;
+        return Ok("Season " + season + " saved. The move to '" + plan.Entries[0].Destination + "' is approved"
+            + (started ? " and the fix run has started." : "; it runs with the next fix run."));
+    }
+
+    private static bool IsBlockedOnlyByUnknownSeason(Issue issue)
+        => issue.Type is IssueType.Ungrouped or IssueType.Misplaced
+            && MediaMovePlan.ReadIssue(issue) is { BlockingReasons.Length: > 0 } plan
+            && plan.BlockingReasons.All(reason => reason.StartsWith("The season is unknown", StringComparison.Ordinal));
+
+    private bool IsBlockedOnlyByParkedMove(Issue issue)
+        => issue.Type is IssueType.Ungrouped or IssueType.Misplaced
+            && MediaMovePlan.ReadIssue(issue) is { BlockingReasons.Length: > 0 } plan
+            && plan.BlockingReasons.All(reason => reason.StartsWith("A move operation has reserved", StringComparison.Ordinal)
+                || reason.StartsWith("Another operation or a previous move attempt reserves", StringComparison.Ordinal));
 
     /// <summary>
     /// Approves an issue: it is queued for the next fix run. Only legal from Detected —
@@ -921,6 +1093,8 @@ public class MediaDashController : ControllerBase
 
             if (movePlan.BlockingReasons.Length > 0)
             {
+                // No setting changes a move plan's blockers: offer a fresh scan (or Move anyway, below).
+                requiresRescan = !IsBlockedOnlyByParkedMove(issue) && !IsBlockedOnlyByUnknownSeason(issue);
                 return "This move needs review: " + movePlan.BlockingReasons[0];
             }
 
@@ -1019,7 +1193,7 @@ public class MediaDashController : ControllerBase
     [HttpGet("Moves")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult<IReadOnlyList<MoveOperationDto>> GetMoves()
-        => Ok(_db.Moves.GetVisible().Select(MoveOperationDto.FromOperation).ToList());
+        => Ok(_db.Moves.GetVisible(Plugin.Instance!.Configuration.HistoryHiddenBeforeUtcTicks).Select(MoveOperationDto.FromOperation).ToList());
 
     /// <summary>Undoes a complete recorded move after verifying current payloads and original-path vacancy.</summary>
     /// <param name="operationId">Move selected by the administrator.</param>
@@ -1121,7 +1295,7 @@ public class MediaDashController : ControllerBase
     }
 
     /// <summary>
-    /// Advances the history-hidden watermark so every existing row disappears from the History tab list.
+    /// Advances the history-hidden watermark so existing history rows and recorded moves disappear from the History tab.
     /// The rows themselves stay in the DB, so per-library chart, "Reclaimed since install", and monthly
     /// analytics all keep their totals - only the visible list gets a fresh slate.
     /// </summary>
@@ -2297,6 +2471,21 @@ public class MediaDashController : ControllerBase
         }
 
         return Conflict(outcome.TechnicalDetail ?? "Could not restore optimized copy.");
+    }
+
+    /// <summary>
+    /// Gets the latest scan and fix recordings while diagnostics mode is enabled.
+    /// </summary>
+    /// <returns>The latest recordings, or null for runs not recorded yet.</returns>
+    [HttpGet("Diagnostics/LastScan")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public ActionResult GetLastScanDiagnostics()
+    {
+        return Plugin.Instance?.Configuration.DiagnosticsEnabled == true
+            ? Ok(new { Scan = ScheduledTasks.RunDiagnosticsRecording.Read(_db), Fix = ScheduledTasks.RunDiagnosticsRecording.Read(_db, "fix") })
+            : NotFound();
     }
 
     /// <summary>

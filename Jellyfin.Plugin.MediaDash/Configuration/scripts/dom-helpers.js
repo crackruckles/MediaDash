@@ -12,6 +12,18 @@
     var ns = (typeof window !== 'undefined') ? window : globalThis;
     ns.MediaDash = ns.MediaDash || {};
 
+    ns.MediaDash.fixerOrderPhase = function (type) {
+        if (type === 'Misplaced' || type === 'Ungrouped' || type === 'ManualMove') return 2;
+        if (type === 'Quality' || type === 'HeavyTranscode' || type === 'FailedTranscode' || type === 'FormatCompatibility') return 1;
+        return 0;
+    };
+
+    ns.MediaDash.normalizeFixerOrder = function (order) {
+        return [0, 1, 2].reduce(function (result, phase) {
+            return result.concat(order.filter(function (type) { return ns.MediaDash.fixerOrderPhase(type) === phase; }));
+        }, []);
+    };
+
     // HTML-escape a string so it's safe in either text content OR an HTML attribute.
     // textContent → innerHTML escapes <, >, and & correctly but leaves " unescaped.
     // Every callsite that dumps this into an HTML attribute (title="…", data-…="…")
@@ -54,6 +66,13 @@
         scanStarting: 'Starting scan…',
         scanDone: 'Scan finished — {0} open issue(s) found.',
         scanNowLabel: 'Scan now',
+        moveAnyway: 'Move anyway',
+        issueReplaced: 'A newer scan replaced this finding. Reloading the list — try again on the updated row.',
+        moveAnywayHint: 'Finish or release the earlier move that holds this item, then plan it again.',
+        enterSeason: 'Enter season number',
+        enterSeasonHint: 'Jellyfin could not tell which season this episode belongs to. Enter it and MediaDash moves it.',
+        enterSeasonPrompt: 'Which season is this episode in? Enter 0 for specials.',
+        enterSeasonInvalid: 'Enter a season number such as 4, or 0 for specials.',
         stopScanLabel: 'Stop scanning',
         fixRunning: 'Applying fixes… {0}%',
         fixStarting: 'Starting fix run…',
@@ -106,6 +125,24 @@
         retry: 'Retry',
         noHistory: 'Nothing has been fixed yet. Fixes appear here after a fix run, with a Restore button for anything recoverable.',
         recordedMoves: 'Recorded moves',
+        diagnosticsNoScan: 'Run a scan with diagnostics enabled to record its details.',
+        diagnosticsNoFix: 'Run fixes with diagnostics enabled to record their details.',
+        diagnosticsScanners: 'Scanners',
+        diagnosticsFixers: 'Fixers',
+        diagnosticsFixer: 'Fixer',
+        diagnosticsTargets: 'Targets',
+        diagnosticsResolved: 'Issues resolved',
+        diagnosticsFixersHint: 'Totals combine calls to each fixer. Targets include dry-run previews; resolved issues count applied fixes only.',
+        diagnosticsScanner: 'Scanner',
+        diagnosticsTime: 'Time',
+        diagnosticsItemsFound: 'Items found',
+        diagnosticsMaxCpu: 'Max CPU',
+        diagnosticsMaxIo: 'Max I/O',
+        diagnosticsMaxNetwork: 'Max network',
+        diagnosticsMaxRam: 'Max RAM',
+        diagnosticsMaxGpu: 'Max GPU',
+        diagnosticsPeaksHint: 'Sampled host/container peaks. I/O combines reads and writes; network combines receive and send.',
+        diagnosticsLoadFailed: 'Diagnostics could not be loaded. Refresh to try again.',
         undoCompleteMove: 'Undo complete move',
         moveNeedsReview: 'Needs review',
         moveUndone: 'Undone',
@@ -123,6 +160,7 @@
         moveLoadFailed: 'Move recovery records could not be loaded. Refresh this tab to try again.',
         moveRecoveryHelp: 'These records remain available if a move stops before History is saved. Undo restores the complete recorded item only when its files are unchanged and the original locations are free. Dry run previews Undo without changing files.',
         movePreviewLabel: 'Review complete move',
+        moveSourceCleanup: 'After the last episode moves, recycle unchanged source metadata that already exists at the destination and remove the empty source folder.',
         moveFolder: 'Folder',
         moveFile: 'File',
         moveShowMore: 'Show more paths',
@@ -146,6 +184,10 @@
         dismissHint: 'Won’t report this file for this issue again.',
         approveAll: 'Approve all {0} shown',
         approveAllTypes: 'Approve all {0} issues (all types)',
+        rescanApproveAll: 'Scan & approve all ({0})',
+        rescanApproveScanning: 'Scanning again for the issues that need a fresh scan… keep this page open.',
+        rescanApproveApproving: 'Scan finished. Approving every issue that is now ready…',
+        rescanApproveDone: 'Approved {0} issue(s) after the fresh scan. Anything still blocked is listed with its reason.',
         approveAllNote: 'Queues eligible issues in this filtered list. Blocked, already queued, and needs-review issues are excluded.',
         clearAll: 'Clear all {0} shown',
         clearAllConfirm: 'Ignore all {0} issue(s) currently listed? They won’t be reported again by future scans. This does not touch files on disk.',

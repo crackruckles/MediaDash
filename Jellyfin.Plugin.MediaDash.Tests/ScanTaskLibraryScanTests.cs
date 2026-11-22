@@ -70,14 +70,16 @@ public sealed class ScanTaskLibraryScanTests
             var logger = new PhaseLogger();
             var task = new ScanTask(library, new[] { scanner }, db, null!, manager, state, config, new ProtectionService(db.Protection, library), logger);
             await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
-            Assert.Equal(manual && !fail ? newPath : oldPath, Assert.Single(db.Issues.GetIssues(IssueType.AudioLanguage)).Path);
-            Assert.Equal(manual, db.GetState("LastScanCompletedUtc") is not null);
+            // Jellyfin's library scan now waits for MediaDash: it is paused, and MediaDash's results stand.
+            Assert.Equal(!fail ? newPath : oldPath, Assert.Single(db.Issues.GetIssues(IssueType.AudioLanguage)).Path);
+            Assert.NotNull(db.GetState("LastScanCompletedUtc"));
+            Assert.Contains(worker, handler.Cancelled);
             Assert.False(state.ReadSnapshot(RunRole.Scan).IsRunning);
             Assert.Null(handler.Executing);
             var materialize = Assert.Single(logger.Phases, phase => (string)phase["Phase"]! == "ItemMaterialization");
             Assert.Equal(0, materialize["ItemCount"]);
             var scanned = Assert.Single(logger.Phases, phase => (string)phase["Phase"]! == "InterruptingScanner");
-            Assert.Equal(fail ? "Failed" : manual ? "Completed" : "Cancelled", scanned["Outcome"]);
+            Assert.Equal(fail ? "Failed" : "Completed", scanned["Outcome"]);
             Assert.True((double)scanned["ElapsedMilliseconds"]! >= 0);
         }
         finally

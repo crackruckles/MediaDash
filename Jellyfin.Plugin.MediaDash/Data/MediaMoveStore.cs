@@ -60,7 +60,7 @@ public sealed class MediaMoveStore
         {
             using var repeated = connection.CreateCommand();
             repeated.Transaction = transaction;
-            repeated.CommandText = "SELECT 1 FROM media_move_operations WHERE issue_id=@issue AND fingerprint=@fingerprint AND state<>'Undone' LIMIT 1";
+            repeated.CommandText = "SELECT 1 FROM media_move_operations WHERE issue_id=@issue AND fingerprint=@fingerprint AND state NOT IN ('Undone','Released') LIMIT 1";
             repeated.Parameters.AddWithValue("@issue", issueId);
             repeated.Parameters.AddWithValue("@fingerprint", plan.Fingerprint);
             if (repeated.ExecuteScalar() is not null)
@@ -256,17 +256,69 @@ public sealed class MediaMoveStore
         return command.ExecuteNonQuery() == 1;
     }
 
+    /// <summary>Parked moves (needing review) whose reservation blocks the given plan.</summary>
+    /// <param name="plan">A proposed move.</param>
+    /// <returns>The parked operations that reserve part of it.</returns>
+    internal IReadOnlyList<Operation> FindParkedBlocking(MediaMovePlan plan)
+    {
+        var incoming = new MediaMoveManifest { Plan = plan };
+        var paths = incoming.ClaimPaths().Select(NormalizeClaimPath).Where(path => path is not null).Select(path => path!).ToArray();
+        using var connection = _connectionFactory.Open();
+        return Active(connection, null).Where(operation => operation.State == "NeedsReview" && Conflicts(operation, paths, incoming)).ToArray();
+    }
+
+    /// <summary>
+    /// Ends a parked move's reservation without touching any file. Its manifest and recorded paths
+    /// are kept for the record; it no longer blocks other moves.
+    /// </summary>
+    /// <param name="id">Operation id.</param>
+    /// <param name="detail">What was done.</param>
+    /// <returns>True when the operation was parked and is now released.</returns>
+    internal bool Release(string id, string detail)
+    {
+        using var connection = _connectionFactory.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE media_move_operations SET state='Released', owner_token='', detail=@detail, updated_utc_ticks=@ticks WHERE operation_id=@id AND state='NeedsReview'";
+        command.Parameters.AddWithValue("@detail", detail);
+        command.Parameters.AddWithValue("@ticks", DateTime.UtcNow.Ticks);
+        command.Parameters.AddWithValue("@id", id);
+        return command.ExecuteNonQuery() == 1;
+    }
+
+    /// <summary>Source and destination of every file a completed move placed, oldest first.</summary>
+    /// <returns>The moves.</returns>
+    internal IReadOnlyList<(string Source, string Destination)> GetCompletedMoves()
+    {
+        using var connection = _connectionFactory.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT operation_id,manifest_json FROM media_move_operations WHERE state='Completed' ORDER BY created_utc_ticks";
+        using var reader = command.ExecuteReader();
+        var result = new List<(string Source, string Destination)>();
+        while (reader.Read())
+        {
+            if (reader.IsDBNull(1) || Fixers.MediaMoveManifest.TryRead(reader.GetString(1), reader.GetString(0)) is not { } manifest)
+            {
+                continue;
+            }
+
+            result.AddRange(manifest.Plan.Entries.Where(entry => !entry.IsDirectory).Select(entry => (entry.Source, entry.Destination)));
+        }
+
+        return result;
+    }
+
     internal IReadOnlyList<Operation> GetNeedsReview()
     {
         using var connection = _connectionFactory.Open();
         return Active(connection, null).Where(operation => operation.State == "NeedsReview").ToArray();
     }
 
-    internal IReadOnlyList<Operation> GetVisible()
+    internal IReadOnlyList<Operation> GetVisible(long hiddenBeforeUtcTicks = 0)
     {
         using var connection = _connectionFactory.Open();
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT operation_id,owner_token,issue_id,state,manifest_json,claim_paths_json,history_id,detail,cleanup_complete FROM media_move_operations WHERE state IN ('Completed','Undone') AND cleanup_complete=1 ORDER BY updated_utc_ticks DESC LIMIT 200";
+        command.CommandText = "SELECT operation_id,owner_token,issue_id,state,manifest_json,claim_paths_json,history_id,detail,cleanup_complete FROM media_move_operations WHERE state IN ('Completed','Undone') AND cleanup_complete=1 AND (@hidden=0 OR updated_utc_ticks>@hidden) ORDER BY updated_utc_ticks DESC LIMIT 200";
+        command.Parameters.AddWithValue("@hidden", hiddenBeforeUtcTicks);
         using var reader = command.ExecuteReader();
         var result = new List<Operation>();
         while (reader.Read())
@@ -275,7 +327,7 @@ public sealed class MediaMoveStore
         }
 
         reader.Close();
-        return Active(connection, null).Concat(result).DistinctBy(operation => operation.Id).ToArray();
+        return Active(connection, null, hiddenBeforeUtcTicks).Concat(result).DistinctBy(operation => operation.Id).ToArray();
     }
 
     internal bool Update(string id, string owner, string expectedState, string state, string manifestJson, string? detail = null)
@@ -384,16 +436,18 @@ public sealed class MediaMoveStore
         _ => false
     };
 
-    private static List<Operation> Active(SqliteConnection connection, SqliteTransaction? transaction)
+    private static List<Operation> Active(SqliteConnection connection, SqliteTransaction? transaction, long hiddenBeforeUtcTicks = 0)
     {
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = """
             SELECT operation_id,owner_token,issue_id,state,manifest_json,claim_paths_json,history_id,detail,cleanup_complete
             FROM media_move_operations
-            WHERE state<>'Undone' AND NOT (state='Completed' AND cleanup_complete=1)
+            WHERE state NOT IN ('Undone','Released') AND NOT (state='Completed' AND cleanup_complete=1)
+                AND (@hidden=0 OR updated_utc_ticks>@hidden)
             ORDER BY created_utc_ticks,operation_id
             """;
+        command.Parameters.AddWithValue("@hidden", hiddenBeforeUtcTicks);
         using var reader = command.ExecuteReader();
         var result = new List<Operation>();
         while (reader.Read())
@@ -421,7 +475,7 @@ public sealed class MediaMoveStore
                 reader.GetInt64(8) != 0);
             var manifest = MediaMoveManifest.TryRead(operation.ManifestJson, id);
             var claims = VerifyClaims(operation, manifest);
-            if (!Guid.TryParseExact(id, "N", out _) || operation.State is not ("Prepared" or "Executing" or "Completed" or "Undoing" or "Undone" or "NeedsReview")
+            if (!Guid.TryParseExact(id, "N", out _) || operation.State is not ("Prepared" or "Executing" or "Completed" or "Undoing" or "Undone" or "NeedsReview" or "Released")
                 || claims is null)
             {
                 Api.Diagnostics.Record("MediaMove.InvalidManifest", "Move operation '" + id + "' has an unreadable manifest. Its active paths remain reserved for review.");

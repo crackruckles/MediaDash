@@ -410,7 +410,7 @@ public sealed class FixLibraryRefreshTests : IDisposable
         return new FixTask(_db.Issues, new RecycleBin(paths, NullLogger<RecycleBin>.Instance, _db.History), null!, null!,
             new AnalyticsReporter(_db.History, _db.Issues, null!, NullLogger<AnalyticsReporter>.Instance),
             new LibraryGuard(_manager, serverPaths), _state, config, executor, new FixResultRecorder(_db, NullLogger<FixResultRecorder>.Instance),
-            NullLogger<FixTask>.Instance, _refresher).ExecuteAsync(new Progress<double>(), cancellationToken);
+            NullLogger<FixTask>.Instance, _db, _refresher).ExecuteAsync(new Progress<double>(), cancellationToken);
     }
 
     public void Dispose()

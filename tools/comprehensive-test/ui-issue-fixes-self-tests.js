@@ -90,6 +90,16 @@ test('A partial move is shown for review rather than promising automatic retry',
     assert.match(env.elements['#mdHistoryList'].innerHTML, /review/i);
 });
 
+test('An old unsuccessful cleanup does not promise automatic retry without queue state', async () => {
+    const env = moveHistoryEnvironment([], [{ Id: 2, Type: 'OrphanedDebris', Success: false, WasDryRun: false,
+        Action: 'The folder was left in place', FileName: 'Show release', FixedAtUtc: '2026-11-21T12:23:16Z' }]);
+    env.tab.activate();
+    await new Promise(setImmediate);
+    const html = env.elements['#mdHistoryList'].innerHTML;
+    assert.doesNotMatch(html, /will retry|still queued/i);
+    assert.match(html, /not applied/i);
+});
+
 test('Complete move Undo uses its protected operation route and preserves refusal text', async () => {
     const id = 'c'.repeat(32);
     const env = moveHistoryEnvironment([{ Id: id, State: 'Completed', CanUndo: true, Sources: ['/owned/original'], Destinations: ['/owned/destination'], RecoveryPaths: [] }], [],
@@ -115,6 +125,19 @@ test('Completed move explains pending user state until the native library scan f
     assert.match(env.elements['#mdMoveOperations'].innerHTML, /watched state/i);
 });
 
+test('Recorded moves uses History styling and starts collapsed with only its heading visible', async () => {
+    const env = moveHistoryEnvironment([{ Id: 'a'.repeat(32), State: 'Completed', CanUndo: true,
+        Sources: ['/owned/original'], Destinations: ['/owned/destination'], RecoveryPaths: [] }]);
+    env.tab.activate();
+    await new Promise(setImmediate);
+    const markup = env.elements['#mdMoveOperations'].innerHTML;
+    assert.match(markup, /^<details\b[^>]*class="[^"]*mdRecordedMoves[^"]*"[^>]*><summary\b[^>]*>Recorded moves<\/summary>/);
+    assert.doesNotMatch(markup.match(/^<details[^>]*>/)[0], /\bopen\b/);
+    assert.match(markup, /class="[^"]*mdMoveRow[^"]*mdHistRow[^"]*"/);
+    assert.match(markup, /class="mdHistAction">Completed/);
+    assert.equal(env.elements['#mdMoveOperations'].buttons.length, 1);
+});
+
 test('Partial operations never offer a force Undo or recycle Restore action', async () => {
     const env = moveHistoryEnvironment([{ Id: 'd'.repeat(32), State: 'NeedsReview', CanUndo: false, Sources: [], Destinations: [], RecoveryPaths: ['/owned/recovery'] }]);
     env.tab.activate();
@@ -138,6 +161,12 @@ test('Move approval preview shows every file, directory and target without metad
     assert.match(html, /\/owned\/new\/film/);
     assert.match(html, /&lt;film&gt;/);
     assert.doesNotMatch(html, /private-hash|private-permissions|<film>/);
+    const cleanupPlan = JSON.parse(issue.DetailsJson);
+    cleanupPlan.movePlan.sourceCleanup = { source: '/owned/<old-series>', inventory: [{ metadata: 'private-permissions' }] };
+    const cleanupHtml = render({ ...issue, DetailsJson: JSON.stringify(cleanupPlan) }, {}, true);
+    assert.match(cleanupHtml, /recycle unchanged source metadata/);
+    assert.match(cleanupHtml, /&lt;old-series&gt;/);
+    assert.doesNotMatch(cleanupHtml, /private-permissions|<old-series>/);
     assert.equal(render({ Type: 'AudioLanguage', DetailsJson: '{}' }, {}), '');
     assert.equal(render({ Type: 'Ungrouped', DetailsJson: 'broken JSON' }, {}), '');
 });

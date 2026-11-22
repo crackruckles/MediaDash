@@ -18,6 +18,7 @@ using Xunit;
 
 namespace Jellyfin.Plugin.MediaDash.Tests;
 
+[Collection("Diagnostics")]
 public sealed class NativeLibraryRefreshTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "md-native-changes-" + Guid.NewGuid().ToString("N"));
@@ -276,6 +277,52 @@ public sealed class NativeLibraryRefreshTests : IDisposable
         _folder.Index = () => throw new IOException("native failed");
         await Assert.ThrowsAsync<IOException>(() => _refresh.RefreshAsync([target], [], CancellationToken.None));
         Assert.DoesNotContain(_events, value => value.StartsWith("metadata:", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task FullScanHandoffIsNotReportedAsAnIndexingFailureButOtherCancellationsAre(bool fullScan)
+    {
+        var path = Path.Combine(_root, "movie.mkv");
+        File.WriteAllText(path, "owned");
+        _items[path] = new Video { Id = Guid.NewGuid(), Path = path };
+        var tasks = DispatchProxy.Create<MediaBrowser.Model.Tasks.ITaskManager, LibraryScanCancellationTests.ManagerProxy>();
+        var handler = (LibraryScanCancellationTests.ManagerProxy)(object)tasks;
+        if (fullScan) handler.Workers = [LibraryScanCancellationTests.Worker("RefreshLibrary", MediaBrowser.Model.Tasks.TaskState.Running)];
+        using var native = new NativeLibraryRefresher(_library, _files,
+            (_, _, _) => Task.FromCanceled(new CancellationToken(true)), tasks);
+        var monitor = DispatchProxy.Create<ILibraryMonitor, OriginalLanguageFlowTests.CallProxy>();
+        var providers = DispatchProxy.Create<IProviderManager, OriginalLanguageFlowTests.CallProxy>();
+        var fixer = new FixLibraryRefresher(_library, providers, _files, NullLogger<FixLibraryRefresher>.Instance, monitor, native);
+        var targets = new FixLibraryRefresher.Targets();
+        targets.Paths.Add(path);
+        var before = Api.Diagnostics.RecentAll().Where(entry => entry.Source == "Fix.NativeIndex").Sum(entry => entry.Count);
+        await fixer.QueueAsync(targets, CancellationToken.None);
+        var after = Api.Diagnostics.RecentAll().Where(entry => entry.Source == "Fix.NativeIndex").Sum(entry => entry.Count);
+        Assert.Equal(fullScan ? before : before + 1, after);
+    }
+
+    [Fact]
+    public async Task ScanStartingDuringIndexingDefersMetadataAndReleasesTheRefreshGate()
+    {
+        var path = Path.Combine(_root, "movie.mkv");
+        File.WriteAllText(path, "owned");
+        _items[path] = new Video { Id = Guid.NewGuid(), Path = path };
+        var tasks = DispatchProxy.Create<MediaBrowser.Model.Tasks.ITaskManager, LibraryScanCancellationTests.ManagerProxy>();
+        var handler = (LibraryScanCancellationTests.ManagerProxy)(object)tasks;
+        using var native = new NativeLibraryRefresher(_library, _files, (item, _, _) =>
+        {
+            _events.Add("metadata:" + item.Path);
+            return Task.CompletedTask;
+        }, tasks);
+        _folder.Index = () => handler.Executing!(tasks, new Jellyfin.Data.Events.GenericEventArgs<MediaBrowser.Model.Tasks.IScheduledTaskWorker>(
+            LibraryScanCancellationTests.Worker("RefreshLibrary", MediaBrowser.Model.Tasks.TaskState.Running)));
+        await Assert.ThrowsAsync<NativeLibraryRefresher.LibraryScanInProgressException>(() => native.RefreshAsync([path], [], CancellationToken.None));
+        Assert.DoesNotContain("metadata:" + path, _events);
+        _folder.Index = null;
+        await native.RefreshAsync([path], [], CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Contains("metadata:" + path, _events);
     }
 
     public void Dispose()

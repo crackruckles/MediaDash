@@ -12,20 +12,51 @@ namespace Jellyfin.Plugin.MediaDash.Probing;
 
 internal sealed class MediaProcess : IAsyncDisposable
 {
-    private static readonly SemaphoreSlim Slot = new(1, 1);
+    /// <summary>Most media processes MediaDash runs at once when Low system impact mode is off.</summary>
+    internal const int MaxConcurrent = 2;
+
+    private static readonly SemaphoreSlim Slot = new(MaxConcurrent, MaxConcurrent);
+
+    // Low system impact mode keeps the old one-at-a-time behaviour: every process started in that
+    // mode also holds this exclusive slot, so at most one low-impact process runs at a time.
+    private static readonly SemaphoreSlim LowImpactSlot = new(1, 1);
     private readonly CancellationToken _cancellationToken;
+    private readonly SemaphoreSlim? _exclusive;
     private bool _started;
     private IDisposable? _diagnosticOperation;
 
-    private MediaProcess(CancellationToken cancellationToken) => _cancellationToken = cancellationToken;
+    private MediaProcess(SemaphoreSlim? exclusive, CancellationToken cancellationToken)
+    {
+        _cancellationToken = cancellationToken;
+        _exclusive = exclusive;
+    }
 
     internal Process Process { get; } = new();
+
+    // Unknown configuration (tests, early startup) counts as low impact: one process at a time.
+    internal static bool AllowsConcurrency => !(Plugin.Instance?.Configuration?.LowSystemImpactMode ?? true);
 
     internal static async Task<MediaProcess> AcquireAsync(CancellationToken cancellationToken)
     {
         using var operation = RunDiagnostics.Track("waiting for media process slot");
-        await Slot.WaitAsync(cancellationToken).ConfigureAwait(false);
-        return new MediaProcess(cancellationToken);
+        SemaphoreSlim? exclusive = null;
+        if (!AllowsConcurrency)
+        {
+            await LowImpactSlot.WaitAsync(cancellationToken).ConfigureAwait(false);
+            exclusive = LowImpactSlot;
+        }
+
+        try
+        {
+            await Slot.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            exclusive?.Release();
+            throw;
+        }
+
+        return new MediaProcess(exclusive, cancellationToken);
     }
 
     internal bool Start()
@@ -95,6 +126,7 @@ internal sealed class MediaProcess : IAsyncDisposable
         _diagnosticOperation?.Dispose();
         Process.Dispose();
         Slot.Release();
+        _exclusive?.Release();
     }
 
     private static bool StartProcess(Process process)

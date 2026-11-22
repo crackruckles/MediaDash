@@ -24,6 +24,8 @@ internal sealed record MediaMoveManifest
 
     public bool CleanupComplete { get; init; }
 
+    public MediaMoveSourceCleanup.Receipt? RecycledSource { get; init; }
+
     public string? UndoOf { get; init; }
 
     public MediaMovePathClaims.Claim[]? NativeClaims { get; init; }
@@ -112,6 +114,11 @@ internal sealed record MediaMoveManifest
             }
 
             if (manifest.NativeClaims is not null && !MediaMovePathClaims.Valid(manifest.NativeClaims, manifest.NativeClaimPaths()))
+            {
+                return null;
+            }
+
+            if (manifest.RecycledSource is not null && !MediaMoveSourceCleanup.ValidReceipt(manifest.Plan, manifest.RecycledSource))
             {
                 return null;
             }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -171,6 +172,26 @@ public sealed class DuplicateAliasTests : IDisposable
         _db.Probes.StoreProbe(output, info.Length, info.LastWriteTimeUtc.Ticks, JsonSerializer.Serialize(outputProbe));
         var probe = new FfprobeService(null!, _db.Probes, NullLogger<FfprobeService>.Instance);
         var reason = await new OutputVerifier(probe).VerifyAsync(sourceProbe, output, default);
+        Assert.Equal(accepted, reason is null);
+    }
+
+    [Theory]
+    [InlineData("120", false, true)]
+    [InlineData("120", true, true)]
+    [InlineData("10", false, false)]
+    [InlineData("10", true, false)]
+    [InlineData("N/A", false, false)]
+    public async Task AudioRepairVerificationRequiresDurationEvidence(string duration, bool coverArt, bool accepted)
+    {
+        var output = Write("verified.mp3", [1, 2, 3]);
+        var source = new FfprobeData { Streams = [new() { CodecType = "audio" }], Format = new() { Duration = "120" } };
+        var streams = new List<FfprobeStreamInfo> { new() { CodecType = "audio" } };
+        if (coverArt) streams.Add(new() { CodecType = "video", NbFrames = "1", Disposition = new Dictionary<string, int> { ["attached_pic"] = 1 } });
+        source.Streams = streams;
+        var probe = new FfprobeData { Streams = streams, Format = new() { Duration = duration } };
+        var info = new FileInfo(output);
+        _db.Probes.StoreProbe(output, info.Length, info.LastWriteTimeUtc.Ticks, JsonSerializer.Serialize(probe));
+        var reason = await new OutputVerifier(new FfprobeService(null!, _db.Probes, NullLogger<FfprobeService>.Instance)).VerifyAsync(source, output, default);
         Assert.Equal(accepted, reason is null);
     }
 
@@ -381,6 +402,45 @@ public sealed class DuplicateAliasTests : IDisposable
             {
             }
         }
+    }
+
+    // Production 2026-11-22: one Bly Manor file was hardlinked under "The Haunting (2023)/The Haunting/"
+    // and "The Haunting of Bly Manor (2020)/…", so Jellyfin listed every episode twice. Neither the
+    // duplicate scanner (hardlinks are not duplicates) nor the grouper (hardlinks refused) could fix it.
+    [Fact]
+    public async Task LibraryAlias_IsFoundAndTheBadlyNamedLinkIsRemoved()
+    {
+        var keeper = Write(Path.Combine("The Haunting of Bly Manor (2020)", "The.Haunting.of.Bly.Manor.S01E01.1080p-RARBG", "The.Haunting.of.Bly.Manor.S01E01.1080p.mkv"), [1, 2, 3]);
+        var alias = Path.Combine(_root, "The Haunting (2023)", "The Haunting", "The.Haunting.of.Bly.Manor.S01E01.1080p.mkv");
+        Directory.CreateDirectory(Path.GetDirectoryName(alias)!);
+        Assert.True(CreateHardLink(alias, keeper), "Could not create hardlink in test fixture.");
+
+        var items = new MediaBrowser.Controller.Entities.BaseItem[]
+        {
+            new MediaBrowser.Controller.Entities.TV.Episode { Id = Guid.NewGuid(), Path = keeper },
+            new MediaBrowser.Controller.Entities.TV.Episode { Id = Guid.NewGuid(), Path = alias },
+        };
+        var issue = Assert.Single(Jellyfin.Plugin.MediaDash.Scanners.DuplicateScanner.FindLibraryAliases(items));
+        Assert.Equal(alias, issue.Path);
+        Assert.Contains(Jellyfin.Plugin.MediaDash.Scanners.DuplicateScanner.KindLibraryAlias, issue.DetailsJson, StringComparison.Ordinal);
+
+        var result = await NewFixer().FixAsync(issue, null, CancellationToken.None);
+        Assert.True(result.Success, result.Message);
+        Assert.False(File.Exists(alias));
+        Assert.Equal(new byte[] { 1, 2, 3 }, File.ReadAllBytes(keeper));
+    }
+
+    [Fact]
+    public void LibraryAlias_IgnoresIndependentCopies()
+    {
+        var first = Write(Path.Combine("A (2020)", "a.mkv"), [1, 2, 3]);
+        var second = Write(Path.Combine("B (2020)", "a.mkv"), [1, 2, 3]);
+        var items = new MediaBrowser.Controller.Entities.BaseItem[]
+        {
+            new MediaBrowser.Controller.Entities.Movies.Movie { Id = Guid.NewGuid(), Path = first },
+            new MediaBrowser.Controller.Entities.Movies.Movie { Id = Guid.NewGuid(), Path = second },
+        };
+        Assert.Empty(Jellyfin.Plugin.MediaDash.Scanners.DuplicateScanner.FindLibraryAliases(items));
     }
 
     [Fact]

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -79,8 +79,319 @@ public sealed class MediaMovePlanningTests : IDisposable
         public void Report(double value) => report(value);
     }
 
+    [Theory]
+    [InlineData("Outlander - Blood of My Blood", "Outlander Blood of My Blood (2025)", "Outlander: Blood of My Blood", 2025)]
+    [InlineData("The Mentalist", "The Mentalist (2008)", "The Mentalist", 2008)]
+    public async Task NfoIdentifiedEpisodesJoinTheCanonicalSeries(string sourceName, string targetName, string title, int year)
+    {
+        var master = new Series { Id = Guid.NewGuid(), Name = title, ProductionYear = year,
+            Path = Directory.CreateDirectory(Path.Combine(Tv, targetName)).FullName };
+        master.ProviderIds["Tvdb"] = "477406";
+        var source = new Series { Id = Guid.NewGuid(), Name = sourceName,
+            Path = Directory.CreateDirectory(Path.Combine(Tv, sourceName)).FullName };
+        Write(Path.Combine(source.Path, "tvshow.nfo"), "<tvshow><id>477406</id></tvshow>");
+        var episode = new Episode { Id = Guid.NewGuid(), SeriesId = source.Id, SeriesName = sourceName, ParentIndexNumber = 1,
+            IndexNumber = 3, Path = Write(Path.Combine(source.Path, "episode.mkv")) };
+        _items.AddRange([master, source, episode]);
+        var manager = DispatchProxy.Create<ILibraryManager, OriginalLanguageFlowTests.CallProxy>();
+        ((OriginalLanguageFlowTests.CallProxy)(object)manager).Call = (method, args) => method.Name == "GetItemById"
+            ? _items.FirstOrDefault(item => item.Id == (Guid)args![0]!) : null;
+        var identities = new Metadata.MediaIdentityService(_db.Identities, null, NullLogger.Instance, () => [master, source]);
+        var planner = new MediaMovePlanner(_guard, new ProtectionService(_db.Protection, manager), manager, _db.Moves, identities);
+        var issues = await planner.ScanAsync(IssueType.Ungrouped, _items, _config, new Progress<double>(), default);
+        var plan = MediaMovePlan.ReadIssue(Assert.Single(issues))!;
+        Assert.Empty(plan.BlockingReasons);
+        // "episode.mkv" carries no number of its own, so it is named for the episode Jellyfin identified.
+        Assert.Equal(Path.Combine(master.Path, "Season 01", sourceName + " S01E03.mkv"), plan.Entries[0].Destination);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GroupingIncludesAnimeWithADedicatedDestination(bool movie)
+    {
+        _config.AnimeTargetPath = Tv;
+        var source = Write(movie ? Path.Combine(Tv, "Anime Film.mkv")
+            : Path.Combine(Tv, "Kusuriya no Hitorigoto - 51 (WEB 1080p) [Anarchy]", "episode.mkv"));
+        BaseItem item = movie
+            ? new Movie { Id = Guid.NewGuid(), Name = "Anime Film", Path = source, Genres = ["Anime"] }
+            : new Episode { Id = Guid.NewGuid(), SeriesName = "Kusuriya no Hitorigoto", ParentIndexNumber = 2, IndexNumber = 27, Path = source, Genres = ["Anime"] };
+        _items.Add(item);
+
+        var plan = MediaMovePlan.ReadIssue(Assert.Single(await Group()))!;
+        Assert.Empty(plan.BlockingReasons);
+        // An episode's release folder is never nested inside the series folder: the episode goes to
+        // its season folder (production 2026-11-21: "Show/<release folder>/" is not a Jellyfin season).
+        Assert.Equal(movie ? Path.Combine(Tv, "Anime Film", "Anime Film.mkv")
+            : Path.Combine(Tv, "Kusuriya no Hitorigoto", "Season 02", "Kusuriya no Hitorigoto S02E27.mkv"), plan.Entries[0].Destination);
+    }
+
+    // ---- Production report 2026-11-21: grouping must produce Jellyfin's naming layout. ----
+
+    private (Series Series, Episode[] Episodes) Show(string folder, string name, int year, params (int Season, int Number, string RelativePath)[] episodes)
+    {
+        var series = new Series { Id = Guid.NewGuid(), Name = name, PremiereDate = new DateTime(year, 1, 1), Path = Directory.CreateDirectory(Path.Combine(Tv, folder)).FullName };
+        var items = episodes.Select(episode => new Episode { Id = Guid.NewGuid(), SeriesId = series.Id, SeriesName = name, ParentIndexNumber = episode.Season,
+            IndexNumber = episode.Number, Path = Write(Path.Combine(series.Path, episode.RelativePath)) }).ToArray();
+        _items.Add(series);
+        _items.AddRange(items);
+        return (series, items);
+    }
+
     [Fact]
-    public async Task GroupingReportsActivityWhileReadingALargeFile()
+    public async Task EpisodesNestedInAReleaseFolderInsideTheirSeriesAreRegroupedIntoSeasons()
+    {
+        var release = "www.UIndex.org    -    Rick and Morty S06E04 1080p 10bit WEBRip 6CH x265 HEVC-PSA";
+        var (_, episodes) = Show("Rick and Morty (2013)", "Rick and Morty", 2013,
+            (6, 4, Path.Combine(release, "Rick and Morty S06E04.mkv")),
+            (6, 5, Path.Combine("Season 06", "Rick and Morty S06E05.mkv")));
+        Write(Path.Combine(Tv, "Rick and Morty (2013)", release, "Torrent Downloaded From UIndex.org.txt"), "notes");
+
+        var plan = MediaMovePlan.ReadIssue(Assert.Single(await Group()))!;
+        Assert.Empty(plan.BlockingReasons);
+        Assert.Equal(episodes[0].Path, plan.Entries[0].Source);
+        Assert.Equal(Path.Combine(Tv, "Rick and Morty (2013)", "Season 06", "Rick and Morty S06E04.mkv"), plan.Entries[0].Destination);
+        Assert.DoesNotContain(plan.Entries, entry => entry.IsDirectory);
+    }
+
+    [Fact]
+    public async Task RegroupedEpisodesJoinAnExistingUnpaddedSeasonFolder()
+    {
+        // Rick and Morty (2013) already has "Season 9"; a regrouped S09 episode must not create "Season 09".
+        Show("Rick and Morty (2013)", "Rick and Morty", 2013,
+            (9, 10, Path.Combine("Season 9", "Rick and Morty S09E10.mkv")),
+            (9, 5, Path.Combine("www.UIndex.org    -    Rick.and.Morty.S09E05.MULTI.1080p.WEB.H264-HiggsBoson", "rick.and.morty.s09e05.mkv")),
+            (8, 10, Path.Combine("www.UIndex.org    -    Rick and Morty S08E10 Hot Rick 1080p AMZN WEB-DL DDP5 1 H 264-NTb", "Rick and Morty S08E10.mkv")));
+        Directory.CreateDirectory(Path.Combine(Tv, "Rick and Morty (2013)", "Season 8"));
+
+        var destinations = (await Group()).Select(issue => MediaMovePlan.ReadIssue(issue)!)
+            .Select(plan => { Assert.Empty(plan.BlockingReasons); return plan.Entries[0].Destination; }).Order(StringComparer.Ordinal).ToArray();
+        Assert.Equal([Path.Combine(Tv, "Rick and Morty (2013)", "Season 8", "Rick and Morty S08E10.mkv"),
+            Path.Combine(Tv, "Rick and Morty (2013)", "Season 9", "rick.and.morty.s09e05.mkv")], destinations);
+    }
+
+    [Fact]
+    public async Task AnEpisodeWhoseNameAnEarlierMoveRemovedIsIdentifiedFromMoveHistoryAndRenamed()
+    {
+        // Production 2026-11-22: legacy grouping moved ".../<release S09E05>/<inner release>/info" to
+        // "Rick and Morty (2013)/info" and orphan cleanup recycled the release folder; "info.mkv" was
+        // left with no season or episode anywhere on disk.
+        var show = Path.Combine(Tv, "Rick and Morty (2013)");
+        var release = "Rick.and.Morty.S09E05.Jer.Bud.1080p.AMZN.WEB-DL.DDP5.1.H.264-FLUX";
+        var series = new Series { Id = Guid.NewGuid(), Name = "Rick and Morty", PremiereDate = new DateTime(2013, 1, 1), Path = Directory.CreateDirectory(show).FullName };
+        var episode = new Episode { Id = Guid.NewGuid(), SeriesId = series.Id, SeriesName = "Rick and Morty", Path = Write(Path.Combine(show, "info", "info.mkv")) };
+        Write(Path.Combine(show, "info", "info.nfo"), "<episodedetails><title>info</title></episodedetails>");
+        Write(Path.Combine(show, "info", "info-thumb.jpg"), "thumb");
+        Write(Path.Combine(show, "info", "info.trickplay", "320 - 10x10", "0.jpg"), "tiles");
+        Write(Path.Combine(show, "info", "season.nfo"), "<season />");
+        Write(Path.Combine(show, "Season 9", "Rick and Morty S09E10.mkv"), "other episode");
+        _items.AddRange([series, episode]);
+        _db.History.AddHistory(new HistoryEntry { Type = IssueType.Ungrouped, Path = "legacy", FixedAtUtc = DateTime.UtcNow, Success = true,
+            Action = "grouped " + Path.Combine(Tv, "Rick and Morty", "www.UIndex.org    -    Rick and Morty S09E05 Jer Bud 1080p AMZN WEB-DL DDP5 1 H 264-FLUX", release, "info")
+                + " \u2192 " + Path.Combine(show, "info") });
+        var manager = DispatchProxy.Create<ILibraryManager, OriginalLanguageFlowTests.CallProxy>();
+        ((OriginalLanguageFlowTests.CallProxy)(object)manager).Call = (method, args) => method.Name == "GetItemById"
+            ? _items.FirstOrDefault(item => item.Id == (Guid)args![0]!) : null;
+        var planner = new MediaMovePlanner(_guard, new ProtectionService(_db.Protection, manager), manager, _db.Moves, history: _db.History);
+
+        var plan = MediaMovePlan.ReadIssue(Assert.Single(await planner.ScanAsync(IssueType.Ungrouped, _items, _config, new Progress<double>(), default)))!;
+        Assert.Empty(plan.BlockingReasons);
+        var season9 = Path.Combine(show, "Season 9");
+        var moved = plan.Entries.ToDictionary(entry => Path.GetFileName(entry.Source), entry => entry.Destination);
+        Assert.Equal(Path.Combine(season9, release + ".mkv"), moved["info.mkv"]);
+        // Jellyfin's NFO from while the episode was unidentified carries the wrong title; it stays behind.
+        Assert.False(moved.ContainsKey("info.nfo"));
+        Assert.Equal(Path.Combine(season9, release + "-thumb.jpg"), moved["info-thumb.jpg"]);
+        Assert.Equal(Path.Combine(season9, release + ".trickplay"), moved["info.trickplay"]);
+        Assert.False(moved.ContainsKey("season.nfo"));
+
+        // Without the move record the episode stays unidentified and is never moved on a guess.
+        var blind = new MediaMovePlanner(_guard, new ProtectionService(_db.Protection, manager), manager, _db.Moves);
+        Assert.Contains(MediaMovePlan.ReadIssue(Assert.Single(await blind.ScanAsync(IssueType.Ungrouped, _items, _config, new Progress<double>(), default)))!.BlockingReasons,
+            reason => reason.Contains("season is unknown", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AnEpisodeNumberedOnlyByItsReleaseFolderKeepsItsNumberWhenMovedOut()
+    {
+        Show("Show (2020)", "Show", 2020, (1, 2, Path.Combine("Show.S01E02.1080p.WEB-GRP", "video.mkv")));
+        Write(Path.Combine(Tv, "Show (2020)", "Show.S01E02.1080p.WEB-GRP", "video.en.srt"), "subtitles");
+        var plan = MediaMovePlan.ReadIssue(Assert.Single(await Group()))!;
+        Assert.Empty(plan.BlockingReasons);
+        var moved = plan.Entries.ToDictionary(entry => Path.GetFileName(entry.Source), entry => entry.Destination);
+        Assert.Equal(Path.Combine(Tv, "Show (2020)", "Season 01", "Show.S01E02.1080p.WEB-GRP.mkv"), moved["video.mkv"]);
+        Assert.Equal(Path.Combine(Tv, "Show (2020)", "Season 01", "Show.S01E02.1080p.WEB-GRP.en.srt"), moved["video.en.srt"]);
+    }
+
+    [Fact]
+    public void MoveHistoryMapsAPathBackThroughChainedMoves()
+    {
+        var root = Path.GetPathRoot(Tv)!;
+        string P(params string[] parts) => Path.Combine([root, .. parts]);
+        var moves = MoveProvenance.ParseGrouped([
+            "grouped " + P("tv", "A", "S01E01 release", "x") + " \u2192 " + P("tv", "B", "x"),
+            "grouped " + P("tv", "B") + " \u2192 " + P("tv", "C"),
+            "moved something else",
+        ]);
+        Assert.Equal(2, moves.Count);
+        Assert.Equal([P("tv", "B", "x", "f.mkv"), P("tv", "A", "S01E01 release", "x", "f.mkv")], MoveProvenance.FormerPaths(P("tv", "C", "x", "f.mkv"), moves));
+        Assert.Equal((1, 1, "S01E01 release"), MoveProvenance.FindEpisodeIdentity(P("tv", "C", "x", "f.mkv"), [P("tv")], moves));
+        Assert.False(MoveProvenance.HasEpisodeMarker("H.264 1920x1080 x265"));
+    }
+
+    [Fact]
+    public async Task AnEpisodeWithoutAJellyfinSeasonUsesTheSeasonInItsFilename()
+    {
+        // Production 2026-11-22: blocked as "The season is unknown" though the name says S04E01.
+        var series = new Series { Id = Guid.NewGuid(), Name = "Yellowstone", PremiereDate = new DateTime(2018, 1, 1),
+            Path = Directory.CreateDirectory(Path.Combine(Tv, "Yellowstone (2018)")).FullName };
+        var episode = new Episode { Id = Guid.NewGuid(), SeriesId = series.Id, SeriesName = "Yellowstone",
+            Path = Write(Path.Combine(series.Path, "Yellowstone 2018 S04E01 Half The Money 1080p REPACK AMZN WEB-DL AAC5 1 H 26.mkv")) };
+        _items.AddRange([series, episode]);
+
+        var plan = MediaMovePlan.ReadIssue(Assert.Single(await Group()))!;
+        Assert.Empty(plan.BlockingReasons);
+        Assert.Equal(Path.Combine(series.Path, "Season 04", Path.GetFileName(episode.Path)), plan.Entries[0].Destination);
+    }
+
+    [Fact]
+    public async Task ASeasonTheUserEntersPlacesAnEpisodeNothingElseCouldPlace()
+    {
+        var series = new Series { Id = Guid.NewGuid(), Name = "Show", PremiereDate = new DateTime(2020, 1, 1),
+            Path = Directory.CreateDirectory(Path.Combine(Tv, "Show (2020)")).FullName };
+        var episode = new Episode { Id = Guid.NewGuid(), SeriesId = series.Id, SeriesName = "Show", IndexNumber = 4,
+            Path = Write(Path.Combine(series.Path, "Unlabelled Episode.mkv")) };
+        _items.AddRange([series, episode]);
+        var manager = DispatchProxy.Create<ILibraryManager, OriginalLanguageFlowTests.CallProxy>();
+        ((OriginalLanguageFlowTests.CallProxy)(object)manager).Call = (method, args) => method.Name == "GetItemById"
+            ? _items.FirstOrDefault(item => item.Id == (Guid)args![0]!) : null;
+        var planner = new MediaMovePlanner(_guard, new ProtectionService(_db.Protection, manager), manager, _db.Moves, state: _db);
+
+        var blocked = MediaMovePlan.ReadIssue(Assert.Single(await planner.ScanAsync(IssueType.Ungrouped, _items, _config, new Progress<double>(), default)))!;
+        Assert.Contains(blocked.BlockingReasons, reason => reason.StartsWith("The season is unknown", StringComparison.Ordinal));
+
+        _db.SetState(MediaMovePlanner.SeasonOverrideKey(episode.Id), "3");
+        var planned = await planner.PlanItemAsync(IssueType.Ungrouped, _items, _config, episode.Id, default);
+        var plan = MediaMovePlan.ReadIssue(Assert.IsType<Issue>(planned))!;
+        Assert.Empty(plan.BlockingReasons);
+        Assert.Equal(Path.Combine(series.Path, "Season 03"), Path.GetDirectoryName(plan.Entries[0].Destination));
+        Assert.Equal(episode.Id, plan.ItemId);
+    }
+
+    [Fact]
+    public async Task EpisodesLooseInTheirSeriesFolderMoveIntoSeasonFolders()
+    {
+        Show("The New Pope (2020)", "The New Pope", 2020,
+            (1, 1, "The New Pope 2020 S01E01 1080p WEB-DL.mkv"), (1, 2, "The New Pope 2020 S01E02 1080p WEB-DL.mkv"));
+
+        var issues = await Group();
+        Assert.Equal(2, issues.Count);
+        Assert.All(issues, issue =>
+        {
+            var plan = MediaMovePlan.ReadIssue(issue)!;
+            Assert.Empty(plan.BlockingReasons);
+            Assert.Equal(Path.Combine(Tv, "The New Pope (2020)", "Season 01"), Path.GetDirectoryName(plan.Entries[0].Destination));
+        });
+    }
+
+    [Fact]
+    public async Task ASeriesFolderWithLooseEpisodesIsRestructuredRatherThanRenamedWhole()
+    {
+        // "Avatar - Seven Havens/<episodes>" was renamed whole to "Avatar Seven Havens (2026)/<episodes>",
+        // carrying the loose layout along.
+        var (series, _) = Show("Avatar - Seven Havens", "Avatar Seven Havens", 2026,
+            (1, 1, "Avatar.Seven.Havens.S01E01.1080p.WEBRip.x265-NeoNoir.mkv"),
+            (1, 2, "Avatar.Seven.Havens.S01E02.1080p.WEBRip.x265-NeoNoir.mkv"));
+
+        var issues = await Group();
+        Assert.Equal(2, issues.Count);
+        Assert.All(issues, issue =>
+        {
+            var plan = MediaMovePlan.ReadIssue(issue)!;
+            Assert.Empty(plan.BlockingReasons);
+            Assert.NotEqual(series.Path, plan.Entries[0].Source);
+            Assert.Equal(Path.Combine(Tv, "Avatar Seven Havens (2026)", "Season 01"), Path.GetDirectoryName(plan.Entries[0].Destination));
+        });
+    }
+
+    [Theory]
+    [InlineData("Season 01")]
+    [InlineData("Season 1")]
+    public async Task EpisodesAlreadyInTheirSeasonFolderAreLeftAlone(string season)
+    {
+        Show("Show (2005)", "Show", 2005, (1, 1, Path.Combine(season, "Show S01E01.mkv")), (1, 2, Path.Combine(season, "Show S01E02.mkv")));
+        Assert.Empty(await Group());
+    }
+
+    [Fact]
+    public async Task AnEpisodeInTheWrongSeasonFolderMovesToItsOwnSeason()
+    {
+        Show("Show (2005)", "Show", 2005, (2, 1, Path.Combine("Season 01", "Show S02E01.mkv")));
+        var plan = MediaMovePlan.ReadIssue(Assert.Single(await Group()))!;
+        Assert.Equal(Path.Combine(Tv, "Show (2005)", "Season 02", "Show S02E01.mkv"), plan.Entries[0].Destination);
+    }
+
+    private Movie Feature(string name, int year, string relativePath)
+    {
+        var item = new Movie { Id = Guid.NewGuid(), Name = name, ProductionYear = year, Path = Write(Path.Combine(Movies, relativePath)) };
+        _items.Add(item);
+        return item;
+    }
+
+    [Fact]
+    public async Task MovieFoldersWrappedInAFranchiseFolderAreUnwrapped()
+    {
+        Feature("Super Troopers", 2001, Path.Combine("Super Troopers", "Super Troopers (2001)", "Super Troopers (2001).mkv"));
+        Feature("Super Troopers 2", 2018, Path.Combine("Super Troopers", "Super Troopers 2 (2018)", "Super Troopers 2 (2018).mkv"));
+
+        var issues = await Group();
+        Assert.Equal(2, issues.Count);
+        var destinations = issues.Select(issue => MediaMovePlan.ReadIssue(issue)!).Select(plan =>
+        {
+            Assert.Empty(plan.BlockingReasons);
+            Assert.True(plan.Entries[0].IsDirectory);
+            return plan.Entries[0].Destination;
+        }).Order(StringComparer.Ordinal).ToArray();
+        Assert.Equal([Path.Combine(Movies, "Super Troopers (2001)"), Path.Combine(Movies, "Super Troopers 2 (2018)")], destinations);
+    }
+
+    [Fact]
+    public async Task AWrapperWithoutAYearIsReplacedByTitleAndYear()
+    {
+        Feature("28 Days Later", 2002, Path.Combine("28 Days Later", "28.Days.Later.2002.1080p.BluRay-GRP", "28.Days.Later.2002.1080p.BluRay-GRP.mkv"));
+        var plan = MediaMovePlan.ReadIssue(Assert.Single(await Group()))!;
+        Assert.Equal(Path.Combine(Movies, "28 Days Later (2002)"), plan.Entries[0].Destination);
+    }
+
+    [Fact]
+    public async Task AReleaseFolderInsideTheMoviesOwnFolderMovesItsVideoUp()
+    {
+        var film = Feature("Sorry, Baby", 2025, Path.Combine("Sorry, Baby (2025)", "Sorry.Baby.2025.Hybrid.2160p.WEB-DL-AOC", "Sorry.Baby.2025.2160p-AOC.mkv"));
+        var plan = MediaMovePlan.ReadIssue(Assert.Single(await Group()))!;
+        Assert.Empty(plan.BlockingReasons);
+        Assert.Equal(film.Path, plan.Entries[0].Source);
+        Assert.Equal(Path.Combine(Movies, "Sorry, Baby (2025)", "Sorry.Baby.2025.2160p-AOC.mkv"), plan.Entries[0].Destination);
+    }
+
+    [Fact]
+    public async Task AReleaseNamedMovieFolderIsRenamedToTitleAndYear()
+    {
+        Feature("Wrath of Man", 2021, Path.Combine("Wrath.of.Man.2021.1080p.Remux.AVC.DTS-HD.MA.5.1-playBD", "Wrath.of.Man.2021.1080p.Remux.mkv"));
+        var plan = MediaMovePlan.ReadIssue(Assert.Single(await Group()))!;
+        Assert.Equal(Path.Combine(Movies, "Wrath of Man (2021)"), plan.Entries[0].Destination);
+    }
+
+    [Theory]
+    [InlineData("Film (2020)")]
+    [InlineData("Film (2020) [tmdbid-123]")]
+    public async Task ACanonicalMovieFolderIsLeftAlone(string folder)
+    {
+        Feature("Film", 2020, Path.Combine(folder, "Film (2020).mkv"));
+        Assert.Empty(await Group());
+    }
+
+    [Fact]
+    public async Task GroupingReportsActivityWithoutReadingALargeFile()
     {
         var film = Film("Film", Path.Combine(Movies, "Film.mkv"));
         File.WriteAllBytes(film.Path, new byte[12 * 1024 * 1024]);
@@ -93,7 +404,9 @@ public sealed class MediaMovePlanningTests : IDisposable
         {
             var issues = await Group(new CallbackProgress(p => updates.Add((p, Plugin.CurrentActivity, Plugin.CurrentActivityLabel))));
             Assert.Single(issues);
-            Assert.Contains(updates, update => update.Path == film.Path && update.Percent < 90 && update.Label?.Contains("33% of file", StringComparison.Ordinal) == true);
+            // Identity-only planning never reads content, so each file reports complete at once.
+            Assert.Contains(updates, update => update.Path == film.Path && update.Percent < 90 && update.Label?.Contains("100% of file", StringComparison.Ordinal) == true);
+            Assert.DoesNotContain(updates, update => update.Label?.Contains("33% of file", StringComparison.Ordinal) == true);
             Assert.Contains(updates, update => update.Label?.Contains("Checking move files", StringComparison.Ordinal) == true);
             Assert.Equal(100, updates[^1].Percent);
             Assert.True(updates.Zip(updates.Skip(1)).All(pair => pair.First.Percent <= pair.Second.Percent));
@@ -107,10 +420,137 @@ public sealed class MediaMovePlanningTests : IDisposable
     private Task<IReadOnlyList<Issue>> Sort() => new MediaSorterScanner(_guard, NullLogger<MediaSorterScanner>.Instance, _planner)
         .ScanAsync(_items, new Progress<double>(), CancellationToken.None);
 
+    // Production 2026-11-22: "Sinners 2025" was filed as an episode of "Sinners (2016)" and later renamed
+    // "Saints & Sinners S01E2025" into Season 01. Misplaced files moves it to Movies under the film's name
+    // and leaves the season's own files behind.
+    [Fact]
+    public async Task FilmFiledAsAnEpisodeIsSortedToMovies()
+    {
+        var showFolder = Path.Combine(Tv, "Sinners (2016)");
+        var series = new Series { Id = Guid.NewGuid(), Name = "Saints & Sinners", Path = showFolder, ProductionYear = 2016 };
+        var file = Write(Path.Combine(showFolder, "www.UIndex.org    -    Sinners 2025 1080p WEBRip DDP Atmos 5 1 10bit H 265-iVy", "Sinners 2025 1080p.mkv"));
+        Write(Path.Combine(Path.GetDirectoryName(file)!, "tvshow.nfo"), "release metadata");
+        var episode = new Episode { Id = Guid.NewGuid(), SeriesId = series.Id, SeriesName = "Saints & Sinners", Path = file, RunTimeTicks = TimeSpan.FromMinutes(137).Ticks };
+        _items.AddRange([series, episode]);
+
+        var issue = Assert.Single(await Sort());
+        var plan = Assert.IsType<MediaMovePlan>(MediaMovePlan.ReadIssue(issue));
+        Assert.Empty(plan.BlockingReasons);
+        var entry = Assert.Single(plan.Entries);
+        Assert.Equal(Path.Combine(Movies, "Sinners (2025)", "Sinners (2025).mkv"), entry.Destination);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GroupingIntoExistingSeriesPlansIndependentEpisodeBundles(bool collision)
+    {
+        var target = Path.Combine(Tv, "MobLand (2025)", "Season 02");
+        Write(Path.Combine(target, "MobLand.S02E01.mkv"), "existing episode");
+        Write(Path.Combine(Tv, "MobLand (2025)", "tvshow.nfo"), "existing metadata");
+        for (var number = 2; number <= 3; number++)
+        {
+            var source = Path.Combine(Tv, "MobLand release " + number);
+            var series = new Series { Id = Guid.NewGuid(), Name = "MobLand", Path = source, PremiereDate = new DateTime(2025, 1, 1) };
+            var episode = new Episode { Id = Guid.NewGuid(), SeriesId = series.Id, SeriesName = "MobLand", ParentIndexNumber = 2,
+                IndexNumber = number, Path = Write(Path.Combine(source, "MobLand.S02E0" + number + ".mkv")) };
+            Write(Path.ChangeExtension(episode.Path, ".en.srt"), "subtitles");
+            Write(Path.Combine(source, "tvshow.nfo"), "source metadata");
+            _items.AddRange([series, episode]);
+        }
+
+        if (collision) Write(Path.Combine(target, "MobLand.S02E02.en.srt"), "existing subtitle");
+        var issues = await Group();
+        Assert.Equal(2, issues.Count);
+        foreach (var issue in issues)
+        {
+            var plan = Assert.IsType<MediaMovePlan>(MediaMovePlan.ReadIssue(issue));
+            Assert.True(plan.HasValidDefinition());
+            Assert.Equal(2, plan.Entries.Length);
+            Assert.All(plan.Entries, entry =>
+            {
+                Assert.False(entry.IsDirectory);
+                Assert.Equal(target, Path.GetDirectoryName(entry.Destination));
+            });
+            Assert.DoesNotContain(plan.BlockingReasons, reason => reason.Contains("overlaps", StringComparison.Ordinal));
+            if (collision && issue.Path.EndsWith("02.mkv", StringComparison.Ordinal))
+                Assert.Contains(plan.BlockingReasons, reason => reason.Contains("already occupied", StringComparison.Ordinal));
+            else
+                Assert.Empty(plan.BlockingReasons);
+        }
+    }
+
     private static JsonElement Details(Issue issue) => JsonDocument.Parse(issue.DetailsJson).RootElement.Clone();
 
     [Fact]
-    public async Task GroupingReadsASeriesPayloadOnceForAllItsEpisodes()
+    public async Task SameNamedSeriesFromDifferentYearsKeepTheirOwnMissingArtwork()
+    {
+        foreach (var year in new[] { 2020, 2025 })
+        {
+            Write(Path.Combine(Tv, "MobLand (" + year + ")", "tvshow.nfo"), "destination metadata");
+            var folder = Path.Combine(Tv, "MobLand release " + year);
+            var series = new Series { Id = Guid.NewGuid(), Name = "MobLand", Path = folder, PremiereDate = new DateTime(year, 1, 1) };
+            var episode = new Episode { Id = Guid.NewGuid(), SeriesId = series.Id, SeriesName = "MobLand", ParentIndexNumber = 1,
+                Path = Write(Path.Combine(folder, "MobLand.S01E01.mkv")) };
+            Write(Path.Combine(folder, "logo.png"), "art " + year);
+            _items.AddRange([series, episode]);
+        }
+
+        var findings = await Group();
+        Assert.Equal(2, findings.Count);
+        foreach (var issue in findings)
+        {
+            var plan = MediaMovePlan.ReadIssue(issue)!;
+            Assert.Empty(plan.BlockingReasons);
+            Assert.Equal(2, plan.Entries.Length);
+            Assert.EndsWith("logo.png", plan.Entries[1].Destination, StringComparison.Ordinal);
+            Assert.Contains(issue.Path.Contains("2020", StringComparison.Ordinal) ? "2020" : "2025", plan.Entries[1].Destination, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public async Task JoiningExistingSeriesStillBlocksTwoProposalsForTheSameFile()
+    {
+        Directory.CreateDirectory(Path.Combine(Tv, "MobLand (2025)"));
+        for (var index = 0; index < 2; index++)
+        {
+            var source = Path.Combine(Tv, "MobLand release " + index);
+            var series = new Series { Id = Guid.NewGuid(), Name = "MobLand", Path = source, PremiereDate = new DateTime(2025, 1, 1) };
+            _items.AddRange([series, new Episode { Id = Guid.NewGuid(), SeriesId = series.Id, SeriesName = "MobLand", ParentIndexNumber = 2,
+                Path = Write(Path.Combine(source, "MobLand.S02E02.mkv")) }]);
+        }
+
+        var issues = await Group();
+        Assert.Equal(2, issues.Count);
+        Assert.All(issues, issue => Assert.Contains(MediaMovePlan.ReadIssue(issue)!.BlockingReasons,
+            reason => reason.Contains("overlaps", StringComparison.Ordinal)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task JoiningExistingSeriesStillBlocksConflictingProviderIdentities(bool destinationConflict)
+    {
+        var target = Path.Combine(Tv, "MobLand (2025)");
+        Directory.CreateDirectory(target);
+        for (var index = 0; index < 2; index++)
+        {
+            var source = destinationConflict && index == 1 ? target : Path.Combine(Tv, "MobLand release " + index);
+            var series = new Series { Id = Guid.NewGuid(), Name = "MobLand", Path = source, PremiereDate = new DateTime(2025, 1, 1) };
+            series.ProviderIds["Tvdb"] = index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            _items.Add(series);
+            if (destinationConflict && index == 1) continue;
+            _items.Add(new Episode { Id = Guid.NewGuid(), SeriesId = series.Id, SeriesName = "MobLand", ParentIndexNumber = 2,
+                Path = Write(Path.Combine(source, "MobLand.S02E0" + index + ".mkv")) });
+        }
+
+        var issues = await Group();
+        Assert.NotEmpty(issues);
+        Assert.All(issues, issue => Assert.True(issue.HasBlockingWarnings, issue.DetailsJson));
+    }
+
+    [Fact]
+    public async Task GroupingVisitsASeriesPayloadOnceForAllItsEpisodes()
     {
         var seriesPath = Path.Combine(Tv, "Unsorted series");
         var series = new Series { Id = Guid.NewGuid(), Name = "Show", Path = seriesPath };
@@ -130,14 +570,14 @@ public sealed class MediaMovePlanningTests : IDisposable
         {
             var issues = await Group(new CallbackProgress(_ =>
             {
-                if (Plugin.CurrentActivityLabel?.Contains("; 0% of file", StringComparison.Ordinal) == true)
+                if (Plugin.CurrentActivityLabel?.Contains("; 100% of file", StringComparison.Ordinal) == true)
                 {
                     readPaths.Add(Plugin.CurrentActivity);
                 }
             }));
             var plan = MediaMovePlan.ReadIssue(Assert.Single(issues))!;
             Assert.Empty(plan.BlockingReasons);
-            Assert.Equal(3, readPaths.Count);
+            // A progress tick can repeat the last file's label, so count distinct files visited.
             Assert.Equal(3, readPaths.Distinct().Count());
             Assert.Equal(3, Assert.Single(plan.Entries).Inventory.Count(payload => !payload.IsDirectory));
         }
@@ -304,6 +744,37 @@ public sealed class MediaMovePlanningTests : IDisposable
         Assert.Equal(0L, (long)command.ExecuteScalar()!);
     }
 
+    [Fact]
+    public async Task AnNfoJellyfinRewritesForAMovedSiblingDoesNotRefuseTheRemainingEpisodes()
+    {
+        // Production 2026-11-22: episodes left "The Office (2005)/The Office (US)/" one by one and Jellyfin,
+        // still indexing the old paths, wrote "<moved episode>.nfo" back into that folder. Every remaining
+        // episode was then refused as "changed after approval".
+        _config.UngroupedFixMode = FixMode.ManualApprove;
+        _config.DryRun = false;
+        var (_, episodes) = Show("The Office (2005)", "The Office", 2005,
+            (2, 1, Path.Combine("The Office (US)", "The.Office.US.S02E01.mkv")),
+            (2, 2, Path.Combine("The Office (US)", "The.Office.US.S02E02.mkv")));
+        foreach (var episode in episodes)
+            Write(Path.ChangeExtension(episode.Path, ".nfo"), "<episodedetails />");
+        Directory.CreateDirectory(Path.Combine(Tv, "The Office (2005)", "Season 02"));
+        var found = await Group();
+        Assert.Equal(2, found.Count);
+        _db.Issues.ReplaceDetectedIssues(IssueType.Ungrouped, found);
+        _db.Issues.QueueDetectedIssues(IssueType.Ungrouped);
+        var queued = _db.Issues.GetIssues(IssueType.Ungrouped).OrderBy(issue => issue.Path, StringComparer.Ordinal).ToArray();
+
+        var first = await MoveService().ExecuteAsync(queued[0], null, CancellationToken.None);
+        Assert.True(first.Success, first.Message);
+        Assert.False(File.Exists(episodes[0].Path));
+        Write(Path.ChangeExtension(episodes[0].Path, ".nfo"), "<episodedetails>rewritten at the old path</episodedetails>");
+
+        var second = await MoveService().ExecuteAsync(queued[1], null, CancellationToken.None);
+        Assert.True(second.Success, second.Message);
+        Assert.True(File.Exists(Path.Combine(Tv, "The Office (2005)", "Season 02", "The.Office.US.S02E02.mkv")));
+        Assert.True(File.Exists(Path.ChangeExtension(episodes[0].Path, ".nfo")), "An unowned file stays where it is.");
+    }
+
     [Theory]
     [InlineData(IssueType.Ungrouped, false)]
     [InlineData(IssueType.Ungrouped, true)]
@@ -428,8 +899,8 @@ public sealed class MediaMovePlanningTests : IDisposable
         var two = Film("The Hobbit Part 2", Path.Combine(Movies, "The Hobbit Part 2.mkv"), "22");
         var issues = await Group();
         Assert.Equal(2, issues.Count);
-        Assert.Equal(Path.Combine(Movies, "The Hobbit Part 1", "The Hobbit Part 1.mkv"), Details(issues.Single(i => i.ItemId == one.Id)).GetProperty("target").GetString());
-        Assert.Equal(Path.Combine(Movies, "The Hobbit Part 2", "The Hobbit Part 2.mkv"), Details(issues.Single(i => i.ItemId == two.Id)).GetProperty("target").GetString());
+        Assert.Equal(Path.Combine(Movies, "The Hobbit Part 1 (2026)", "The Hobbit Part 1.mkv"), Details(issues.Single(i => i.ItemId == one.Id)).GetProperty("target").GetString());
+        Assert.Equal(Path.Combine(Movies, "The Hobbit Part 2 (2026)", "The Hobbit Part 2.mkv"), Details(issues.Single(i => i.ItemId == two.Id)).GetProperty("target").GetString());
     }
 
     [Fact]
@@ -437,11 +908,20 @@ public sealed class MediaMovePlanningTests : IDisposable
     {
         Film("The Hobbit Part 1", Path.Combine(Movies, "The Hobbit Part 1", "The Hobbit Part 1.mkv"), "11");
         Film("The Hobbit Part 2", Path.Combine(Movies, "The Hobbit Part 2", "The Hobbit Part 2.mkv"), "22");
+
+        // Each keeps its own folder directly in the library; only the missing year is added.
+        var destinations = (await Group()).Select(issue => MediaMovePlan.ReadIssue(issue)!.Entries[0].Destination).Order(StringComparer.Ordinal).ToArray();
+        Assert.Equal([Path.Combine(Movies, "The Hobbit Part 1 (2026)"), Path.Combine(Movies, "The Hobbit Part 2 (2026)")], destinations);
+
+        Directory.Move(Path.Combine(Movies, "The Hobbit Part 1"), Path.Combine(Movies, "The Hobbit Part 1 (2026)"));
+        Directory.Move(Path.Combine(Movies, "The Hobbit Part 2"), Path.Combine(Movies, "The Hobbit Part 2 (2026)"));
+        foreach (var film in _items.OfType<Movie>())
+            film.Path = Path.Combine(Movies, film.Name + " (2026)", film.Name + ".mkv");
         Assert.Empty(await Group());
     }
 
     [Fact]
-    public async Task ScannedApprovalIncludesEveryCompanionAndUncachedPayloadEvidence()
+    public async Task ScannedApprovalIncludesEveryCompanionAndIdentityEvidence()
     {
         var film = Film("Film", Path.Combine(Movies, "Film.mkv"));
         Write(Path.Combine(Movies, "Film.en.forced.srt"), "subtitles");
@@ -454,7 +934,15 @@ public sealed class MediaMovePlanningTests : IDisposable
         Assert.Empty(plan.GetProperty("blockingReasons").EnumerateArray());
         var entries = plan.GetProperty("entries").EnumerateArray().ToArray();
         Assert.Equal(new[] { "Film-poster.png", "Film.en.forced.srt", "Film.mkv" }, entries.Select(e => Path.GetFileName(e.GetProperty("source").GetString())).Order(StringComparer.Ordinal));
-        Assert.All(entries, entry => Assert.Equal(64, entry.GetProperty("inventory")[0].GetProperty("sha256").GetString()!.Length));
+        // Scan-time plans carry identity evidence (file ID, length, modified time, metadata), not
+        // content hashes: the scan must not read every payload byte.
+        Assert.All(entries, entry =>
+        {
+            var root = entry.GetProperty("inventory")[0];
+            Assert.Equal(string.Empty, root.GetProperty("sha256").GetString());
+            Assert.NotEqual(0UL, root.GetProperty("fileId").GetUInt64());
+            Assert.True(root.GetProperty("lastWriteUtcTicks").GetInt64() > 0);
+        });
         Assert.Equal(film.Path, issue.Path);
         Assert.Equal(0, issue.SizeSavings);
     }
@@ -493,15 +981,20 @@ public sealed class MediaMovePlanningTests : IDisposable
     }
 
     [Fact]
-    public async Task SameSizedEditsWithPreservedTimestampChangeTheApprovalFingerprint()
+    public async Task ReplacedPayloadWithPreservedSizeAndTimestampChangesTheApprovalFingerprint()
     {
+        // Plans bind file identity, not content: a same-size, backdated in-place edit is not seen
+        // (moves are renames, so those bytes move intact), but a different file put in its place is.
         var film = Film("Film", Path.Combine(Movies, "Film.mkv"));
         var first = Details(Assert.Single(await Group()));
-        Assert.True(first.TryGetProperty("movePlan", out var plan), "Approval must include uncached payload evidence.");
+        Assert.True(first.TryGetProperty("movePlan", out var plan), "Approval must include payload identity evidence.");
         var fingerprint = plan.GetProperty("fingerprint").GetString();
         var modified = File.GetLastWriteTimeUtc(film.Path);
-        File.WriteAllText(film.Path, "changed");
-        File.SetLastWriteTimeUtc(film.Path, modified);
+        var replacement = film.Path + ".replacement";
+        File.WriteAllBytes(replacement, new byte[new FileInfo(film.Path).Length]);
+        File.SetLastWriteTimeUtc(replacement, modified);
+        File.Delete(film.Path);
+        File.Move(replacement, film.Path);
         Assert.NotEqual(fingerprint, Details(Assert.Single(await Group())).GetProperty("movePlan").GetProperty("fingerprint").GetString());
     }
 
@@ -713,7 +1206,7 @@ public sealed class MediaMovePlanningTests : IDisposable
     public async Task AnIdentifiedUnrelatedMovieFolderDoesNotBlockALooseMovie()
     {
         var loose = Film("Loose", Path.Combine(Movies, "Loose.mkv"));
-        Film("Contained", Path.Combine(Movies, "Contained", "Contained.mkv"));
+        Film("Contained", Path.Combine(Movies, "Contained (2026)", "Contained.mkv"));
         var issue = Assert.Single(await Group());
         Assert.Equal(loose.Id, issue.ItemId);
         Assert.False(issue.HasBlockingWarnings, issue.DetailsJson);

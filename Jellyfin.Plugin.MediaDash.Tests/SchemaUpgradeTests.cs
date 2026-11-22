@@ -131,6 +131,38 @@ public sealed class SchemaUpgradeTests : IDisposable
     }
 
     [Fact]
+    public void Issue94UpgradeInvalidatesDecodeVerdictsAndOldPlayabilityApprovalsOnce()
+    {
+        SeedFullSchemaDbAtVersion(14, seedDecodeCache: true,
+            seedIssues: [((int)IssueType.Playability, "/lib/glitch.mp3"), ((int)IssueType.Duplicate, "/lib/keep.mkv")],
+            seedRestoredPaths: [("/lib/restored.mp3", (int)IssueType.Playability)]);
+        InsertRawIssue((int)IssueType.Playability, Guid.NewGuid().ToString("N"), (int)IssueStatus.Detected, DateTime.UtcNow.Ticks, "/lib/review.mp3");
+        InsertRawIssue((int)IssueType.Playability, Guid.NewGuid().ToString("N"), (int)IssueStatus.Dismissed, DateTime.UtcNow.Ticks, "/lib/ignored.mp3");
+        InsertRawHistory((int)IssueType.Playability, "/lib/history.mp3", DateTime.UtcNow.Ticks);
+        using (var conn = OpenRaw())
+        {
+            using var seed = conn.CreateCommand();
+            seed.CommandText = "INSERT INTO audio_decode_cache VALUES ('/lib/glitch.mp3', 1, 1, 'sampled-v1')";
+            seed.ExecuteNonQuery();
+        }
+        using (var conn = OpenRaw()) MediaDashSchema.Migrate(conn);
+        Assert.Equal(0, CountRows("decode_cache"));
+        Assert.Equal(0, CountRows("audio_decode_cache"));
+        Assert.Equal(1, ReadScalarInt("SELECT COUNT(*) FROM issues WHERE type = " + (int)IssueType.Playability));
+        Assert.Equal(2, CountRows("issues"));
+        Assert.Equal(1, CountRows("history"));
+        Assert.Equal(1, CountRows("restored_paths"));
+        using (var conn = OpenRaw())
+        {
+            using var seed = conn.CreateCommand();
+            seed.CommandText = "INSERT INTO decode_cache VALUES ('/lib/new.mp3', 1, 1, 1, '')";
+            seed.ExecuteNonQuery();
+            MediaDashSchema.Migrate(conn);
+        }
+        Assert.Equal(1, CountRows("decode_cache"));
+    }
+
+    [Fact]
     public void AlreadyAtTargetVersion_MigrateIsANoOp()
     {
         // Seed a fully-migrated DB with rows in every table; running Migrate must leave every

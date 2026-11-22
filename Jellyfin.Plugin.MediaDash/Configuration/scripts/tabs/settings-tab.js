@@ -21,10 +21,10 @@
             // the "Reset to default" button in the Fix-order dialog restores exactly what the server
             // would use with FixerOrder = []. Update both when a new IssueType is added.
             var DEFAULT_FIXER_ORDER = [
-                'MalwareRisk', 'Playability', 'Duplicate', 'OrphanedDebris', 'Misplaced', 'Ungrouped',
-                'MissingSubtitles', 'SubtitleLanguage', 'AudioLanguage', 'Quality',
-                'HeavyTranscode', 'FailedTranscode', 'SubtitleFonts', 'EmbeddedCoverArt',
-                'CorruptNfo', 'CorruptArtwork', 'Stale', 'LargeTrickplay', 'FormatCompatibility'
+                'MalwareRisk', 'Playability', 'Duplicate', 'OrphanedDebris',
+                'MissingSubtitles', 'SubtitleLanguage', 'AudioLanguage', 'SubtitleFonts', 'EmbeddedCoverArt',
+                'CorruptNfo', 'CorruptArtwork', 'Stale', 'LargeTrickplay', 'Quality',
+                'HeavyTranscode', 'FailedTranscode', 'FormatCompatibility', 'Misplaced', 'Ungrouped'
             ];
 
 
@@ -38,9 +38,7 @@
                 ['Playability', 'Quality', "Don't re-encode a file we're about to remove as broken."],
                 ['MissingSubtitles', 'Quality', "Subtitles must land before the encode or they're orphaned by the rename."],
                 ['MissingSubtitles', 'HeavyTranscode', "Subtitles must land before the encode or they're orphaned by the rename."],
-                ['OrphanedDebris', 'Misplaced', "Sweep orphans before moving files or the mover creates new ones."],
-                ['Quality', 'LargeTrickplay', "Trickplay BIF must match the final video, so it goes last."],
-                ['HeavyTranscode', 'LargeTrickplay', "Trickplay BIF must match the final video, so it goes last."]
+                ['OrphanedDebris', 'Misplaced', "Sweep orphans before moving files or the mover creates new ones."]
             ];
 
 
@@ -688,6 +686,10 @@
                                 '<label for="mdComicsTarget" title="Optional. Comic archive files (CBZ / CBR / CB7 — currently classified as Book by Jellyfin) found outside a comics library get moved here. Empty = ignore comic misplacement.">Comics destination (optional)</label>' +
                                 '<input id="mdComicsTarget" type="text" is="emby-input" placeholder="empty leaves comics where they sit" />' +
                                 libShortcutRowHtml('mdComicsTarget', 'books') +
+                            '</div>' +
+                            '<div class="mdField">' +
+                                '<label for="mdTvdbApiKey" title="Optional. MediaDash looks up series and movies Jellyfin could not match on TVDb, so every folder of the same title is grouped into one master folder. It uses a built-in key; enter your own only if you want to. Requests are limited to about 16 per second and answers are cached.">TVDb API key (optional)</label>' +
+                                '<input id="mdTvdbApiKey" type="password" is="emby-input" autocomplete="off" placeholder="empty uses the built-in MediaDash key" />' +
                             '</div>' +
                             '<div class="mdField">' +
                                 '<label for="mdPicturesTarget" title="Optional. Photo / Picture items found outside a photo library get moved here. Empty = ignore picture misplacement.">Pictures destination (optional)</label>' +
@@ -1778,6 +1780,7 @@
                 view.querySelector('#mdDryRun').checked = c.DryRun;
                 view.querySelector('#mdPausePlayback').checked = c.PauseDuringPlayback;
                 view.querySelector('#mdLowImpact').checked = !!c.LowSystemImpactMode;
+                view.querySelector('#mdDiagnosticsEnabled').checked = !!c.DiagnosticsEnabled;
                 view.querySelector('#mdAnalytics').checked = !!c.AnalyticsEnabled;
                 populateFixWindowSelects();
                 view.querySelector('#mdFixWindowStart').value = c.FixWindowStart || '';
@@ -1812,6 +1815,7 @@
                 view.querySelector('#mdMusicTarget').value = c.MusicTargetPath || '';
                 view.querySelector('#mdBooksTarget').value = c.BooksTargetPath || '';
                 view.querySelector('#mdComicsTarget').value = c.ComicsTargetPath || '';
+                view.querySelector('#mdTvdbApiKey').value = c.TvdbApiKey || '';
                 view.querySelector('#mdPicturesTarget').value = c.PicturesTargetPath || '';
                 view.querySelector('#mdMediaSortSource').value = c.MediaSortSource || 'JellyfinMetadata';
                 view.querySelector('#mdRenameAfterTranscode').checked = !!c.RenameAfterTranscode;
@@ -1963,6 +1967,7 @@
                 c.DryRun = view.querySelector('#mdDryRun').checked;
                 c.PauseDuringPlayback = view.querySelector('#mdPausePlayback').checked;
                 c.LowSystemImpactMode = view.querySelector('#mdLowImpact').checked;
+                c.DiagnosticsEnabled = view.querySelector('#mdDiagnosticsEnabled').checked;
                 c.FixWindowStart = view.querySelector('#mdFixWindowStart').value || '';
                 c.FixWindowEnd = view.querySelector('#mdFixWindowEnd').value || '';
                 deps.applyAnalyticsToggle(c, view.querySelector('#mdAnalytics').checked);
@@ -2004,6 +2009,7 @@
                 c.MusicTargetPath = view.querySelector('#mdMusicTarget').value.trim();
                 c.BooksTargetPath = view.querySelector('#mdBooksTarget').value.trim();
                 c.ComicsTargetPath = view.querySelector('#mdComicsTarget').value.trim();
+                c.TvdbApiKey = view.querySelector('#mdTvdbApiKey').value.trim();
                 c.PicturesTargetPath = view.querySelector('#mdPicturesTarget').value.trim();
                 c.MediaSortSource = view.querySelector('#mdMediaSortSource').value;
                 c.RenameAfterTranscode = view.querySelector('#mdRenameAfterTranscode').checked;
@@ -2407,6 +2413,7 @@
         return {
             activateSettings: activateSettings,
             get DEFAULT_FIXER_ORDER() { return DEFAULT_FIXER_ORDER; },
+            get FIX_TYPES() { return FIX_TYPES; },
             get FIXER_HARD_CONSTRAINTS() { return FIXER_HARD_CONSTRAINTS; },
             get KEEPER_PRESETS() { return KEEPER_PRESETS; },
             get langPresetsHtml() { return langPresetsHtml; },

@@ -55,6 +55,8 @@ public sealed class DuplicateFixer : IFixer
         var config = Plugin.Instance!.Configuration;
 
         string? keeperPath = null;
+
+        var aliasOnly = false;
         (ulong Volume, ulong FileId)? observedKeeper = null;
         (ulong Volume, ulong FileId)? observedLoser = null;
         try
@@ -67,6 +69,8 @@ public sealed class DuplicateFixer : IFixer
                 && kp.ValueKind == JsonValueKind.String)
             {
                 keeperPath = kp.GetString();
+                aliasOnly = details.RootElement.TryGetProperty("kind", out var kindElement) && kindElement.ValueKind == JsonValueKind.String
+                    && kindElement.GetString() == Scanners.DuplicateScanner.KindLibraryAlias;
                 observedKeeper = ReadObservedIdentity(details.RootElement, "keeperIdentity");
                 observedLoser = ReadObservedIdentity(details.RootElement, "loserIdentity");
             }
@@ -151,12 +155,21 @@ public sealed class DuplicateFixer : IFixer
             return Task.FromResult(FixResult.Refused(FixReason.SourceChanged, "The duplicate pair now contains a symlink or junction; MediaDash will not break a filesystem link. Re-scan — the link will be excluded from duplicate findings."));
         }
 
-        if (keeperIdent.Value == loserIdent.Value)
+        if (aliasOnly)
+        {
+            // One file under two library names: remove only the extra name. It must still be the very
+            // same file (so the keeper keeps every byte) and still have another name besides this one.
+            if (keeperIdent.Value.Volume != loserIdent.Value.Volume || keeperIdent.Value.FileId != loserIdent.Value.FileId || loserIdent.Value.LinkCount < 2)
+            {
+                return Task.FromResult(FixResult.Refused(FixReason.SourceChanged, "These two library entries are no longer the same file. Nothing was removed; re-scan to refresh the list."));
+            }
+        }
+        else if (keeperIdent.Value == loserIdent.Value)
         {
             return Task.FromResult(FixResult.Refused(FixReason.NothingToRemove, "The duplicate and the better copy are hardlinks to the same physical file — nothing would be freed by deleting one entry. Re-scan to drop this finding."));
         }
 
-        if (loserIdent.Value.LinkCount > 1)
+        if (!aliasOnly && loserIdent.Value.LinkCount > 1)
         {
             return Task.FromResult(FixResult.Refused(FixReason.SourceChanged, "This file has additional hardlinks pointing at the same bytes; deleting it would not free the storage and might break the other link. Re-scan — hardlinked files are excluded from duplicate findings."));
         }
@@ -170,18 +183,25 @@ public sealed class DuplicateFixer : IFixer
             return Task.FromResult(FixResult.Refused(FixReason.SourceChanged, "The duplicate pair no longer matches the files recorded at scan time, or its recorded identities are missing. Nothing was deleted; re-scan and approve the duplicate again."));
         }
 
-        var size = new FileInfo(issue.Path).Length;
+        var size = aliasOnly ? 0 : new FileInfo(issue.Path).Length;
         var disposal = config.GetDisposal(IssueType.Duplicate);
         var sizeText = size >= 1_073_741_824
             ? string.Format(CultureInfo.InvariantCulture, "{0:F1} GB", size / 1_073_741_824.0)
             : string.Format(CultureInfo.InvariantCulture, "{0:F0} MB", size / 1_048_576.0);
-        var actionText = string.Format(
-            CultureInfo.InvariantCulture,
-            "{0} {1} ({2}) — better copy kept: {3}",
-            disposal == DisposalMethod.RecycleBin ? "moved to recycle bin" : "permanently deleted",
-            Path.GetFileName(issue.Path),
-            sizeText,
-            Path.GetFileName(keeperPath));
+        var actionText = aliasOnly
+            ? string.Format(
+                CultureInfo.InvariantCulture,
+                "{0} the extra library entry {1} — the same file stays at {2}; no space freed",
+                disposal == DisposalMethod.RecycleBin ? "moved to recycle bin" : "removed",
+                Path.GetFileName(issue.Path),
+                keeperPath)
+            : string.Format(
+                CultureInfo.InvariantCulture,
+                "{0} {1} ({2}) — better copy kept: {3}",
+                disposal == DisposalMethod.RecycleBin ? "moved to recycle bin" : "permanently deleted",
+                Path.GetFileName(issue.Path),
+                sizeText,
+                Path.GetFileName(keeperPath));
 
         if (config.DryRun)
         {

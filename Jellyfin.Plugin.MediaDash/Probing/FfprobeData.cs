@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -41,5 +42,57 @@ public sealed class FfprobeData
             .Select(s => double.TryParse(s.Duration, NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
                 && double.IsFinite(d) && d > 0 ? d : 0).DefaultIfEmpty().Max() ?? 0;
         return duration > 0;
+    }
+
+    // Where the audio and video actually end. The container duration can run past them when a
+    // subtitle track ends later (common in remuxes), so a tail check anchored on the container
+    // end can land on a stretch with no audio or video at all. Uses each stream's duration, or
+    // Matroska's per-stream DURATION tag (hh:mm:ss.fffffffff) when the stream reports none.
+    internal bool TryGetAudioVideoEnd(out double seconds)
+    {
+        seconds = 0;
+        foreach (var stream in Streams ?? [])
+        {
+            if (stream.CodecType is not ("audio" or "video") || stream.IsAttachedPicture)
+            {
+                continue;
+            }
+
+            if (double.TryParse(stream.Duration, NumberStyles.Float, CultureInfo.InvariantCulture, out var d) && double.IsFinite(d) && d > 0)
+            {
+                seconds = Math.Max(seconds, d);
+            }
+            else if (stream.Tags is not null && stream.Tags.TryGetValue("DURATION", out var tag) && TryParseTagDuration(tag, out var tagged))
+            {
+                seconds = Math.Max(seconds, tagged);
+            }
+        }
+
+        return seconds > 0;
+    }
+
+    internal static bool TryParseTagDuration(string? value, out double seconds)
+    {
+        seconds = 0;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        // TimeSpan accepts at most 7 fractional digits; Matroska writes 9.
+        var text = value.Trim();
+        var dot = text.IndexOf('.', StringComparison.Ordinal);
+        if (dot >= 0 && text.Length - dot - 1 > 7)
+        {
+            text = text[..(dot + 8)];
+        }
+
+        if (TimeSpan.TryParse(text, CultureInfo.InvariantCulture, out var span) && span > TimeSpan.Zero)
+        {
+            seconds = span.TotalSeconds;
+            return true;
+        }
+
+        return false;
     }
 }

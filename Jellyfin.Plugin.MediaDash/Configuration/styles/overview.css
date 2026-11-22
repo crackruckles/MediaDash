@@ -114,7 +114,25 @@
     font-size: 15px;
     line-height: 1.35;
 }
-#MediaDashConfigPage .mdSysCell[data-kind^="disk-io-"] .mdBarTrack { visibility: hidden; }
+#MediaDashConfigPage .mdSysCell[data-kind^="disk-io-"] .mdBarTrack { display: none !important; }
+#MediaDashConfigPage .mdDiskGauge { display: block; width: 100%; max-width: 200px; margin: 0 auto; }
+#MediaDashConfigPage .mdDiskGauge path { fill: none; stroke: currentColor; stroke-width: 10; }
+#MediaDashConfigPage .mdDiskGauge .mdDiskGaugeTrack { stroke: var(--md-track); }
+#MediaDashConfigPage .mdDiskRead { color: #38bdf8; }
+#MediaDashConfigPage .mdDiskWrite { color: #fb923c; }
+#MediaDashConfigPage .mdDiskScale {
+    display: flex; justify-content: space-between; max-width: 200px; margin: 0 auto 10px;
+    font-size: 11px; color: var(--md-meta);
+}
+#MediaDashConfigPage .mdDiskLegend { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; }
+#MediaDashConfigPage .mdDiskLegend > div::before {
+    content: ''; display: inline-block; width: 8px; height: 8px;
+    margin-inline-end: 6px; border-radius: 50%; background: currentColor;
+}
+@media (prefers-color-scheme: light) {
+    #MediaDashConfigPage .mdDiskRead { color: #0369a1; }
+    #MediaDashConfigPage .mdDiskWrite { color: #c2410c; }
+}
 #MediaDashConfigPage .mdSysCell[data-kind^="disk-io-"] { position: relative; }
 #MediaDashConfigPage .mdSysInfo { margin-inline-start: auto; }
 #MediaDashConfigPage .mdSysInfo button {

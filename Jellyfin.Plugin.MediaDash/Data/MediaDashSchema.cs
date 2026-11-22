@@ -47,7 +47,10 @@ internal static class MediaDashSchema
     //     MAX() subquery. Non-destructive — CREATE INDEX IF NOT EXISTS builds from existing rows.
     // v12: durable media-move manifests, path claims and the optional History operation link.
     // v13: native directory-anchor claims for atomic move/restore alias reservations.
-    public const int Version = 14;
+    // v15: issue #94 — invalidate strict decode verdicts and old playability consent.
+    // v16: TVDb identity tables (media_identities, media_masters, tvdb_lookups). Created by
+    //     CreateTables on every boot; no data migration.
+    public const int Version = 16;
 
     // Sentinel stored in restored_paths.type when the restore came from a manifest-only bin entry
     // (RecycleBin/Items/Restore). We don't know which IssueType triggered the original recycle in
@@ -213,6 +216,38 @@ internal static class MediaDashSchema
                 fixers_mask TEXT NOT NULL DEFAULT '',
                 note TEXT NOT NULL DEFAULT '',
                 created_at_utc INTEGER NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS media_identities (
+                item_id TEXT PRIMARY KEY,
+                kind TEXT NOT NULL,
+                path TEXT NOT NULL,
+                name TEXT NOT NULL,
+                year INTEGER NULL,
+                series_item_id TEXT NULL,
+                tvdb_id INTEGER NULL,
+                tvdb_source TEXT NOT NULL DEFAULT '',
+                episode_tvdb_id INTEGER NULL,
+                imdb_id TEXT NULL,
+                tmdb_id TEXT NULL,
+                updated_utc_ticks INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_media_identities_tvdb ON media_identities(kind, tvdb_id);
+
+            CREATE TABLE IF NOT EXISTS media_masters (
+                kind TEXT NOT NULL,
+                tvdb_id INTEGER NOT NULL,
+                master_path TEXT NOT NULL,
+                name TEXT NOT NULL,
+                year INTEGER NULL,
+                updated_utc_ticks INTEGER NOT NULL,
+                PRIMARY KEY (kind, tvdb_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS tvdb_lookups (
+                query_key TEXT PRIMARY KEY,
+                tvdb_id INTEGER NULL,
+                fetched_utc_ticks INTEGER NOT NULL
             );
             """;
         cmd.ExecuteNonQuery();
@@ -423,6 +458,17 @@ internal static class MediaDashSchema
             indexes.CommandText = "CREATE INDEX IF NOT EXISTS idx_issues_type_path ON issues(type, path); "
                 + "CREATE INDEX IF NOT EXISTS idx_history_type_path ON history(type, path)";
             indexes.ExecuteNonQuery();
+        }
+
+        if (current < 15)
+        {
+            using var invalidate = connection.CreateCommand();
+            invalidate.CommandText = "DELETE FROM decode_cache; DELETE FROM audio_decode_cache; "
+                + "DELETE FROM issues WHERE type = @playability AND status IN (@detected, @queued)";
+            invalidate.Parameters.AddWithValue("@playability", (int)IssueType.Playability);
+            invalidate.Parameters.AddWithValue("@detected", (int)IssueStatus.Detected);
+            invalidate.Parameters.AddWithValue("@queued", (int)IssueStatus.Queued);
+            invalidate.ExecuteNonQuery();
         }
 
         using var setVersion = connection.CreateCommand();

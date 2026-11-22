@@ -74,6 +74,7 @@
             return '<div class="fieldDescription"><strong>' + esc(entry.directory ? (strings.moveFolder || 'Folder') : (strings.moveFile || 'File')) + '</strong>' +
                 '<div class="mdHistPath">' + esc(entry.source) + ' → ' + esc(entry.target) + '</div></div>';
         }).join('');
+        if (plan.sourceCleanup) html += '<div class="fieldDescription">' + esc(strings.moveSourceCleanup || 'After the last episode moves, recycle unchanged source metadata that already exists at the destination and remove the empty source folder.') + '<div class="mdHistPath">' + esc(plan.sourceCleanup.source) + '</div></div>';
         if (paths.length > shown) html += '<button is="emby-button" type="button" class="raised mdMovePreviewMore">' + esc(strings.moveShowMore || 'Show more paths') + ' (' + shown + '/' + paths.length + ')</button>';
         return html;
     };
@@ -230,6 +231,13 @@
                 root.querySelector('#mdApproveAllNote').textContent = '';
             }
 
+            var rescanBtn = root.querySelector('#mdRescanApproveAll');
+            var rescanCount = list.filter(needsRescan).length;
+            if (rescanBtn) {
+                rescanBtn.style.display = rescanCount > 0 ? '' : 'none';
+                rescanBtn.querySelector('.mdRescanApproveAllLabel').textContent = fmt(strings.rescanApproveAll, rescanCount);
+            }
+
             if (list.length > 0) {
                 clearAllBtn.style.display = '';
                 if (showingDismissed) {
@@ -347,8 +355,12 @@
                     actionHint = esc(i.FixBlockedReason);
                     if (!isQueued) {
                         actionButtons = verifyBtn +
-                            (i.FixRequiresRescan
-                                ? '<button is="emby-button" type="button" class="raised mdIssueRescan"><span>' + esc(strings.scanNowLabel) + '</span></button>'
+                            (i.CanMoveAnyway
+                                ? '<button is="emby-button" type="button" class="raised mdMoveAnyway" data-id="' + i.Id + '" title="' + esc(strings.moveAnywayHint) + '"><span>' + esc(strings.moveAnyway) + '</span></button>'
+                            : i.NeedsSeason
+                                ? '<button is="emby-button" type="button" class="raised mdEnterSeason" data-id="' + i.Id + '" data-path="' + esc(i.Path) + '" title="' + esc(strings.enterSeasonHint) + '"><span>' + esc(strings.enterSeason) + '</span></button>'
+                            : i.FixRequiresRescan
+                                ? '<button is="emby-button" type="button" class="raised mdIssueRescan" data-type="' + esc(i.Type) + '"><span>' + esc(strings.scanNowLabel) + '</span></button>'
                                 : (i.Type === 'Stale' ? '' : '<button is="emby-button" type="button" class="raised mdIssueSettings"><span>' + esc(strings.fixSettings) + '</span></button>')) +
                             '<button is="emby-button" type="button" class="raised mdDismiss" data-id="' + i.Id + '"><span>' + esc(strings.dismiss) + '</span></button>';
                     }
@@ -436,7 +448,13 @@
                 b.addEventListener('click', function () { deps.showTab('settings'); });
             });
             el.querySelectorAll('.mdIssueRescan').forEach(function (b) {
-                b.addEventListener('click', function () { deps.rescan(); });
+                b.addEventListener('click', function () { deps.rescan(b.getAttribute('data-type')); });
+            });
+            el.querySelectorAll('.mdMoveAnyway').forEach(function (b) {
+                b.addEventListener('click', function () { messageAction(b, 'Issues/' + b.getAttribute('data-id') + '/MoveAnyway'); });
+            });
+            el.querySelectorAll('.mdEnterSeason').forEach(function (b) {
+                b.addEventListener('click', function () { openSeasonDialog(b); });
             });
             el.querySelectorAll('.mdDismiss').forEach(function (b) {
                 b.addEventListener('click', function () { rowAction(b, 'Dismiss', strings.dismissed); });
@@ -464,6 +482,85 @@
                     var base = (window.ApiClient && ApiClient.serverAddress && ApiClient.serverAddress()) || '';
                     var url = (base.replace(/\/$/, '')) + '/web/#/details?id=' + encodeURIComponent(id);
                     window.open(url, '_blank', 'noopener');
+                });
+            });
+        }
+
+        // "Enter season number": the plugin's own modal (same look as the scan picker), not a browser prompt.
+        function openSeasonDialog(button) {
+            var dialog = root.querySelector('#mdSeasonDialog');
+            if (!dialog) return;
+            var input = dialog.querySelector('#mdSeasonInput');
+            var error = dialog.querySelector('#mdSeasonError');
+            var path = button.getAttribute('data-path') || '';
+            dialog.querySelector('#mdSeasonFile').textContent = path.split(/[\\/]/).pop();
+            input.value = '';
+            error.style.display = 'none';
+            dialog.style.display = 'flex';
+            setTimeout(function () { input.focus(); }, 0);
+            function close() {
+                dialog.style.display = '';
+                dialog.querySelector('#mdSeasonSave').onclick = null;
+                dialog.querySelector('#mdSeasonCancel').onclick = null;
+                input.onkeydown = null;
+                dialog.onclick = null;
+            }
+            function save() {
+                var entered = String(input.value || '').trim();
+                if (!/^\d{1,3}$/.test(entered)) {
+                    error.textContent = strings.enterSeasonInvalid;
+                    error.style.display = '';
+                    input.focus();
+                    return;
+                }
+                close();
+                messageAction(button, 'Issues/' + button.getAttribute('data-id') + '/Season?season=' + encodeURIComponent(String(parseInt(entered, 10))));
+            }
+            dialog.querySelector('#mdSeasonSave').onclick = save;
+            dialog.querySelector('#mdSeasonCancel').onclick = close;
+            input.onkeydown = function (e) {
+                if (e.key === 'Enter') save();
+                if (e.key === 'Escape') close();
+            };
+            dialog.onclick = function (e) { if (e.target === dialog) close(); };
+        }
+
+        // Open findings that only a fresh scan can unblock (the rows showing "Scan now").
+        function needsRescan(issue) {
+            return issue.Status === 'Detected' && issue.FixRequiresRescan === true;
+        }
+
+        // POSTs an action whose response is a sentence for the user, shows it on the row and refreshes.
+        function messageAction(button, path) {
+            var row = button.closest('[data-issue]');
+            button.disabled = true;
+            function show(text) {
+                if (row && row.querySelector('.mdRowMsg')) row.querySelector('.mdRowMsg').textContent = text;
+            }
+            function readText(r) {
+                if (!r || typeof r.text !== 'function') return Promise.resolve(typeof r === 'string' ? r : '');
+                return r.text().then(function (t) {
+                    try { var parsed = JSON.parse(t); return typeof parsed === 'string' ? parsed : t; } catch (e) { return t; }
+                });
+            }
+            post(path).then(function (r) {
+                return readText(r).then(function (text) {
+                    show(text || strings.approved);
+                    if (row) row.style.opacity = '.55';
+                    refresh(true);
+                });
+            }, function (err) {
+                button.disabled = false;
+                if (err && err.status === 404) {
+                    // A scan replaced this finding (Move anyway rescans Ungrouped media, for one):
+                    // the row's id is gone. Say so and load the current list instead of a bare 404.
+                    show(strings.issueReplaced);
+                    setTimeout(activate, 1500);
+                    return;
+                }
+                var response = err && typeof err.text === 'function' ? err : null;
+                (response ? readText(response) : Promise.resolve(deps.errorMessage(err))).then(function (text) {
+                    show(strings.issueActionFailed + ' ' + text);
                 });
             });
         }
@@ -728,6 +825,10 @@
             // opens the ignored view, lastIssueList holds ignored rows — using its length would
             // under-report open work. openCount is only touched by open-view fetches.
             count: function () { return showingDismissed ? openCount : lastIssueList.length; },
+            rescanTypes: function () {
+                return lastFilteredIssues.filter(needsRescan).map(function (i) { return i.Type; })
+                    .filter(function (type, index, all) { return all.indexOf(type) === index; });
+            },
             filteredIds: function (approvableOnly) { return lastFilteredIssues.filter(function (i) { return !approvableOnly || canBulkApprove(i); }).map(function (i) { return i.Id; }); },
             installContextMenu: installIssueContextMenu
         };

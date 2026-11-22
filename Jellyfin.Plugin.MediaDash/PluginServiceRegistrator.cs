@@ -122,6 +122,9 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             sp.GetRequiredService<ILogger<CalibreToolchain>>(),
             Path.Combine(MediaDashDb.DataDirectory ?? string.Empty)));
         serviceCollection.AddSingleton<LibraryGuard>();
+        serviceCollection.AddSingleton<MediaIdentityStore>(sp => sp.GetRequiredService<MediaDashDb>().Identities);
+        serviceCollection.AddSingleton<Metadata.TvdbClient>();
+        serviceCollection.AddSingleton<Metadata.MediaIdentityService>();
         serviceCollection.AddSingleton<MediaMovePlanner>();
         serviceCollection.AddSingleton<MediaMoveService>();
         serviceCollection.AddSingleton<MediaMoveUserData>();

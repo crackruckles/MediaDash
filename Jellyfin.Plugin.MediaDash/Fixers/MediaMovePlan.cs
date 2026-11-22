@@ -4,6 +4,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Jellyfin.Plugin.MediaDash.Data;
 
 namespace Jellyfin.Plugin.MediaDash.Fixers;
@@ -11,6 +12,9 @@ namespace Jellyfin.Plugin.MediaDash.Fixers;
 /// <summary>The complete source and destination inventory shown for one move approval.</summary>
 internal sealed record MediaMovePlan
 {
+    /// <summary>Container identity of a film leaving a show's folder; the show's own files stay behind.</summary>
+    internal const string FilmFromShowPrefix = "film-from-show:";
+
     internal static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     public int Version { get; init; } = 1;
@@ -39,6 +43,9 @@ internal sealed record MediaMovePlan
 
     public Entry[] Entries { get; init; } = [];
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Entry? SourceCleanup { get; init; }
+
     public string[] BlockingReasons { get; init; } = [];
 
     public string Fingerprint { get; init; } = string.Empty;
@@ -46,6 +53,10 @@ internal sealed record MediaMovePlan
     public bool IndependentFiles { get; init; }
 
     internal bool IsGenericSelection => Type == IssueType.ManualMove && IndependentFiles;
+
+    internal bool KeepsSharedDirectories => !Entries[0].IsDirectory
+        && ((Type == IssueType.Ungrouped && ContainerIdentity.StartsWith("series-folder:", StringComparison.Ordinal))
+            || ContainerIdentity.StartsWith(FilmFromShowPrefix, StringComparison.Ordinal));
 
     internal MediaMovePlan Seal() => this with { Fingerprint = Hash(JsonSerializer.Serialize(this with { Fingerprint = string.Empty }, JsonOptions)) };
 
@@ -110,7 +121,14 @@ internal sealed record MediaMovePlan
                 return false;
             }
 
-            foreach (var entry in Entries)
+            if (SourceCleanup is { } cleanup && (Type != IssueType.Ungrouped || !KeepsSharedDirectories || !cleanup.IsDirectory
+                || !LibraryGuard.IsUnder(Entries[0].Source, cleanup.Source)
+                || !Entries.All(entry => LibraryGuard.IsUnder(entry.Destination, cleanup.Destination))))
+            {
+                return false;
+            }
+
+            foreach (var entry in SourceCleanup is null ? Entries : Entries.Append(SourceCleanup))
             {
                 if (entry is null || !Canonical(entry.Source) || !Canonical(entry.Destination)
                     || MediaMovePlanner.Overlap(entry.Source, entry.Destination)
@@ -125,7 +143,7 @@ internal sealed record MediaMovePlan
                 {
                     if (payload is null || payload.RelativePath is null || !names.Add(payload.RelativePath)
                         || payload.Metadata is null || payload.Length < 0 || payload.LastWriteUtcTicks < 0 || payload.LastWriteUtcTicks > DateTime.MaxValue.Ticks
-                        || (payload.IsDirectory ? payload.Sha256 is not { Length: 0 } : !HexHash(payload.Sha256)))
+                        || (payload.IsDirectory ? payload.Sha256 is not { Length: 0 } : !(payload.Sha256 is { Length: 0 } || HexHash(payload.Sha256))))
                     {
                         return false;
                     }

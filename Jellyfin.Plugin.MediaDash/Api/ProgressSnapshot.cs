@@ -5,11 +5,14 @@ namespace Jellyfin.Plugin.MediaDash.Api;
 /// <see cref="StatusResponse"/> aggregates ~10 DB queries plus drive scan, SMART and system-stats
 /// sampling on every call; on loaded servers that competes with scan DB writes and leaves the
 /// Overview showing stale or missing progress. This endpoint returns only the fields that change
-/// per tick and does zero DB work. Full <see cref="StatusResponse"/> still polls on a slower cadence
+/// per tick, including resource readings, and does zero DB work. Full <see cref="StatusResponse"/> still polls on a slower cadence
 /// so counts, drives and recycle-bin stay fresh.
 /// </summary>
 public sealed class ProgressSnapshot
 {
+    /// <summary>Gets or sets current resource readings independently of the full status queries.</summary>
+    public SystemStats? System { get; set; }
+
     /// <summary>Gets or sets a value indicating whether a scan is currently running.</summary>
     public bool IsScanning { get; set; }
 

@@ -5,10 +5,13 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.MediaDash.Data;
+using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller.MediaEncoding;
+using MediaBrowser.Model.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.MediaDash.Probing;
@@ -19,13 +22,25 @@ namespace Jellyfin.Plugin.MediaDash.Probing;
 /// </summary>
 public sealed class FfprobeService
 {
+    // Seconds decoded at the start, middle and end by the sampled (non-Thorough) playability check.
+    // Was 30; 10 cuts the decode work to a third while still crossing several keyframe intervals.
+    private const int SampledWindowSeconds = 10;
+
     private static readonly TimeSpan ProbeTimeout = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan DecodeTimeout = TimeSpan.FromMinutes(20);
     private static readonly JsonSerializerOptions JsonOptions = new();
 
+    // FFmpeg logs these when the GPU cannot decode a codec/profile and it falls back to software.
+    // They describe the fallback, not the file, so they never count as decode diagnostics.
+    private static readonly Regex HardwareFallbackLine = new(
+        @"hwaccel initialisation returned error|\[error\] No support for codec \S+ profile",
+        RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(1));
+
     private readonly IMediaEncoder _mediaEncoder;
     private readonly ProbeCacheStore _probes;
     private readonly ILogger<FfprobeService> _logger;
+    private readonly IConfigurationManager? _configuration;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FfprobeService"/> class.
@@ -33,11 +48,13 @@ public sealed class FfprobeService
     /// <param name="mediaEncoder">Instance of the <see cref="IMediaEncoder"/> interface, used to locate the server's bundled ffprobe.</param>
     /// <param name="probes">Probe-cache store (05-C.4) — backs probe_cache and decode_cache.</param>
     /// <param name="logger">Instance of the <see cref="ILogger{FfprobeService}"/> interface.</param>
-    public FfprobeService(IMediaEncoder mediaEncoder, ProbeCacheStore probes, ILogger<FfprobeService> logger)
+    /// <param name="configuration">Server configuration, used to read Jellyfin's hardware acceleration settings for the sampled playability check. Null disables hardware decoding.</param>
+    public FfprobeService(IMediaEncoder mediaEncoder, ProbeCacheStore probes, ILogger<FfprobeService> logger, IConfigurationManager? configuration = null)
     {
         _mediaEncoder = mediaEncoder;
         _probes = probes;
         _logger = logger;
+        _configuration = configuration;
     }
 
     /// <summary>
@@ -91,8 +108,10 @@ public sealed class FfprobeService
         return data;
     }
 
+    internal static bool ShouldSampleWholeFile(double durationSeconds) => durationSeconds > 0 && durationSeconds < 60;
+
     /// <summary>
-    /// Test-plays the start, middle and end of a file (30 seconds each) with ffmpeg to catch corruption ffprobe misses.
+    /// Test-plays short files end-to-end, or the start, middle and end (30 seconds each), to catch corruption ffprobe misses.
     /// Results are cached by path, size and modification time so unchanged files are not decoded again.
     /// </summary>
     /// <param name="path">Full path of the file to check.</param>
@@ -121,7 +140,7 @@ public sealed class FfprobeService
         // AVI's index-at-end layout plus its ancient stream framing make it a notorious source of
         // benign "Truncating packet" warnings and lossy regional seeks — Jellyfin plays these files
         // end-to-end just fine, but the thorough check was flagging them as unplayable (field
-        // report A8). For AVI, drop to a whole-file exit-code-only decode: no seeks, no regional
+        // report A8). For AVI, use a whole-file decode: no seeks, no regional
         // time-shortfall heuristic, no stderr marker check (tolerantContainer=true below).
         var isAvi = string.Equals(Path.GetExtension(path), ".avi", StringComparison.OrdinalIgnoreCase);
 
@@ -134,11 +153,10 @@ public sealed class FfprobeService
         string[] streamSelect = isAudioOnly ? ["-vn"] : Array.Empty<string>();
 
         string? error;
-        if (isAvi || durationSeconds <= 0)
+        if (isAvi || durationSeconds <= 0 || ShouldSampleWholeFile(durationSeconds))
         {
-            // ponytail: sentinel for whole-file decode (short clips where regional sampling collapses).
-            // AVI always takes this branch too — see the isAvi comment above.
-            error = await RunFfmpegDecodeAsync(ConcatArgs(["-i", path], streamSelect, ["-f", "null", "-"]), expectedSeconds: 0, tolerantContainer: isAvi, cancellationToken).ConfigureAwait(false);
+            // Keep the declared duration when decoding a short file so clean EOF cannot hide truncation.
+            error = await RunFfmpegDecodeAsync(ConcatArgs(["-i", path], streamSelect, ["-f", "null", "-"]), expectedSeconds: isAvi ? 0 : durationSeconds, tolerantContainer: isAvi, cancellationToken).ConfigureAwait(false);
         }
         else
         {
@@ -162,10 +180,14 @@ public sealed class FfprobeService
         }
 
         string[] streams = ["-map", "0:V:0?", "-map", "0:a?"];
+        // Hardware decoding (Jellyfin's VAAPI device) for this sampled check only; Thorough mode
+        // stays in software, which reports damaged slices the GPU decoder decodes silently.
+        var hardware = ResolveSampledHardwareDecodeArgs();
         var isAvi = string.Equals(Path.GetExtension(path), ".avi", StringComparison.OrdinalIgnoreCase);
+        var window = SampledWindowSeconds.ToString(CultureInfo.InvariantCulture);
         var error = isAvi
-            ? await RunFfmpegDecodeAsync(ConcatArgs(["-i", path, "-t", "30"], streams, ["-f", "null", "-"]), expectedSeconds: 0, tolerantContainer: true, cancellationToken).ConfigureAwait(false)
-            : await DecodeWindowsAsync(path, duration, streams, skipTailForShortFile: true, cancellationToken).ConfigureAwait(false);
+            ? await RunFfmpegDecodeAsync(ConcatArgs(hardware, ["-i", path, "-t", window], ConcatArgs(streams, ["-f", "null", "-"], [])), expectedSeconds: 0, tolerantContainer: true, cancellationToken).ConfigureAwait(false)
+            : await DecodeWindowsAsync(path, duration, streams, skipTailForShortFile: true, cancellationToken, SampledWindowSeconds, hardware, probe.TryGetAudioVideoEnd(out var mediaEnd) ? mediaEnd : null).ConfigureAwait(false);
         if (error is null)
         {
             CacheSuccessfulTrackDecode(path, signature, before);
@@ -174,15 +196,17 @@ public sealed class FfprobeService
         return error;
     }
 
-    private async Task<string?> DecodeWindowsAsync(string path, double durationSeconds, string[] streamSelect, bool skipTailForShortFile, CancellationToken cancellationToken)
+    private async Task<string?> DecodeWindowsAsync(string path, double durationSeconds, string[] streamSelect, bool skipTailForShortFile, CancellationToken cancellationToken, int windowSeconds = 30, string[]? inputArgs = null, double? audioVideoEnd = null)
     {
-        // Start: decode the first 30s (or the whole file if it's shorter). If ffmpeg's decoded time
+        // Start: decode the first window (or the whole file if it's shorter). If ffmpeg's decoded time
         // falls significantly short of what we asked for, treat that as truncation regardless of any
         // stderr markers — ffmpeg sometimes hits EOF cleanly without emitting one.
-        var startExpected = Math.Min(30.0, durationSeconds);
-        var error = await RunFfmpegDecodeAsync(ConcatArgs(["-i", path, "-t", "30"], streamSelect, ["-f", "null", "-"]), startExpected, tolerantContainer: false, cancellationToken).ConfigureAwait(false);
+        var input = inputArgs ?? [];
+        var window = windowSeconds.ToString(CultureInfo.InvariantCulture);
+        var startExpected = Math.Min(windowSeconds, durationSeconds);
+        var error = await RunFfmpegDecodeAsync(ConcatArgs(input, ["-i", path, "-t", window], ConcatArgs(streamSelect, ["-f", "null", "-"], [])), startExpected, tolerantContainer: false, cancellationToken).ConfigureAwait(false);
 
-        if (string.IsNullOrWhiteSpace(error) && durationSeconds > 90)
+        if (string.IsNullOrWhiteSpace(error) && durationSeconds > windowSeconds * 3)
         {
             var middle = ((long)(durationSeconds / 2)).ToString(System.Globalization.CultureInfo.InvariantCulture);
             // expectedSeconds=0 disables the decoded-time shortfall check for this segment. -ss seeks
@@ -190,14 +214,20 @@ public sealed class FfprobeService
             // decodes <90% of the requested 30s window and the shortfall heuristic false-positives on
             // files that play fine in Jellyfin. Exit code + truncation-marker still catch real breakage.
             // ponytail: drop this heuristic for seeks; the start-segment shortfall check remains the truth.
-            error = await RunFfmpegDecodeAsync(ConcatArgs(["-ss", middle, "-i", path, "-t", "30"], streamSelect, ["-f", "null", "-"]), expectedSeconds: 0, tolerantContainer: false, cancellationToken).ConfigureAwait(false);
+            error = await RunFfmpegDecodeAsync(ConcatArgs(input, ["-ss", middle, "-i", path, "-t", window], ConcatArgs(streamSelect, ["-f", "null", "-"], [])), expectedSeconds: 0, tolerantContainer: false, cancellationToken, requireEveryStream: false).ConfigureAwait(false);
         }
 
-        if (string.IsNullOrWhiteSpace(error) && (!skipTailForShortFile || durationSeconds > 30))
+        if (string.IsNullOrWhiteSpace(error) && (!skipTailForShortFile || durationSeconds > windowSeconds))
         {
             // Same reasoning as the middle segment — -sseof seeks are keyframe-anchored, so the
             // decoded-time shortfall check false-positives here too.
-            error = await RunFfmpegDecodeAsync(ConcatArgs(["-sseof", "-30", "-i", path], streamSelect, ["-f", "null", "-"]), expectedSeconds: 0, tolerantContainer: false, cancellationToken).ConfigureAwait(false);
+            // Anchor the tail on where audio/video end when the container claims more (a later-ending
+            // subtitle track). A file whose audio/video data stops before their own declared end still
+            // decodes nothing here and is reported as truncated.
+            string[] tail = audioVideoEnd is double end && end > windowSeconds && end < durationSeconds - 1
+                ? ["-ss", (end - windowSeconds).ToString("0.###", CultureInfo.InvariantCulture), "-i", path, "-t", window]
+                : ["-sseof", "-" + window, "-i", path];
+            error = await RunFfmpegDecodeAsync(ConcatArgs(input, tail, ConcatArgs(streamSelect, ["-f", "null", "-"], [])), expectedSeconds: 0, tolerantContainer: false, cancellationToken, requireEveryStream: false).ConfigureAwait(false);
         }
 
         return error;
@@ -474,7 +504,7 @@ public sealed class FfprobeService
             cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<string?> RunFfmpegDecodeAsync(string[] args, double expectedSeconds, bool tolerantContainer, CancellationToken cancellationToken)
+    private async Task<string?> RunFfmpegDecodeAsync(string[] args, double expectedSeconds, bool tolerantContainer, CancellationToken cancellationToken, bool requireEveryStream = true)
     {
         var encoderPath = _mediaEncoder.EncoderPath;
         if (string.IsNullOrEmpty(encoderPath))
@@ -495,12 +525,15 @@ public sealed class FfprobeService
         // is a per-decoder input option — placing it here also applies to the null output encoder).
         process.StartInfo.ArgumentList.Add("-threads");
         process.StartInfo.ArgumentList.Add(ResolveScanThreads());
-        // -xerror makes ffmpeg exit non-zero on real decode errors; anything on stderr without a non-zero exit
-        // is a non-fatal warning (SEI noise, HEVC parser chatter, benign packet issues) and doesn't mean the file is broken.
-        process.StartInfo.ArgumentList.Add("-xerror");
+        // Recover past isolated damaged frames; empty output and fatal decode failures still fail.
+        // Seek windows only require *some* output: a stream that legitimately ends a few seconds
+        // before the container (common at the tail) decodes nothing there without being damaged.
+        process.StartInfo.ArgumentList.Add("-abort_on");
+        process.StartInfo.ArgumentList.Add(requireEveryStream ? "empty_output+empty_output_stream" : "empty_output");
         process.StartInfo.ArgumentList.Add("-v");
-        process.StartInfo.ArgumentList.Add("error");
-        // -stats enables the periodic "frame= ... time=HH:MM:SS.ms" progress line on stderr. Zero cost at -v error;
+        // FFmpeg 7.1 doesn't enforce max_error_rate for audio; verbose totals let us check each stream.
+        process.StartInfo.ArgumentList.Add("level+verbose");
+        // -stats enables the periodic "frame= ... time=HH:MM:SS.ms" progress line on stderr;
         // we need it so we can compare what ffmpeg actually decoded against what we asked for.
         process.StartInfo.ArgumentList.Add("-stats");
         foreach (var arg in args)
@@ -518,19 +551,26 @@ public sealed class FfprobeService
             var stderrTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
             await process.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false);
             var stderr = await stderrTask.ConfigureAwait(false);
+            var diagnostics = DecodeDiagnostics(stderr);
+
+            if (IsInfrastructureError(diagnostics))
+            {
+                throw new InvalidOperationException("The decode check could not run safely: " + diagnostics);
+            }
 
             // Tolerant containers (AVI) rely on exit code only — AVI's framing routinely triggers
             // "Truncating packet" warnings on perfectly playable files, so treating that as an
             // error was flagging every non-trivial AVI (field report A8).
-            var markerTriggered = !tolerantContainer && HasTruncationMarker(stderr);
-            if (process.ExitCode != 0 || markerTriggered)
+            var markerTriggered = !tolerantContainer && HasTruncationMarker(diagnostics);
+            var excessiveErrors = HasExcessiveDecodeErrors(stderr);
+            if (process.ExitCode != 0 || markerTriggered || excessiveErrors == true)
             {
-                if (IsInfrastructureError(stderr))
-                {
-                    throw new InvalidOperationException("The decode check could not run safely: " + stderr);
-                }
+                return string.IsNullOrWhiteSpace(diagnostics) ? "ffmpeg exited with an error" : diagnostics;
+            }
 
-                return string.IsNullOrWhiteSpace(stderr) ? "ffmpeg exited with an error" : stderr;
+            if (excessiveErrors is null)
+            {
+                throw new InvalidOperationException("FFmpeg did not report decoded frame totals; the file could not be checked safely.");
             }
 
             // ffmpeg sometimes hits EOF cleanly (exit 0, no truncation marker) but still stopped short of the
@@ -561,6 +601,72 @@ public sealed class FfprobeService
         {
             throw;
         }
+    }
+
+    internal static string DecodeDiagnostics(string stderr)
+        => string.Join('\n', Regex.Matches(
+            stderr,
+            @"^(?:\[[^\]\r\n]+\][ \t]*)*\[(?:error|fatal)\][^\r\n]*",
+            RegexOptions.Multiline | RegexOptions.CultureInvariant,
+            TimeSpan.FromSeconds(1)).Select(match => match.Value).Where(line => !HardwareFallbackLine.IsMatch(line)));
+
+    /// <summary>
+    /// FFmpeg input options that decode the sampled playability windows on Jellyfin's configured
+    /// VAAPI device, keeping frames on the GPU. Empty (software decoding) unless Jellyfin's hardware
+    /// acceleration is VAAPI on Linux and the device exists. FFmpeg falls back to software decoding
+    /// by itself for codecs or profiles the GPU cannot handle.
+    /// </summary>
+    /// <returns>The input options, or an empty array.</returns>
+    internal string[] ResolveSampledHardwareDecodeArgs()
+    {
+        if (!OperatingSystem.IsLinux() || _configuration is null)
+        {
+            return [];
+        }
+
+        try
+        {
+            var encoding = _configuration.GetConfiguration<EncodingOptions>("encoding");
+            if (!string.Equals(encoding.HardwareAccelerationType.ToString(), "vaapi", StringComparison.OrdinalIgnoreCase))
+            {
+                return [];
+            }
+
+            var device = string.IsNullOrWhiteSpace(encoding.VaapiDevice) ? "/dev/dri/renderD128" : encoding.VaapiDevice;
+            return File.Exists(device) ? ["-hwaccel", "vaapi", "-hwaccel_device", device, "-hwaccel_output_format", "vaapi"] : [];
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _logger.LogDebug(error, "Could not read Jellyfin's hardware acceleration settings; decoding in software");
+            return [];
+        }
+    }
+
+    internal static bool? HasExcessiveDecodeErrors(string stderr)
+    {
+        const string pattern = @"^\[in#\d+/[^\r\n]*\][ \t]*(?:\[verbose\][ \t]*)?Input stream #\d+:\d+ \([^)]+\): \d+ packets read \(\d+ bytes\); (\d+) frames decoded;(?: (\d+) decode errors)?";
+        var found = false;
+        foreach (Match match in Regex.Matches(stderr, pattern, RegexOptions.Multiline | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)))
+        {
+            if (!ulong.TryParse(match.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var decoded))
+            {
+                return null;
+            }
+
+            ulong errors = 0;
+            if (match.Groups[2].Success && !ulong.TryParse(match.Groups[2].Value, NumberStyles.None, CultureInfo.InvariantCulture, out errors))
+            {
+                return null;
+            }
+
+            found = true;
+            if (errors > ((double)decoded + errors) * 0.02)
+            {
+                return true;
+            }
+        }
+
+        return found ? false : null;
     }
 
     // Storage/decoder failures cannot establish corruption and must not become cached findings.
@@ -602,7 +708,7 @@ public sealed class FfprobeService
         // Rightmost match; -stats emits multiple lines during a decode, only the last one matters.
         var matches = System.Text.RegularExpressions.Regex.Matches(
             stderr,
-            @"\btime=(\d+):(\d{2}):(\d{2}(?:\.\d+)?)");
+            @"(?:^|[\r\n])(?:\[info\][ \t]*)?(?:(?:frame|size)=[^\r\n]*?)?\btime=(\d+):(\d{2}):(\d{2}(?:\.\d+)?)");
         if (matches.Count == 0)
         {
             return null;

@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Jellyfin.Plugin.MediaDash.Data;
 using Jellyfin.Plugin.MediaDash.Probing;
 using Jellyfin.Plugin.MediaDash.ScheduledTasks;
+using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Logging;
 
@@ -23,6 +24,7 @@ public sealed class MediaMoveService
     private readonly MediaMoveUserData? _userData;
     private readonly NativeLibraryRefresher? _nativeRefresh;
     private readonly ILibraryMonitor? _monitor;
+    private readonly RecycleBin? _recycleBin;
 
     /// <summary>Initializes a new instance of the <see cref="MediaMoveService"/> class.</summary>
     /// <param name="db">Journal, approvals and restoration markers.</param>
@@ -33,7 +35,8 @@ public sealed class MediaMoveService
     /// <param name="userData">Durable preservation of native user state across reindexing.</param>
     /// <param name="nativeRefresh">Awaited bounded native membership and target metadata refresh.</param>
     /// <param name="libraryMonitor">Native temporary suppression for the planned mutation paths.</param>
-    public MediaMoveService(MediaDashDb db, LibraryGuard guard, ProtectionService protection, ILibraryManager library, ILogger<MediaMoveService> logger, MediaMoveUserData? userData = null, NativeLibraryRefresher? nativeRefresh = null, ILibraryMonitor? libraryMonitor = null)
+    /// <param name="recycleBin">Recoverable storage for redundant source metadata.</param>
+    public MediaMoveService(MediaDashDb db, LibraryGuard guard, ProtectionService protection, ILibraryManager library, ILogger<MediaMoveService> logger, MediaMoveUserData? userData = null, NativeLibraryRefresher? nativeRefresh = null, ILibraryMonitor? libraryMonitor = null, RecycleBin? recycleBin = null)
     {
         _db = db;
         _guard = guard;
@@ -43,6 +46,7 @@ public sealed class MediaMoveService
         _userData = userData;
         _nativeRefresh = nativeRefresh;
         _monitor = nativeRefresh is null ? null : libraryMonitor;
+        _recycleBin = recycleBin;
     }
 
     internal Action<string, int>? Checkpoint { get; set; }
@@ -67,10 +71,25 @@ public sealed class MediaMoveService
             }
 
             var entries = previous.Plan.Entries.Select((entry, index) => new MediaMovePlan.Entry(entry.Destination, entry.Source, entry.IsDirectory, previous.Steps[index].FinalInventory)).ToArray();
-            var finalScopes = MediaMovePlanner.CaptureSourceScopes(entries, previous.Plan.IsGenericSelection);
+            var finalScopes = MediaMovePlanner.CaptureSourceScopes(entries, previous.Plan.IsGenericSelection, previous.Plan.KeepsSharedDirectories);
             if (finalScopes.Length != previous.FinalScopes.Length || finalScopes.Any(scope => !previous.FinalScopes.Contains(scope)))
             {
                 throw new IOException("The moved item's companions changed after completion. Scan and review the current files before Undo.");
+            }
+
+            if (previous.RecycledSource is not null)
+            {
+                foreach (var entry in entries)
+                {
+                    MediaMoveSnapshot.VerifyInventory(entry.Source, entry.Inventory, true, cancellationToken);
+                }
+
+                if (!Plugin.Instance!.Configuration.DryRun)
+                {
+                    undoDirectories = NativeMoveWatchScope.Begin(_monitor, previous.CreatedDirectories.Select(directory => directory.Path).Append(previous.RecycledSource.Source));
+                }
+
+                MediaMoveSourceCleanup.Restore(previous, _recycleBin ?? throw new IOException("The recycle bin is unavailable."), _guard, _protection, Plugin.Instance!.Configuration.DryRun, cancellationToken);
             }
 
             var container = MediaMoveManifest.ClaimContainer(entries[0].Destination, entries[0].IsDirectory);
@@ -99,7 +118,7 @@ public sealed class MediaMoveService
             var issue = new Issue { Id = original.IssueId, Type = plan.Type, ItemId = plan.ItemId, Path = entries[0].Source };
             if (!Plugin.Instance!.Configuration.DryRun)
             {
-                undoDirectories = NativeMoveWatchScope.Begin(_monitor, previous.CreatedDirectories.Select(directory => directory.Path));
+                undoDirectories ??= NativeMoveWatchScope.Begin(_monitor, previous.CreatedDirectories.Select(directory => directory.Path));
             }
 
             var result = await ExecutePlanAsync(
@@ -306,6 +325,11 @@ public sealed class MediaMoveService
                 result.Message = result.Message.Replace(" Run Jellyfin's library scan to finish indexing and restore watched state.", string.Empty, StringComparison.Ordinal);
             }
         }
+        catch (NativeLibraryRefresher.LibraryScanInProgressException)
+        {
+            _logger.LogInformation("Completed move {OperationId} is awaiting Jellyfin's running library scan", result.MoveOperationId);
+            result.Message += " Jellyfin's running library scan will finish indexing the moved files and restoring watched state.";
+        }
         catch (Exception error)
         {
             _logger.LogWarning(error, "Completed move {OperationId} still needs native indexing", result.MoveOperationId);
@@ -361,7 +385,8 @@ public sealed class MediaMoveService
             manifest = manifest with { UserData = _userData?.Capture(plan, priorUserData) ?? [] };
             Save("Executing");
             watcher = NativeMoveWatchScope.Begin(_monitor, plan.Entries.SelectMany(entry => new[] { entry.Source, entry.Destination })
-                .Concat(manifest.Steps.SelectMany(step => new[] { step.Stage, step.Recovery })));
+                .Concat(manifest.Steps.SelectMany(step => new[] { step.Stage, step.Recovery }))
+                .Concat(plan.SourceCleanup is { } cleanup ? new[] { cleanup.Source } : []));
             for (var index = 0; index < plan.Entries.Length; index++)
             {
                 var entry = plan.Entries[index];
@@ -391,7 +416,10 @@ public sealed class MediaMoveService
                 MediaMoveSnapshot.VerifyInventory(entry.Destination, publishInventory, true, cancellationToken);
                 RequireVacant(entry.Source);
                 Check(false, false);
-                SetStep(index, manifest.Steps[index] with { Phase = "Complete", FinalInventory = MediaMoveSnapshot.Capture(entry.Destination, cancellationToken).Export() });
+                var finalSnapshot = MediaMoveSnapshot.HasContentHashes(entry.Inventory)
+                    ? MediaMoveSnapshot.Capture(entry.Destination, cancellationToken)
+                    : MediaMoveSnapshot.CaptureIdentity(entry.Destination, cancellationToken);
+                SetStep(index, manifest.Steps[index] with { Phase = "Complete", FinalInventory = finalSnapshot.Export() });
                 progress?.Report((index + 1d) / plan.Entries.Length * 0.9);
             }
 
@@ -405,9 +433,24 @@ public sealed class MediaMoveService
             }
 
             var finalEntries = plan.Entries.Select((entry, index) => new MediaMovePlan.Entry(entry.Destination, entry.Source, entry.IsDirectory, manifest.Steps[index].FinalInventory)).ToArray();
-            manifest = manifest with { FinalScopes = MediaMovePlanner.CaptureSourceScopes(finalEntries, plan.IsGenericSelection) };
+            manifest = manifest with { FinalScopes = MediaMovePlanner.CaptureSourceScopes(finalEntries, plan.IsGenericSelection, plan.KeepsSharedDirectories) };
             Save("Completed");
             Checkpoint?.Invoke("Completed", -1);
+            if (!undo && _recycleBin is not null)
+            {
+                MediaMoveSourceCleanup.Complete(
+                    plan,
+                    _recycleBin,
+                    _guard,
+                    _protection,
+                    receipt =>
+                    {
+                        manifest = manifest with { RecycledSource = receipt };
+                        Save("Completed");
+                    },
+                    cancellationToken);
+            }
+
             manifest = manifest with { CleanupComplete = true };
             Save("Completed");
             progress?.Report(1);
@@ -415,6 +458,7 @@ public sealed class MediaMoveService
             {
                 Success = true, Outcome = FixOutcome.Applied, MoveOperationId = operation.Id,
                 Message = "Moved the complete approved item and its companions."
+                    + (plan.SourceCleanup is { } sourceCleanup && Directory.Exists(sourceCleanup.Source) ? " The source folder still contains media or unverified files and was kept." : string.Empty)
                     + (manifest.UserData.Any(snapshot => !snapshot.Applied) ? " Run Jellyfin's library scan to finish indexing and restore watched state." : string.Empty)
             });
         }
@@ -617,6 +661,20 @@ public sealed class MediaMoveService
             throw new IOException("The Jellyfin item identity changed. Re-scan and approve the current item.");
         }
 
+        if (!undo && plan.Type == IssueType.Ungrouped && !plan.Entries[0].IsDirectory
+            && owner is MediaBrowser.Controller.Entities.TV.Episode episode)
+        {
+            var seriesRoot = Path.GetDirectoryName(Path.GetDirectoryName(plan.Entries[0].Destination)!)!;
+            if (MediaMovePlanner.HasConflictingSeriesIdentity(
+                ReadCatalogItem(episode.SeriesId) as MediaBrowser.Controller.Entities.TV.Series,
+                seriesRoot,
+                Path.GetDirectoryName(seriesRoot)!,
+                _library.GetItemList(new InternalItemsQuery { Recursive = true, IsVirtualItem = false, IncludeItemTypes = [Jellyfin.Data.Enums.BaseItemKind.Series] })))
+            {
+                throw new MoveRefusal(FixReason.MoveNeedsReview, "The proposed series folder includes conflicting provider identities. Scan again and check the series metadata before grouping these episodes.");
+            }
+        }
+
         var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         if (string.IsNullOrEmpty(plan.ItemPath) || (owner is not null && !string.Equals(owner.Path, plan.ItemPath, comparison)
             && !(explicitMove && plan.CatalogPath.Length > 0 && string.Equals(owner.Path, plan.CatalogPath, comparison))
@@ -706,12 +764,121 @@ public sealed class MediaMoveService
                     }
                 }
 
-                var actual = MediaMovePlanner.ReadSourceNames(parent, plan.Entries, plan.IsGenericSelection).Where(name => !ignored.Contains(name)).Concat(restoredNames);
+                var actual = MediaMovePlanner.ReadSourceNames(parent, plan.Entries, plan.IsGenericSelection, plan.KeepsSharedDirectories).Where(name => !ignored.Contains(name)).Concat(restoredNames);
                 if (MediaMovePlanner.SourceScopeFingerprint(actual) != scope.Fingerprint)
                 {
                     throw new IOException("The item or its companions changed after approval. Re-scan and preview the complete item before moving.");
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// "Move anyway" for a parked move (one left needing review). It is finished forward when that is
+    /// safe: the video already reached its destination, every remaining piece is still the same file
+    /// or folder at its source, and nothing at a destination would be overwritten. A Jellyfin NFO or
+    /// image regenerated at an already-moved source does not prevent this; it stays as debris.
+    /// Otherwise the reservation is released and every file stays exactly where it is. Either way
+    /// the parked move stops blocking other moves.
+    /// </summary>
+    /// <param name="operation">A parked operation.</param>
+    /// <returns>What was done, for the user.</returns>
+    internal string ResolveParked(MediaMoveStore.Operation operation)
+    {
+        var manifest = MediaMoveManifest.TryRead(operation.ManifestJson, operation.Id);
+        var finished = 0;
+        string? why = null;
+        if (manifest is null || manifest.UndoOf is not null || manifest.Plan.Type is not (IssueType.Ungrouped or IssueType.Misplaced)
+            || manifest.Steps.Length != manifest.Plan.Entries.Length)
+        {
+            why = "its record is not a grouping or sorting move that can be finished";
+        }
+        else if (manifest.Steps.Any(step => Exists(step.Stage) || Exists(step.Recovery)))
+        {
+            why = "it still has temporary files in place";
+        }
+        else
+        {
+            var pending = new List<MediaMovePlan.Entry>();
+            foreach (var (entry, index) in manifest.Plan.Entries.Select((entry, index) => (entry, index)))
+            {
+                var atSource = Exists(entry.Source);
+                var atDestination = Exists(entry.Destination);
+                if (atDestination && (!atSource || IsRegenerated(entry.Source)) && SameRoot(entry.Destination, entry.Inventory))
+                {
+                    continue;
+                }
+
+                if (atSource && !atDestination && SameRoot(entry.Source, entry.Inventory))
+                {
+                    pending.Add(entry);
+                    continue;
+                }
+
+                why = "'" + Path.GetFileName(entry.Source) + "' is not where the move left it";
+                break;
+            }
+
+            if (why is null && pending.Count == manifest.Plan.Entries.Length)
+            {
+                why = "nothing had moved yet";
+            }
+            else if (why is null && pending.Any(entry => ReferenceEquals(entry, manifest.Plan.Entries[0])))
+            {
+                why = "the video itself had not moved";
+            }
+            else if (why is null)
+            {
+                try
+                {
+                    foreach (var entry in pending)
+                    {
+                        MediaMoveSnapshot.ValidateAncestors(entry.Source);
+                        MediaMoveSnapshot.ValidateAncestors(entry.Destination);
+                        RequireVacant(entry.Destination);
+                        MediaMoveSafety.RenameNoCopy(entry.Source, entry.Destination, entry.IsDirectory);
+                        finished++;
+                    }
+                }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException or MoveRefusal)
+                {
+                    why = "finishing it stopped after " + finished + " part(s): " + error.Message;
+                }
+            }
+        }
+
+        var detail = why is null
+            ? "Finished by Move anyway: moved the " + finished + " remaining part(s) to their destination."
+            : "Released by Move anyway (" + why + "). Every file was left where it is; scan again to plan it afresh.";
+        _db.Moves.Release(operation.Id, detail);
+        _db.AddHistory(new HistoryEntry
+        {
+            IssueId = operation.IssueId,
+            Type = manifest?.Plan.Type ?? IssueType.Ungrouped,
+            Path = manifest?.Plan.Entries.FirstOrDefault()?.Source ?? operation.Id,
+            Action = detail,
+            FixedAtUtc = DateTime.UtcNow,
+            Success = true,
+            MoveOperationId = operation.Id
+        });
+        _logger.LogInformation("Parked move {OperationId}: {Detail}", operation.Id, detail);
+        return detail;
+
+        static bool Exists(string path) => File.Exists(path) || Directory.Exists(path);
+
+        static bool IsRegenerated(string path) => File.Exists(path)
+            && (Path.GetExtension(path).Equals(".nfo", StringComparison.OrdinalIgnoreCase) || Scanners.MediaFormats.Pictures.Contains(Path.GetExtension(path)));
+
+        static bool SameRoot(string path, MediaMovePlan.Payload[] inventory)
+        {
+            var expected = inventory.FirstOrDefault(payload => payload.RelativePath.Length == 0);
+            if (expected is null || expected.FileId == 0)
+            {
+                return false;
+            }
+
+            var actual = MediaMoveSnapshot.CaptureRootIdentity(path).Export().FirstOrDefault(payload => payload.RelativePath.Length == 0);
+            return actual is not null && actual.Volume == expected.Volume && actual.FileId == expected.FileId;
         }
     }
 

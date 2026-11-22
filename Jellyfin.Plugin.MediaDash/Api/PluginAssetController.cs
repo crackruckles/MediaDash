@@ -51,6 +51,7 @@ public sealed class PluginAssetController : ControllerBase
             ["recycle-tab.js"] = new AssetDescriptor("scripts.tabs.recycle-tab.js", "application/javascript; charset=utf-8"),
             ["issues-tab.js"] = new AssetDescriptor("scripts.tabs.issues-tab.js", "application/javascript; charset=utf-8"),
             ["errors-tab.js"] = new AssetDescriptor("scripts.tabs.errors-tab.js", "application/javascript; charset=utf-8"),
+            ["diagnostics-tab.js"] = new AssetDescriptor("scripts.tabs.diagnostics-tab.js", "application/javascript; charset=utf-8"),
             // Stylesheets. a11y.css was the smoke test (06-FOLLOWUP-3); jump.css is the
             // first topic-scoped bulk-move slice (06-FOLLOWUP-3-bulk-1, ~152 lines from
             // configPage.html covering the Phase C nav-d jump control).

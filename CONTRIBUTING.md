@@ -51,6 +51,14 @@ running through it.
 
 The script publishes, zips, uploads to GitHub Releases, re-downloads the asset to verify, then writes the verified MD5 into `manifest.json`. **Do not hand-edit manifest checksums or hand-upload releases** — the drift guarantee lives in the script.
 
+## Beta channel (maintainers only)
+
+**Only approved builds go to the `beta` branch — not every change.** Day-to-day work stays on
+feature branches and `main`; a build is promoted to beta only after the maintainer signs it off for
+testers. Promote with `./tools/release-beta.ps1 -Version X.Y.Z.W -Changelog "..." -Approved` from the
+`beta` branch. Never push to `beta` or edit `manifest-beta.json` by hand. Full process and tester
+instructions: [docs/BETA-TESTING.md](docs/BETA-TESTING.md).
+
 ## Scope
 
 MediaDash cleans, verifies and completes the library you already have. Deliberately out of scope:

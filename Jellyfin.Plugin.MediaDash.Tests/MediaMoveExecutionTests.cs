@@ -66,7 +66,10 @@ public sealed class MediaMoveExecutionTests : IDisposable
         _guard = new LibraryGuard(_manager);
         _protection = new ProtectionService(_db.Protection, _manager);
         _planner = new MediaMovePlanner(_guard, _protection, _manager, _db.Moves);
-        _service = new MediaMoveService(_db, _guard, _protection, _manager, NullLogger<MediaMoveService>.Instance);
+        var paths = DispatchProxy.Create<MediaBrowser.Common.Configuration.IApplicationPaths, OriginalLanguageFlowTests.CallProxy>();
+        ((OriginalLanguageFlowTests.CallProxy)(object)paths).Call = (_, _) => _root;
+        _service = new MediaMoveService(_db, _guard, _protection, _manager, NullLogger<MediaMoveService>.Instance,
+            recycleBin: new RecycleBin(paths, NullLogger<RecycleBin>.Instance, _db.History));
     }
 
     private BaseItem? FindNativePath(string? path)
@@ -593,6 +596,30 @@ public sealed class MediaMoveExecutionTests : IDisposable
         issue = Assert.Single(_db.Issues.GetIssues(type));
         Assert.Equal(StatusTransitionResult.Applied, _db.Issues.TryTransitionIssueStatus(issue.Id, [IssueStatus.Detected], IssueStatus.Queued));
         return _db.Issues.GetIssue(issue.Id)!;
+    }
+
+    [Fact]
+    public async Task SidecarRepairRunsAtItsOriginalLocationBeforeAnApprovedFolderMove()
+    {
+        var move = await Approve(companions: true);
+        var sidecar = Path.ChangeExtension(move.Path, ".nfo");
+        _db.Issues.ReplaceDetectedIssues(IssueType.CorruptNfo, [new Issue { Type = IssueType.CorruptNfo, Path = sidecar, ItemId = move.ItemId }]);
+        var repair = Assert.Single(_db.Issues.GetIssues(IssueType.CorruptNfo));
+        _config.NfoDisposal = DisposalMethod.Permanent;
+        var plans = FixPlanBuilder.Build([move, repair], type => type == IssueType.Ungrouped ? 0 : 1, _ => 0, StringComparer.Ordinal);
+        Assert.Equal(new[] { repair.Id, move.Id }, plans.Select(plan => plan.Primary.Id));
+        Assert.True(File.Exists(sidecar));
+        var repaired = await new NfoFixer(_guard, null!, NullLogger<NfoFixer>.Instance).FixAsync(plans[0].Primary, null, CancellationToken.None);
+        Assert.True(repaired.Success, repaired.Message);
+        Assert.False(File.Exists(sidecar));
+
+        var moved = await _service.ExecuteAsync(plans[1].Primary, null, CancellationToken.None);
+        Assert.False(moved.Success);
+        Assert.Equal(FixReason.SourceChanged, moved.Reason);
+        Assert.True(File.Exists(move.Path));
+        Assert.Equal("original video", File.ReadAllText(move.Path));
+        Assert.Equal("original subtitles", File.ReadAllText(Path.ChangeExtension(move.Path, ".en.srt")));
+        Assert.False(Directory.Exists(Path.Combine(Movies, "Film")));
     }
 
     [Theory]
@@ -1315,6 +1342,84 @@ public sealed class MediaMoveExecutionTests : IDisposable
         Assert.Equal("original video", File.ReadAllText(Path.Combine(Movies, "Film", "Film.mkv")));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ClearedHistoryHidesRecordedMovesButRetainsRecoveryAndShowsLaterUpdates(bool interrupted)
+    {
+        var issue = await Approve();
+        if (interrupted)
+            _service.Checkpoint = (point, _) => { if (point == "Published") throw new IOException("controlled interruption"); };
+        var result = await _service.ExecuteAsync(issue, null, CancellationToken.None);
+        var controller = MoveController();
+        IReadOnlyList<Api.MoveOperationDto> Visible() => Assert.IsAssignableFrom<IReadOnlyList<Api.MoveOperationDto>>(
+            Assert.IsType<Microsoft.AspNetCore.Mvc.OkObjectResult>(controller.GetMoves().Result).Value);
+        var move = Assert.Single(Visible());
+        _config.HistoryHiddenBeforeUtcTicks = DateTime.UtcNow.Ticks;
+
+        Assert.Empty(Visible());
+        Assert.NotNull(_db.Moves.Read(move.Id));
+        using var connection = _db.ConnectionFactory.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE media_move_operations SET updated_utc_ticks=@ticks WHERE operation_id=@id";
+        command.Parameters.AddWithValue("@ticks", _config.HistoryHiddenBeforeUtcTicks + 1);
+        command.Parameters.AddWithValue("@id", move.Id);
+        command.ExecuteNonQuery();
+        Assert.Equal(move.Id, Assert.Single(Visible()).Id);
+    }
+
+    // Production 2026-11-22: a move stopped part-way and Jellyfin regenerated a moved companion at its
+    // old path, so the rollback stopped too and the parked move reserved the series. "Move anyway"
+    // finishes it forward when the video already moved and the rest is unchanged.
+    [Fact]
+    public async Task MoveAnywayFinishesAParkedMoveForwardWithoutOverwriting()
+    {
+        var issue = await Approve(companions: true, beforeScan: source => Write(Path.Combine(Path.GetDirectoryName(source)!, "Film-thumb.jpg"), "thumb"));
+        var plan = MediaMovePlan.ReadIssue(issue)!;
+        var thumb = plan.Entries.Single(entry => entry.Source.EndsWith("Film-thumb.jpg", StringComparison.Ordinal));
+        _service.Checkpoint = (point, index) =>
+        {
+            if (point == "Published" && plan.Entries[index] == thumb)
+            {
+                Write(thumb.Source, "jellyfin regenerated thumb");
+                throw new IOException("controlled interruption");
+            }
+        };
+        var result = await _service.ExecuteAsync(issue, null, CancellationToken.None);
+        Assert.False(result.Success);
+        var parked = Assert.Single(_db.Moves.GetNeedsReview());
+        Assert.Contains(_db.Moves.FindParkedBlocking(plan), operation => operation.Id == parked.Id);
+
+        var detail = _service.ResolveParked(parked);
+
+        Assert.StartsWith("Finished by Move anyway", detail, StringComparison.Ordinal);
+        Assert.Empty(_db.Moves.GetNeedsReview());
+        Assert.Empty(_db.Moves.FindParkedBlocking(plan));
+        Assert.All(plan.Entries, entry => Assert.True(File.Exists(entry.Destination), entry.Destination));
+        Assert.Equal("original video", File.ReadAllText(plan.Entries[0].Destination));
+        Assert.Equal("thumb", File.ReadAllText(thumb.Destination));
+        Assert.Equal("jellyfin regenerated thumb", File.ReadAllText(thumb.Source));
+        Assert.False(File.Exists(plan.Entries.Single(entry => entry.Source.EndsWith(".nfo", StringComparison.Ordinal)).Source));
+    }
+
+    [Fact]
+    public async Task MoveAnywayReleasesAParkedMoveItCannotFinishAndTouchesNoFile()
+    {
+        var issue = await Approve(companions: true);
+        var plan = MediaMovePlan.ReadIssue(issue)!;
+        _service.Checkpoint = (point, _) => { if (point == "Published") throw new IOException("controlled interruption"); };
+        Assert.False((await _service.ExecuteAsync(issue, null, CancellationToken.None)).Success);
+        var parked = Assert.Single(_db.Moves.GetNeedsReview());
+        var before = plan.Entries.ToDictionary(entry => entry.Source, entry => File.Exists(entry.Source));
+
+        var detail = _service.ResolveParked(parked);
+
+        Assert.StartsWith("Released by Move anyway", detail, StringComparison.Ordinal);
+        Assert.Empty(_db.Moves.FindParkedBlocking(plan));
+        Assert.All(plan.Entries, entry => Assert.Equal(before[entry.Source], File.Exists(entry.Source)));
+        Assert.Equal("Released", _db.Moves.Read(parked.Id)!.State);
+    }
+
     [Fact]
     public async Task PartialMoveHistoryKeepsApprovalAndExposesTheDurableReviewState()
     {
@@ -1403,12 +1508,16 @@ public sealed class MediaMoveExecutionTests : IDisposable
     }
 
     [Fact]
-    public async Task ChangedPayloadWithSameLengthAndTimestampRefusesBeforeJournalPreparation()
+    public async Task ReplacedPayloadWithSameLengthAndTimestampRefusesBeforeJournalPreparation()
     {
         var issue = await Approve();
         var timestamp = File.GetLastWriteTimeUtc(issue.Path);
-        File.WriteAllText(issue.Path, "changed  video");
-        File.SetLastWriteTimeUtc(issue.Path, timestamp);
+        var replacement = issue.Path + ".replacement";
+        File.WriteAllText(replacement, "changed  video");
+        Assert.Equal(new FileInfo(issue.Path).Length, new FileInfo(replacement).Length);
+        File.SetLastWriteTimeUtc(replacement, timestamp);
+        File.Delete(issue.Path);
+        File.Move(replacement, issue.Path);
         var result = await _service.ExecuteAsync(issue, null, CancellationToken.None);
         Assert.False(result.Success);
         Assert.Equal("changed  video", File.ReadAllText(issue.Path));
@@ -1799,6 +1908,276 @@ public sealed class MediaMoveExecutionTests : IDisposable
 
         Assert.Equal("first film", File.ReadAllText(Path.Combine(Movies, "One", "One.mkv")));
         Assert.Equal("second film", File.ReadAllText(Path.Combine(Movies, "Two", "Two.mkv")));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GroupedEpisodeIgnoresAnEmptiedSiblingContainerButRechecksItsOwnCompanions(bool newCompanion)
+    {
+        Directory.CreateDirectory(Path.Combine(Tv, "MobLand (2025)"));
+        var sibling = Write(Path.Combine(Tv, "Other release", "Other.S01E01.mkv"), "other episode");
+        var series = new MediaBrowser.Controller.Entities.TV.Series { Id = Guid.NewGuid(), Name = "MobLand", Path = Tv,
+            PremiereDate = new DateTime(2025, 1, 1) };
+        var episode = new MediaBrowser.Controller.Entities.TV.Episode { Id = Guid.NewGuid(), SeriesId = series.Id,
+            SeriesName = "MobLand", ParentIndexNumber = 2, Path = Write(Path.Combine(Tv, "MobLand.S02E02.mkv"), "episode") };
+        _items.AddRange([series, episode]);
+        var findings = await _planner.ScanAsync(IssueType.Ungrouped, _items, _config, new Progress<double>(), CancellationToken.None);
+        Assert.False(Assert.Single(findings).HasBlockingWarnings);
+        Assert.NotNull(MediaMovePlan.ReadIssue(findings[0]));
+        Assert.Null(MediaMovePlan.ReadIssue(findings[0])!.SourceCleanup);
+        Assert.DoesNotContain("\"sourceCleanup\"", findings[0].DetailsJson, StringComparison.Ordinal);
+        _db.Issues.ReplaceDetectedIssues(IssueType.Ungrouped, findings);
+        _db.Issues.QueueDetectedIssues(IssueType.Ungrouped);
+        Directory.CreateDirectory(Path.Combine(Tv, "Other (2025)"));
+        File.Move(sibling, Path.Combine(Tv, "Other (2025)", "Other.S01E01.mkv"));
+        if (newCompanion) Write(Path.ChangeExtension(episode.Path, ".en.srt"), "new subtitle");
+
+        var result = await _service.ExecuteAsync(Assert.Single(_db.Issues.GetIssues(IssueType.Ungrouped)), null, CancellationToken.None);
+        Assert.True(result.Success == !newCompanion, result.Message);
+        Assert.Equal(newCompanion, File.Exists(episode.Path));
+        if (newCompanion) Assert.Equal("new subtitle", File.ReadAllText(Path.ChangeExtension(episode.Path, ".en.srt")));
+    }
+
+    [Fact]
+    public async Task CompletedMoveHandsIndexingToAnActiveLibraryScanWithoutRecordingAnError()
+    {
+        var issue = await Approve();
+        var tasks = DispatchProxy.Create<ITaskManager, LibraryScanCancellationTests.ManagerProxy>();
+        ((LibraryScanCancellationTests.ManagerProxy)(object)tasks).Workers = [LibraryScanCancellationTests.Worker("RefreshLibrary", TaskState.Running)];
+        var files = DispatchProxy.Create<MediaBrowser.Model.IO.IFileSystem, OriginalLanguageFlowTests.CallProxy>();
+        using var native = new NativeLibraryRefresher(_manager, files, (_, _, _) => Task.CompletedTask, tasks);
+        var service = new MediaMoveService(_db, _guard, _protection, _manager, NullLogger<MediaMoveService>.Instance, nativeRefresh: native);
+        var before = Api.Diagnostics.RecentAll().Where(entry => entry.Source == "Move.NativeIndex").Sum(entry => entry.Count);
+        var result = await service.ExecuteAsync(issue, null, CancellationToken.None);
+        Assert.True(result.Success, result.Message);
+        Assert.Contains("running library scan", result.Message, StringComparison.Ordinal);
+        Assert.Equal("original video", File.ReadAllText(Path.Combine(Movies, "Film", "Film.mkv")));
+        Assert.Equal(before, Api.Diagnostics.RecentAll().Where(entry => entry.Source == "Move.NativeIndex").Sum(entry => entry.Count));
+        Assert.Equal("Completed", _db.Moves.Read(result.MoveOperationId!)!.State);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task GroupedEpisodesRecycleRedundantSourceMetadataAndUndoRestoresIt(bool lateCollision, bool identityChanged)
+    {
+        var target = Path.Combine(Tv, "MobLand (2025)", "Season 02");
+        var existing = Write(Path.Combine(target, "MobLand.S02E01.mkv"), "existing episode");
+        var existingMetadata = Write(Path.Combine(Tv, "MobLand (2025)", "tvshow.nfo"), "existing metadata");
+        var artwork = new[] { "backdrop.jpg", "folder.jpg", "landscape.jpg", "logo.png" };
+        foreach (var name in artwork) Write(Path.Combine(Tv, "MobLand (2025)", name), "destination " + name);
+        for (var number = 2; number <= 3; number++)
+        {
+            var folder = Path.Combine(Tv, "MobLand release " + number);
+            var series = new MediaBrowser.Controller.Entities.TV.Series { Id = Guid.NewGuid(), Name = "MobLand", Path = folder,
+                PremiereDate = new DateTime(2025, 1, 1) };
+            series.ProviderIds["Tvdb"] = "same series";
+            var episode = new MediaBrowser.Controller.Entities.TV.Episode { Id = Guid.NewGuid(), SeriesId = series.Id,
+                SeriesName = "MobLand", ParentIndexNumber = 2, IndexNumber = number,
+                Path = Write(Path.Combine(folder, "MobLand.S02E0" + number + ".mkv"), "episode " + number) };
+            Write(Path.ChangeExtension(episode.Path, ".en.srt"), "subtitles " + number);
+            Write(Path.Combine(folder, "tvshow.nfo"), "source metadata");
+            foreach (var name in artwork) Write(Path.Combine(folder, name), "source " + name);
+            _items.AddRange([series, episode]);
+        }
+
+        var findings = await _planner.ScanAsync(IssueType.Ungrouped, _items, _config, new Progress<double>(), CancellationToken.None);
+        Assert.Equal(2, findings.Count);
+        Assert.All(findings, issue => Assert.False(issue.HasBlockingWarnings, issue.DetailsJson));
+        _db.Issues.ReplaceDetectedIssues(IssueType.Ungrouped, findings);
+        _db.Issues.QueueDetectedIssues(IssueType.Ungrouped);
+        if (lateCollision) Write(Path.Combine(target, "MobLand.S02E02.en.srt"), "new import");
+        if (identityChanged)
+        {
+            var changed = new MediaBrowser.Controller.Entities.TV.Series { Id = Guid.NewGuid(), Name = "MobLand", Path = Path.Combine(Tv, "MobLand (2025)") };
+            changed.ProviderIds["Tvdb"] = "different series";
+            _items.Add(changed);
+        }
+        var completed = new List<(Issue Issue, string Operation)>();
+        foreach (var issue in _db.Issues.GetIssues(IssueType.Ungrouped))
+        {
+            var result = await _service.ExecuteAsync(issue, null, CancellationToken.None);
+            if (identityChanged)
+            {
+                Assert.False(result.Success);
+                Assert.True(File.Exists(issue.Path));
+                continue;
+            }
+            if (lateCollision && issue.Path.EndsWith("02.mkv", StringComparison.Ordinal))
+            {
+                Assert.False(result.Success);
+                Assert.True(File.Exists(issue.Path));
+                Assert.Equal("new import", File.ReadAllText(Path.Combine(target, "MobLand.S02E02.en.srt")));
+                continue;
+            }
+
+            Assert.True(result.Success, result.Message);
+            Assert.False(File.Exists(issue.Path));
+            Assert.True(File.Exists(Path.Combine(target, Path.GetFileName(issue.Path))));
+            Assert.False(Directory.Exists(Path.GetDirectoryName(issue.Path)));
+            var recorded = MediaMoveManifest.TryRead(_db.Moves.Read(result.MoveOperationId!)!.ManifestJson, result.MoveOperationId!)!;
+            Assert.NotNull(recorded.RecycledSource);
+            Assert.Equal("source metadata", File.ReadAllText(Path.Combine(recorded.RecycledSource.BinPath!, "tvshow.nfo")));
+            completed.Add((issue, result.MoveOperationId!));
+        }
+
+        foreach (var move in completed.AsEnumerable().Reverse())
+        {
+            var undo = await _service.UndoAsync(move.Operation, null, CancellationToken.None);
+            Assert.True(undo.Success, undo.Message);
+            Assert.True(File.Exists(move.Issue.Path));
+            Assert.Equal("source metadata", File.ReadAllText(Path.Combine(Path.GetDirectoryName(move.Issue.Path)!, "tvshow.nfo")));
+            foreach (var name in artwork) Assert.Equal("source " + name, File.ReadAllText(Path.Combine(Path.GetDirectoryName(move.Issue.Path)!, name)));
+        }
+
+        Assert.Equal("existing episode", File.ReadAllText(existing));
+        Assert.Equal("existing metadata", File.ReadAllText(existingMetadata));
+    }
+
+    [Theory]
+    [InlineData("The Mentalist (2008)", "The Mentalist", "www.UIndex.org - The Mentalist S04E03 1080p", "www UIndex org - The Mentalist", 2008, "82459")]
+    [InlineData("WAR (2026)", "WAR", "www.UIndex.org - War.2026.S01E07.1080p.WEB.h264-ETHEL", "www UIndex org - War 2026", 2026, "477406")]
+    [InlineData("Miraculous - Tales of Ladybug & Cat Noir", "Miraculous - Tales of Ladybug & Cat Noir", "Miraculous Tales of Ladybug and Cat Noir S06E18 Heartfixer 1080p DSNP WEB-DL", "Miraculous Tales of Ladybug and Cat Noir", 2015, "302257")]
+    public async Task TvdbMasterGroupsADifferentlyNamedFolderAndRecyclesItsLeftovers(string masterName, string title, string releaseName, string releaseTitle, int year, string tvdbId)
+    {
+        var master = Path.Combine(Tv, masterName);
+        Write(Path.Combine(master, "tvshow.nfo"), "master metadata");
+        var existing = Write(Path.Combine(master, "Season 01", "The.Mentalist.S01E01.mkv"), "episode 1");
+        var release = Path.Combine(Tv, releaseName);
+        var episodePath = Write(Path.Combine(release, "The.Mentalist.S04E03.1080p.mkv"), "episode 403");
+        Write(Path.Combine(release, "RARBG.txt"), "release notes");
+        Write(Path.Combine(release, "Sample", "sample.mkv"), "sample");
+        var identified = new MediaBrowser.Controller.Entities.TV.Series { Id = Guid.NewGuid(), Name = title, Path = master, PremiereDate = new DateTime(year, 1, 1) };
+        identified.ProviderIds["Tvdb"] = tvdbId;
+        var unidentified = new MediaBrowser.Controller.Entities.TV.Series { Id = Guid.NewGuid(), Name = releaseTitle, Path = release };
+        _items.Add(identified);
+        _items.Add(unidentified);
+        _items.Add(new MediaBrowser.Controller.Entities.TV.Episode { Id = Guid.NewGuid(), SeriesId = identified.Id, SeriesName = title, ParentIndexNumber = 1, IndexNumber = 1, Path = existing });
+        _items.Add(new MediaBrowser.Controller.Entities.TV.Episode { Id = Guid.NewGuid(), SeriesId = unidentified.Id, SeriesName = releaseTitle, ParentIndexNumber = 4, IndexNumber = 3, Path = episodePath });
+        var tvdb = new MediaIdentityTests.FakeTvdb();
+        using var client = new Metadata.TvdbClient(() => new System.Net.Http.HttpClient(tvdb, false), NullLogger.Instance, TimeSpan.Zero);
+        var planner = new MediaMovePlanner(_guard, _protection, _manager, _db.Moves, new Metadata.MediaIdentityService(_db.Identities, client, NullLogger.Instance));
+        _config.TvdbApiKey = "key";
+
+        var issue = Assert.Single(await planner.ScanAsync(IssueType.Ungrouped, _items, _config, new Progress<double>(), CancellationToken.None));
+        var plan = MediaMovePlan.ReadIssue(issue)!;
+        Assert.Empty(plan.BlockingReasons);
+        var destination = Path.Combine(master, "Season 04", "The.Mentalist.S04E03.1080p.mkv");
+        Assert.Equal(destination, plan.Entries[0].Destination);
+
+        _db.Issues.ReplaceDetectedIssues(IssueType.Ungrouped, [issue]);
+        _db.Issues.QueueDetectedIssues(IssueType.Ungrouped);
+        var moved = await _service.ExecuteAsync(Assert.Single(_db.Issues.GetIssues(IssueType.Ungrouped)), null, CancellationToken.None);
+        Assert.True(moved.Success, moved.Message);
+        Assert.Equal("episode 403", File.ReadAllText(destination));
+        Assert.False(Directory.Exists(release));
+        Assert.Equal("master metadata", File.ReadAllText(Path.Combine(master, "tvshow.nfo")));
+        Assert.False(File.Exists(Path.Combine(master, "RARBG.txt")));
+
+        var undo = await _service.UndoAsync(moved.MoveOperationId!, null, CancellationToken.None);
+        Assert.True(undo.Success, undo.Message);
+        Assert.Equal("episode 403", File.ReadAllText(episodePath));
+        Assert.Equal("release notes", File.ReadAllText(Path.Combine(release, "RARBG.txt")));
+        Assert.Equal("sample", File.ReadAllText(Path.Combine(release, "Sample", "sample.mkv")));
+    }
+
+    [Theory]
+    [InlineData("clean")]
+    [InlineData("missing-destination-art")]
+    [InlineData("new-file")]
+    [InlineData("changed-metadata")]
+    [InlineData("unknown-file")]
+    [InlineData("nested-seasons")]
+    [InlineData("pending-receipt")]
+    [InlineData("dry-run-undo")]
+    [InlineData("new-episode")]
+    [InlineData("outside-library-container")]
+    [InlineData("malformed-receipt")]
+    [InlineData("named-companions")]
+    public async Task GroupingCleansOnlyApprovedRedundantMetadataAfterTheFinalEpisode(string mode)
+    {
+        var folder = Path.Combine(Tv, "MobLand release");
+        var canonical = Path.Combine(Tv, "MobLand (2025)");
+        Write(Path.Combine(canonical, "tvshow.nfo"), "destination metadata");
+        var sourceMetadata = Write(Path.Combine(folder, "tvshow.nfo"), "source metadata");
+        if (mode is "missing-destination-art" or "nested-seasons") Write(Path.Combine(folder, "logo.png"), "unique artwork");
+        if (mode == "unknown-file") Write(Path.Combine(folder, "notes.txt"), "keep this");
+        var series = new MediaBrowser.Controller.Entities.TV.Series { Id = Guid.NewGuid(), Name = "MobLand", Path = mode == "outside-library-container" ? _root : folder, PremiereDate = new DateTime(2025, 1, 1) };
+        _items.Add(series);
+        for (var number = 1; number <= 2; number++)
+        {
+            var episodePath = Write(Path.Combine(mode == "nested-seasons" ? Path.Combine(folder, "Season 01") : folder, "MobLand.S01E0" + number + ".mkv"), "episode " + number);
+            _items.Add(new MediaBrowser.Controller.Entities.TV.Episode { Id = Guid.NewGuid(), SeriesId = series.Id,
+                SeriesName = "MobLand", ParentIndexNumber = 1, IndexNumber = number,
+                Path = episodePath });
+            if (mode == "named-companions") Write(Path.ChangeExtension(episodePath, ".jpg"), "episode artwork " + number);
+        }
+
+        var findings = await _planner.ScanAsync(IssueType.Ungrouped, _items, _config, new Progress<double>(), CancellationToken.None);
+        Assert.Equal(2, findings.Count);
+        foreach (var issue in findings)
+        {
+            Assert.Empty(MediaMovePlan.ReadIssue(issue)!.BlockingReasons);
+        }
+
+        _db.Issues.ReplaceDetectedIssues(IssueType.Ungrouped, findings);
+        _db.Issues.QueueDetectedIssues(IssueType.Ungrouped);
+        var approved = _db.Issues.GetIssues(IssueType.Ungrouped).OrderBy(issue => issue.Path, StringComparer.Ordinal).ToArray();
+        var first = await _service.ExecuteAsync(approved[0], null, CancellationToken.None);
+        Assert.True(first.Success, first.Message);
+        Assert.True(Directory.Exists(folder));
+        if (mode == "new-file") Write(Path.Combine(folder, "new.jpg"), "new artwork");
+        if (mode == "new-episode") Write(Path.Combine(folder, "MobLand.S01E03.mkv"), "new episode");
+        if (mode == "changed-metadata") File.WriteAllText(sourceMetadata, "changed source metadata");
+        var last = await _service.ExecuteAsync(approved[1], null, CancellationToken.None);
+        Assert.True(last.Success, last.Message);
+        // Leftover files the scan saw (notes.txt) are recycled with the folder; only files that
+        // appeared or changed after the scan, another episode or an out-of-scope container keep it.
+        var preserve = mode is "new-file" or "changed-metadata" or "new-episode" or "outside-library-container";
+        Assert.Equal(preserve, Directory.Exists(folder));
+        Assert.Equal("destination metadata", File.ReadAllText(Path.Combine(canonical, "tvshow.nfo")));
+        if (mode is "missing-destination-art" or "nested-seasons") Assert.Equal("unique artwork", File.ReadAllText(Path.Combine(canonical, "logo.png")));
+        if (!preserve)
+        {
+            if (mode == "malformed-receipt")
+            {
+                var operation = _db.Moves.Read(last.MoveOperationId!)!;
+                var manifest = MediaMoveManifest.TryRead(operation.ManifestJson, operation.Id)!;
+                var malformed = (manifest with { RecycledSource = manifest.RecycledSource! with { Inventory = [null!] } }).Serialize();
+                Assert.Null(MediaMoveManifest.TryRead(malformed, operation.Id));
+                Assert.False(_db.Moves.Update(operation.Id, operation.OwnerToken, "Completed", "Completed", malformed));
+                Assert.False(Directory.Exists(folder));
+                Assert.True(Directory.Exists(manifest.RecycledSource!.BinPath));
+            }
+
+            if (mode == "pending-receipt")
+            {
+                var operation = _db.Moves.Read(last.MoveOperationId!)!;
+                var manifest = MediaMoveManifest.TryRead(operation.ManifestJson, operation.Id)!;
+                Assert.True(_db.Moves.Update(operation.Id, operation.OwnerToken, "Completed", "Completed",
+                    (manifest with { RecycledSource = manifest.RecycledSource! with { BinPath = null } }).Serialize()));
+            }
+
+            if (mode == "dry-run-undo")
+            {
+                _config.DryRun = true;
+                var preview = await _service.UndoAsync(last.MoveOperationId!, null, CancellationToken.None);
+                Assert.True(preview.Success, preview.Message);
+                Assert.True(preview.WasDryRun);
+                Assert.False(Directory.Exists(folder));
+                _config.DryRun = false;
+            }
+
+            var undoLast = await _service.UndoAsync(last.MoveOperationId!, null, CancellationToken.None);
+            Assert.True(undoLast.Success, undoLast.Message);
+            var undoFirst = await _service.UndoAsync(first.MoveOperationId!, null, CancellationToken.None);
+            Assert.True(undoFirst.Success, undoFirst.Message);
+            Assert.Equal("source metadata", File.ReadAllText(sourceMetadata));
+            if (mode == "unknown-file") Assert.Equal("keep this", File.ReadAllText(Path.Combine(folder, "notes.txt")));
+            if (mode is "missing-destination-art" or "nested-seasons") Assert.Equal("unique artwork", File.ReadAllText(Path.Combine(folder, "logo.png")));
+        }
     }
 
     [Fact]

@@ -92,6 +92,26 @@ public sealed class HistoryStore
         return result;
     }
 
+    /// <summary>Gets the action text of every applied grouping move ("grouped A → B").</summary>
+    /// <returns>Action texts, oldest first.</returns>
+    internal IReadOnlyList<string> GetGroupedMoveActions()
+    {
+        using var connection = _connectionFactory.Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT action FROM history WHERE dry_run = 0 AND type IN (5, 10) AND action LIKE 'grouped %' ORDER BY id";
+        var result = new List<string>();
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            if (!reader.IsDBNull(0))
+            {
+                result.Add(reader.GetString(0));
+            }
+        }
+
+        return result;
+    }
+
     /// <summary>Gets all unrestored recycle history, including entries older than the History page.</summary>
     /// <returns>History rows with an active recycle reference.</returns>
     public IReadOnlyList<HistoryEntry> GetActiveRecycleEntries()

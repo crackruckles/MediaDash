@@ -126,20 +126,46 @@ public sealed class ScanTask : IScheduledTask
             return;
         }
 
-        using var libraryScanCancellation = new LibraryScanCancellation(bypassIdleCheck ? null : _taskManager, cancellationToken);
+        using var scanRecording = RunDiagnosticsRecording.Start(_db, _logger, runConfig.DiagnosticsEnabled);
+        using var diagnostics = RunDiagnostics.Start(_logger, "scan", "ScanTask");
+        // See FixTask: Jellyfin's library scan waits for MediaDash rather than the other way round.
+        using var libraryScanHold = JellyfinLibraryScanHold.Acquire(_taskManager, _logger, cancelRunning: bypassIdleCheck);
+        using var libraryScanCancellation = new LibraryScanCancellation(null, cancellationToken);
+        var outcome = "Failed";
+        string? failure = null;
         try
         {
             libraryScanCancellation.Token.ThrowIfCancellationRequested();
-            await ExecuteScanBodyAsync(bypassIdleCheck, runConfig, typeFilter, progress, libraryScanCancellation.Token).ConfigureAwait(false);
+            await ExecuteScanBodyAsync(bypassIdleCheck, runConfig, typeFilter, diagnostics?.Observe(progress) ?? progress, libraryScanCancellation.Token).ConfigureAwait(false);
+            outcome = "Completed";
         }
         catch (OperationCanceledException) when (libraryScanCancellation.Token.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
+            outcome = "Cancelled";
             _logger.LogInformation("Stopped automatic scan: Jellyfin's library scan started. Incomplete scanner results were not saved.");
             progress.Report(100);
         }
+        catch (OperationCanceledException)
+        {
+            outcome = "Cancelled";
+            throw;
+        }
+        catch (Exception error)
+        {
+            failure = error.Message;
+            throw;
+        }
         finally
         {
-            _runState.Complete(RunRole.Scan);
+            try
+            {
+                diagnostics?.Finish(outcome, null, null, null, null);
+                scanRecording?.Complete(outcome, failure);
+            }
+            finally
+            {
+                _runState.Complete(RunRole.Scan);
+            }
         }
     }
 

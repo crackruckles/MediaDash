@@ -70,6 +70,7 @@ public class PluginConfiguration : BasePluginConfiguration
         MusicTargetPath = string.Empty;
         BooksTargetPath = string.Empty;
         ComicsTargetPath = string.Empty;
+        TvdbApiKey = string.Empty;
         PicturesTargetPath = string.Empty;
         MediaSortSource = MediaSortSource.JellyfinMetadata;
         RenameAfterTranscode = false;
@@ -497,7 +498,8 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>
     /// Gets or sets the user-defined fixer execution order (see the "Fix order" dialog on Overview).
-    /// Entries are <see cref="Data.IssueType"/> names, ordered highest-priority first. Empty means
+    /// Entries are <see cref="Data.IssueType"/> names, ordered highest-priority first within execution phases.
+    /// Repairs precede filename/format changes, and folder moves always run last. Empty means
     /// use <see cref="ScheduledTasks.FixTask.FixerRank"/>'s built-in D2 ordering. Unknown or missing
     /// types fall to the end via the default rank as a soft fallback.
     /// </summary>
@@ -583,6 +585,13 @@ public class PluginConfiguration : BasePluginConfiguration
     public string ComicsTargetPath { get; set; }
 
     /// <summary>
+    /// Gets or sets an optional personal TVDb v4 API key. Series and movies Jellyfin could not identify
+    /// are looked up on TVDb (at most ~16 requests/second, answers cached) so grouping can merge every
+    /// folder of the same title into one master folder. Empty uses MediaDash's built-in project key.
+    /// </summary>
+    public string TvdbApiKey { get; set; }
+
+    /// <summary>
     /// Gets or sets the destination folder pictures / photos are moved into when the sorter finds them
     /// in a non-photo library. Empty disables picture sorting. Must sit inside a Jellyfin library folder
     /// or moves are refused by <see cref="Fixers.LibraryGuard"/>.
@@ -655,6 +664,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </summary>
     public bool SmartMonitoringEnabled { get; set; }
 
+    /// <summary>Gets or sets a value indicating whether detailed scanner and fixer diagnostics are recorded and shown.</summary>
+    public bool DiagnosticsEnabled { get; set; }
+
     /// <summary>
     /// Gets or sets the set of <see cref="Data.IssueType"/> names the user has muted from fix runs
     /// (via the disable icon in the "Fix order" dialog). Independent of <see cref="FixMode"/>: the
@@ -720,7 +732,7 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool PostV12CleanupCompleted { get; set; }
 
     /// <summary>
-    /// Gets or sets the UTC-ticks watermark below which history rows are hidden from the History tab.
+    /// Gets or sets the UTC-ticks watermark at or below which history rows and recorded move updates are hidden from the History tab.
     /// The rows still exist and still count toward aggregate savings (per-library chart, "Reclaimed
     /// since install", monthly analytics) - only the visible list is truncated. Advanced past by the
     /// Clear-history button. 0 means show everything.

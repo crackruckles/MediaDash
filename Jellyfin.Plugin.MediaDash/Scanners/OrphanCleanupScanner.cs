@@ -4,12 +4,14 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.MediaDash.Data;
 using Jellyfin.Plugin.MediaDash.Fixers;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Tasks;
@@ -37,6 +39,9 @@ public sealed class OrphanCleanupScanner : IScanner
 
     /// <summary>Sentinel for orphan Jellyfin metadata folder findings.</summary>
     internal const string KindOrphanMetadata = "OrphanMetadata";
+
+    /// <summary>Sentinel for a series folder whose episodes were grouped into its TVDb master folder.</summary>
+    internal const string KindGroupedLeftover = "GroupedLeftover";
 
     /// <summary>
     /// Video extensions the orphan pass considers when pairing subtitles / trickplay folders to a
@@ -89,12 +94,21 @@ public sealed class OrphanCleanupScanner : IScanner
 
     private const string TrickplaySuffix = ".trickplay";
 
+    // Jellyfin's local artwork names (https://jellyfin.org/docs/general/server/media/movies#images)
+    // plus "<video name>-thumb" style per-item art and numbered backdrops/fanart.
+    private static readonly Regex JellyfinArtworkName = new(
+        @"^(?:(?:poster|folder|cover|default|movie|show|jacket|backdrop|fanart|background|art|banner|logo|clearlogo|clearart|landscape|thumb|disc|discart|cdart)\d*"
+        + @"|season(?:\d+|-all|-specials)-(?:poster|banner|fanart|landscape|thumb)"
+        + @"|.+-(?:poster|fanart|thumb|landscape|banner|logo|clearart|backdrop|disc|discart))$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
     private readonly IServerApplicationPaths _appPaths;
     private readonly LibraryGuard _libraryGuard;
     private readonly ILibraryManager _libraryManager;
     private readonly ILogger<OrphanCleanupScanner> _logger;
     private readonly ProtectionService? _protection;
     private readonly MediaMoveStore? _moves;
+    private readonly MediaIdentityStore? _identities;
 
     /// <summary>Initializes a new instance of the <see cref="OrphanCleanupScanner"/> class.</summary>
     /// <param name="appPaths">Jellyfin's application paths — used to reach the metadata folder root.</param>
@@ -103,8 +117,10 @@ public sealed class OrphanCleanupScanner : IScanner
     /// <param name="logger">The logger.</param>
     /// <param name="taskManager">Host library-refresh state, when available.</param>
     /// <param name="moves">Durable move paths excluded from orphan detection.</param>
-    public OrphanCleanupScanner(IServerApplicationPaths appPaths, ILibraryManager libraryManager, ILogger<OrphanCleanupScanner> logger, ProtectionService? protection = null, ITaskManager? taskManager = null, MediaMoveStore? moves = null)
+    /// <param name="identities">TVDb master folders, used to find folders left behind by grouping.</param>
+    public OrphanCleanupScanner(IServerApplicationPaths appPaths, ILibraryManager libraryManager, ILogger<OrphanCleanupScanner> logger, ProtectionService? protection = null, ITaskManager? taskManager = null, MediaMoveStore? moves = null, MediaIdentityStore? identities = null)
     {
+        _identities = identities;
         _appPaths = appPaths;
         _libraryGuard = new LibraryGuard(libraryManager, appPaths, taskManager, moves: moves);
         _libraryManager = libraryManager;
@@ -136,10 +152,22 @@ public sealed class OrphanCleanupScanner : IScanner
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        // Movies and Shows libraries: Jellyfin artwork and release notes there are metadata, not media.
+        var videoLibraryRoots = VirtualFolderIdentity.GetEnabledFolders(_libraryManager, config.EnabledLibraries)
+            .Where(folder => folder.CollectionType is CollectionTypeOptions.movies or CollectionTypeOptions.tvshows)
+            .SelectMany(folder => folder.Locations ?? Array.Empty<string>())
+            .Select(location => Path.TrimEndingDirectorySeparator(Path.GetFullPath(location)))
+            .ToHashSet(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
         var passes = new List<(string Name, Action<List<Issue>> Run)>();
         if (config.OrphanScanEmptyFolders)
         {
-            passes.Add(("empty folders", i => DetectEmptyFolders(libraryLocations, i, cancellationToken, _protection, reserved)));
+            passes.Add(("empty folders", i => DetectEmptyFolders(libraryLocations, i, cancellationToken, _protection, reserved, videoLibraryRoots)));
+            if (_identities is not null)
+            {
+                passes.Add(("grouped leftovers", i => DetectGroupedLeftovers(_identities.GetGroupedLeftovers(), libraryLocations, i, cancellationToken, _protection, reserved)));
+            }
+
+            passes.Add(("untracked grouped leftovers", i => DetectUntrackedGroupedLeftovers(libraryLocations, i, reserved, cancellationToken)));
         }
 
         if (config.OrphanScanSubtitles)
@@ -190,15 +218,205 @@ public sealed class OrphanCleanupScanner : IScanner
     /// <param name="cancellationToken">Cancellation.</param>
     /// <param name="protection">Rules excluding protected paths from analysis.</param>
     /// <param name="reserved">Move paths excluded from detection.</param>
-    internal static void DetectEmptyFolders(IReadOnlyList<string> libraryLocations, List<Issue> issues, CancellationToken cancellationToken, ProtectionService? protection = null, Func<string, bool>? reserved = null)
+    /// <param name="videoLibraryRoots">Roots of Movies and Shows libraries, where Jellyfin artwork and release notes are metadata rather than media.</param>
+    internal static void DetectEmptyFolders(IReadOnlyList<string> libraryLocations, List<Issue> issues, CancellationToken cancellationToken, ProtectionService? protection = null, Func<string, bool>? reserved = null, IReadOnlySet<string>? videoLibraryRoots = null)
     {
         foreach (var root in libraryLocations)
         {
-            WalkForEmpty(root, issues, isRoot: true, protection, reserved, cancellationToken);
+            var videoLibrary = videoLibraryRoots?.Contains(Path.TrimEndingDirectorySeparator(Path.GetFullPath(root))) == true;
+            WalkForEmpty(root, issues, isRoot: true, protection, reserved, cancellationToken, videoLibrary);
         }
     }
 
-    private static void WalkForEmpty(string dir, List<Issue> issues, bool isRoot, ProtectionService? protection, Func<string, bool>? reserved, CancellationToken cancellationToken)
+    private void DetectUntrackedGroupedLeftovers(IReadOnlyList<string> libraryLocations, List<Issue> issues, Func<string, bool>? reserved, CancellationToken cancellationToken)
+    {
+        // Jellyfin can forget a release folder once its episodes move; recover artwork-only
+        // leftovers from disk rather than requiring a cached identity for that old folder.
+        var series = _libraryManager.GetItemList(new InternalItemsQuery
+        {
+            Recursive = true,
+            IsVirtualItem = false,
+            IncludeItemTypes = [Jellyfin.Data.Enums.BaseItemKind.Series]
+        }).OfType<Series>().Where(show => !string.IsNullOrWhiteSpace(show.Path)
+            && Directory.Exists(show.Path) && Metadata.MediaIdentityService.IsCleanFolderName(Path.GetFileName(show.Path))
+            && show.ProviderIds.TryGetValue("Tvdb", out var id) && int.TryParse(id, out var parsed) && parsed > 0).ToArray();
+        foreach (var root in libraryLocations)
+        {
+            var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            var masters = series.Where(show => string.Equals(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(show.Path)), Path.TrimEndingDirectorySeparator(root), comparison)).ToArray();
+            foreach (var folder in Directory.EnumerateDirectories(root))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var name = Path.GetFileName(folder);
+                if ((File.GetAttributes(folder) & FileAttributes.ReparsePoint) != 0)
+                {
+                    continue;
+                }
+
+                var (title, year) = Metadata.MediaIdentityService.CleanTitle(name);
+                var nfoId = Metadata.MediaIdentityService.ReadSeriesNfoTvdbId(folder);
+                var eligible = masters.Where(show => !string.Equals(Path.TrimEndingDirectorySeparator(show.Path), folder, comparison))
+                    .Where(show => nfoId is int id ? int.Parse(show.ProviderIds["Tvdb"], CultureInfo.InvariantCulture) == id
+                        : new[] { show.Name ?? string.Empty, Path.GetFileName(show.Path) }.Any(value =>
+                            Metadata.MediaIdentityService.Normalize(Metadata.MediaIdentityService.CleanTitle(value).Title) == Metadata.MediaIdentityService.Normalize(title)))
+                    .Where(show => year is null || (Metadata.MediaIdentityService.FolderYear(Path.GetFileName(show.Path)) ?? show.ProductionYear) is not int masterYear
+                        || Math.Abs(masterYear - year.Value) <= 1).ToArray();
+                if (eligible.Length != 1)
+                {
+                    continue;
+                }
+
+                var master = eligible[0];
+                GroupedLeftover[] candidates = [new(folder, int.Parse(master.ProviderIds["Tvdb"], CultureInfo.InvariantCulture), master.Path, master.ProductionYear)];
+                DetectGroupedLeftovers(candidates, libraryLocations, issues, cancellationToken, _protection, reserved, untracked: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Flags series folders whose TVDb title already has a different master folder and which no
+    /// longer hold any video, audio, book or comic file — what an earlier grouping move left behind
+    /// (artwork, <c>tvshow.nfo</c>, release notes). A folder naming a different year than its master
+    /// is skipped, matching the grouping rule.
+    /// </summary>
+    /// <param name="candidates">Series folders grouped into another master folder.</param>
+    /// <param name="libraryLocations">Enabled library roots.</param>
+    /// <param name="issues">Accumulator.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <param name="protection">Rules excluding protected paths.</param>
+    /// <param name="reserved">Move paths excluded from detection.</param>
+    /// <param name="untracked">True when grouping provenance is inferred from a release name.</param>
+    internal static void DetectGroupedLeftovers(IReadOnlyList<GroupedLeftover> candidates, IReadOnlyList<string> libraryLocations, List<Issue> issues, CancellationToken cancellationToken, ProtectionService? protection = null, Func<string, bool>? reserved = null, bool untracked = false)
+    {
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        foreach (var candidate in candidates)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var folder = Path.TrimEndingDirectorySeparator(candidate.Path);
+            var master = Path.TrimEndingDirectorySeparator(candidate.MasterPath);
+            var existing = issues.FirstOrDefault(issue => string.Equals(issue.Path, folder, comparison));
+            if (string.Equals(folder, master, comparison) || !Directory.Exists(folder) || !Directory.Exists(master)
+                || !string.Equals(Path.GetDirectoryName(folder), Path.GetDirectoryName(master), comparison)
+                || !libraryLocations.Any(root => LibraryGuard.IsUnder(folder, root) && !string.Equals(Path.TrimEndingDirectorySeparator(root), folder, comparison))
+                || (existing is not null && (!untracked || OrphanCleanupFixer.ReadKind(existing.DetailsJson) != KindEmptyFolder))
+                || reserved?.Invoke(folder) == true
+                || protection?.IsScannerBlocked(folder, IssueType.OrphanedDebris) == true
+                || protection?.IsAnyDescendantProtected(folder, IssueType.OrphanedDebris, scanners: true) == true)
+            {
+                continue;
+            }
+
+            var folderYear = Metadata.MediaIdentityService.FolderYear(Path.GetFileName(folder));
+            var masterYear = candidate.MasterYear ?? Metadata.MediaIdentityService.FolderYear(Path.GetFileName(master));
+            if ((folderYear is int claimed && masterYear is int expected && Math.Abs(claimed - expected) > 1) || HasPlayableMedia(folder))
+            {
+                continue;
+            }
+
+            var size = TrySubtreeSize(folder);
+            if (existing is not null)
+            {
+                issues.Remove(existing);
+            }
+
+            issues.Add(new Issue
+            {
+                Type = IssueType.OrphanedDebris,
+                Path = folder,
+                Status = IssueStatus.Detected,
+                DetectedAtUtc = DateTime.UtcNow,
+                SizeSavings = size,
+                DetailsJson = JsonSerializer.Serialize(new
+                {
+                    kind = KindGroupedLeftover,
+                    master,
+                    untracked,
+                    tvdbId = candidate.TvdbId,
+                    bytesEstimate = size
+                }),
+                SuggestedFix = string.Format(
+                    CultureInfo.InvariantCulture,
+                    untracked ? "Recycle leftover series artwork and metadata in \"{0}\". The show folder \"{1}\" stays unchanged; the leftovers remain recoverable even if their contents differ."
+                        : "Recycle leftover folder \"{0}\" — its episodes are grouped into \"{1}\".",
+                    Path.GetFileName(folder),
+                    Path.GetFileName(master))
+            });
+        }
+    }
+
+    internal static bool HasOnlySeriesMetadata(string folder, string master, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            if (string.Equals(Path.TrimEndingDirectorySeparator(folder), Path.TrimEndingDirectorySeparator(master), comparison)
+                || !string.Equals(Path.GetDirectoryName(folder), Path.GetDirectoryName(master), comparison))
+            {
+                return false;
+            }
+
+            MediaMoveSnapshot.ValidateAncestors(folder);
+            MediaMoveSnapshot.ValidateAncestors(master);
+            var inventory = MediaMoveSnapshot.CaptureIdentity(folder, cancellationToken).Export();
+            foreach (var file in Directory.EnumerateFileSystemEntries(folder))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var name = Path.GetFileName(file);
+                var stem = Path.GetFileNameWithoutExtension(file);
+                var releaseName = Path.GetFileName(Path.TrimEndingDirectorySeparator(folder));
+                var episodeNfo = Path.GetExtension(file).Equals(".nfo", StringComparison.OrdinalIgnoreCase)
+                    && Metadata.MediaIdentityService.SameReleaseName(releaseName, stem);
+                var artwork = MediaFormats.Pictures.Contains(Path.GetExtension(file))
+                    && (stem.ToLowerInvariant() is "backdrop" or "folder" or "landscape" or "logo" or "poster" or "banner" or "thumb" or "clearart" or "discart"
+                        || Regex.IsMatch(stem, @"^season(?:\d+|-all|-specials)-poster$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
+                        || (stem.EndsWith("-thumb", StringComparison.OrdinalIgnoreCase) && stem.Length > 6
+                            && Metadata.MediaIdentityService.SameReleaseName(releaseName, stem[..^6])));
+                if ((!artwork && !episodeNfo && !name.Equals("tvshow.nfo", StringComparison.OrdinalIgnoreCase))
+                    || (File.GetAttributes(file) & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0)
+                {
+                    return false;
+                }
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            MediaMoveSnapshot.VerifyInventory(folder, inventory, true, cancellationToken);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    internal static bool IsVideoLibraryMetadata(string file)
+    {
+        var extension = Path.GetExtension(file);
+        return extension.Equals(".txt", StringComparison.OrdinalIgnoreCase)
+            || (MediaFormats.Pictures.Contains(extension) && JellyfinArtworkName.IsMatch(Path.GetFileNameWithoutExtension(file)));
+    }
+
+    // Video, audio, book or comic anywhere below the folder. Artwork, NFOs, release-note .txt
+    // files and orphan subtitles don't count (.txt is a book format elsewhere, but in a series
+    // folder it is release notes). An unreadable subtree counts as media.
+    internal static bool HasPlayableMedia(string dir)
+    {
+        try
+        {
+            return Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories).Any(file =>
+            {
+                var extension = Path.GetExtension(file);
+                return MediaFormats.Video.Contains(extension) || MediaFormats.Audio.Contains(extension)
+                    || (MediaFormats.Books.Contains(extension) && !extension.Equals(".txt", StringComparison.OrdinalIgnoreCase))
+                    || MediaFormats.Comics.Contains(extension);
+            });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return true;
+        }
+    }
+
+    private static void WalkForEmpty(string dir, List<Issue> issues, bool isRoot, ProtectionService? protection, Func<string, bool>? reserved, CancellationToken cancellationToken, bool videoLibrary = false)
     {
         if (protection?.IsScannerBlocked(dir, IssueType.OrphanedDebris) == true || (!isRoot && reserved?.Invoke(dir) == true))
         {
@@ -225,7 +443,7 @@ public sealed class OrphanCleanupScanner : IScanner
             return;
         }
 
-        var hasMedia = protection?.IsAnyDescendantProtected(dir, IssueType.OrphanedDebris, scanners: true) == true || SubtreeHasMediaOrCompanions(dir);
+        var hasMedia = protection?.IsAnyDescendantProtected(dir, IssueType.OrphanedDebris, scanners: true) == true || SubtreeHasMediaOrCompanions(dir, videoLibrary);
 
         // Never flag the library root itself, even when it's media-free — that's a config artefact,
         // not user debris. But do recurse so a Junk/ subdirectory under an empty root still gets found.
@@ -242,7 +460,8 @@ public sealed class OrphanCleanupScanner : IScanner
                 DetailsJson = JsonSerializer.Serialize(new
                 {
                     kind = KindEmptyFolder,
-                    bytesEstimate = size
+                    bytesEstimate = size,
+                    videoLibrary
                 }),
                 SuggestedFix = string.Format(
                     CultureInfo.InvariantCulture,
@@ -255,7 +474,7 @@ public sealed class OrphanCleanupScanner : IScanner
 
         foreach (var sub in subdirs)
         {
-            WalkForEmpty(sub, issues, isRoot: false, protection, reserved, cancellationToken);
+            WalkForEmpty(sub, issues, isRoot: false, protection, reserved, cancellationToken, videoLibrary);
         }
     }
 
@@ -271,13 +490,28 @@ public sealed class OrphanCleanupScanner : IScanner
         return name.EndsWith(TrickplaySuffix, StringComparison.OrdinalIgnoreCase);
     }
 
-    internal static bool SubtreeHasMediaOrCompanions(string dir)
+    /// <summary>
+    /// True when the subtree holds media or a subtitle paired with a video. In a Movies or Shows
+    /// library, Jellyfin artwork (<c>folder.jpg</c>, <c>backdrop.jpg</c>, <c>&lt;name&gt;-thumb.jpg</c>…) and
+    /// release-note <c>.txt</c> files are metadata: counting them as pictures and books kept every
+    /// folder whose video had been moved away (a <c>movie.nfo</c> plus artwork) from ever being
+    /// reported, which is how release folders holding only metadata built up beside the real ones.
+    /// </summary>
+    /// <param name="dir">Folder to inspect.</param>
+    /// <param name="videoLibrary">True for a Movies or Shows library.</param>
+    /// <returns>True when the folder must be kept.</returns>
+    internal static bool SubtreeHasMediaOrCompanions(string dir, bool videoLibrary = false)
     {
         try
         {
             foreach (var f in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
             {
                 var extension = Path.GetExtension(f);
+                if (videoLibrary && IsVideoLibraryMetadata(f))
+                {
+                    continue;
+                }
+
                 if (MediaExtensions.Contains(extension) || (SubtitleExtensions.Contains(extension) && HasCompanionVideo(f)))
                 {
                     return true;

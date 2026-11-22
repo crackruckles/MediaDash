@@ -29,6 +29,7 @@ public sealed class MediaDashDb
     private readonly RestoreOperationStore _restoreOps;
     private readonly ProtectionStore _protection;
     private readonly MediaMoveStore _moves;
+    private readonly MediaIdentityStore _identities;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MediaDashDb"/> class.
@@ -54,6 +55,7 @@ public sealed class MediaDashDb
         _restoreOps = new RestoreOperationStore(_connectionFactory);
         _protection = new ProtectionStore(_connectionFactory);
         _moves = new MediaMoveStore(_connectionFactory);
+        _identities = new MediaIdentityStore(_connectionFactory);
 
         SqliteConnection connection;
         try
@@ -154,6 +156,9 @@ public sealed class MediaDashDb
 
     /// <summary>Gets durable media-move operations and their claims.</summary>
     internal MediaMoveStore Moves => _moves;
+
+    // TVDb identities, master folders and the lookup cache (schema v16).
+    internal MediaIdentityStore Identities => _identities;
 
     private void InvalidateLegacyMoverApprovals()
     {

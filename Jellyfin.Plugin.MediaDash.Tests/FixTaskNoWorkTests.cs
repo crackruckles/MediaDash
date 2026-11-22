@@ -137,7 +137,7 @@ public sealed class FixTaskNoWorkTests : IDisposable
         }
 
         var task = new FixTask(_db.Issues, null!, null!, null!, null!, new LibraryGuard(library), _state,
-            new PluginConfigurationProvider(() => _config), null!, null!, NullLogger<FixTask>.Instance);
+            new PluginConfigurationProvider(() => _config), null!, null!, NullLogger<FixTask>.Instance, _db);
         // No executor: a blocked/unapproved row must never reach a file operation.
         return task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
     }

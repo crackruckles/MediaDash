@@ -287,8 +287,8 @@ public sealed class StatusQueryService
     }
 
     /// <summary>
-    /// Builds the lightweight live-progress payload. Zero DB queries, zero drive scan, zero SMART
-    /// probe, zero system-stats sampling. Safe to poll every tick during an active scan/fix without
+    /// Builds the lightweight live-progress payload. Zero DB queries, drive-capacity scans or SMART
+    /// probes. Resource sampling stays live during an active scan/fix without
     /// contending with scanner DB writes. See <see cref="ProgressSnapshot"/> for why this exists.
     /// </summary>
     /// <returns>The progress snapshot.</returns>
@@ -299,6 +299,7 @@ public sealed class StatusQueryService
         var fixSnapshot = _runState.ReadSnapshot(RunRole.Fix);
         return new ProgressSnapshot
         {
+            System = Plugin.Instance?.Configuration.ShowSystemPerformance != false ? SystemStats.Sample() : new SystemStats { SystemStatsAvailable = false },
             IsScanning = scanTask is not null && scanTask.State != TaskState.Idle,
             ScanProgress = scanTask?.CurrentProgress,
             IsFixing = fixTask is not null && fixTask.State != TaskState.Idle,

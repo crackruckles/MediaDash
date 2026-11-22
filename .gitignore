@@ -30,3 +30,5 @@ tools/repair-test/torture/
 # Local scratch: sqlite experiments + per-run .NET test output. Both regenerated locally.
 _sqlite-scratch/
 **/TestResults/
+_stage_*.tar
+mediadash_*-beta.zip

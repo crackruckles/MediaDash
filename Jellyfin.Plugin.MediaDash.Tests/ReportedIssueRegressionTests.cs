@@ -312,6 +312,132 @@ public sealed class ReportedIssueRegressionTests : IDisposable
         Assert.Equal("owned explanation", progress.FixPauseReason);
         Assert.False(progress.IsScanning);
         Assert.False(progress.IsFixing);
+        Assert.True(JsonSerializer.SerializeToElement(progress).TryGetProperty("System", out var system));
+        Assert.True(system.GetProperty("RamUsedBytes").GetInt64() > 0);
+    }
+
+    [Fact]
+    public void HiddenPerformancePanelDoesNotSampleResourcesOnProgressPolls()
+    {
+        _config.ShowSystemPerformance = false;
+        var tasks = Proxy<ITaskManager>((method, _) => method.Name == "get_ScheduledTasks" ? Array.Empty<IScheduledTaskWorker>() : throw new InvalidOperationException(method.Name));
+        var service = new StatusQueryService(null!, null!, null!, null!, null!, tasks, new RunState());
+        var system = Assert.IsType<SystemStats>(service.BuildProgress().System);
+        Assert.False(system.SystemStatsAvailable);
+        Assert.Equal(0, system.RamUsedBytes);
+    }
+
+    [Fact]
+    public void ScanDiagnosticsCaptureStageRecordsEvenWhenInformationLoggingIsDisabled()
+    {
+        _config.DiagnosticsEnabled = true;
+        using (var capture = RunDiagnosticsRecording.Start(_db, NullLogger.Instance, true)!)
+        {
+            using var stage = RunDiagnostics.Start(NullLogger.Instance, "scan", "TestScanner");
+            Assert.NotNull(stage);
+            stage.Finish("Completed", 5, 2, null, null);
+            capture.Complete("Completed");
+        }
+
+        var records = RunDiagnosticsRecording.Read(_db)!.Value.GetProperty("Records");
+        Assert.Equal(2, records.GetArrayLength());
+        Assert.Equal("start", records[0].GetProperty("Phase").GetString());
+        Assert.Equal(2, records[1].GetProperty("Findings").GetInt32());
+        Assert.True(records[1].TryGetProperty("JellyfinCpuPeakPercent", out _));
+        Assert.True(records[1].TryGetProperty("ActiveOperationNames", out _));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FixDiagnosticsPersistOnlyWhenEnabledWithoutReplacingTheScan(bool enabled)
+    {
+        _config.DiagnosticsEnabled = enabled;
+        _db.SetState("LastScanDiagnostics", "{\"Outcome\":\"Previous scan\"}");
+        var library = Library();
+        var orphanId = Guid.NewGuid();
+        var path = Path.Combine(Metadata, "library", orphanId.ToString("N")[..2], orphanId.ToString("N"));
+        Directory.CreateDirectory(path);
+        Queue(IssueType.OrphanedDebris, path, orphanId, "{\"kind\":\"OrphanMetadata\"}");
+        await RunMetadataTask(library, new OrphanCleanupFixer(new LibraryGuard(library), null!, NullLogger<OrphanCleanupFixer>.Instance));
+        Assert.Equal(1, Plugin.LastFixRun!.Attempted);
+        Assert.Equal("{\"Outcome\":\"Previous scan\"}", _db.GetState("LastScanDiagnostics"));
+        var stored = _db.GetState("LastFixDiagnostics");
+        if (!enabled)
+        {
+            Assert.Null(stored);
+            return;
+        }
+
+        var fix = JsonSerializer.Deserialize<JsonElement>(Assert.IsType<string>(stored));
+        Assert.Equal("Completed", fix.GetProperty("Outcome").GetString());
+        var finished = fix.GetProperty("Records").EnumerateArray().Single(record =>
+            record.GetProperty("Component").GetString() == "OrphanCleanupFixer" && record.GetProperty("Phase").GetString() == "finish");
+        Assert.Equal("fix", finished.GetProperty("Kind").GetString());
+        Assert.Equal(1, finished.GetProperty("FixTargets").GetInt32());
+        Assert.True(finished.TryGetProperty("HostOrContainerCpuPeakPercent", out _));
+    }
+
+    [Fact]
+    public async Task CancelledFixRunRetainsItsDiagnostics()
+    {
+        _config.DiagnosticsEnabled = true;
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => RunMetadataTask(Library(), null!, cancellation.Token));
+        var fix = JsonSerializer.Deserialize<JsonElement>(_db.GetState("LastFixDiagnostics")!);
+        Assert.Equal("Cancelled", fix.GetProperty("Outcome").GetString());
+        Assert.NotEqual(JsonValueKind.Null, fix.GetProperty("FinishedAtUtc").ValueKind);
+    }
+
+    [Fact]
+    public void ScanDiagnosticsEndpointRejectsDisabledModeAndReturnsTheStoredScanWhenEnabled()
+    {
+        var controller = (MediaDashController)RuntimeHelpers.GetUninitializedObject(typeof(MediaDashController));
+        typeof(MediaDashController).GetField("_db", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(controller, _db);
+        Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(controller.GetLastScanDiagnostics());
+        _config.DiagnosticsEnabled = true;
+        using (var capture = RunDiagnosticsRecording.Start(_db, NullLogger.Instance, true)!)
+        {
+            capture.Complete("Completed");
+        }
+
+        _db.SetState("LastFixDiagnostics", "{\"Outcome\":\"Cancelled\"}");
+
+        var result = Assert.IsType<Microsoft.AspNetCore.Mvc.OkObjectResult>(controller.GetLastScanDiagnostics());
+        Assert.Equal("Completed", JsonSerializer.SerializeToElement(result.Value).GetProperty("Scan").GetProperty("Outcome").GetString());
+        Assert.Equal("Cancelled", JsonSerializer.SerializeToElement(result.Value).GetProperty("Fix").GetProperty("Outcome").GetString());
+        _config.DiagnosticsEnabled = false;
+        Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(controller.GetLastScanDiagnostics());
+    }
+
+    [Fact]
+    public void ScannerDiagnosticsRetainActualCombinedThroughputPeaksInsteadOfAverages()
+    {
+        _config.DiagnosticsEnabled = true;
+        var time = new RunDiagnosticsTests.TestClock();
+        using (var capture = RunDiagnosticsRecording.Start(_db, NullLogger.Instance, true)!)
+        using (var stage = new RunDiagnostics(NullLogger.Instance, "scan", "TestScanner", time, capture))
+        {
+            stage.RecordSample(new RunDiagnostics.Sample(time.GetTimestamp(), (10, 20), (100, 200)), new SystemStats());
+            time.Advance(TimeSpan.FromSeconds(2));
+            stage.RecordSample(new RunDiagnostics.Sample(time.GetTimestamp(), (70, 40), (120, 300)),
+                new SystemStats { SystemCpuPercent = 60, SystemRamUsedBytes = 900, GpuPercent = 30 });
+            time.Advance(TimeSpan.FromSeconds(2));
+            stage.RecordSample(new RunDiagnostics.Sample(time.GetTimestamp(), (80, 50), (200, 320)),
+                new SystemStats { SystemCpuPercent = 20, SystemRamUsedBytes = 100, GpuPercent = 5 });
+            time.Advance(TimeSpan.FromSeconds(2));
+            stage.RecordSample(new RunDiagnostics.Sample(time.GetTimestamp(), (1, 1000000), (1, 1000000)), new SystemStats());
+            stage.Finish("Completed", 10, 7, null, null);
+            capture.Complete("Completed");
+        }
+
+        var record = RunDiagnosticsRecording.Read(_db)!.Value.GetProperty("Records")[0];
+        Assert.Equal(40, record.GetProperty("HostDiskPeakBytesPerSecond").GetDouble());
+        Assert.Equal(60, record.GetProperty("NetworkInterfacePeakBytesPerSecond").GetDouble());
+        Assert.Equal(60, record.GetProperty("HostOrContainerCpuPeakPercent").GetDouble());
+        Assert.Equal(900, record.GetProperty("HostOrContainerMemoryPeakBytes").GetInt64());
+        Assert.Equal(30, record.GetProperty("HostGpuPeakPercent").GetDouble());
     }
 
     private ILibraryManager Library() => Proxy<ILibraryManager>((method, args) => method.Name switch
@@ -330,15 +456,15 @@ public sealed class ReportedIssueRegressionTests : IDisposable
     private MediaGrouperFixer Grouper(ILibraryManager library) => new(new MediaMoveService(_db, new LibraryGuard(library),
         new ProtectionService(_db.Protection, library), library, NullLogger<MediaMoveService>.Instance));
 
-    private async Task RunMetadataTask(ILibraryManager library, IFixer fixer)
+    private async Task RunMetadataTask(ILibraryManager library, IFixer fixer, CancellationToken cancellationToken = default)
     {
         var state = new RunState();
         var task = new FixTask(_db.Issues, null!, null!, null!,
             new AnalyticsReporter(_db.History, _db.Issues, null!, NullLogger<AnalyticsReporter>.Instance),
             new LibraryGuard(library, Proxy<IServerApplicationPaths>((method, _) => method.Name == "get_InternalMetadataPath" ? Metadata : null)), state, new PluginConfigurationProvider(() => _config), Executor(library, fixer),
-            new FixResultRecorder(_db, NullLogger<FixResultRecorder>.Instance), NullLogger<FixTask>.Instance);
+            new FixResultRecorder(_db, NullLogger<FixResultRecorder>.Instance), NullLogger<FixTask>.Instance, _db);
         state.ArmBypassIdleCheck(RunRole.Fix);
-        await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
+        await task.ExecuteAsync(new Progress<double>(), cancellationToken);
     }
 
     private FixExecutor Executor(ILibraryManager library, IFixer fixer) => new(_db.Issues, [fixer], new PluginConfigurationProvider(() => _config),

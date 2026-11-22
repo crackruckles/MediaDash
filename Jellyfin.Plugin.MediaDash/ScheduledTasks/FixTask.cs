@@ -60,6 +60,7 @@ public sealed class FixTask : IScheduledTask
     internal static readonly TimeSpan FixInterval = TimeSpan.FromMinutes(30);
 
     private readonly IssueStore _issues;
+    private readonly MediaDashDb _db;
     private readonly RecycleBin _recycleBin;
     private readonly ISessionManager _sessionManager;
     private readonly ITaskManager _taskManager;
@@ -86,6 +87,7 @@ public sealed class FixTask : IScheduledTask
     /// <param name="executor">Per-operation executor (04-C). Owns consent recheck, fixer dispatch, sharing-retry and exception translation.</param>
     /// <param name="recorder">Transactional history + status recorder (04-B). Executor's output feeds directly into <see cref="FixResultRecorder.Record"/>.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="db">Plugin database for retained run diagnostics.</param>
     /// <param name="libraryRefresher">Queues one full refresh per affected library after the run.</param>
     public FixTask(
         IssueStore issues,
@@ -99,9 +101,11 @@ public sealed class FixTask : IScheduledTask
         FixExecutor executor,
         FixResultRecorder recorder,
         ILogger<FixTask> logger,
+        MediaDashDb db,
         FixLibraryRefresher? libraryRefresher = null)
     {
         _issues = issues;
+        _db = db;
         _recycleBin = recycleBin;
         _sessionManager = sessionManager;
         _taskManager = taskManager;
@@ -160,21 +164,25 @@ public sealed class FixTask : IScheduledTask
             return;
         }
 
-        using var libraryScanCancellation = new LibraryScanCancellation(isManualRun ? null : _taskManager, cancellationToken);
+        using var fixRecording = RunDiagnosticsRecording.Start(_db, _logger, config.DiagnosticsEnabled, "fix");
+        using var diagnostics = RunDiagnostics.Start(_logger, "fix", "FixTask");
+        // Jellyfin's library scan waits for the run: one that starts meanwhile is paused and run once
+        // afterwards, so it never indexes a half-moved library. An explicit run also pauses one already
+        // running; a scheduled run never starts during one (checked above).
+        using var libraryScanHold = JellyfinLibraryScanHold.Acquire(_taskManager, _logger, cancelRunning: isManualRun);
+        using var libraryScanCancellation = new LibraryScanCancellation(null, cancellationToken);
         var touchedLibraries = new FixLibraryRefresher.Targets();
+        var outcome = "Failed";
+        string? failure = null;
         try
         {
-            libraryScanCancellation.Token.ThrowIfCancellationRequested();
-            await ExecuteFixBodyAsync(config, isManualRun, progress, touchedLibraries, cancellationToken, libraryScanCancellation.Token).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (libraryScanCancellation.Token.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
-        {
-            _logger.LogInformation("Stopped automatic fixes: Jellyfin's library scan started. Remaining issues stay queued.");
-            progress.Report(100);
-        }
-        finally
-        {
             try
+            {
+                libraryScanCancellation.Token.ThrowIfCancellationRequested();
+                await ExecuteFixBodyAsync(config, isManualRun, diagnostics?.Observe(progress) ?? progress, touchedLibraries, cancellationToken, libraryScanCancellation.Token).ConfigureAwait(false);
+                outcome = "Completed";
+            }
+            finally
             {
                 if (_libraryRefresher is not null)
                 {
@@ -182,6 +190,31 @@ public sealed class FixTask : IScheduledTask
                     // membership independently; native scan coordination still applies.
                     await _libraryRefresher.QueueAsync(touchedLibraries, CancellationToken.None).ConfigureAwait(false);
                 }
+            }
+        }
+        catch (OperationCanceledException) when (libraryScanCancellation.Token.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            outcome = "Cancelled";
+            _logger.LogInformation("Stopped automatic fixes: Jellyfin's library scan started. Remaining issues stay queued.");
+            progress.Report(100);
+        }
+        catch (OperationCanceledException)
+        {
+            outcome = "Cancelled";
+            throw;
+        }
+        catch (Exception error)
+        {
+            outcome = "Failed";
+            failure = error.Message;
+            throw;
+        }
+        finally
+        {
+            try
+            {
+                diagnostics?.Finish(outcome, null, null, null, null);
+                fixRecording?.Complete(outcome, failure);
             }
             finally
             {
@@ -365,10 +398,8 @@ public sealed class FixTask : IScheduledTask
         // An issue reaches Queued status either because the auto-queue step above put it there (Automatic mode)
         // or because the user explicitly approved it in the UI. Approval does not bypass the current
         // type mode, fixer-disable list or library scope; report those refusals when no work can run.
-        // Primary sort: fixer rank (see FixerRankOrder for the D2 hard constraints — Suspicious /
-        // Playability before content rewrites, Duplicate before Track/Transcode so we don't rebuild
-        // a file about to be deleted, MissingSubtitle before Transcode so subs land pre-encode,
-        // TrickplayOptimize last because BIF must match the final video).
+        // FixPlanBuilder runs repairs before path-changing work and folder moves last.
+        // User rank applies inside those phases; duplicates and subtitle downloads precede encodes.
         // Tiebreaker: smallest files first so early re-encodes free disk space for the bigger ones
         // behind them. Missing files sort to the front (size 0) so they fail fast.
         var allQueued = _issues.GetIssues(status: IssueStatus.Queued).ToList();
@@ -401,8 +432,6 @@ public sealed class FixTask : IScheduledTask
                 withinEnabledLibrary: true,
                 autoQueueRestoredBlocked: false,
                 hasApprovedCompanionOnPath: false).Allowed)
-            .OrderBy(i => FixerRank(i.Type))
-            .ThenBy(GetFileSizeOrZero)
             .ToList();
         // scopedOut: type is authorized but library is out of scope — the reason surfaces
         // separately in the log so users can distinguish "type off" from "library disabled".
@@ -1084,7 +1113,7 @@ public sealed class FixTask : IScheduledTask
     private static int FixerRank(Data.IssueType type)
     {
         // User override: if config.FixerOrder is set (via the Overview "Fix order" dialog), the
-        // user's ordering wins. Unlisted types fall to the end via DefaultFixerRank so a new fixer
+        // user's ordering wins within the planner's execution phases. Unlisted types fall to the end via DefaultFixerRank so a new fixer
         // added in a future version doesn't disappear from the queue just because the user's
         // saved order predates it.
         var custom = Plugin.Instance?.Configuration?.FixerOrder;
@@ -1110,21 +1139,21 @@ public sealed class FixTask : IScheduledTask
         Data.IssueType.Playability => 1,
         Data.IssueType.Duplicate => 2,
         Data.IssueType.OrphanedDebris => 3,
-        Data.IssueType.Misplaced => 4,
-        Data.IssueType.Ungrouped => 5,
-        Data.IssueType.MissingSubtitles => 6,
-        Data.IssueType.SubtitleLanguage => 7,
-        Data.IssueType.AudioLanguage => 8,
-        Data.IssueType.Quality => 9,
-        Data.IssueType.HeavyTranscode => 10,
-        Data.IssueType.FailedTranscode => 11,
-        Data.IssueType.SubtitleFonts => 12,
-        Data.IssueType.EmbeddedCoverArt => 13,
-        Data.IssueType.CorruptNfo => 14,
-        Data.IssueType.CorruptArtwork => 15,
-        Data.IssueType.Stale => 16,
-        Data.IssueType.LargeTrickplay => 17,
-        Data.IssueType.FormatCompatibility => 18,
+        Data.IssueType.MissingSubtitles => 4,
+        Data.IssueType.SubtitleLanguage => 5,
+        Data.IssueType.AudioLanguage => 6,
+        Data.IssueType.SubtitleFonts => 7,
+        Data.IssueType.EmbeddedCoverArt => 8,
+        Data.IssueType.CorruptNfo => 9,
+        Data.IssueType.CorruptArtwork => 10,
+        Data.IssueType.Stale => 11,
+        Data.IssueType.LargeTrickplay => 12,
+        Data.IssueType.Quality => 13,
+        Data.IssueType.HeavyTranscode => 14,
+        Data.IssueType.FailedTranscode => 15,
+        Data.IssueType.FormatCompatibility => 16,
+        Data.IssueType.Misplaced => 17,
+        Data.IssueType.Ungrouped => 18,
         _ => int.MaxValue
     };
 

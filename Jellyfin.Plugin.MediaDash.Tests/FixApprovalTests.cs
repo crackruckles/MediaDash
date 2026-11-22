@@ -326,7 +326,7 @@ public sealed class FixApprovalTests : IDisposable
         var task = new FixTask(_db.Issues, null!, null!, null!,
             new AnalyticsReporter(_db.History, _db.Issues, null!, NullLogger<AnalyticsReporter>.Instance),
             new LibraryGuard(library), _state, provider, executor,
-            new FixResultRecorder(_db, NullLogger<FixResultRecorder>.Instance), NullLogger<FixTask>.Instance);
+            new FixResultRecorder(_db, NullLogger<FixResultRecorder>.Instance), NullLogger<FixTask>.Instance, _db);
         _state.ArmBypassIdleCheck(RunRole.Fix);
         await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
         Assert.Equal(1, fixer.Calls);

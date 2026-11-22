@@ -63,9 +63,11 @@ public sealed class NativeLibraryRefresher : IDisposable
     {
         using var nativeScan = new LibraryScanCancellation(_tasks, cancellationToken);
         var token = nativeScan.Token;
-        await _gate.WaitAsync(token).ConfigureAwait(false);
+        var acquired = false;
         try
         {
+            await _gate.WaitAsync(token).ConfigureAwait(false);
+            acquired = true;
             var roots = _library.GetVirtualFolders().SelectMany(folder => folder.Locations ?? [])
                 .Where(Path.IsPathFullyQualified).Select(Path.GetFullPath).Distinct(Paths).ToArray();
             var paths = changedPaths.Select(Absolute).Distinct(Paths).ToArray();
@@ -220,9 +222,16 @@ public sealed class NativeLibraryRefresher : IDisposable
                 indexed.Add(folder.Path);
             }
         }
+        catch (OperationCanceledException error) when (!cancellationToken.IsCancellationRequested && token.IsCancellationRequested)
+        {
+            throw new LibraryScanInProgressException(error);
+        }
         finally
         {
-            _gate.Release();
+            if (acquired)
+            {
+                _gate.Release();
+            }
         }
     }
 
@@ -257,6 +266,14 @@ public sealed class NativeLibraryRefresher : IDisposable
         if (item is Folder folder)
         {
             await folder.ValidateChildren(new Progress<double>(), options, recursive: true, allowRemoveRoot: false, cancellationToken: token).ConfigureAwait(false);
+        }
+    }
+
+    internal sealed class LibraryScanInProgressException : OperationCanceledException
+    {
+        internal LibraryScanInProgressException(OperationCanceledException inner)
+            : base("Jellyfin's library scan is handling native indexing.", inner)
+        {
         }
     }
 

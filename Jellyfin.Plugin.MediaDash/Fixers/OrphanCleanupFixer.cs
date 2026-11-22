@@ -71,8 +71,25 @@ public sealed class OrphanCleanupFixer : IFixer
                 return Task.FromResult(RemoveOrphanTrickplay(issue));
             case OrphanCleanupScanner.KindOrphanMetadata:
                 return Task.FromResult(RemoveOrphanMetadata(issue, cancellationToken));
+            case OrphanCleanupScanner.KindGroupedLeftover:
+                return Task.FromResult(RemoveGroupedLeftover(issue, cancellationToken));
             default:
                 return Task.FromResult(FixResult.Refused(FixReason.UnsupportedFormat, "Refused: unknown orphan kind \"" + kind + "\"."));
+        }
+    }
+
+    // Set by the scanner for folders in a Movies or Shows library; re-verified with the same rule.
+    internal static bool ReadVideoLibrary(string detailsJson)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(detailsJson) ? "{}" : detailsJson);
+            return doc.RootElement.ValueKind == JsonValueKind.Object
+                && doc.RootElement.TryGetProperty("videoLibrary", out var value) && value.ValueKind == JsonValueKind.True;
+        }
+        catch (JsonException)
+        {
+            return false;
         }
     }
 
@@ -112,12 +129,69 @@ public sealed class OrphanCleanupFixer : IFixer
             return FixResult.Fail(FixReason.SourceMissing, "The folder no longer exists: " + issue.Path);
         }
 
-        if (OrphanCleanupScanner.IsCompanionFolder(issue.Path) || OrphanCleanupScanner.SubtreeHasMediaOrCompanions(issue.Path))
+        if (OrphanCleanupScanner.IsCompanionFolder(issue.Path) || OrphanCleanupScanner.SubtreeHasMediaOrCompanions(issue.Path, ReadVideoLibrary(issue.DetailsJson)))
         {
             return FixResult.NoChange(FixReason.NothingToRemove, "The folder could not be confirmed free of media or companion files. It was left in place.");
         }
 
         return DisposeOfPath(issue, isDirectory: true, verb: "empty folder");
+    }
+
+    private FixResult RemoveGroupedLeftover(Issue issue, CancellationToken cancellationToken)
+    {
+        if (!_libraryGuard.IsInsideLibrary(issue.Path))
+        {
+            return FixResult.Refused(FixReason.OutsideLibrary, "Refused: folder is not inside a configured library — " + issue.Path);
+        }
+
+        if (!Directory.Exists(issue.Path))
+        {
+            return FixResult.Fail(FixReason.SourceMissing, "The folder no longer exists: " + issue.Path);
+        }
+
+        string? master = null;
+        var untracked = false;
+        int? tvdbId = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(issue.DetailsJson);
+            if (doc.RootElement.TryGetProperty("master", out var value) && value.ValueKind == JsonValueKind.String)
+            {
+                master = value.GetString();
+            }
+
+            untracked = doc.RootElement.TryGetProperty("untracked", out var inferred) && inferred.ValueKind == JsonValueKind.True;
+            if (doc.RootElement.TryGetProperty("tvdbId", out var id) && id.ValueKind == JsonValueKind.Number && id.TryGetInt32(out var parsedId))
+            {
+                tvdbId = parsedId;
+            }
+        }
+        catch (JsonException)
+        {
+        }
+
+        if (string.IsNullOrWhiteSpace(master) || !Directory.Exists(master) || !_libraryGuard.IsInsideLibrary(master))
+        {
+            return FixResult.Refused(FixReason.SourceChanged, "Refused: the series' master folder is missing, so this folder may still be the only copy. Scan again.");
+        }
+
+        if (OrphanCleanupScanner.HasPlayableMedia(issue.Path))
+        {
+            return FixResult.NoChange(FixReason.NothingToRemove, "The folder holds media again. It was left in place.");
+        }
+
+        if (untracked && Metadata.MediaIdentityService.ReadSeriesNfoTvdbId(issue.Path) is int currentId && currentId != tvdbId)
+        {
+            return FixResult.Refused(FixReason.SourceChanged, "The folder's series identity changed after detection. Scan again; the folder was left in place.");
+        }
+
+        if (untracked && !OrphanCleanupScanner.HasOnlySeriesMetadata(issue.Path, master, cancellationToken))
+        {
+            return FixResult.NoChange(FixReason.NothingToRemove, "This folder contains files other than recognised series or episode artwork and NFO metadata. Review them in Files; the folder was left in place.");
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return DisposeOfPath(issue, isDirectory: true, verb: "leftover folder", recycleOnly: untracked, cancellationToken: cancellationToken);
     }
 
     private FixResult RemoveOrphanSubtitle(Issue issue)
@@ -177,10 +251,10 @@ public sealed class OrphanCleanupFixer : IFixer
             return FixResult.Deferred(FixReason.SourceChanged, "Could not verify the metadata folder identity. It was left in place.");
         }
 
-        return DisposeOfPath(issue, isDirectory: true, verb: "orphan metadata folder", identity, cancellationToken);
+        return DisposeOfPath(issue, isDirectory: true, verb: "orphan metadata folder", metadataIdentity: identity, cancellationToken: cancellationToken);
     }
 
-    private FixResult DisposeOfPath(Issue issue, bool isDirectory, string verb, PhysicalFileIdentity.Value? metadataIdentity = null, CancellationToken cancellationToken = default)
+    private FixResult DisposeOfPath(Issue issue, bool isDirectory, string verb, PhysicalFileIdentity.Value? metadataIdentity = null, bool recycleOnly = false, CancellationToken cancellationToken = default)
     {
         var config = Plugin.Instance!.Configuration;
         var previewOnly = config.DryRun;
@@ -231,7 +305,8 @@ public sealed class OrphanCleanupFixer : IFixer
             }
         }
 
-        var disposal = config.OrphanCleanupDisposal;
+        // Inferred leftovers can contain different artwork; retain a recoverable copy.
+        var disposal = recycleOnly ? DisposalMethod.RecycleBin : config.OrphanCleanupDisposal;
         var fileName = Path.GetFileName(issue.Path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         var descriptor = string.Format(
             CultureInfo.InvariantCulture,

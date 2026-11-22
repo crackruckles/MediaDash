@@ -61,6 +61,12 @@ public sealed class IssueDto
     /// <summary>Gets or sets a value indicating whether a fresh scan is required before this finding can be approved.</summary>
     public bool FixRequiresRescan { get; set; }
 
+    /// <summary>Gets or sets a value indicating whether the move is blocked only by an earlier move left needing review, which "Move anyway" resolves.</summary>
+    public bool CanMoveAnyway { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether the move waits only on an unknown season, which the user can enter.</summary>
+    public bool NeedsSeason { get; set; }
+
     /// <summary>
     /// Gets or sets when the issue was detected (UTC).
     /// </summary>

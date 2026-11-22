@@ -104,26 +104,28 @@
         function renderMoves() {
             var element = root.querySelector('#mdMoveOperations');
             if (!element) return;
-            var html = moveLoadFailed ? '<p class="fieldDescription">' + esc(strings.moveLoadFailed || 'Move recovery records could not be loaded. Refresh this tab to try again.') + '</p>' : '';
-            if (movesCache.length) {
-                html += '<div class="mdCard mdFade"><div class="mdSecHead">' + esc(strings.recordedMoves || 'Recorded moves') + '</div><p class="fieldDescription">' +
+            var html = '';
+            if (movesCache.length || moveLoadFailed) {
+                html += '<details class="mdCard mdFade mdRecordedMoves"><summary class="mdSecHead">' + esc(strings.recordedMoves || 'Recorded moves') + '</summary><div class="mdRecordedMovesBody">' +
+                    (moveLoadFailed ? '<p class="fieldDescription">' + esc(strings.moveLoadFailed || 'Move recovery records could not be loaded. Refresh this tab to try again.') + '</p>' : '') + '<p class="fieldDescription">' +
                     esc(strings.moveRecoveryHelp || 'These records remain available if a move stops before History is saved. Undo restores the complete recorded item only when its files are unchanged and the original locations are free. Dry run previews Undo without changing files.') + '</p>';
                 movesCache.forEach(function (move) {
                     var label = move.State === 'NeedsReview' ? (strings.moveNeedsReview || 'Needs review')
                         : move.State === 'Undone' ? (strings.moveUndone || 'Undone')
                         : move.State === 'Completed' ? (move.IsUndo ? (strings.moveUndoCompleted || 'Undo completed') : (strings.moveCompleted || 'Completed'))
                         : (strings.moveInProgress || 'Move in progress');
-                    html += '<div class="mdMoveRow"><p><strong>' + esc(label) + '</strong></p>' +
+                    var kind = move.State === 'Completed' || move.State === 'Undone' ? 'succeeded' : move.State === 'NeedsReview' ? 'failed' : '';
+                    html += '<div class="mdCard mdMoveRow mdHistRow" data-kind="' + kind + '"><div class="mdHistTitleRow"><span class="mdHistAction">' + esc(label) + '</span></div>' +
                         (move.Detail ? '<p class="fieldDescription">' + esc(move.Detail) + '</p>' : '') +
                         (move.UserStatePending ? '<p class="fieldDescription">' + esc(strings.moveUserStatePending || "Run Jellyfin's library scan to finish indexing and restore watched state.") + '</p>' : '') +
-                        '<details><summary>' + esc(strings.moveRecordedPaths || 'Recorded paths') + '</summary>' +
+                        '<details class="mdMovePaths"><summary class="mdHistPath">' + esc(strings.moveRecordedPaths || 'Recorded paths') + '</summary>' +
                         '<div class="mdHistPath">' + esc(strings.moveOriginal || 'Original') + ':<br>' + (move.Sources || []).map(esc).join('<br>') + '</div>' +
                         '<div class="mdHistPath">' + esc(strings.moveDestination || 'Destination') + ':<br>' + (move.Destinations || []).map(esc).join('<br>') + '</div>' +
                         ((move.RecoveryPaths || []).length ? '<div class="mdHistPath">' + esc(strings.moveRecovery || 'Recovery locations — preserve these while reviewing') + ':<br>' + move.RecoveryPaths.map(esc).join('<br>') + '</div>' : '') + '</details>' +
                         '<div class="fieldDescription mdRowMsg"></div>' +
                         (move.CanUndo && move.State === 'Completed' ? moveUndoButton(move.Id) : '') + '</div>';
                 });
-                html += '</div>';
+                html += '</div></details>';
             }
             element.innerHTML = html;
             bindMoveUndo(element);
@@ -242,14 +244,8 @@
                 } else if (h.MoveOperationId && h.MoveState && h.MoveState !== 'Completed' && h.MoveState !== 'Undone') {
                     restoreAction = '<span class="mdHistNoOp">' + esc(strings.moveReviewRequired || 'Review the recorded move before continuing') + '</span>';
                 } else if (kind === 'failed') {
-                    // UI-10: the previous Retry button carried the mdRestore class and routed
-                    // through tryRestore / History/{id}/Restore, which only succeeds for rows that
-                    // have a recycled original — nearly none for failed fixes, since the fix never
-                    // ran. The failed issue stays Queued with LastAttemptSuccess=false and is
-                    // retried on the next scheduled fix cycle (or by clicking "Run fixes now").
-                    // Point users at that flow instead of a button that reliably reports "not in
-                    // the recycle bin".
-                    restoreAction = '<span class="mdHistNoOp" title="This issue is still queued on the Issues tab and will retry on the next fix run. Dismiss it there to stop retrying.">will retry</span>';
+                    // History records the attempt, not the issue's current queue status.
+                    restoreAction = '<span class="mdHistNoOp" title="This attempt did not complete successfully. Check Issues for the current status.">not applied</span>';
                 } else if (h.CanRestore) {
                     restoreAction = '<button is="emby-button" type="button" class="raised mdRestore" data-id="' + h.Id + '"><span class="material-icons">restore</span><span>' + esc(strings.restore) + '</span></button>';
                 } else {

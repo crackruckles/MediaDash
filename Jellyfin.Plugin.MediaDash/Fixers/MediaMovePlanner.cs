@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using Jellyfin.Data.Enums;
 using Jellyfin.Plugin.MediaDash.Configuration;
 using Jellyfin.Plugin.MediaDash.Data;
+using Jellyfin.Plugin.MediaDash.Metadata;
 using Jellyfin.Plugin.MediaDash.Scanners;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Audio;
@@ -40,14 +41,23 @@ public sealed partial class MediaMovePlanner
     private readonly ProtectionService _protection;
     private readonly ILibraryManager _library;
     private readonly MediaMoveStore _moves;
+    private readonly MediaIdentityService? _identities;
+    private readonly HistoryStore? _history;
+    private readonly MediaDashDb? _state;
 
     /// <summary>Initializes a new instance of the <see cref="MediaMovePlanner"/> class.</summary>
     /// <param name="guard">Current library scope.</param>
     /// <param name="protection">Current protection rules.</param>
     /// <param name="library">Current item identities and containers.</param>
     /// <param name="moves">Durable path reservations.</param>
-    public MediaMovePlanner(LibraryGuard guard, ProtectionService protection, ILibraryManager library, MediaMoveStore moves)
+    /// <param name="identities">TVDb identities that pick one master folder per series.</param>
+    /// <param name="history">Applied moves, used to recover episode names earlier grouping removed.</param>
+    /// <param name="state">Season numbers a user entered for episodes Jellyfin could not place.</param>
+    public MediaMovePlanner(LibraryGuard guard, ProtectionService protection, ILibraryManager library, MediaMoveStore moves, MediaIdentityService? identities = null, HistoryStore? history = null, MediaDashDb? state = null)
     {
+        _identities = identities;
+        _history = history;
+        _state = state;
         _guard = guard;
         _protection = protection;
         _library = library;
@@ -67,9 +77,63 @@ public sealed partial class MediaMovePlanner
     };
 
     internal Task<IReadOnlyList<Issue>> ScanAsync(IssueType type, IReadOnlyList<BaseItem> items, PluginConfiguration config, IProgress<double> progress, CancellationToken cancellationToken)
+        => PlanAsync(type, items, config, progress, null, cancellationToken);
+
+    /// <summary>Plans one item against the whole library, e.g. after the user entered its season.</summary>
+    /// <param name="type">Ungrouped or Misplaced.</param>
+    /// <param name="items">The library catalog (<see cref="CatalogQuery"/>).</param>
+    /// <param name="config">Current settings.</param>
+    /// <param name="itemId">The item to plan.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>Its finding, or null when it needs no move.</returns>
+    internal async Task<Issue?> PlanItemAsync(IssueType type, IReadOnlyList<BaseItem> items, PluginConfiguration config, Guid itemId, CancellationToken cancellationToken)
+    {
+        var planned = await PlanAsync(type, items, config, new Progress<double>(), itemId, cancellationToken).ConfigureAwait(false);
+        return planned.Count > 0 ? planned[0] : null;
+    }
+
+    /// <summary>The state key holding a season number the user entered for an episode.</summary>
+    /// <param name="itemId">The episode.</param>
+    /// <returns>The key.</returns>
+    internal static string SeasonOverrideKey(Guid itemId) => "SeasonOverride:" + itemId.ToString("N", System.Globalization.CultureInfo.InvariantCulture);
+
+    private async Task<IReadOnlyList<Issue>> PlanAsync(IssueType type, IReadOnlyList<BaseItem> items, PluginConfiguration config, IProgress<double> progress, Guid? only, CancellationToken cancellationToken)
+    {
+        IReadOnlyDictionary<Guid, string> masters = new Dictionary<Guid, string>();
+        if (type == IssueType.Ungrouped && _identities is not null)
+        {
+            try
+            {
+                masters = await _identities.ResolveSeriesMastersAsync(items, config, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Identity matching only refines grouping; name-based grouping still runs without it.
+                Api.Diagnostics.Record("MediaMove.Identity", "TVDb identity matching failed: " + ex.Message + ". Grouping used series names only.");
+            }
+        }
+
+        IReadOnlyList<(string Source, string Destination)> provenance = [];
+        if (_history is not null)
+        {
+            try
+            {
+                provenance = MoveProvenance.ParseGrouped(_history.GetGroupedMoveActions()).Concat(_moves.GetCompletedMoves()).ToArray();
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Api.Diagnostics.Record("MediaMove.Provenance", "Earlier move records could not be read: " + ex.Message + ". Episodes whose names were lost in an earlier move stay unidentified.");
+            }
+        }
+
+        return await ScanCore(type, items, config, masters, progress, provenance, only, cancellationToken).ConfigureAwait(false);
+    }
+
+    private Task<IReadOnlyList<Issue>> ScanCore(IssueType type, IReadOnlyList<BaseItem> items, PluginConfiguration config, IReadOnlyDictionary<Guid, string> masters, IProgress<double> progress, IReadOnlyList<(string Source, string Destination)>? provenance, Guid? only, CancellationToken cancellationToken)
     {
         var plans = new List<MediaMovePlan>();
         var plannedSources = new HashSet<string>(Paths);
+        var sourceInventories = new Dictionary<string, MediaMovePlan.Payload[]>(Paths);
         var processed = 0;
         void ReadingProgress(string path, long read, long length)
         {
@@ -78,7 +142,7 @@ public sealed partial class MediaMovePlanner
             progress.Report(items.Count == 0 ? 0 : (double)processed / items.Count * 90);
         }
 
-        foreach (var item in items.OrderBy(item => item.Path, StringComparer.Ordinal).ThenBy(item => item.Id))
+        foreach (var item in items.Where(item => only is null || item.Id == only).OrderBy(item => item.Path, StringComparer.Ordinal).ThenBy(item => item.Id))
         {
             cancellationToken.ThrowIfCancellationRequested();
             Plugin.CurrentActivity = item.Path;
@@ -86,7 +150,7 @@ public sealed partial class MediaMovePlanner
             progress.Report(items.Count == 0 ? 0 : (double)processed / items.Count * 90);
             try
             {
-                var plan = Build(type, item, items, config, plannedSources, ReadingProgress, cancellationToken);
+                var plan = Build(type, item, items, config, plannedSources, sourceInventories, masters, ReadingProgress, provenance ?? [], cancellationToken);
                 if (plan is not null && plannedSources.Add(plan.Entries[0].Source))
                 {
                     plans.Add(plan);
@@ -124,7 +188,7 @@ public sealed partial class MediaMovePlanner
         return Task.FromResult<IReadOnlyList<Issue>>(plans.Select(ToIssue).ToArray());
     }
 
-    private MediaMovePlan? Build(IssueType type, BaseItem item, IReadOnlyList<BaseItem> peers, PluginConfiguration config, HashSet<string> plannedSources, Action<string, long, long> readingProgress, CancellationToken cancellationToken)
+    private MediaMovePlan? Build(IssueType type, BaseItem item, IReadOnlyList<BaseItem> peers, PluginConfiguration config, HashSet<string> plannedSources, Dictionary<string, MediaMovePlan.Payload[]> sourceInventories, IReadOnlyDictionary<Guid, string> masters, Action<string, long, long> readingProgress, IReadOnlyList<(string Source, string Destination)> provenance, CancellationToken cancellationToken)
     {
         var directoryDisc = IsDirectoryDisc(item);
         if (string.IsNullOrWhiteSpace(item.Path) || (!File.Exists(item.Path) && !directoryDisc))
@@ -140,7 +204,9 @@ public sealed partial class MediaMovePlanner
             return null;
         }
 
-        var kind = MediaSorterScanner.ClassifyItem(item, path, config.MediaSortSource, !string.IsNullOrWhiteSpace(config.AnimeTargetPath), !string.IsNullOrWhiteSpace(config.ComicsTargetPath));
+        var formerNames = item is Episode ? MoveProvenance.FormerPaths(path, provenance) : [];
+        var kind = MediaSorterScanner.ClassifyItem(item, path, config.MediaSortSource, !string.IsNullOrWhiteSpace(config.AnimeTargetPath), !string.IsNullOrWhiteSpace(config.ComicsTargetPath), formerNames);
+        var filmIdentity = item is Episode filed && kind == MediaSorterScanner.MediaKind.Movie ? MediaSorterScanner.FilmIdentity(filed, path, formerNames) : null;
         var targetRoot = kind switch
         {
             MediaSorterScanner.MediaKind.Movie => config.MoviesTargetPath,
@@ -164,12 +230,17 @@ public sealed partial class MediaMovePlanner
             return null;
         }
 
-        if (type == IssueType.Ungrouped && kind is not (MediaSorterScanner.MediaKind.Movie or MediaSorterScanner.MediaKind.Tv))
+        if (type == IssueType.Ungrouped && kind is not (MediaSorterScanner.MediaKind.Movie or MediaSorterScanner.MediaKind.Tv or MediaSorterScanner.MediaKind.Anime))
         {
             return null;
         }
 
         var blockers = new List<string>();
+        var joiningExistingSeries = false;
+        var leaveStaleNfo = false;
+        MediaMovePlan.Entry? sourceCleanup = null;
+        Func<string, bool> isSeriesMetadata = _ => false;
+        var containerIdentity = ContainerIdentity(item);
         var source = path;
         var destination = string.Empty;
         var parent = Path.GetDirectoryName(path)!;
@@ -207,7 +278,7 @@ public sealed partial class MediaMovePlanner
                 CheckScopedContainer(source, item, peers, roots, blockers);
             }
         }
-        else if (item is Episode episode)
+        else if (item is Episode episode && kind != MediaSorterScanner.MediaKind.Movie)
         {
             var series = episode.SeriesId == Guid.Empty ? null : peers.OfType<Series>().FirstOrDefault(candidate => candidate.Id == episode.SeriesId)
                 ?? _library.GetItemById(episode.SeriesId) as Series;
@@ -219,48 +290,185 @@ public sealed partial class MediaMovePlanner
             }
 
             var seriesRoot = Path.Combine(targetRoot, RenameTemplate.Scrub(name));
-            if (atTarget && LibraryGuard.IsUnder(path, seriesRoot))
+
+            // Every folder of one TVDb series groups into its recorded master folder, whatever the
+            // folders are called. Year conflicts were already excluded when the masters were chosen.
+            if (type == IssueType.Ungrouped && episode.SeriesId != Guid.Empty && masters.TryGetValue(episode.SeriesId, out var master)
+                && LibraryGuard.IsUnder(master, targetRoot) && !Paths.Equals(Path.TrimEndingDirectorySeparator(master), Path.TrimEndingDirectorySeparator(targetRoot)))
+            {
+                seriesRoot = master;
+            }
+
+            if (type == IssueType.Ungrouped)
+            {
+                containerIdentity = "series-folder:" + MediaMovePlan.Hash(OperatingSystem.IsWindows() ? seriesRoot.ToUpperInvariant() : seriesRoot);
+            }
+
+            // A file whose own name carries no SxxEyy only had its number from a folder. Moved alone into
+            // a season folder it would lose it, so it is renamed after the nearest name that carries
+            // one: a current folder, or the release folder an earlier move recorded.
+            var season = episode.ParentIndexNumber;
+
+            // Jellyfin can hold an episode without a season number until it re-indexes it (a file
+            // in a release folder it read as the series); the filename's own SxxEyy says which.
+            // "Yellowstone 2018 S04E01 Half The Money…" was blocked as season unknown.
+            if (season is null && MoveProvenance.ParseEpisodeMarker(Path.GetFileNameWithoutExtension(path)) is { } named)
+            {
+                season = named.Season;
+            }
+
+            // A season the user entered for this episode ("Enter season number") when nothing else knew it.
+            if (season is null && _state?.GetState(SeasonOverrideKey(item.Id)) is { } entered
+                && int.TryParse(entered, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var enteredSeason))
+            {
+                season = enteredSeason;
+            }
+
+            string? episodeStem = null;
+            var needsIdentity = false;
+            if (type == IssueType.Ungrouped && !MoveProvenance.HasEpisodeMarker(Path.GetFileNameWithoutExtension(path)))
+            {
+                var recovered = MoveProvenance.FindEpisodeIdentity(path, roots, provenance);
+                if (recovered is { } found && (season is null || season == found.Season) && (episode.IndexNumber is null || episode.IndexNumber == found.Episode))
+                {
+                    season = found.Season;
+                    needsIdentity = episode.IndexNumber is null || episode.ParentIndexNumber is null;
+                    episodeStem = RenameTemplate.Scrub(MediaIdentityService.StripSite(found.Name));
+
+                    // Jellyfin wrote this item's NFO while it was unidentified ("<title>_unpack</title>");
+                    // carried along, it keeps the wrong title. It stays behind as debris instead.
+                    leaveStaleNfo = needsIdentity;
+                }
+                else if (season is int knownSeason && episode.IndexNumber is int knownEpisode and < 1900)
+                {
+                    var title = !string.IsNullOrWhiteSpace(episode.SeriesName) ? episode.SeriesName! : MediaIdentityService.CleanTitle(name).Title;
+                    episodeStem = RenameTemplate.Scrub(title) + " S" + knownSeason.ToString("D2", System.Globalization.CultureInfo.InvariantCulture)
+                        + "E" + knownEpisode.ToString("D2", System.Globalization.CultureInfo.InvariantCulture);
+                }
+            }
+
+            var episodeFile = episodeStem is null ? Path.GetFileName(path) : episodeStem + Path.GetExtension(path);
+
+            // Under its series folder is only grouped when the episode also sits directly in a season
+            // folder. Episodes loose in the series folder or inside a release folder within it
+            // ("Show (2013)/Show.S06E04.1080p-GRP/…") are what Jellyfin's naming spec rejects; they
+            // used to count as grouped, so earlier nesting was never repaired.
+            if (atTarget && LibraryGuard.IsUnder(path, seriesRoot)
+                && (type != IssueType.Ungrouped || (IsCanonicalEpisodeLocation(path, seriesRoot, season) && !needsIdentity)))
             {
                 return null;
             }
 
-            if (series is not null && !string.IsNullOrWhiteSpace(series.Path) && LibraryGuard.IsUnder(path, series.Path)
+            // Grouping always places each episode at "<Series>/Season NN/<file>". Renaming the whole
+            // source folder is only safe when its contents already follow that layout; otherwise
+            // the rename carried loose episodes and release folders straight into the series folder.
+            var restructure = type == IssueType.Ungrouped && InScope(seriesRoot, roots)
+                && (Directory.Exists(seriesRoot) || series is null || string.IsNullOrWhiteSpace(series.Path)
+                    || !LibraryGuard.IsUnder(path, series.Path)
+                    || Paths.Equals(Path.TrimEndingDirectorySeparator(series.Path), Path.TrimEndingDirectorySeparator(sourceRoot))
+                    || !HasCanonicalSeriesLayout(series.Path, series.Id, peers));
+            if (restructure)
+            {
+                // Place this episode in its season folder; shared assets keep their current owner.
+                joiningExistingSeries = true;
+                if (HasConflictingSeriesIdentity(series, seriesRoot, targetRoot, peers))
+                {
+                    blockers.Add("The proposed series folder includes conflicting provider identities. Check the series metadata before grouping these episodes.");
+                }
+
+                if (season is null)
+                {
+                    blockers.Add("The season is unknown. Check the episode metadata before moving it.");
+                }
+
+                destination = Path.Combine(SeasonDirectory(seriesRoot, season), episodeFile);
+                if (!Paths.Equals(parent, Path.TrimEndingDirectorySeparator(sourceRoot)) && series is not null && !string.IsNullOrWhiteSpace(series.Path)
+                    && InScope(series.Path, roots) && !LibraryGuard.IsUnder(seriesRoot, series.Path)
+                    && !Paths.Equals(Path.TrimEndingDirectorySeparator(series.Path), Path.TrimEndingDirectorySeparator(sourceRoot)) && LibraryGuard.IsUnder(path, series.Path))
+                {
+                    var cleanupRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(series.Path));
+                    if (!sourceInventories.TryGetValue(cleanupRoot, out var inventory))
+                    {
+                        // Everything left in the old folder once its episodes have moved is recycled with
+                        // it, except files another library item owns and large unrecognised videos, which
+                        // keep the folder for review.
+                        var ownedPaths = peers.Where(peer => !string.IsNullOrWhiteSpace(peer.Path) && LibraryGuard.IsUnder(peer.Path, cleanupRoot))
+                            .SelectMany(peer => MediaFileHelper.GetMovePayloadPaths(peer)
+                                .Concat(peer is Video video ? video.AudioFiles.Concat(video.SubtitleFiles) : []))
+                            .Where(value => !string.IsNullOrWhiteSpace(value))
+                            .Select(value => Path.TrimEndingDirectorySeparator(Path.GetFullPath(value)));
+                        var owned = new HashSet<string>(ownedPaths, Paths);
+                        inventory = MediaMoveSnapshot.CaptureIdentity(cleanupRoot, cancellationToken).Export()
+                            .Where(payload => payload.IsDirectory || (!owned.Contains(Path.GetFullPath(Path.Combine(cleanupRoot, payload.RelativePath)))
+                                && !(Scanners.MediaFormats.Video.Contains(Path.GetExtension(payload.RelativePath)) && payload.Length >= MediaMoveSourceCleanup.MaxLeftoverVideoBytes))).ToArray();
+                        sourceInventories.Add(cleanupRoot, inventory);
+                    }
+
+                    sourceCleanup = new(cleanupRoot, seriesRoot, true, inventory);
+                    var seriesImages = series.ImageInfos.Select(image => image.Path).Where(value => !string.IsNullOrWhiteSpace(value)).ToHashSet(Paths);
+                    isSeriesMetadata = relative => MediaMoveSourceCleanup.IsMetadata(relative)
+                        && (Path.GetExtension(relative).Equals(".nfo", StringComparison.OrdinalIgnoreCase)
+                            || DuplicateScanner.IsSidecarPath(relative)
+                            || seriesImages.Contains(Path.Combine(cleanupRoot, relative)));
+                }
+            }
+            else if (series is not null && !string.IsNullOrWhiteSpace(series.Path) && LibraryGuard.IsUnder(path, series.Path)
                 && !Paths.Equals(Path.TrimEndingDirectorySeparator(series.Path), Path.TrimEndingDirectorySeparator(sourceRoot)))
             {
                 source = Path.GetFullPath(series.Path);
                 destination = atTarget ? seriesRoot : Path.Combine(targetRoot, Path.GetFileName(source));
                 CheckScopedContainer(source, item, peers, roots, blockers);
             }
-            else if (!Paths.Equals(Path.TrimEndingDirectorySeparator(parent), Path.TrimEndingDirectorySeparator(sourceRoot)))
-            {
-                source = parent;
-                destination = Path.Combine(seriesRoot, Path.GetFileName(parent));
-                CheckScopedContainer(source, item, peers, roots, blockers);
-            }
             else
             {
-                var season = episode.ParentIndexNumber;
+                // A loose episode, or one in a release folder that is not a series folder, goes to its
+                // season folder on its own. Moving the release folder whole nested it inside the
+                // series folder ("Show/Show.S01E01.1080p-GRP/…"), which Jellyfin does not read as a
+                // season. Leftovers in the release folder are handled by Orphaned debris.
                 if (season is null)
                 {
                     blockers.Add("The season is unknown. Check the episode metadata before moving it.");
                 }
 
-                destination = Path.Combine(seriesRoot, season is null ? "Season unknown" : "Season " + season.Value.ToString("D2", System.Globalization.CultureInfo.InvariantCulture), Path.GetFileName(path));
+                destination = Path.Combine(SeasonDirectory(seriesRoot, season), episodeFile);
             }
         }
         else
         {
-            var dedicated = !Paths.Equals(Path.TrimEndingDirectorySeparator(parent), Path.TrimEndingDirectorySeparator(sourceRoot))
+            // A film filed as an episode moves on its own, renamed after the film; the episode NFO stays behind.
+            var dedicated = filmIdentity is null && !Paths.Equals(Path.TrimEndingDirectorySeparator(parent), Path.TrimEndingDirectorySeparator(sourceRoot))
                 && IsDedicated(parent, item, peers);
-            if (type == IssueType.Ungrouped && dedicated)
+            leaveStaleNfo |= filmIdentity is not null;
+            if (filmIdentity is not null)
+            {
+                containerIdentity = MediaMovePlan.FilmFromShowPrefix + item.Id.ToString("N");
+            }
+
+            var wrapper = Path.GetDirectoryName(parent) ?? string.Empty;
+            // A film Jellyfin filed as an episode (see MediaSorterScanner.LooksLikeMovieFiledAsEpisode) moves as a movie.
+            var asMovie = item is Movie || kind == MediaSorterScanner.MediaKind.Movie;
+            var nested = dedicated && asMovie && LibraryGuard.IsUnder(parent, targetRoot)
+                && !Paths.Equals(Path.TrimEndingDirectorySeparator(wrapper), Path.TrimEndingDirectorySeparator(targetRoot));
+            var folderName = filmIdentity ?? (asMovie ? CanonicalMovieFolderName(item, Path.GetFileName(parent)) : Path.GetFileName(parent));
+
+            // Jellyfin expects one "Title (Year)" folder per movie directly in the library. A dedicated
+            // movie folder is left alone only when it is already that; a folder wrapped inside another
+            // ("Super Troopers/Super Troopers 2 (2018)/") or named after a release is regrouped.
+            if (type == IssueType.Ungrouped && dedicated && !nested && Paths.Equals(folderName, Path.GetFileName(parent)))
             {
                 return null;
             }
 
-            if (dedicated)
+            if (dedicated && nested && type == IssueType.Ungrouped
+                && Paths.Equals(Path.Combine(targetRoot, folderName), Path.TrimEndingDirectorySeparator(wrapper)))
+            {
+                // A release folder inside the movie's own folder: move the video up beside it.
+                destination = Path.Combine(wrapper, Path.GetFileName(path));
+            }
+            else if (dedicated)
             {
                 source = parent;
-                destination = Path.Combine(targetRoot, Path.GetFileName(parent));
+                destination = Path.Combine(targetRoot, type == IssueType.Ungrouped || item is not Movie ? folderName : Path.GetFileName(parent));
                 CheckScopedContainer(source, item, peers, roots, blockers);
             }
             else
@@ -282,8 +490,10 @@ public sealed partial class MediaMovePlanner
                     }
                 }
 
-                destination = Path.Combine(targetRoot, stem, Path.GetFileName(path));
-                if (item is not Movie)
+                // Versions and parts keep their shared prefix as the folder name: Jellyfin only groups
+                // "Film - Cinema.mkv" and "Film - Directors Cut.mkv" as versions inside a folder of that name.
+                destination = Path.Combine(targetRoot, filmIdentity ?? (asMovie && itemPaths.Length == 1 ? CanonicalMovieFolderName(item, stem) : stem), filmIdentity is null ? Path.GetFileName(path) : filmIdentity + Path.GetExtension(path));
+                if (!asMovie)
                 {
                     blockers.Add("This item is in a shared container. Select its complete album, book or photo folder in Files instead of moving only this file.");
                 }
@@ -303,7 +513,43 @@ public sealed partial class MediaMovePlanner
                 actions.Add((alternate, Path.Combine(Path.GetDirectoryName(destination)!, Path.GetFileName(alternate))));
             }
 
-            AddCompanions(actions, peers, roots, blockers);
+            // A film leaving a show's season folder leaves the season's own files (season.nfo) behind.
+            AddCompanions(actions, peers, roots, blockers, keepSharedInPlace: joiningExistingSeries || filmIdentity is not null);
+            if (leaveStaleNfo)
+            {
+                actions.RemoveAll(action => !Paths.Equals(action.Source, source)
+                    && Path.GetExtension(action.Source).Equals(".nfo", StringComparison.OrdinalIgnoreCase)
+                    && Paths.Equals(Path.GetDirectoryName(action.Source), Path.GetDirectoryName(source)));
+            }
+
+            if (sourceCleanup is not null && item is Episode groupingEpisode)
+            {
+                string MetadataDirectory(Episode candidate) => candidate.SeriesId == groupingEpisode.SeriesId ? sourceCleanup.Source
+                    : peers.OfType<Series>().FirstOrDefault(candidateSeries => candidateSeries.Id == candidate.SeriesId)?.Path ?? Path.GetDirectoryName(candidate.Path)!;
+                bool SameSeries(Episode candidate)
+                {
+                    var candidateSeries = peers.OfType<Series>().FirstOrDefault(value => value.Id == candidate.SeriesId);
+                    var name = MediaGrouperScanner.ResolveSafeSeriesName(candidate.SeriesName, candidateSeries?.PremiereDate?.Year, candidate.Path, sourceRoot);
+                    return candidate.SeriesId == groupingEpisode.SeriesId
+                        || (name is not null && Paths.Equals(RenameTemplate.Scrub(name), Path.GetFileName(sourceCleanup.Destination)));
+                }
+
+                foreach (var metadata in sourceCleanup.Inventory.Where(payload => !payload.IsDirectory && string.IsNullOrEmpty(Path.GetDirectoryName(payload.RelativePath))
+                        && isSeriesMetadata(payload.RelativePath))
+                    .Select(payload => Path.Combine(sourceCleanup.Source, payload.RelativePath)))
+                {
+                    var target = Path.Combine(sourceCleanup.Destination, Path.GetFileName(metadata));
+                    var owner = peers.OfType<Episode>().Where(candidate => !string.IsNullOrWhiteSpace(candidate.Path) && candidate.SeriesName == groupingEpisode.SeriesName
+                        && SameSeries(candidate) && !LibraryGuard.IsUnder(candidate.Path, sourceCleanup.Destination)
+                        && File.Exists(Path.Combine(MetadataDirectory(candidate), Path.GetFileName(metadata))))
+                        .OrderBy(candidate => candidate.Path, StringComparer.Ordinal).FirstOrDefault();
+                    if (!File.Exists(target) && !Directory.Exists(target) && owner?.Id == item.Id
+                        && !actions.Any(action => Paths.Equals(action.Source, metadata)))
+                    {
+                        actions.Add((metadata, target));
+                    }
+                }
+            }
         }
         else if (itemPaths.Concat(declaredCompanions).Any(declared => !LibraryGuard.IsUnder(declared, source)))
         {
@@ -323,7 +569,12 @@ public sealed partial class MediaMovePlanner
                     continue;
                 }
 
-                var inventory = MediaMoveSnapshot.Capture(action.Source, readingProgress, cancellationToken).Export();
+                // Identity evidence only at scan time: hashing every payload read the whole library
+                // on every scan. A plan that is already blocked can never run, so it records just
+                // the root entry instead of walking the payload.
+                var inventory = (blockers.Count > 0
+                    ? MediaMoveSnapshot.CaptureRootIdentity(action.Source, cancellationToken)
+                    : MediaMoveSnapshot.CaptureIdentity(action.Source, readingProgress, cancellationToken)).Export();
                 entries.Add(new(action.Source, action.Destination, Directory.Exists(action.Source), inventory));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -336,6 +587,11 @@ public sealed partial class MediaMovePlanner
         // Preserve the primary as the first action; its path is the finding's durable source binding.
         entries = entries.OrderBy(entry => Paths.Equals(entry.Source, source) ? 0 : 1).ThenBy(entry => entry.Source, StringComparer.Ordinal).ToList();
         var destinationContainer = MediaMoveManifest.ClaimContainer(destination, Directory.Exists(source));
+        while (entries.Any(entry => !LibraryGuard.IsUnder(entry.Destination, destinationContainer)))
+        {
+            destinationContainer = Path.GetDirectoryName(destinationContainer) ?? throw new IOException("The move has no common destination container.");
+        }
+
         if (item is Movie)
         {
             try
@@ -357,15 +613,35 @@ public sealed partial class MediaMovePlanner
             ItemId = item.Id,
             ItemPath = Path.GetFullPath(item.Path),
             Identity = Identity(item),
-            ContainerIdentity = ContainerIdentity(item),
+            ContainerIdentity = containerIdentity,
             DestinationContainer = destinationContainer,
             DestinationParents = entries.All(entry => InScope(entry.Destination, roots)) ? MediaMoveManifest.CaptureDestinationParents(entries.ToArray()) : [],
-            SourceScopes = CaptureSourceScopes(entries.Where(entry => InScope(entry.Source, roots)).ToArray()),
+            SourceScopes = CaptureSourceScopes(entries.Where(entry => InScope(entry.Source, roots)).ToArray(), keepSharedDirectories: ((type == IssueType.Ungrouped && item is Episode) || filmIdentity is not null) && File.Exists(source)),
             ItemBindings = CaptureItemBindings(entries.ToArray(), peers, item is Episode metadataEpisode && metadataEpisode.SeriesId != Guid.Empty ? _library.GetItemById(metadataEpisode.SeriesId) : null),
             PolicyStamp = PolicyStamp(config, type),
             Entries = entries.ToArray(),
+            SourceCleanup = sourceCleanup,
             BlockingReasons = blockers.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray()
         }.Seal();
+    }
+
+    internal static bool HasConflictingSeriesIdentity(Series? series, string seriesRoot, string targetRoot, IReadOnlyList<BaseItem> peers)
+    {
+        if (series is null || series.ProviderIds.Count == 0)
+        {
+            return false;
+        }
+
+        return peers.OfType<Series>().Where(candidate => candidate.Id != series.Id
+            && Path.IsPathFullyQualified(candidate.Path) && LibraryGuard.IsUnder(candidate.Path, targetRoot)).Any(candidate =>
+        {
+            var candidateRoot = Path.Combine(targetRoot, RenameTemplate.Scrub(MediaGrouperScanner.ResolveSafeSeriesName(
+                candidate.Name, candidate.PremiereDate?.Year, Path.Combine(candidate.Path, ".episode"), targetRoot)));
+            return (Paths.Equals(candidate.Path, seriesRoot) || Paths.Equals(candidateRoot, seriesRoot))
+                && series.ProviderIds.Any(provider => !string.IsNullOrWhiteSpace(provider.Value)
+                    && candidate.ProviderIds.TryGetValue(provider.Key, out var value) && !string.IsNullOrWhiteSpace(value)
+                    && !string.Equals(provider.Value, value, StringComparison.OrdinalIgnoreCase));
+        });
     }
 
     private static bool IsDedicated(string folder, BaseItem owner, IReadOnlyList<BaseItem> peers) =>
@@ -514,7 +790,11 @@ public sealed partial class MediaMovePlanner
                     else if (CompanionExtensions.Contains(Path.GetExtension(child)) || MediaFormats.Audio.Contains(Path.GetExtension(child))
                         || (Directory.Exists(child) && name.EndsWith(".trickplay", StringComparison.OrdinalIgnoreCase)))
                     {
-                        actions.Add((child, Path.Combine(Path.GetDirectoryName(action.Destination)!, name)));
+                        // A renamed primary takes its companions along: "info.nfo" follows "info.mkv" to "<new name>.nfo".
+                        var ownerStem = Path.GetFileNameWithoutExtension(owner)!;
+                        var newStem = Path.GetFileNameWithoutExtension(action.Destination);
+                        var target = string.Equals(ownerStem, newStem, StringComparison.Ordinal) ? name : newStem + name[ownerStem.Length..];
+                        actions.Add((child, Path.Combine(Path.GetDirectoryName(action.Destination)!, target)));
                     }
                     else
                     {
@@ -531,14 +811,14 @@ public sealed partial class MediaMovePlanner
 
     private bool InScope(string path, IReadOnlyList<string> roots) => _guard.IsInsideLibrary(path) && roots.Any(root => LibraryGuard.IsUnder(path, root));
 
-    internal static MediaMovePlan.DirectoryScope[] CaptureSourceScopes(MediaMovePlan.Entry[] entries, bool genericSelection = false) => entries.Where(entry => !entry.IsDirectory)
+    internal static MediaMovePlan.DirectoryScope[] CaptureSourceScopes(MediaMovePlan.Entry[] entries, bool genericSelection = false, bool keepSharedDirectories = false) => entries.Where(entry => !entry.IsDirectory)
         .Select(entry => Path.GetDirectoryName(entry.Source)!).Distinct(Paths).Where(Directory.Exists)
-        .Select(parent => new MediaMovePlan.DirectoryScope(parent, SourceScopeFingerprint(ReadSourceNames(parent, entries, genericSelection)))).ToArray();
+        .Select(parent => new MediaMovePlan.DirectoryScope(parent, SourceScopeFingerprint(ReadSourceNames(parent, entries, genericSelection, keepSharedDirectories)))).ToArray();
 
     internal static string SourceScopeFingerprint(IEnumerable<string> names) => MediaMovePlan.Hash(JsonSerializer.Serialize(names
         .Select(name => OperatingSystem.IsWindows() ? name.ToUpperInvariant() : name).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray()));
 
-    internal static string[] ReadSourceNames(string parent, MediaMovePlan.Entry[] entries, bool genericSelection = false)
+    internal static string[] ReadSourceNames(string parent, MediaMovePlan.Entry[] entries, bool genericSelection = false, bool keepSharedDirectories = false)
     {
         MediaMoveSnapshot.ValidateAncestors(parent);
         if (genericSelection)
@@ -572,6 +852,12 @@ public sealed partial class MediaMovePlanner
                     return true;
                 }
 
+                if (keepSharedDirectories)
+                {
+                    // Episode bundles leave unrelated containers in place, even after another move empties one.
+                    return false;
+                }
+
                 // A separate media container stays independent. Unknown/shared asset folders
                 // remain in the scope so newly arriving ambiguous assets require another preview.
                 return !Directory.EnumerateFiles(child).Any(file => MediaFormats.Video.Contains(Path.GetExtension(file)) || MediaFormats.Audio.Contains(Path.GetExtension(file)));
@@ -584,6 +870,16 @@ public sealed partial class MediaMovePlanner
 
             if (!CompanionExtensions.Contains(Path.GetExtension(child)))
             {
+                return false;
+            }
+
+            if (keepSharedDirectories)
+            {
+                // An episode bundle only ever takes companions named for its own video; everything else
+                // stays where it is. Other items' NFOs and artwork are therefore outside its scope: while
+                // a run moves episodes out of one folder, Jellyfin can rewrite a moved sibling's NFO at
+                // its old path before it re-indexes, which refused every remaining episode in that folder
+                // as "changed after approval" (production 2026-11-22, 397 refusals).
                 return false;
             }
 
@@ -671,7 +967,11 @@ public sealed partial class MediaMovePlanner
         }
 
         MediaMoveSnapshot.ValidateAncestors(container);
-        return Directory.EnumerateFileSystemEntries(container).Any(child => !entries.Any(entry => LibraryGuard.IsUnder(entry.Destination, child))
+
+        // The folder the movie is leaving (a release folder inside its own "Title (Year)" folder) is
+        // not foreign content: nothing is merged into it.
+        return Directory.EnumerateFileSystemEntries(container).Any(child => !entries.Any(entry => LibraryGuard.IsUnder(entry.Destination, child)
+                || (!Paths.Equals(entry.Source, child) && LibraryGuard.IsUnder(entry.Source, child)))
             && manifest?.Steps.Any(step => Paths.Equals(step.Stage, child)) != true);
     }
 
@@ -732,6 +1032,115 @@ public sealed partial class MediaMovePlanner
 
     [GeneratedRegex(@"[ ._-]+(?:cd|dvd|part|pt|disc|disk)\s*\d+$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex MultipartSuffix();
+
+    [GeneratedRegex(@"^(?:season|series|staffel|saison|temporada|stagione)[ ._-]*0*(\d{1,4})$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex SeasonFolder();
+
+    [GeneratedRegex(@"^\S.* \((?:19|20)\d{2}\)(?: \[(?:tmdbid|imdbid|tvdbid)[-=][^\]]+\])*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex CanonicalMovieFolder();
+
+    /// <summary>
+    /// True when an episode sits where Jellyfin's TV naming spec expects it: directly inside a season
+    /// folder of the series ("Season 01", "Season 1", or "Specials" for season 0). With no known
+    /// season, any season folder counts, so an unidentified episode is never moved on a guess.
+    /// </summary>
+    /// <param name="episodePath">The episode file.</param>
+    /// <param name="seriesRoot">The series folder.</param>
+    /// <param name="season">Jellyfin's season number, when known.</param>
+    /// <returns>True when the episode needs no regrouping.</returns>
+    internal static bool IsCanonicalEpisodeLocation(string episodePath, string seriesRoot, int? season)
+    {
+        var parent = Path.GetDirectoryName(Path.GetFullPath(episodePath));
+        if (string.IsNullOrEmpty(parent) || !Paths.Equals(Path.GetDirectoryName(parent) ?? string.Empty, Path.TrimEndingDirectorySeparator(Path.GetFullPath(seriesRoot))))
+        {
+            return false;
+        }
+
+        var name = Path.GetFileName(parent);
+        if (name.Equals("Specials", StringComparison.OrdinalIgnoreCase))
+        {
+            return season is null or 0;
+        }
+
+        var match = SeasonFolder().Match(name);
+        return match.Success && (season is null || int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) == season);
+    }
+
+    /// <summary>
+    /// The season folder an episode joins: an existing folder of the series for that season
+    /// ("Season 9", "Season 09", "Specials") when there is one, otherwise "Season NN". Creating
+    /// "Season 09" beside an existing "Season 9" would give Jellyfin two folders for one season.
+    /// </summary>
+    /// <param name="seriesRoot">The series folder.</param>
+    /// <param name="season">The season number, when known.</param>
+    /// <returns>The season folder path.</returns>
+    internal static string SeasonDirectory(string seriesRoot, int? season)
+    {
+        if (season is null)
+        {
+            return Path.Combine(seriesRoot, "Season unknown");
+        }
+
+        try
+        {
+            if (Directory.Exists(seriesRoot))
+            {
+                var existing = Directory.EnumerateDirectories(seriesRoot)
+                    .Where(folder => (File.GetAttributes(folder) & FileAttributes.ReparsePoint) == 0)
+                    .Where(folder => SeasonFolder().Match(Path.GetFileName(folder)) is { Success: true } match
+                            ? int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) == season
+                            : season == 0 && Path.GetFileName(folder).Equals("Specials", StringComparison.OrdinalIgnoreCase))
+                    .Order(StringComparer.Ordinal).ToArray();
+                if (existing.Length == 1)
+                {
+                    return existing[0];
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Unreadable series folder: fall back to the canonical name; the move preflight reports any conflict.
+        }
+
+        return Path.Combine(seriesRoot, "Season " + season.Value.ToString("D2", System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>True when every known episode of the series inside the folder is in a season folder.</summary>
+    /// <param name="seriesFolder">The series folder.</param>
+    /// <param name="seriesId">The series item id.</param>
+    /// <param name="peers">Library items.</param>
+    /// <returns>True when the folder can be renamed whole without breaking the TV layout.</returns>
+    internal static bool HasCanonicalSeriesLayout(string seriesFolder, Guid seriesId, IReadOnlyList<BaseItem> peers)
+        => peers.OfType<Episode>().Where(candidate => candidate.SeriesId == seriesId && !string.IsNullOrWhiteSpace(candidate.Path)
+                && LibraryGuard.IsUnder(candidate.Path, seriesFolder))
+            .All(candidate => IsCanonicalEpisodeLocation(candidate.Path, seriesFolder, candidate.ParentIndexNumber));
+
+    /// <summary>
+    /// The folder a movie belongs in under Jellyfin's naming spec: the current name when it is already
+    /// "Title (Year)" (optionally with a provider id tag), otherwise "Title (Year)" from Jellyfin's
+    /// metadata, otherwise the title and year parsed from the current name. Without a year the
+    /// current name is kept rather than guessed.
+    /// </summary>
+    /// <param name="item">The movie.</param>
+    /// <param name="current">The current folder or file stem.</param>
+    /// <returns>The folder name to use.</returns>
+    internal static string CanonicalMovieFolderName(BaseItem item, string current)
+    {
+        if (CanonicalMovieFolder().IsMatch(current) && Metadata.MediaIdentityService.IsCleanFolderName(current))
+        {
+            return current;
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.Name) && item.ProductionYear is int year and >= 1880 and <= 2100)
+        {
+            return RenameTemplate.Scrub(item.Name + " (" + year.ToString(System.Globalization.CultureInfo.InvariantCulture) + ")");
+        }
+
+        var (title, parsed) = Metadata.MediaIdentityService.CleanTitle(current);
+        return parsed is int folderYear && title.Length > 0
+            ? RenameTemplate.Scrub(title + " (" + folderYear.ToString(System.Globalization.CultureInfo.InvariantCulture) + ")")
+            : current;
+    }
 
     private static Issue ToIssue(MediaMovePlan plan)
     {

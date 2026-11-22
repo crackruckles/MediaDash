@@ -419,6 +419,171 @@ public sealed class ReportedMediaWorkflowAcceptanceTests : IDisposable
         _output.WriteLine("Generated Spanish-original workflow passed: retained packet hashes, rescan, recycle and exact-byte restore. Not reporter Rafa acceptance.");
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Issue94RecoverableMp3GlitchDoesNotRequireRepair(bool coverArt)
+    {
+        var path = await GenerateDamagedMp3(coverArt);
+        var original = Hash(path);
+        var probe = (await _probe.ProbeAsync(path, default))!;
+        Assert.Null(await _probe.DecodeCheckAsync(path, 30, default, isAudioOnly: true));
+        Assert.Null(await _probe.DecodeStreamAsync(path, 0, default));
+        var scanner = new PlayabilityScanner(_probe, new BookProbeService(_db.Probes), new ComicProbeService(_db.Probes), NullLogger<PlayabilityScanner>.Instance);
+        var item = new MediaBrowser.Controller.Entities.Audio.Audio { Id = Guid.NewGuid(), Path = path };
+        Assert.Empty(await scanner.ScanAsync([item], new Progress<double>(), default));
+        var stale = new Issue { Type = IssueType.Playability, Path = path, DetailsJson = """{"reason":"decode-error"}""" };
+        Assert.Equal(FixOutcome.NoChange, (await NewPlayabilityFixer().FixAsync(stale, null, default)).Outcome);
+        Assert.Equal(original, Hash(path));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Issue94Mp3AudioRepairPreservesContainerTagsAndArtwork(bool coverArt)
+    {
+        var path = await GenerateDamagedMp3(coverArt);
+        var original = Hash(path);
+        var probe = (await _probe.ProbeAsync(path, default))!;
+        var issue = new Issue { Type = IssueType.Playability, Path = path };
+        // Force the rung precondition independently of the now-tolerant playability classifier.
+        var task = (Task<string?>)typeof(PlayabilityFixer).GetMethod("TryRung4aAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .Invoke(NewPlayabilityFixer(), [issue, probe, new Lazy<Task<IReadOnlyList<int>>>(() => Task.FromResult<IReadOnlyList<int>>([0])), CancellationToken.None])!;
+        var output = await task;
+        Assert.NotNull(output);
+        var repaired = (await _probe.ProbeAsync(output, default))!;
+        Assert.Equal("mp3", Assert.Single(repaired.Streams!, s => s.CodecType == "audio").CodecName);
+        Assert.Equal(coverArt, repaired.Streams!.Any(s => s.IsAttachedPicture));
+        await Run("-v", "error", "-xerror", "-i", output, "-vn", "-f", "null", "-");
+        Assert.Contains("Issue 94", await Run("-v", "error", "-i", output, "-f", "ffmetadata", "-"));
+        Assert.Equal(original, Hash(path));
+        var identity = new FileInfo(path);
+        var swap = (Task<FixResult?>)typeof(PlayabilityFixer).GetMethod("TrySwapRepairedAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .Invoke(NewPlayabilityFixer(), [issue, output, "audio re-encoded", false, probe, identity.Length, identity.LastWriteTimeUtc.Ticks, CancellationToken.None])!;
+        var result = await swap;
+        Assert.NotNull(result);
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(original, Hash(result.RecyclePath!));
+        await Run("-v", "error", "-xerror", "-i", path, "-vn", "-f", "null", "-");
+        _db.History.AddHistory(new HistoryEntry { IssueId = 0, Type = IssueType.Playability, Path = path,
+            RecyclePath = result.RecyclePath, Success = true, FixedAtUtc = DateTime.UtcNow });
+        var history = Assert.Single(_db.History.GetHistory());
+        var restore = new RestoreService(_db, _db.History, _db.RestoreOps, _bin, _guard, _monitor, NullLogger<RestoreService>.Instance, _protection);
+        Assert.True(restore.RestoreFromHistory(history.Id, true).Success);
+        Assert.Equal(original, Hash(path));
+    }
+
+    [Theory]
+    [InlineData(0.1)]
+    [InlineData(0.5)]
+    [InlineData(1.0)]
+    public async Task Issue94SubstantiallyDamagedMp3RemainsAPlayabilityFailure(double damagedFraction)
+    {
+        var path = await GenerateDamagedMp3(coverArt: false, damagedFraction);
+        Assert.NotNull(await _probe.DecodeCheckAsync(path, 30, default, isAudioOnly: true));
+        Assert.NotNull(await _probe.DecodeStreamAsync(path, 0, default));
+        var original = Hash(path);
+        _config.RepairAttemptRemux = false;
+        _config.RepairAttemptDropStreams = false;
+        _config.RepairAttemptContainerCoerce = false;
+        _config.RepairAttemptAudioReencode = true;
+        _config.RepairAttemptReencode = false;
+        _db.Issues.ReplaceDetectedIssues(IssueType.Playability, [new Issue { Type = IssueType.Playability, Path = path,
+            DetailsJson = """{"reason":"decode-error"}""", DetectedAtUtc = DateTime.UtcNow }]);
+        var issue = Assert.Single(_db.Issues.GetIssues());
+        _db.Issues.TryTransitionIssueStatus(issue.Id, [IssueStatus.Detected], IssueStatus.Queued);
+        var result = await Execute(_db.Issues.GetIssue(issue.Id)!, NewPlayabilityFixer());
+        Assert.Equal(FixReason.RepairFailed, result.Reason);
+        Assert.Equal(original, Hash(path));
+        Assert.Equal(IssueStatus.Detected, _db.Issues.GetIssue(issue.Id)!.Status);
+        Assert.Empty(_db.Issues.QueueDetectedIssues(IssueType.Playability, requireConsent: true));
+    }
+
+    [Theory]
+    [InlineData("flac", "flac", "flac")]
+    [InlineData("wav", "pcm_s16le", "pcm_s16le")]
+    [InlineData("wav", "pcm_s24le", "pcm_s24le")]
+    [InlineData("wav", "pcm_s32le", "pcm_s32le")]
+    [InlineData("wav", "pcm_f32le", "pcm_f32le")]
+    [InlineData("aiff", "pcm_s16be", "pcm_s16be")]
+    [InlineData("aiff", "pcm_s24be", "pcm_s24be")]
+    [InlineData("aiff", "pcm_s32be", "pcm_s32be")]
+    [InlineData("aiff", "pcm_f32be", "pcm_f32be")]
+    [InlineData("ogg", "libvorbis", "vorbis")]
+    [InlineData("opus", "libopus", "opus")]
+    [InlineData("m4a", "aac", "aac")]
+    [InlineData("aac", "aac", "aac")]
+    [InlineData("wma", "wmav2", "wmav2")]
+    public async Task Issue94AudioRepairUsesAnEncoderCompatibleWithItsContainer(string ext, string encoder, string codec)
+    {
+        var path = Path.Combine(_root, "audio." + ext);
+        await Run("-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=3", "-c:a", encoder, path);
+        var probe = (await _probe.ProbeAsync(path, default))!;
+        var task = (Task<string?>)typeof(PlayabilityFixer).GetMethod("TryRung4aAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .Invoke(NewPlayabilityFixer(), [new Issue { Path = path }, probe, new Lazy<Task<IReadOnlyList<int>>>(() => Task.FromResult<IReadOnlyList<int>>([0])), CancellationToken.None])!;
+        var output = await task;
+        Assert.NotNull(output);
+        Assert.Equal(codec, Assert.Single((await _probe.ProbeAsync(output, default))!.Streams!, s => s.CodecType == "audio").CodecName);
+        if (encoder.StartsWith("pcm_", StringComparison.Ordinal)) Assert.Equal(await StreamHash(path, "a:0"), await StreamHash(output, "a:0"));
+        await Run("-v", "error", "-xerror", "-i", output, "-f", "null", "-");
+    }
+
+    [Fact]
+    public async Task Issue94TolerantDecodeStillDetectsATruncatedShortVideo()
+    {
+        var path = Path.Combine(_root, "truncated.mp4");
+        await Run("-v", "error", "-f", "lavfi", "-i", "testsrc2=size=160x90:rate=12:duration=12",
+            "-f", "lavfi", "-i", "sine=frequency=440:duration=12", "-c:v", "libx264", "-preset", "ultrafast",
+            "-c:a", "aac", "-movflags", "+faststart", path);
+        var bytes = File.ReadAllBytes(path);
+        File.WriteAllBytes(path, bytes[..(bytes.Length * 2 / 5)]);
+        var probe = (await _probe.ProbeAsync(path, default))!;
+        Assert.True(probe.TryGetDuration(out var duration));
+        var scanner = new PlayabilityScanner(_probe, new BookProbeService(_db.Probes), new ComicProbeService(_db.Probes), NullLogger<PlayabilityScanner>.Instance);
+        var issue = Assert.Single(await scanner.ScanAsync([new MediaBrowser.Controller.Entities.Movies.Movie { Id = Guid.NewGuid(), Path = path }], new Progress<double>(), default));
+        Assert.Contains("decode-error", issue.DetailsJson);
+        Assert.NotNull(await _probe.DecodeCheckAsync(path, duration, default));
+    }
+
+    [Fact]
+    public async Task Issue94DiagnosticWordsInMetadataDoNotMakeHealthyAudioBroken()
+    {
+        var path = Path.Combine(_root, "healthy.flac");
+        await Run("-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=3", "-c:a", "flac",
+            "-metadata", "title=File ended prematurely Permission denied", path);
+        Assert.Null(await _probe.DecodeCheckAsync(path, 3, default, isAudioOnly: true));
+    }
+
+    private PlayabilityFixer NewPlayabilityFixer() => new(_probe, _ffmpegExecutor, new OutputVerifier(_probe), _guard, _bin,
+        new VerifiedReplacementService(_bin), new PluginConfigurationProvider(() => _config), _monitor, _library,
+        NullLogger<PlayabilityFixer>.Instance, _protection);
+
+    private async Task<string> GenerateDamagedMp3(bool coverArt, double damagedFraction = 0)
+    {
+        var path = Path.Combine(_root, "glitch.mp3");
+        var args = new List<string> { "-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=30" };
+        if (coverArt)
+        {
+            var cover = Path.Combine(_root, "cover.jpg");
+            await Run("-v", "error", "-f", "lavfi", "-i", "color=red:size=32x32:duration=1", "-frames:v", "1", cover);
+            args.AddRange(["-i", cover, "-map", "0:a", "-map", "1:v", "-c:v", "copy", "-disposition:v", "attached_pic"]);
+        }
+        args.AddRange(["-c:a", "libmp3lame", "-b:a", "192k", "-metadata", "title=Issue 94", path]);
+        await Run(args.ToArray());
+        var probePath = Path.Combine(Path.GetDirectoryName(_ffmpeg)!, "ffprobe" + Path.GetExtension(_ffmpeg));
+        using var packets = JsonDocument.Parse(await RunProgram(probePath, "-v", "error", "-select_streams", "a", "-show_packets", "-show_entries", "packet=pos,size", "-of", "json", path));
+        var frames = packets.RootElement.GetProperty("packets").EnumerateArray().ToArray();
+        var bytes = File.ReadAllBytes(path);
+        foreach (var frame in damagedFraction > 0 ? frames.Skip(2).Take((int)((frames.Length - 4) * damagedFraction)) : frames.Skip(frames.Length / 2).Take(1))
+        {
+            var pos = int.Parse(frame.GetProperty("pos").GetString()!, System.Globalization.CultureInfo.InvariantCulture);
+            var size = int.Parse(frame.GetProperty("size").GetString()!, System.Globalization.CultureInfo.InvariantCulture);
+            Array.Fill(bytes, (byte)255, pos + 4, size - 4);
+        }
+        File.WriteAllBytes(path, bytes);
+        return path;
+    }
+
     private async Task Generate(bool mp4 = false)
     {
         var sub = Path.Combine(_root, "owned.srt");
@@ -454,9 +619,11 @@ public sealed class ReportedMediaWorkflowAcceptanceTests : IDisposable
     private Task<string> Decode(string path) => Run("-v", "error", "-xerror", "-i", path, "-map", "0:v", "-map", "0:a", "-f", "null", "-");
     private Task<string> StreamHash(string path, string stream) => Run("-v", "error", "-i", path, "-map", "0:" + stream, "-c", "copy", "-f", "hash", "-hash", "sha256", "-");
 
-    private async Task<string> Run(params string[] args)
+    private Task<string> Run(params string[] args) => RunProgram(_ffmpeg, args);
+
+    private static async Task<string> RunProgram(string executable, params string[] args)
     {
-        var start = new ProcessStartInfo(_ffmpeg) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
+        var start = new ProcessStartInfo(executable) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
         foreach (var arg in args) start.ArgumentList.Add(arg);
         using var process = Process.Start(start)!;
         var stdout = process.StandardOutput.ReadToEndAsync();

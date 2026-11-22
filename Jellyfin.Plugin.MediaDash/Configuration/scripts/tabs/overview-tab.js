@@ -506,6 +506,8 @@
             }
 
 
+            var diskRatePeaks = Object.create(null);
+
             function updateSystemStatsInPlace(sys, gpus, disks) {
                 var el = deps.view.querySelector('#mdSystem');
                 var platform = el.querySelector('[data-field="platform"]');
@@ -549,8 +551,21 @@
                     var kind = 'disk-io-' + index;
                     var title = el.querySelector('.mdSysCell[data-kind="' + kind + '"] [data-field="title"]');
                     if (title) title.textContent = deps.STR.statDiskIo + (disk.Name ? ' · ' + disk.Name : '');
-                    var diskValues = '<div>' + deps.esc(deps.STR.statDiskRead) + ' ' + diskRate(disk.ReadBytesPerSecond) + '</div>' +
-                        '<div>' + deps.esc(deps.STR.statDiskWrite) + ' ' + diskRate(disk.WriteBytesPerSecond) + '</div>';
+                    var read = Number.isFinite(disk.ReadBytesPerSecond) && disk.ReadBytesPerSecond >= 0 ? disk.ReadBytesPerSecond : 0;
+                    var write = Number.isFinite(disk.WriteBytesPerSecond) && disk.WriteBytesPerSecond >= 0 ? disk.WriteBytesPerSecond : 0;
+                    // Throughput has no reported hardware ceiling; retain a shared observed peak per disk.
+                    var scale = Math.max(1048576, diskRatePeaks[disk.Name] || 0, read, write);
+                    diskRatePeaks[disk.Name] = scale;
+                    function arc(radius, rate, className) {
+                        var path = 'M ' + (100 - radius) + ' 100 A ' + radius + ' ' + radius + ' 0 0 1 ' + (100 + radius) + ' 100';
+                        return '<path class="mdDiskGaugeTrack" d="' + path + '"/>' +
+                            '<path class="' + className + '" d="' + path + '" pathLength="100" stroke-dasharray="' + (rate / scale * 100) + ' 100"/>';
+                    }
+                    var diskValues = '<svg class="mdDiskGauge" viewBox="0 0 200 112" aria-hidden="true" focusable="false">' +
+                        arc(88, read, 'mdDiskRead') + arc(66, write, 'mdDiskWrite') + '</svg>' +
+                        '<div class="mdDiskScale"><span>0</span><span>' + diskRate(scale) + '</span></div>' +
+                        '<div class="mdDiskLegend"><div class="mdDiskRead">' + deps.esc(deps.STR.statDiskRead) + ' ' + diskRate(disk.ReadBytesPerSecond) + '</div>' +
+                        '<div class="mdDiskWrite">' + deps.esc(deps.STR.statDiskWrite) + ' ' + diskRate(disk.WriteBytesPerSecond) + '</div></div>';
                     setCellValues(el, kind, diskValues, disk.Name ? '' : platformHint, null);
                 });
             }
@@ -619,6 +634,7 @@
 
             function renderFixOrderList(order, disabled) {
                 disabled = disabled || [];
+                order = window.MediaDash.normalizeFixerOrder(order);
                 var listEl = deps.view.querySelector('#mdFixOrderList');
                 var html = '';
                 for (var i = 0; i < order.length; i++) {
@@ -627,8 +643,9 @@
                     var title = meta && meta.title ? meta.title : t;
                     var icon = meta && meta.icon ? meta.icon : 'build';
                     var color = meta && meta.color ? meta.color : 'var(--md-meta)';
-                    var upDisabled = i === 0 ? ' disabled' : '';
-                    var downDisabled = i === order.length - 1 ? ' disabled' : '';
+                    var phase = window.MediaDash.fixerOrderPhase(t);
+                    var upDisabled = i === 0 || phase !== window.MediaDash.fixerOrderPhase(order[i - 1]) ? ' disabled' : '';
+                    var downDisabled = i === order.length - 1 || phase !== window.MediaDash.fixerOrderPhase(order[i + 1]) ? ' disabled' : '';
                     var isOff = disabled.indexOf(t) !== -1;
                     var rowStyle = isOff ? ' style="opacity:.5;"' : '';
                     var labelStyle = isOff ? ' style="text-decoration:line-through;"' : '';

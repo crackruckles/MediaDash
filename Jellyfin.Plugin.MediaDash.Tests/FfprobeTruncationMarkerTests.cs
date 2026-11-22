@@ -5,6 +5,28 @@ namespace Jellyfin.Plugin.MediaDash.Tests;
 
 public sealed class FfprobeTruncationMarkerTests
 {
+    [Theory]
+    [InlineData(99, 1, false)]
+    [InlineData(98, 2, false)]
+    [InlineData(97, 3, true)]
+    [InlineData(4, 457, true)]
+    public void DecodeErrorRateIsBoundedForEachStream(int decoded, int errors, bool excessive)
+    {
+        var log = "[in#0/matroska @ 0x1]   Input stream #0:0 (video): 100000 packets read (1000000 bytes); 100000 frames decoded;\n"
+            + $"[in#0/matroska @ 0x1]   Input stream #0:1 (audio): 100 packets read (1000 bytes); {decoded} frames decoded; {errors} decode errors (100 samples);\n";
+        Assert.Equal(excessive, FfprobeService.HasExcessiveDecodeErrors(log));
+        Assert.Equal(excessive, FfprobeService.HasExcessiveDecodeErrors(log.Replace("]   Input", "] [verbose]   Input")));
+        Assert.Null(FfprobeService.HasExcessiveDecodeErrors("title: 0 frames decoded; 100 decode errors"));
+    }
+
+    [Fact]
+    public void DecodeDiagnosticsIgnoreMetadataAndRetainActualErrors()
+    {
+        const string error = "[aist#0:0/mp3 @ 0x1] [dec:mp3float @ 0x2] [error] Header missing";
+        var log = "[info] title : File ended prematurely Permission denied [error] false alarm\n" + error + "\n[info] Input file: Permission denied.mp3";
+        Assert.Equal(error, FfprobeService.DecodeDiagnostics(log));
+    }
+
     // Verbatim ffmpeg stderr on a truncated MKV. Reproduced against a real fixture:
     //   ffmpeg -xerror -v error -i truncated.mkv -t 30 -f null -
     // exits 0 but emits this line, hiding the truncation from the shallow decode check.
@@ -74,5 +96,14 @@ public sealed class FfprobeTruncationMarkerTests
         Assert.Null(FfprobeService.ParseLastTimeSeconds("[hevc] some warning"));
         Assert.Null(FfprobeService.ParseLastTimeSeconds(string.Empty));
         Assert.Null(FfprobeService.ParseLastTimeSeconds(null));
+    }
+
+    [Fact]
+    public void ParseLastTimeIgnoresVerboseMetadataAndPaths()
+    {
+        var log = "[info] size=N/A time=00:00:03.00 bitrate=N/A\r\n"
+            + "[in#0/mp3 @ 0x1] [verbose] Input file #0 (time=00:09:00.mp3):\n"
+            + "[info] title : time=00:08:00";
+        Assert.Equal(3, FfprobeService.ParseLastTimeSeconds(log));
     }
 }

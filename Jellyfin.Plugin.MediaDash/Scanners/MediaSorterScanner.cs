@@ -169,6 +169,98 @@ public sealed partial class MediaSorterScanner : IScanner
     }
 
     /// <summary>
+    /// A film Jellyfin filed as an episode of a same-named show. Production 2026-11-22: "Sinners 2025
+    /// 1080p WEBRip…" sat inside "Sinners (2016)" as an episode of unknown season, and once a season was
+    /// entered it was renamed "Saints &amp; Sinners S01E2025" (the film's year read as an episode number).
+    /// </summary>
+    /// <param name="episode">The episode item.</param>
+    /// <param name="path">Its file.</param>
+    /// <param name="formerPaths">Paths earlier moves recorded for this file, newest first.</param>
+    /// <returns>True when it should be treated as a movie.</returns>
+    internal static bool LooksLikeMovieFiledAsEpisode(Episode episode, string path, IReadOnlyList<string>? formerPaths = null)
+        => FilmIdentity(episode, path, formerPaths) is not null;
+
+    /// <summary>
+    /// The "Title (Year)" of a film filed as an episode, or null when the item reads as a real episode.
+    /// It has no usable episode number (none, or one that is really a year), no SxxEyy in any name it
+    /// has carried, a feature-length runtime when known, and a "Title Year" name whose year is not the
+    /// show's.
+    /// </summary>
+    /// <param name="episode">The episode item.</param>
+    /// <param name="path">Its file.</param>
+    /// <param name="formerPaths">Paths earlier moves recorded for this file, newest first.</param>
+    /// <returns>The canonical film name, or null.</returns>
+    internal static string? FilmIdentity(Episode episode, string path, IReadOnlyList<string>? formerPaths = null)
+    {
+        if (string.IsNullOrWhiteSpace(path)
+            || (episode.IndexNumber is int number && number is < 1900 or > 2100)
+            || (episode.IndexNumber is null && episode.ParentIndexNumber is not null)
+            || (episode.RunTimeTicks is long ticks && ticks > 0 && TimeSpan.FromTicks(ticks) < TimeSpan.FromMinutes(60)))
+        {
+            return null;
+        }
+
+        var names = new List<string>();
+        foreach (var candidate in (formerPaths ?? []).Prepend(path))
+        {
+            names.Add(Path.GetFileNameWithoutExtension(candidate));
+            names.Add(Path.GetFileName(Path.GetDirectoryName(candidate) ?? string.Empty));
+        }
+
+        names = names.Where(name => !string.IsNullOrWhiteSpace(name) && !SeasonLikeFolder().IsMatch(name) && !YearAsEpisode().IsMatch(name)).ToList();
+        if (names.Any(Fixers.MoveProvenance.HasEpisodeMarker))
+        {
+            return null;
+        }
+
+        int? seriesYear = null;
+        try
+        {
+            var series = episode.Series;
+            seriesYear = series?.ProductionYear ?? series?.PremiereDate?.Year;
+        }
+        catch (Exception ex) when (ex is NullReferenceException or InvalidOperationException)
+        {
+        }
+
+        for (var folder = Path.GetDirectoryName(path); seriesYear is null && !string.IsNullOrEmpty(folder); folder = Path.GetDirectoryName(folder))
+        {
+            var match = CanonicalFolder().Match(Path.GetFileName(folder));
+            if (match.Success)
+            {
+                seriesYear = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+            }
+        }
+
+        if (seriesYear is not int showYear)
+        {
+            return null;
+        }
+
+        foreach (var name in names)
+        {
+            var (title, year) = Metadata.MediaIdentityService.CleanTitle(Metadata.MediaIdentityService.StripSite(name));
+            if (year is int filmYear && title.Length > 0 && filmYear <= DateTime.UtcNow.Year + 1)
+            {
+                return Math.Abs(showYear - filmYear) > 1
+                    ? Fixers.RenameTemplate.Scrub(title + " (" + filmYear.ToString(CultureInfo.InvariantCulture) + ")")
+                    : null;
+            }
+        }
+
+        return null;
+    }
+
+    [GeneratedRegex(@"^(?:season|series|specials)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex SeasonLikeFolder();
+
+    [GeneratedRegex(@"[Ss]\d{1,2}[Ee](?:19|20)\d{2}(?!\d)")]
+    private static partial Regex YearAsEpisode();
+
+    [GeneratedRegex(@"^.+ \((\d{4})\)$")]
+    private static partial Regex CanonicalFolder();
+
+    /// <summary>
     /// Returns the classification of an item under the configured source. Public/internal for tests.
     /// </summary>
     /// <param name="item">The library item.</param>
@@ -176,14 +268,16 @@ public sealed partial class MediaSorterScanner : IScanner
     /// <param name="source">Which source to use.</param>
     /// <param name="animeEnabled">True when an Anime target path is configured; controls whether the anime kind is returned. When false, anime collapses back to Movie/Tv so existing behaviour is preserved.</param>
     /// <param name="comicsEnabled">True when a separate comic target is configured; comic Book items use that enabled destination.</param>
+    /// <param name="formerPaths">Paths earlier moves recorded for this file.</param>
     /// <returns>The kind, or null if unidentifiable.</returns>
-    internal static MediaKind? ClassifyItem(BaseItem item, string path, MediaSortSource source, bool animeEnabled = false, bool comicsEnabled = false)
+    internal static MediaKind? ClassifyItem(BaseItem item, string path, MediaSortSource source, bool animeEnabled = false, bool comicsEnabled = false, IReadOnlyList<string>? formerPaths = null)
     {
         if (source == MediaSortSource.JellyfinMetadata)
         {
             var baseKind = item switch
             {
                 Movie => (MediaKind?)MediaKind.Movie,
+                Episode episode when LooksLikeMovieFiledAsEpisode(episode, path, formerPaths) => MediaKind.Movie,
                 Episode => (MediaKind?)MediaKind.Tv,
                 _ => ClassifyByBaseItemKind(item.GetBaseItemKind())
             };

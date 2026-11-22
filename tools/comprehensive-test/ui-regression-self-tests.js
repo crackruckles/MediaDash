@@ -20,6 +20,26 @@ function element() {
     };
 }
 
+test('Fix order dialog keeps repairs before filename changes and folder moves, including saved orders', () => {
+    const list = { innerHTML: '', attributes: {}, querySelectorAll: () => [], setAttribute(key, value) { this.attributes[key] = value; } };
+    const warning = { innerHTML: '', style: {} };
+    const ctx = { window: {}, deps: { STR: { types: {} }, FIXER_HARD_CONSTRAINTS: [],
+        view: { querySelector: selector => selector === '#mdFixOrderList' ? list : warning } } };
+    vm.runInNewContext(source('dom-helpers.js'), ctx);
+    const overview = source('tabs/overview-tab.js');
+    const start = overview.indexOf('function renderFixOrderList(');
+    const end = overview.indexOf('function saveFixOrder()', start);
+    vm.runInNewContext(overview.slice(start, end), ctx);
+    ctx.renderFixOrderList(['Misplaced', 'FormatCompatibility', 'SubtitleFonts', 'Ungrouped', 'Quality'], []);
+    assert.equal(list.attributes['data-order'], 'SubtitleFonts,FormatCompatibility,Quality,Misplaced,Ungrouped');
+    const rows = list.innerHTML.split('<div class="mdOrderRow"').slice(1);
+    assert.match(rows[0], /mdFixOrderDown" disabled/);
+    assert.match(rows[1], /mdFixOrderUp" disabled/);
+    assert.match(rows[2], /mdFixOrderDown" disabled/);
+    assert.match(rows[3], /mdFixOrderUp" disabled/);
+    assert.doesNotMatch(rows[3], /mdFixOrderDown" disabled/);
+});
+
 function issuesEnvironment(rescan = () => {}) {
     const nodes = new Map(), pending = [];
     const node = selector => {
@@ -53,6 +73,7 @@ test('Active scan fast polling avoids database and recycle queries between cold 
     const calls = [];
     const ctx = {
         _refreshTick: 0, _postUpgradeChecked: true, _postUpgradeAvailable: false,
+        _backgroundStatus: null, _statusRefreshPending: false,
         overviewTab: { lastStatus: { IsScanning: true, IsFixing: false } },
         api: url => { calls.push(url); return new Promise(() => {}); },
         view: { querySelector: () => ({ style: {}, getAttribute: () => 'overview' }) }
@@ -61,7 +82,40 @@ test('Active scan fast polling avoids database and recycle queries between cold 
     for (let tick = 0; tick < 4; tick++) ctx.refresh(true);
     assert.deepEqual(calls, Array(4).fill('Status/Progress'));
     ctx.refresh(true);
-    assert.deepEqual(calls.slice(4), ['Status', 'Errors/Count', 'RecycleBin']);
+    assert.deepEqual(calls.slice(4), ['Status', 'Status/Progress', 'Errors/Count', 'RecycleBin']);
+    ctx.refresh(true);
+    assert.equal(calls.at(-1), 'Status/Progress');
+});
+
+test('Fix resource readings stay live while a slow full status finishes in the background', async () => {
+    const code = source('page-controller.js');
+    const start = code.indexOf('function refresh(silent)');
+    const end = code.indexOf('// Shared config cache', start);
+    const pending = [];
+    const ctx = {
+        _refreshTick: 4, _postUpgradeChecked: true, _postUpgradeAvailable: false,
+        _backgroundStatus: null, _statusRefreshPending: false,
+        overviewTab: { lastStatus: { IsFixing: true, OpenIssueTotal: 21, System: { CpuPercent: 1 } },
+            renderStatus(status) { this.lastStatus = status; } },
+        api: url => new Promise(resolve => pending.push({ url, resolve })),
+        view: { querySelector: () => ({ style: {}, getAttribute: () => 'overview' }) }
+    };
+    vm.runInNewContext(code.slice(start, end), ctx);
+    ctx.refresh(true);
+    assert.equal(pending[0].url, 'Status');
+    assert.equal(pending[1].url, 'Status/Progress');
+    pending[1].resolve({ IsFixing: true, CurrentActivity: 'second episode', System: { CpuPercent: 55 } });
+    await new Promise(setImmediate);
+    assert.equal(ctx.overviewTab.lastStatus.System.CpuPercent, 55);
+    pending[0].resolve({ IsFixing: false, CurrentActivity: 'old episode', OpenIssueTotal: 20, System: { CpuPercent: 2 } });
+    await new Promise(setImmediate);
+    ctx.refresh(true);
+    pending.at(-1).resolve({ IsFixing: true, CurrentActivity: 'third episode', System: { CpuPercent: 70 } });
+    await new Promise(setImmediate);
+    assert.equal(ctx.overviewTab.lastStatus.OpenIssueTotal, 20);
+    assert.equal(ctx.overviewTab.lastStatus.IsFixing, true);
+    assert.equal(ctx.overviewTab.lastStatus.CurrentActivity, 'third episode');
+    assert.equal(ctx.overviewTab.lastStatus.System.CpuPercent, 70);
 });
 
 test('Blocked detected and queued issues explain settings instead of promising a fix', async () => {
@@ -82,8 +136,8 @@ test('Blocked detected and queued issues explain settings instead of promising a
 });
 
 test('Legacy move findings offer a scan instead of settings or approval', async () => {
-    let scans = 0;
-    const e = issuesEnvironment(() => scans++);
+    const scans = [];
+    const e = issuesEnvironment(type => scans.push(type));
     e.tab.activate();
     e.pending[0].resolve([{ Id: 1, Type: 'Ungrouped', Status: 'Detected', Path: '/tv/show',
         FileName: 'show', DetailsJson: '{}', FixRequiresRescan: true,
@@ -94,20 +148,24 @@ test('Legacy move findings offer a scan instead of settings or approval', async 
     assert.match(markup, /Scan now/);
     assert.doesNotMatch(markup, /mdIssueSettings|class="[^"]*mdApprove/);
     assert.equal(e.tab.filteredIds(true).length, 0);
+    e.node('.mdIssueRescan').setAttribute('data-type', 'Ungrouped');
     e.node('.mdIssueRescan').fire('click');
-    assert.equal(scans, 1);
+    assert.deepEqual(scans, ['Ungrouped']);
 });
 
 test('Issue rescan uses the existing scan flow and never cancels an active scan', () => {
     const code = source('page-controller.js');
-    const start = code.indexOf('rescan: function () {');
+    const start = code.indexOf('rescan: function (type) {');
     const end = code.indexOf('\n                        },', start);
     const calls = [];
-    const ctx = { showTab: tab => calls.push(tab), overviewTab: { busy: {}, lastStatus: {} },
-        view: { querySelector: selector => ({ click: () => calls.push(selector) }) } };
+    const ctx = { showTab: tab => calls.push(tab), requestScan: targeted => calls.push(targeted), overviewTab: { busy: {}, lastStatus: {} },
+        view: { querySelector: () => ({ disabled: false }) } };
     const rescan = vm.runInNewContext('({' + code.slice(start, end) + '\n}}).rescan', ctx);
     rescan();
-    assert.deepEqual(calls, ['overview', '#mdScanNow']);
+    assert.deepEqual(calls, ['overview', false]);
+    calls.length = 0;
+    rescan('Ungrouped');
+    assert.deepEqual(calls, ['overview', true]);
     calls.length = 0;
     ctx.overviewTab.lastStatus.IsScanning = true;
     rescan();
@@ -117,6 +175,91 @@ test('Issue rescan uses the existing scan flow and never cancels an active scan'
     ctx.overviewTab.busy.scan = true;
     rescan();
     assert.deepEqual(calls, ['overview']);
+});
+
+test('Ungrouped rescans save dirty settings and use only the ungrouped endpoint', async () => {
+    const code = source('page-controller.js');
+    const start = code.indexOf('function requestScan(scope)');
+    const end = code.indexOf('function schedulePoll()', start);
+    assert(start >= 0 && end > start);
+    const calls = [];
+    let save;
+    const ctx = { overviewTab: { busy: {}, setProgress() {} }, STR: { scanStarting: 'Scanning' },
+        view: { querySelector: () => ({ textContent: '' }) },
+        settingsTab: { mdSettingsDirty: true, saveSettingsAsync: () => new Promise(resolve => { save = resolve; }) },
+        post: route => { calls.push(route); return Promise.resolve(); }, lifetime: { timeout() {} }, refresh() {} };
+    vm.runInNewContext(code.slice(start, end), ctx);
+    ctx.requestScan(true);
+    assert.deepEqual(calls, []);
+    save(); await new Promise(setImmediate);
+    assert.deepEqual(calls, ['Scan/Ungrouped']);
+    ctx.settingsTab.mdSettingsDirty = false;
+    ctx.requestScan(false); await new Promise(setImmediate);
+    assert.deepEqual(calls, ['Scan/Ungrouped', 'Scan']);
+    ctx.settingsTab.mdSettingsDirty = true;
+    ctx.settingsTab.saveSettingsAsync = () => Promise.reject(new Error('cancelled'));
+    ctx.requestScan(true); await new Promise(setImmediate);
+    assert.deepEqual(calls, ['Scan/Ungrouped', 'Scan']);
+});
+
+test('Scan picker runs only the ticked scans and reports a refused start', async () => {
+    const code = source('page-controller.js');
+    const start = code.indexOf('function requestScan(scope)');
+    const end = code.indexOf('function schedulePoll()', start);
+    assert(start >= 0 && end > start);
+    const requests = [];
+    let reply = Promise.resolve();
+    const state = { textContent: '' };
+    const ctx = { overviewTab: { busy: {}, setProgress() {} }, STR: { scanStarting: 'Scanning' },
+        view: { querySelector: sel => sel === '#mdScanState' ? state : { textContent: '' } },
+        settingsTab: { mdSettingsDirty: false }, post: () => Promise.resolve(),
+        api: { ajax: req => { requests.push(req); return reply; } }, ApiClient: { getUrl: p => '/' + p },
+        errorMessage: () => 'A scan is already running.', lifetime: { timeout() {} }, refresh() {} };
+    vm.runInNewContext(code.slice(start, end), ctx);
+    ctx.requestScan(['Ungrouped', 'Duplicate']); await new Promise(setImmediate);
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].url, '/MediaDash/Scan/Selected');
+    assert.deepEqual(JSON.parse(requests[0].data), { Types: ['Ungrouped', 'Duplicate'] });
+    reply = Promise.reject(new Error('409'));
+    ctx.requestScan(['Ungrouped']); await new Promise(setImmediate);
+    assert.equal(ctx.overviewTab.busy.scan, false);
+    assert.match(state.textContent, /Scan not started.*already running/);
+});
+
+test('Scan picker greys out scans switched off in Settings and remembers the last selection', () => {
+    const code = source('page-controller.js');
+    const start = code.indexOf('var scanPickSelection');
+    const end = code.indexOf('function schedulePoll()', start);
+    assert(start >= 0 && end > start);
+    const nodes = {};
+    const node = sel => nodes[sel] || (nodes[sel] = { style: {}, textContent: '', innerHTML: '', disabled: false, value: '',
+        focus() {}, querySelector: () => null });
+    let checked = [];
+    const scans = [];
+    const ctx = { esc: s => String(s), PLUGIN_ID: 'x', STR: { types: { Ungrouped: { title: 'Ungrouped media' }, Duplicate: { title: 'Duplicates' } } },
+        settingsTab: { FIX_TYPES: [{ key: 'Duplicate', mode: 'DuplicateFixMode' }, { key: 'Ungrouped', mode: 'UngroupedFixMode' }, { key: 'Stale', mode: 'StaleFixMode' }] },
+        overviewTab: { busy: {}, lastStatus: {} }, requestScan: types => scans.push(types),
+        api: { configuration: () => ({ then: ok => ok({ DuplicateFixMode: 'ManualApprove', UngroupedFixMode: 'ManualApprove', StaleFixMode: 'Off' }) }) },
+        view: { querySelector: node, querySelectorAll: () => checked.map(value => ({ value })) } };
+    vm.runInNewContext(code.slice(start, end) + ';this.api_ = { openScanPicker, runPickedScans };', ctx);
+    ctx.api_.openScanPicker();
+    const markup = node('#mdScanPickList').innerHTML;
+    assert.equal(node('#mdScanPickDialog').style.display, 'flex');
+    assert.doesNotMatch(markup, /checked/);
+    assert.match(markup, /value="Stale" disabled/);
+    assert.match(markup, /Off in Settings/);
+    assert(markup.indexOf('Duplicates') < markup.indexOf('Ungrouped media') && markup.indexOf('Ungrouped media') < markup.indexOf('Stale'));
+    assert.equal(node('#mdScanPickRun').disabled, true);
+    checked = ['Ungrouped'];
+    ctx.api_.runPickedScans();
+    assert.equal(JSON.stringify(scans), '[["Ungrouped"]]');
+    assert.equal(node('#mdScanPickDialog').style.display, '');
+    ctx.api_.openScanPicker();
+    assert.match(node('#mdScanPickList').innerHTML, /value="Ungrouped" checked/);
+    ctx.overviewTab.lastStatus.IsScanning = true;
+    node('#mdScanPickDialog').style.display = '';
+    ctx.api_.openScanPicker();
+    assert.equal(node('#mdScanPickDialog').style.display, '');
 });
 
 test('Managed artwork shows the metadata path and opens its Jellyfin item instead of Files', async () => {
@@ -343,6 +486,26 @@ test('System performance displays disk rates next to GPU and distinguishes zero 
     assert.match(markup, /aria-describedby="mdSysTip-disk-io-0"/);
     assert.match(markup, /aria-describedby="mdSysTip-disk-io-1"/);
     assert.equal((markup.match(/Network drive and NAS disk performance is unavailable/g) || []).length, 2);
+});
+
+test('Disk semicircle compares read and write on a shared scale that retains peaks and handles missing rates', () => {
+    const e = overviewEnvironment();
+    const render = (read, write) => {
+        e.tab.renderStatus({ System: { Platform: 'Linux', Disks: [{ Name: 'sda', ReadBytesPerSecond: read, WriteBytesPerSecond: write }] } }, true);
+        return e.node('[data-field="value"]').innerHTML;
+    };
+    const arcs = markup => Array.from(markup.matchAll(/stroke-dasharray="([\d.]+) 100"/g), match => Number(match[1]));
+    let markup = render(2097152, 1048576);
+    assert.match(markup, /<svg[^>]*class="mdDiskGauge"/);
+    assert.deepEqual(arcs(markup), [100, 50]);
+    assert.match(markup, /mdDiskRead/);
+    assert.match(markup, /mdDiskWrite/);
+    assert.deepEqual(arcs(render(524288, 0)), [25, 0]);
+    markup = render(null, -1);
+    assert.deepEqual(arcs(markup), [0, 0]);
+    assert.match(markup, /Read .*N\/A.*Write .*N\/A/);
+    assert.doesNotMatch(markup, /NaN|Infinity/);
+    assert.deepEqual(arcs(render(Infinity, NaN)), [0, 0]);
 });
 
 test('A fix completing between polls keeps its no-work explanation visible', () => {

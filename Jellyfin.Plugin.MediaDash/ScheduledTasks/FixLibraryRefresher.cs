@@ -149,6 +149,10 @@ public sealed class FixLibraryRefresher
         {
             await _nativeRefresh.RefreshAsync(targets.Paths, targets.Items, cancellationToken).ConfigureAwait(false);
         }
+        catch (NativeLibraryRefresher.LibraryScanInProgressException)
+        {
+            _logger.LogInformation("Changed-item indexing is awaiting Jellyfin's running library scan.");
+        }
         catch (Exception error)
         {
             _logger.LogWarning(error, "Changed items still need native indexing; run Jellyfin's library scan to complete it.");

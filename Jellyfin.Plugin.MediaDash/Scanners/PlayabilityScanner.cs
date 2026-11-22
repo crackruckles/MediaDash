@@ -37,16 +37,9 @@ public sealed class PlayabilityScanner : ProbingScannerBase
     /// <inheritdoc />
     public override IssueType Type => IssueType.Playability;
 
-    /// <summary>
-    /// True when the file is short enough that ffmpeg's regional start/middle/end sampling collapses;
-    /// a short (e.g. spoken-word or one-track) audio file is best sampled end-to-end.
-    /// </summary>
-    /// <param name="durationSeconds">Duration in seconds as reported by the probe.</param>
-    /// <returns>True when the whole file should be decoded rather than sampled.</returns>
-    public static bool ShouldSampleWholeFile(double durationSeconds)
-    {
-        return durationSeconds > 0 && durationSeconds < 60;
-    }
+    /// <inheritdoc />
+    /// <remarks>Each file's checks are independent ffmpeg/ffprobe runs plus per-path cache rows.</remarks>
+    protected override bool SupportsParallelFiles => true;
 
     /// <inheritdoc />
     protected override async Task<Issue?> EvaluateAsync(BaseItem item, string path, FfprobeData? probe, CancellationToken cancellationToken)
@@ -247,7 +240,7 @@ public sealed class PlayabilityScanner : ProbingScannerBase
             // decode path so attached cover art pictures don't get selected as the "best video"
             // stream and reported as truncated-at-0s.
             var isAudioOnly = IsAudioKind(item.GetBaseItemKind());
-            var decodeError = item.GetBaseItemKind() == BaseItemKind.Photo || ShouldSampleWholeFile(duration)
+            var decodeError = item.GetBaseItemKind() == BaseItemKind.Photo
                 ? await Ffprobe.DecodeCheckAsync(path, durationSeconds: 0, cancellationToken, isAudioOnly).ConfigureAwait(false)
                 : await Ffprobe.DecodeCheckAsync(path, duration, cancellationToken, isAudioOnly).ConfigureAwait(false);
             if (decodeError is not null)

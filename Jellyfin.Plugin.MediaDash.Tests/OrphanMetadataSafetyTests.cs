@@ -59,6 +59,7 @@ public sealed class OrphanMetadataSafetyTests : IDisposable
     private bool _lookupThrows;
     private bool _repositoryOwnerReturned;
     private bool _repositoryThrows;
+    private readonly List<MediaBrowser.Controller.Entities.TV.Series> _series = [];
     private Action? _duringLookup;
 
     public OrphanMetadataSafetyTests()
@@ -81,6 +82,7 @@ public sealed class OrphanMetadataSafetyTests : IDisposable
             if (method.Name == "GetVirtualFolders") return new List<VirtualFolderInfo> { new() { ItemId = "owned", Locations = [Media] } };
             if (method.Name == "GetItemList")
             {
+                if (args![0] is InternalItemsQuery seriesQuery && seriesQuery.IncludeItemTypes.Contains(Jellyfin.Data.Enums.BaseItemKind.Series)) return _series.ToArray();
                 if (_repositoryThrows) throw new IOException("owned repository query failure");
                 return _repositoryOwnerReturned && args![0] is InternalItemsQuery query && query.ItemIds.Contains(_id)
                     ? new BaseItem[] { new Video { Id = _id, Path = Path.Combine(Media, "Movie.mkv") } } : Array.Empty<BaseItem>();
@@ -125,7 +127,7 @@ public sealed class OrphanMetadataSafetyTests : IDisposable
         var task = new FixTask(_db.Issues, _bin, null!, null!,
             new AnalyticsReporter(_db.History, _db.Issues, null!, NullLogger<AnalyticsReporter>.Instance), _guard, _state, provider,
             new FixExecutor(_db.Issues, [Fixer()], provider, TimeProvider.System, _protection, NullLogger<FixExecutor>.Instance),
-            new FixResultRecorder(_db, NullLogger<FixResultRecorder>.Instance), NullLogger<FixTask>.Instance);
+            new FixResultRecorder(_db, NullLogger<FixResultRecorder>.Instance), NullLogger<FixTask>.Instance, _db);
         _state.ArmBypassIdleCheck(RunRole.Fix);
         await task.ExecuteAsync(new Progress<double>(), default);
     }
@@ -144,6 +146,130 @@ public sealed class OrphanMetadataSafetyTests : IDisposable
         var issue = Assert.Single(_db.Issues.GetIssues());
         Assert.IsType<NoContentResult>(Controller().ApproveIssue(issue.Id));
         return _db.Issues.GetIssue(issue.Id)!;
+    }
+
+    [Theory]
+    [InlineData("leftover")]
+    [InlineData("miraculous")]
+    [InlineData("media")]
+    [InlineData("new-media")]
+    [InlineData("unique-art")]
+    [InlineData("unknown-file")]
+    [InlineData("changed-art")]
+    [InlineData("changed-nfo")]
+    [InlineData("nfo-only")]
+    [InlineData("missing-art")]
+    [InlineData("new-art")]
+    [InlineData("large-art")]
+    [InlineData("episode-metadata")]
+    [InlineData("war-thumbnail")]
+    [InlineData("master-display-name")]
+    [InlineData("alternate-title")]
+    [InlineData("plain-title")]
+    [InlineData("unrelated-thumbnail")]
+    [InlineData("unrelated-nfo")]
+    [InlineData("identity-changed")]
+    [InlineData("suffix-thumbnail")]
+    [InlineData("war-episode-nfo")]
+    [InlineData("different-year")]
+    [InlineData("ambiguous")]
+    public async Task ReleaseLeftoversAreDetectedWithoutACachedJellyfinSeries(string mode)
+    {
+        _config.OrphanScanMetadata = false;
+        _config.OrphanScanEmptyFolders = true;
+        var miraculous = mode == "miraculous";
+        var title = miraculous ? "Miraculous - Tales of Ladybug & Cat Noir" : "WAR";
+        var master = Directory.CreateDirectory(Path.Combine(Media, miraculous ? title : "WAR (2026)")).FullName;
+        File.WriteAllText(Path.Combine(master, "episode.mkv"), "master episode");
+        var show = new MediaBrowser.Controller.Entities.TV.Series { Id = Guid.NewGuid(), Name = title, Path = master, ProductionYear = miraculous ? 2015 : 2026 };
+        show.ProviderIds["Tvdb"] = "477406";
+        _series.Add(show);
+        if (mode == "master-display-name") show.Name = "A different display name";
+        if (mode == "ambiguous")
+        {
+            var other = new MediaBrowser.Controller.Entities.TV.Series { Id = Guid.NewGuid(), Name = "WAR", Path = Directory.CreateDirectory(Path.Combine(Media, "War")).FullName, ProductionYear = 2026 };
+            other.ProviderIds["Tvdb"] = "12345";
+            _series.Add(other);
+        }
+
+        var release = Directory.CreateDirectory(Path.Combine(Media, miraculous ? "Miraculous Tales of Ladybug and Cat Noir S06E18 Heartfixer 1080p DSNP WEB-DL"
+            : "www.UIndex.org - War " + (mode == "different-year" ? "1999" : "2026") + " S01E07 1080p WEB-DL")).FullName;
+        if (mode == "alternate-title")
+        {
+            Directory.Delete(release);
+            release = Directory.CreateDirectory(Path.Combine(Media, "Kusuriya no Hitorigoto - 53 (WEB 1080p) [Anarchy]")).FullName;
+        }
+        if (mode == "plain-title")
+        {
+            Directory.Delete(release);
+            release = Directory.CreateDirectory(Path.Combine(Media, "War")).FullName;
+        }
+        File.WriteAllText(Path.Combine(release, "tvshow.nfo"), "leftover metadata");
+        if (mode == "alternate-title") File.WriteAllText(Path.Combine(release, "tvshow.nfo"), "<tvshow><uniqueid type=\"tvdb\">477406</uniqueid></tvshow>");
+        foreach (var image in new[] { "folder", "backdrop", "landscape", "logo" }) File.WriteAllText(Path.Combine(release, image + ".jpg"), "leftover art");
+        foreach (var file in Directory.EnumerateFiles(release)) File.Copy(file, Path.Combine(master, Path.GetFileName(file)));
+        if (mode == "nfo-only") foreach (var file in Directory.EnumerateFiles(release, "*.jpg")) File.Delete(file);
+        if (mode == "media") File.WriteAllText(Path.Combine(release, "episode.mkv"), "unmoved episode");
+        if (mode == "unique-art") File.WriteAllText(Path.Combine(release, "family.jpg"), "unique picture");
+        if (mode == "unknown-file") File.WriteAllText(Path.Combine(release, "notes.json"), "unique notes");
+        if (mode == "unrelated-thumbnail") File.WriteAllText(Path.Combine(release, "family-thumb.jpg"), "unique picture");
+        if (mode == "suffix-thumbnail") File.WriteAllText(Path.Combine(release, "DL-thumb.jpg"), "unique picture");
+        if (mode == "war-episode-nfo") File.WriteAllText(Path.Combine(release, "War 2026 S01E07 1080p WEB-DL.nfo"), "episode metadata");
+        if (mode == "unrelated-nfo") File.WriteAllText(Path.Combine(release, "unrelated.nfo"), "unique metadata");
+        if (mode is "episode-metadata" or "alternate-title")
+        {
+            File.WriteAllText(Path.Combine(release, Path.GetFileName(release) + "-thumb.jpg"), "episode thumbnail");
+            File.WriteAllText(Path.Combine(release, Path.GetFileName(release) + ".nfo"), "episode metadata");
+            File.WriteAllText(Path.Combine(release, "season01-poster.jpg"), "season poster");
+        }
+        if (mode == "war-thumbnail")
+        {
+            foreach (var file in Directory.EnumerateFiles(release)) File.Delete(file);
+            File.WriteAllText(Path.Combine(release, "War 2026 S01E07 1080p WEB-DL-thumb.jpg"), "episode thumbnail");
+        }
+        if (mode == "changed-art") File.WriteAllText(Path.Combine(release, "folder.jpg"), "different art");
+        if (mode == "changed-nfo") File.WriteAllText(Path.Combine(release, "tvshow.nfo"), "different metadata");
+        if (mode == "missing-art") File.Delete(Path.Combine(master, "logo.jpg"));
+        if (mode == "large-art")
+        {
+            using (var file = File.OpenWrite(Path.Combine(release, "folder.jpg"))) file.SetLength(33L * 1024 * 1024);
+            using (var file = File.OpenWrite(Path.Combine(master, "folder.jpg"))) file.SetLength(33L * 1024 * 1024);
+        }
+
+        var findings = await Scanner().ScanAsync([], new Progress<double>(), default);
+        if (mode is "media" or "different-year" or "ambiguous")
+        {
+            Assert.DoesNotContain(findings, issue => issue.Path == release);
+            return;
+        }
+
+        var issue = Assert.Single(findings, issue => issue.Path == release);
+        Assert.Equal(OrphanCleanupScanner.KindGroupedLeftover, OrphanCleanupFixer.ReadKind(issue.DetailsJson));
+        var preview = await Fixer().FixAsync(issue, null, default);
+        if (mode is not ("unique-art" or "unknown-file" or "unrelated-thumbnail" or "unrelated-nfo" or "suffix-thumbnail")) Assert.True(preview.WasDryRun);
+        Assert.True(Directory.Exists(release));
+        _config.DryRun = false;
+        _config.OrphanCleanupDisposal = DisposalMethod.Permanent;
+        if (mode == "new-media") File.WriteAllText(Path.Combine(release, "new-episode.mkv"), "new media");
+        if (mode == "new-art") File.WriteAllText(Path.Combine(release, "logo.jpg"), "new unique art");
+        if (mode == "identity-changed") File.WriteAllText(Path.Combine(release, "tvshow.nfo"), "<tvshow><id>123</id></tvshow>");
+        var result = await Fixer().FixAsync(issue, null, default);
+        var preserve = mode is "new-media" or "unique-art" or "unknown-file" or "unrelated-thumbnail" or "unrelated-nfo" or "identity-changed" or "suffix-thumbnail";
+        if (mode == "identity-changed") Assert.Equal(FixReason.SourceChanged, result.Reason);
+        else if (preserve) Assert.Equal(FixReason.NothingToRemove, result.Reason);
+        else Assert.True(result.Success, result.Message);
+        Assert.Equal(preserve, Directory.Exists(release));
+        Assert.True(File.Exists(Path.Combine(master, "episode.mkv")));
+        Assert.Equal(mode == "alternate-title" ? "<tvshow><uniqueid type=\"tvdb\">477406</uniqueid></tvshow>" : "leftover metadata",
+            File.ReadAllText(Path.Combine(master, "tvshow.nfo")));
+        if (!preserve)
+        {
+            Assert.NotNull(result.RecyclePath);
+            _bin.Restore(result.RecyclePath!, release);
+            Assert.True(Directory.Exists(release));
+            if (mode == "changed-art") Assert.Equal("different art", File.ReadAllText(Path.Combine(release, "folder.jpg")));
+            if (mode == "changed-nfo") Assert.Equal("different metadata", File.ReadAllText(Path.Combine(release, "tvshow.nfo")));
+        }
     }
 
     [Theory]
