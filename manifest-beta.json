@@ -9,6 +9,22 @@
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
       {
+        "version": "1.0.8.2",
+        "changelog": "[BETA] First beta of 1.0.8.2. Focus areas: media moves and grouping (identity snapshots, source cleanup, move provenance), duplicate merged-version handling, misfiled movie detection, Jellyfin library-scan hold during fixes, and the new Diagnostics tab. Please report anything odd at https://github.com/crackruckles/MediaDash/issues with your Jellyfin version and the Errors-tab bug report.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v1.0.8.2-beta/mediadash_1.0.8.2-beta.zip",
+        "checksum": "f255a82ee9f902a935509db6ed2d3760",
+        "timestamp": "2026-11-22T14:21:21Z"
+      },
+      {
+        "version": "1.0.8.2",
+        "changelog": "[BETA] First beta of 1.0.8.2. Focus areas: media moves and grouping (identity snapshots, source cleanup, move provenance), duplicate merged-version handling, misfiled movie detection, Jellyfin library-scan hold during fixes, and the new Diagnostics tab. Please report anything odd at https://github.com/crackruckles/MediaDash/issues with your Jellyfin version and the Errors-tab bug report.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v1.0.8.2-beta/mediadash_1.0.8.2-beta.zip",
+        "checksum": "f255a82ee9f902a935509db6ed2d3760",
+        "timestamp": "2026-11-22T14:21:21Z"
+      },
+      {
         "version": "1.0.8.1",
         "changelog": "Hotfix for 1.0.8.0 — the Issues tab went blank and unresponsive on servers with substantial history.\n\nRoot cause: the new per-row \"last attempt\" lookup in 1.0.8.0 ran a correlated subquery against the history table with no supporting index. On loaded databases the query stalled long enough that Jellyfin tore down the request scope mid-flight, which crashed MVC\u0027s result serializer with ObjectDisposedException — the Issues tab silently rendered empty and every button that depended on live issue data felt dead.\n\nSchema v11 adds a covering index on history(issue_id, dry_run, fixed_at_utc). Non-destructive migration: SQLite builds the index from existing rows. No rescan, no history loss, no re-queue needed.\n\nMeasured ~450x speed-up on the correlated query (approx 5000ms -\u003e approx 15ms per 500-id chunk on a 48k-row history), and GET /MediaDash/Issues?openOnly=true now returns a steady HTTP 200 instead of timing out and 500ing. 1526 / 1526 tests green.\n\nFixes #80.",
         "targetAbi": "12.0.0.0",
