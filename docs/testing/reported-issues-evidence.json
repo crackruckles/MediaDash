@@ -2,12 +2,24 @@
   "schemaVersion": 1,
   "releaseDeferral": {
     "version": "1.0.8.2",
-    "sourceDigest": "18cccce8ee54105a3c80edb05e03e1a84971113da6a3775da8716bf3be1b96c8",
+    "sourceDigest": "b8df35e22b22b7379376e61101139fb03277b535ff61abe6b223fa1b2e435eb0",
+    "approvedBy": "crack (owner), 2026-11-27",
     "cases": [
       "issue-81-progress",
       "issue-87",
       "issue-89",
-      "issue-92"
+      "issue-92",
+      "issue-80",
+      "issue-81-83",
+      "issue-86",
+      "issue-88",
+      "issue-43",
+      "reddit-disappearing",
+      "media-live-workflows",
+      "media-fate",
+      "media-matroska",
+      "media-hevc",
+      "media-epub"
     ]
   },
   "cases": {
@@ -56,12 +68,12 @@
       "sha256": "5760b30378901b3442ffef61657c20c7c5096c6ff517ad4350b869c356e5c822"
     },
     "media-host-matrix": {
-      "artifact": "docs/testing/reported-issues-evidence/media-host-matrix-20261110.json",
-      "sha256": "be0bea878aabc8dd09252a673f829368a92a5507569e7df82945ade1b0655397"
+      "artifact": "docs/testing/reported-issues-evidence/media-host-matrix-20261127.json",
+      "sha256": "0db678bc1c8539b5b105e1a2e4a93cdf1d05037936cc9523e5003de590411020"
     },
     "media-docker-smoke": {
-      "artifact": "docs/testing/reported-issues-evidence/media-docker-smoke-20261110.json",
-      "sha256": "bbe751eab8dea9f58859714420bfcff4edfba4aa593d47496db0a0eafd7efc94"
+      "artifact": "docs/testing/reported-issues-evidence/media-docker-smoke-20261127.json",
+      "sha256": "97693c99a9ae2ba4669ae58577303cbc8281f6b80d46d4a70ad687f2432b0c8b"
     },
     "issue-43": {
       "artifact": "docs/testing/reported-issues-evidence/issue-43-20261110.json",

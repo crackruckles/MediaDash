@@ -38,6 +38,8 @@ The primary #92 media failures and the exact #87/Reddit reports remain unreprodu
 
 For 1.0.8.2, the evidence index records the decision to defer live acceptance for #81 progress, #87, #89, and #92. The deferral applies only to the indexed source fingerprint. The gate reports those cases as deferred and still requires their offline regressions and every other acceptance record.
 
+On 27 November 2026 the owner approved shipping 1.0.8.2 with 11 more cases deferred: #80, #81-83, #86, #88, #43, the Reddit report, and the `media-live-workflows`, `media-fate`, `media-matroska`, `media-hevc` and `media-epub` cases. `media-host-matrix` and `media-docker-smoke` were run against the final candidate. The extra cases are accepted only while `build.yaml` says 1.0.8.2 and the deferral record carries `"version": "1.0.8.2"` (`RELEASE_DEFERRABLE_CASES` in `tools/reported_issue_gate.py`); remove that entry after the release so the next version needs full evidence again.
+
 After running the scenario in `requirements.json` against the final candidate, obtain its code fingerprint:
 
 ```powershell
