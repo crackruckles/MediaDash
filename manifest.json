@@ -1,4 +1,4 @@
-﻿[
+[
   {
     "guid": "38bdb090-b763-4294-934b-b54ade4d9d6d",
     "name": "MediaDash",
@@ -8,6 +8,22 @@
     "category": "General",
     "imageUrl": "https://raw.githubusercontent.com/crackruckles/MediaDash/main/logo.png",
     "versions": [
+      {
+        "version": "1.0.8.2",
+        "changelog": "Whole 1.0.8.2 update: media moves and grouping rebuilt around TVDb IDs (release folders join their show, leftover folders recycled in the same run, Undo for every move), preview before Files moves and renames, Move anyway and Enter season number for blocked moves, duplicate TV episodes across different releases, Jellyfin library scans wait for MediaDash, live disk speeds on Overview, choose which scans to run from Scan now, plain-language Errors tab, stale-content deletion with approval, and a new banner for issues that keep coming back after a fix. Full notes: https://github.com/crackruckles/MediaDash/blob/main/CHANGELOG.md",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v1.0.8.2/mediadash_1.0.8.2.zip",
+        "checksum": "c2be814e4502badbbc5b355e206460a9",
+        "timestamp": "2026-11-27T09:02:23Z"
+      },
+      {
+        "version": "1.0.8.2",
+        "changelog": "Whole 1.0.8.2 update: media moves and grouping rebuilt around TVDb IDs (release folders join their show, leftover folders recycled in the same run, Undo for every move), preview before Files moves and renames, Move anyway and Enter season number for blocked moves, duplicate TV episodes across different releases, Jellyfin library scans wait for MediaDash, live disk speeds on Overview, choose which scans to run from Scan now, plain-language Errors tab, stale-content deletion with approval, and a new banner for issues that keep coming back after a fix. Full notes: https://github.com/crackruckles/MediaDash/blob/main/CHANGELOG.md",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/crackruckles/MediaDash/releases/download/v1.0.8.2/mediadash_1.0.8.2.zip",
+        "checksum": "c2be814e4502badbbc5b355e206460a9",
+        "timestamp": "2026-11-27T09:02:23Z"
+      },
       {
         "version": "1.0.8.1",
         "changelog": "Hotfix for 1.0.8.0 — the Issues tab went blank and unresponsive on servers with substantial history.\n\nRoot cause: the new per-row \"last attempt\" lookup in 1.0.8.0 ran a correlated subquery against the history table with no supporting index. On loaded databases the query stalled long enough that Jellyfin tore down the request scope mid-flight, which crashed MVC\u0027s result serializer with ObjectDisposedException — the Issues tab silently rendered empty and every button that depended on live issue data felt dead.\n\nSchema v11 adds a covering index on history(issue_id, dry_run, fixed_at_utc). Non-destructive migration: SQLite builds the index from existing rows. No rescan, no history loss, no re-queue needed.\n\nMeasured ~450x speed-up on the correlated query (approx 5000ms -\u003e approx 15ms per 500-id chunk on a 48k-row history), and GET /MediaDash/Issues?openOnly=true now returns a steady HTTP 200 instead of timing out and 500ing. 1526 / 1526 tests green.\n\nFixes #80.",
@@ -427,6 +443,7 @@
     ]
   }
 ]
+
 
 
 
