@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "releaseDeferral": {
     "version": "1.0.8.2",
-    "sourceDigest": "b8df35e22b22b7379376e61101139fb03277b535ff61abe6b223fa1b2e435eb0",
-    "approvedBy": "crack (owner), 2026-11-27",
+    "sourceDigest": "fb7dcae3f8bd9a3520a82a5769243e12d5ddedaf710252474648a605e47afdb4",
+    "approvedBy": "crack (owner), 2026-11-27; re-pointed to the released 1.0.8.2 source (dfb6a37) on 2026-11-27",
     "cases": [
       "issue-81-progress",
       "issue-87",
@@ -68,12 +68,12 @@
       "sha256": "5760b30378901b3442ffef61657c20c7c5096c6ff517ad4350b869c356e5c822"
     },
     "media-host-matrix": {
-      "artifact": "docs/testing/reported-issues-evidence/media-host-matrix-20261127.json",
-      "sha256": "0db678bc1c8539b5b105e1a2e4a93cdf1d05037936cc9523e5003de590411020"
+      "artifact": "docs/testing/reported-issues-evidence/media-host-matrix-20261127b.json",
+      "sha256": "bb43a857510686953d37d20153beddc48be80152eca2b7af902b53753f38390b"
     },
     "media-docker-smoke": {
-      "artifact": "docs/testing/reported-issues-evidence/media-docker-smoke-20261127.json",
-      "sha256": "97693c99a9ae2ba4669ae58577303cbc8281f6b80d46d4a70ad687f2432b0c8b"
+      "artifact": "docs/testing/reported-issues-evidence/media-docker-smoke-20261127b.json",
+      "sha256": "5b20800fae1da4a53cfd9a2c41bdcbacab4f514c8e18c62443d7ed64ae90cd3a"
     },
     "issue-43": {
       "artifact": "docs/testing/reported-issues-evidence/issue-43-20261110.json",

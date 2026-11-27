@@ -1,0 +1,19 @@
+{
+  "caseId": "media-docker-smoke",
+  "sourceDigest": "fb7dcae3f8bd9a3520a82a5769243e12d5ddedaf710252474648a605e47afdb4",
+  "environment": "Local run of the .github/workflows/smoke.yaml steps on mdtest-docker (LXC 112) from commit dfb6a37, fresh /config per container, candidate DLL SHA-256 867b7acf548f738c148464f4a2ea3f534691198f0d467023fb126bb98e87b36d with its sidecar DLLs and deps.json; host rolled back to 'golden' and stopped afterwards.",
+  "checks": [
+    {
+      "name": "docker-10.11",
+      "passed": true,
+      "skipped": false,
+      "result": "jellyfin/jellyfin@sha256:aefb67e6a7ff1debdd154a78a7bbb780fd0c873d8639210a7f6a2016ad2b35db reports 10.11.11; /health Healthy; 'Loaded assembly ... Jellyfin.Plugin.MediaDash' logged; no plugin load error; MediaDash configuration page served with id=MediaDashConfigPage; 0 MediaDash ERR/FTL log lines"
+    },
+    {
+      "name": "docker-12",
+      "passed": true,
+      "skipped": false,
+      "result": "jellyfin/jellyfin@sha256:fea863d0cd9ec445985d9c75fc6ed64e38a1d2766cf0c250a33d553f4fc1b771 reports 12.4.0; /health Healthy; 'Loaded assembly ... Jellyfin.Plugin.MediaDash' logged; no plugin load error; MediaDash configuration page served with id=MediaDashConfigPage; 0 MediaDash ERR/FTL log lines"
+    }
+  ]
+}
