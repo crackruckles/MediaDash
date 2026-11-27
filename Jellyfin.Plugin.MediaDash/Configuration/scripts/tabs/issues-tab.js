@@ -288,6 +288,16 @@
                 // bitmap subs that the container can't hold under a copy-only remux). The scanner marks the
                 // blocking ones; auto-queue holds them Detected and the user must consent via Approve. Hoist
                 // a "⚠ needs review" chip so the warning isn't invisible under the generic Approve copy.
+                // "Came back" badge: this path and type were marked Fixed before, yet a later scan
+                // found the same problem again. Something keeps recreating it, or the last fix
+                // closed the issue without changing anything. The tooltip carries the last fix result.
+                var cameBack = i.TimesFixedBefore > 0;
+                var recurBadge = cameBack
+                    ? '<span class="mdBadge" style="background:rgba(245,158,11,.20);color:#fbbf24;border:1px solid rgba(245,158,11,.5);" title="' +
+                        esc('This was fixed ' + (i.TimesFixedBefore === 1 ? 'once' : i.TimesFixedBefore + ' times') + ' before and came back. Something outside MediaDash may be recreating it (Sonarr / Radarr, Jellyfin metadata saving, a sync tool), or the last fix changed nothing.' +
+                            (i.LastFixedBeforeMessage ? ' Last fix' + (i.LastFixedBeforeAtUtc ? ' (' + new Date(i.LastFixedBeforeAtUtc).toLocaleString() + ')' : '') + ': ' + i.LastFixedBeforeMessage : '')) +
+                        '">⟳ came back after ' + (i.TimesFixedBefore === 1 ? 'a fix' : i.TimesFixedBefore + ' fixes') + '</span> '
+                    : '';
                 var warnings = Array.isArray(i.Warnings) ? i.Warnings : [];
                 var blockingWarnings = warnings.filter(function (w) { return w && w.Blocking; });
                 var warningBadge = blockingWarnings.length
@@ -388,6 +398,7 @@
                                 '<span class="mdIssueTagChip">' + esc(isManagedArtwork ? (isMissingArtwork ? strings.missingArtwork : strings.corruptArtwork) : t.title) + '</span>' +
                                 statusBadge +
                                 restoredBadge +
+                                recurBadge +
                                 warningBadge +
                             '</div>' +
                             pathBlock +

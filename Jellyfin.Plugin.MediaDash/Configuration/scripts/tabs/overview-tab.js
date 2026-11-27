@@ -1006,6 +1006,31 @@
                     redlBanner.style.display = 'none';
                 }
 
+                // Issues that came back at the same path after a fix. Server sends the most-fixed
+                // first, capped; RecurringIssueTotal carries the full count.
+                var recurBanner = deps.view.querySelector('#mdRecurringWarn');
+                var recur = s.RecurringIssues || [];
+                var recurTotal = s.RecurringIssueTotal || recur.length;
+                if (recurBanner && recur.length > 0 && !deps.bannerDismissed('mdRecurringWarn')) {
+                    recurBanner.style.display = '';
+                    var recurLead = recurTotal + ' open issue' + (recurTotal === 1 ? ' has' : 's have') + ' come back after being fixed.';
+                    if (recurTotal > recur.length) {
+                        recurLead += ' The ' + recur.length + ' that came back most often are listed.';
+                    }
+                    deps.view.querySelector('#mdRecurringWarnLead').textContent = recurLead;
+                    deps.view.querySelector('#mdRecurringWarnList').innerHTML = recur.map(function (r) {
+                        var typeTitle = (deps.STR.types[r.Type] || { title: r.Type }).title;
+                        var times = r.TimesFixed === 1 ? 'fixed once before' : 'fixed ' + r.TimesFixed + ' times before';
+                        var last = r.LastFixMessage
+                            ? '<div style="opacity:.75;">Last fix (' + new Date(r.LastFixedAtUtc).toLocaleString() + (r.LastFixSucceeded ? '' : ', changed nothing') + '): ' + deps.esc(r.LastFixMessage) + '</div>'
+                            : '';
+                        return '<li style="margin-bottom:.35em;" title="' + deps.esc(r.Path) + '"><span style="font-family:monospace;">' + deps.esc(r.Path) + '</span>' +
+                               ' <span style="color:#fbbf24;">— ' + deps.esc(typeTitle) + ', ' + times + '</span>' + last + '</li>';
+                    }).join('');
+                } else if (recurBanner) {
+                    recurBanner.style.display = 'none';
+                }
+
                 // Skip re-rendering the static content (hero, per-type cards, savings bars) on silent
                 // polls — it only meaningfully changes when a scan/fix completes (nowBusy transitioning from
                 // true → false) or when the user takes an action (which triggers a non-silent refresh). Skipping

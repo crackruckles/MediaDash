@@ -649,6 +649,21 @@
                             <button is="emby-button" type="button" class="mdDismissBanner" data-banner="mdRedownloadWarn" style="background:transparent;border:0;color:#ef4444;padding:.3em;min-width:0;" title="Hide this notice for this browser session. It comes back on next scan if the condition still holds."><span class="material-icons" style="font-size:1.2em;">close</span></button>
                         </div>
                     </div>
+                    <div id="mdRecurringWarn" style="display:none;margin-bottom:1em;padding:.8em 1.2em;border-radius:12px;background:rgba(245,158,11,.14);border:2px solid #f59e0b;">
+                        <div style="display:flex;gap:.8em;align-items:flex-start;flex-wrap:wrap;">
+                            <span class="material-icons" style="color:#f59e0b;font-size:1.5em;">sync_problem</span>
+                            <div style="flex:1;min-width:20em;">
+                                <div style="font-weight:600;color:#f59e0b;">These issues keep coming back</div>
+                                <div class="fieldDescription" style="margin-top:.2em;"><span id="mdRecurringWarnLead"></span> Each was fixed before, but a later scan found the same problem at the same place. Usually something outside MediaDash is recreating it: Sonarr or Radarr still pointing at an old folder, Jellyfin saving artwork and NFO files into a folder it still lists, or a sync or backup tool putting files back. If the last fix says the folder or file was left in place, MediaDash closed the issue without changing anything. Fixing it again won't help until the cause is sorted.</div>
+                                <details style="margin-top:.4em;">
+                                    <summary style="cursor:pointer;font-size:.9em;color:rgba(230,237,243,.75);">Show the issues</summary>
+                                    <ul id="mdRecurringWarnList" style="margin:.4em 0 0;padding-left:1.4em;font-size:.85em;overflow-wrap:anywhere;word-break:break-word;"></ul>
+                                </details>
+                            </div>
+                            <button is="emby-button" type="button" id="mdRecurringWarnShow" class="raised" style="font-size:80%;" title="Open the Issues tab. Issues that came back are marked there."><span>Show in Issues</span></button>
+                            <button is="emby-button" type="button" class="mdDismissBanner" data-banner="mdRecurringWarn" style="background:transparent;border:0;color:#f59e0b;padding:.3em;min-width:0;" title="Hide this notice for this browser session. It comes back on the next scan if these issues are still open."><span class="material-icons" style="font-size:1.2em;">close</span></button>
+                        </div>
+                    </div>
                     <div id="mdRecycleWarn" style="display:none;margin-bottom:1em;padding:.8em 1.2em;border-radius:12px;background:rgba(245,158,11,.16);border:2px solid #f59e0b;">
                         <div style="display:flex;gap:.8em;align-items:center;flex-wrap:wrap;">
                             <span class="material-icons" style="color:#f59e0b;font-size:1.5em;">warning</span>

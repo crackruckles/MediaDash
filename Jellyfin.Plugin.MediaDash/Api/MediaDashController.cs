@@ -187,6 +187,10 @@ public class MediaDashController : ControllerBase
         // Empty on a Detected-only page (nothing's been attempted yet); populated when Queued
         // rows keep failing silently so the UI can render "last attempt: X, Y ago".
         var lastAttempts = _history.GetLatestAttemptsByIssueIds(rows.Select(r => r.Id).ToList(), cancellationToken);
+        // Open rows that already came back after a fix at the same path. Closed rows never match.
+        var recurrences = rows.Any(r => r.Status is IssueStatus.Detected or IssueStatus.Queued)
+            ? _issues.GetRecurrences(cancellationToken)
+            : new Dictionary<long, IssueRecurrence>();
         var dtos = new List<IssueDto>(rows.Count);
         var config = Plugin.Instance?.Configuration ?? new PluginConfiguration();
         var enabledLocations = _libraryGuard?.GetEnabledLibraryLocations(config.EnabledLibraries);
@@ -209,6 +213,13 @@ public class MediaDashController : ControllerBase
             }
 
             dto.WasPreviouslyRestored = restored.Contains(issue.Path);
+            if (recurrences.TryGetValue(issue.Id, out var recurrence))
+            {
+                dto.TimesFixedBefore = recurrence.TimesFixed;
+                dto.LastFixedBeforeAtUtc = recurrence.LastFixedAtUtc;
+                dto.LastFixedBeforeMessage = recurrence.LastFixMessage;
+            }
+
             if (lastAttempts.TryGetValue(issue.Id, out var lastAttempt))
             {
                 dto.LastAttemptMessage = lastAttempt.Action;

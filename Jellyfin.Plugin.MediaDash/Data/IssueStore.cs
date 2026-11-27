@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using Jellyfin.Plugin.MediaDash.Fixers;
 using Microsoft.Data.Sqlite;
 
@@ -365,6 +366,78 @@ public sealed class IssueStore
             {
                 result.Add(issue);
             }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Finds open issues (Detected or Queued) whose type and path were already marked Fixed by an
+    /// earlier, real (non-dry-run) fix that the user did not later restore. Those fixes closed the
+    /// issue, yet a later scan found the same problem at the same path again — something keeps
+    /// recreating it, or the fixer closed it without changing anything on disk.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>One entry per open issue that came back, keyed by the open issue's id.</returns>
+    public IReadOnlyDictionary<long, IssueRecurrence> GetRecurrences(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        using var connection = _connectionFactory.Open();
+        using var cmd = connection.CreateCommand();
+        // Fixes are matched to the open row by (type, path) through idx_issues_type_path, then to
+        // their history rows through idx_history_issue_id_dry_run. A history row written after the
+        // open row was detected can't be what it came back from, so it is excluded.
+        cmd.CommandText = """
+            SELECT o.id, o.type, o.path, f.id, h.fixed_at_utc, h.action, h.success
+            FROM issues o
+            JOIN issues f ON f.type = o.type AND f.path = o.path AND f.status = @fixed AND f.id <> o.id
+            JOIN history h ON h.issue_id = f.id AND h.dry_run = 0 AND h.restored = 0
+            WHERE o.status IN (@detected, @queued) AND o.path IS NOT NULL AND o.path <> ''
+              AND h.fixed_at_utc <= o.detected_at_utc
+            ORDER BY o.id, h.fixed_at_utc DESC, h.id DESC
+            """;
+        cmd.Parameters.AddWithValue("@fixed", (int)IssueStatus.Fixed);
+        cmd.Parameters.AddWithValue("@detected", (int)IssueStatus.Detected);
+        cmd.Parameters.AddWithValue("@queued", (int)IssueStatus.Queued);
+
+        var result = new Dictionary<long, IssueRecurrence>();
+        var fixedIds = new Dictionary<long, HashSet<long>>();
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var openId = reader.GetInt64(0);
+            if (reader.IsDBNull(2) || reader.IsDBNull(4))
+            {
+                continue;
+            }
+
+            var fixedAt = RowHydration.SafeUtcFromTicks(reader.GetInt64(4), "history");
+            if (!result.TryGetValue(openId, out var recurrence))
+            {
+                if (!RowHydration.TryHydrateIssueType(reader.GetInt32(1), openId, "issues (GetRecurrences)", out var type))
+                {
+                    continue;
+                }
+
+                // Rows arrive newest fix first, so the first row per open issue is the latest fix.
+                recurrence = new IssueRecurrence
+                {
+                    IssueId = openId,
+                    Type = type,
+                    Path = reader.GetString(2),
+                    LastFixedAtUtc = fixedAt,
+                    LastFixMessage = reader.IsDBNull(5) ? string.Empty : reader.GetString(5),
+                    LastFixSucceeded = !reader.IsDBNull(6) && reader.GetInt64(6) != 0
+                };
+                result[openId] = recurrence;
+                fixedIds[openId] = new HashSet<long>();
+            }
+
+            // A fixed issue can carry several history rows (retries before it closed); count it once.
+            fixedIds[openId].Add(reader.GetInt64(3));
+            recurrence.TimesFixed = fixedIds[openId].Count;
+            recurrence.FirstFixedAtUtc = fixedAt;
         }
 
         return result;

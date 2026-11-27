@@ -24,6 +24,9 @@ namespace Jellyfin.Plugin.MediaDash.Api;
 /// </remarks>
 public sealed class StatusQueryService
 {
+    /// <summary>Most recurring issues listed on the Overview banner; the total is reported separately.</summary>
+    internal const int RecurringIssueListCap = 25;
+
     private static readonly UncVolumeProbe ShareProbe = new(
         root => Fixers.FreeSpaceGuard.TryGetDiskSpace(root, out var free, out var total)
             ? new UncVolumeProbe.Reading(true, free, total) : default,
@@ -251,6 +254,7 @@ public sealed class StatusQueryService
             .Count(i => config.GetFixMode(i.Type) == Configuration.FixMode.Automatic);
         var binContents = SafeGetBinContents();
         var fixSnapshot = _runState.ReadSnapshot(RunRole.Fix);
+        var recurrences = _issues.GetRecurrences().Values.ToList();
 
         return new StatusResponse
         {
@@ -302,6 +306,13 @@ public sealed class StatusQueryService
             FixPauseReason = fixSnapshot.PauseReason,
             CurrentOperationProgress = fixSnapshot.CurrentOperationProgress,
             RedownloadWarnings = Plugin.RedownloadWarnings,
+            RecurringIssues = recurrences
+                .OrderByDescending(r => r.TimesFixed)
+                .ThenByDescending(r => r.LastFixedAtUtc)
+                .Take(RecurringIssueListCap)
+                .Select(RecurringIssue.From)
+                .ToList(),
+            RecurringIssueTotal = recurrences.Count,
             Repair = _db.GetRepairSummary(DateTime.UtcNow.AddDays(-30).Ticks)
         };
     }

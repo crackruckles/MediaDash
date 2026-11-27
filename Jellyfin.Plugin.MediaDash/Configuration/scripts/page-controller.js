@@ -1363,6 +1363,10 @@
                         post('Fix/IgnoreActivity').then(function () { lifetime.timeout(refresh, 700); });
                     });
 
+                    view.querySelector('#mdRecurringWarnShow').addEventListener('click', function () {
+                        showTab('issues');
+                    });
+
                     view.querySelector('#mdRecycleWarnFix').addEventListener('click', function () {
                         showTab('settings');
                         lifetime.timeout(function () {

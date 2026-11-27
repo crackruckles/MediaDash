@@ -81,6 +81,19 @@ public sealed class IssueDto
     public bool WasPreviouslyRestored { get; set; }
 
     /// <summary>
+    /// Gets or sets how many earlier issues at this same path and type were marked Fixed before
+    /// this one was detected. Above zero means the issue came back after a fix: the UI shows a
+    /// "came back" badge so the user knows something is recreating it or the fix didn't take.
+    /// </summary>
+    public int TimesFixedBefore { get; set; }
+
+    /// <summary>Gets or sets when the most recent earlier fix at this path ran, when <see cref="TimesFixedBefore"/> is above zero.</summary>
+    public DateTime? LastFixedBeforeAtUtc { get; set; }
+
+    /// <summary>Gets or sets what the most recent earlier fix at this path reported, when <see cref="TimesFixedBefore"/> is above zero.</summary>
+    public string? LastFixedBeforeMessage { get; set; }
+
+    /// <summary>
     /// Gets or sets the data-loss / consent warnings the scanner attached to this issue.
     /// Empty when the fix incurs no data loss (the common case). The UI renders each warning
     /// under the row and, for blocking warnings, hoists the "⚠ needs review" chip so the user
