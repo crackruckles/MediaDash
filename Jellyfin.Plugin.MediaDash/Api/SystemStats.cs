@@ -56,6 +56,8 @@ public sealed class SystemStats
 
     private static string? _cachedPlatform;
     private static bool _cachedInContainer;
+    private static Dictionary<string, (long Read, long Write)?> _lastDiskCounters = new(StringComparer.Ordinal);
+    private static long _lastDiskSample;
 
     /// <summary>Gets or sets the Jellyfin process's CPU usage, 0-100. Null when a delta hasn't been sampled yet.</summary>
     public double? CpuPercent { get; set; }
@@ -90,6 +92,9 @@ public sealed class SystemStats
     /// <summary>Gets or sets a short platform label ("Windows", "Linux", "macOS", "Container") for the UI.</summary>
     public string Platform { get; set; } = "Unknown";
 
+    /// <summary>Gets or sets the observed disk names and rates.</summary>
+    public IReadOnlyList<DiskRates> Disks { get; set; } = [];
+
     /// <summary>Gets or sets a value indicating whether whole-system CPU/RAM stats are available on this host.</summary>
     public bool SystemStatsAvailable { get; set; }
 
@@ -108,7 +113,7 @@ public sealed class SystemStats
             // Anything the fine-grained catches below miss (a runtime issue in the Windows-only PerformanceCounter
             // path on Linux, a permission error in /proc, an assembly-load failure) surfaces here so the Errors
             // tab has something to look at instead of the API 500ing without explanation.
-            Diagnostics.Record("SystemStats", ex.GetType().Name + ": " + ex.Message);
+            Diagnostics.Record("SystemStats", "The Overview could not read this server's system stats (CPU, memory or GPU), so some tiles are blank. It will try again on the next refresh. Details: " + ex.GetType().Name + ": " + ex.Message);
             return new SystemStats
             {
                 CpuCoreCount = Environment.ProcessorCount,
@@ -117,7 +122,7 @@ public sealed class SystemStats
         }
     }
 
-    private static SystemStats SampleCore()
+    internal static SystemStats SampleCore(bool includeDisk = true)
     {
         lock (SampleLock)
         {
@@ -172,6 +177,23 @@ public sealed class SystemStats
 
             // Derived from what we actually got — so a container host that DOES expose /proc still shows data.
             stats.SystemStatsAvailable = stats.SystemCpuPercent is not null || stats.SystemRamTotalBytes is not null;
+
+            if (includeDisk)
+            {
+                var disks = DiskIo.ReadDevices();
+                var now = Stopwatch.GetTimestamp();
+                var seconds = Stopwatch.GetElapsedTime(_lastDiskSample, now).TotalSeconds;
+                stats.Disks = disks.OrderBy(disk => disk.Key, StringComparer.Ordinal).Select(disk =>
+                {
+                    var previous = _lastDiskCounters.GetValueOrDefault(disk.Key);
+                    return new DiskRates(
+                        disk.Key,
+                        DiskIo.BytesPerSecond(previous?.Read, disk.Value?.Read, seconds),
+                        DiskIo.BytesPerSecond(previous?.Write, disk.Value?.Write, seconds));
+                }).ToArray();
+                _lastDiskCounters = disks;
+                _lastDiskSample = now;
+            }
 
             return stats;
         }
@@ -357,12 +379,12 @@ public sealed class SystemStats
         }
         catch (IOException ex)
         {
-            Diagnostics.Record("SystemStats.Linux", ex.Message);
+            Diagnostics.Record("SystemStats.Linux", "The Overview could not read CPU or memory usage from /proc, so that tile is blank. It will try again on the next refresh. Details: " + ex.Message);
             return null;
         }
         catch (UnauthorizedAccessException ex)
         {
-            Diagnostics.Record("SystemStats.Linux", ex.Message);
+            Diagnostics.Record("SystemStats.Linux", "The Overview is not allowed to read CPU or memory usage from /proc, so that tile is blank. If Jellyfin runs in a container, make sure /proc is available to it. Details: " + ex.Message);
             return null;
         }
     }
@@ -408,12 +430,12 @@ public sealed class SystemStats
         }
         catch (IOException ex)
         {
-            Diagnostics.Record("SystemStats.Linux", ex.Message);
+            Diagnostics.Record("SystemStats.Linux", "The Overview could not read CPU or memory usage from /proc, so that tile is blank. It will try again on the next refresh. Details: " + ex.Message);
             return null;
         }
         catch (UnauthorizedAccessException ex)
         {
-            Diagnostics.Record("SystemStats.Linux", ex.Message);
+            Diagnostics.Record("SystemStats.Linux", "The Overview is not allowed to read CPU or memory usage from /proc, so that tile is blank. If Jellyfin runs in a container, make sure /proc is available to it. Details: " + ex.Message);
             return null;
         }
     }
@@ -814,19 +836,19 @@ public sealed class SystemStats
         }
         catch (UnauthorizedAccessException ex)
         {
-            Diagnostics.Record("SystemStats.WindowsGPU", ex.Message);
+            Diagnostics.Record("SystemStats.WindowsGPU", "The Overview is not allowed to read GPU usage, so the GPU tile stays blank until Jellyfin restarts. Adding the user Jellyfin runs as to the Windows \'Performance Monitor Users\' group allows it. Details: " + ex.Message);
             _winGpuAvailable = false;
             return null;
         }
         catch (InvalidOperationException ex)
         {
-            Diagnostics.Record("SystemStats.WindowsGPU", ex.Message);
+            Diagnostics.Record("SystemStats.WindowsGPU", "The Overview could not read GPU usage from Windows, so the GPU tile stays blank until Jellyfin restarts. Details: " + ex.Message);
             _winGpuAvailable = false;
             return null;
         }
         catch (System.ComponentModel.Win32Exception ex)
         {
-            Diagnostics.Record("SystemStats.WindowsGPU", ex.Message);
+            Diagnostics.Record("SystemStats.WindowsGPU", "The Overview could not read GPU usage from Windows, so the GPU tile stays blank until Jellyfin restarts. Details: " + ex.Message);
             _winGpuAvailable = false;
             return null;
         }

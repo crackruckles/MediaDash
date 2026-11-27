@@ -36,6 +36,7 @@ public static class RecycleReasonMapper
         IssueType.FailedTranscode => "Re-encoded (previous attempt failed)",
         IssueType.EmbeddedCoverArt => "Extracted folder cover art",
         IssueType.ManualDelete => "Manual delete via Files tab",
+        IssueType.ManualMove => "Manual move or rename via Files tab",
         _ => "MediaDash fix",
     };
 

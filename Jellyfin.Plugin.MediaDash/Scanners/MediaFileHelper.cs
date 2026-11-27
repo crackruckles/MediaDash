@@ -33,6 +33,28 @@ public static class MediaFileHelper
         }
     }
 
+    /// <summary>Enumerates complete move payloads without changing other scanners' file scope.</summary>
+    /// <param name="item">The owning library item.</param>
+    /// <returns>Primary, alternate and declared multipart paths.</returns>
+    internal static IEnumerable<string> GetMovePayloadPaths(BaseItem item)
+    {
+        foreach (var path in GetFilePaths(item))
+        {
+            yield return path;
+        }
+
+        if (item is Video multipart && multipart.AdditionalParts is { Length: > 0 } parts)
+        {
+            foreach (var part in parts)
+            {
+                if (!string.IsNullOrEmpty(part))
+                {
+                    yield return part;
+                }
+            }
+        }
+    }
+
     /// <summary>
     /// Opens a library file for reading while allowing OTHER processes to move, rename, or delete
     /// it — the exact opposite of <see cref="File.OpenRead"/>'s default (FileShare.Read), which

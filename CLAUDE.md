@@ -24,6 +24,13 @@ dotnet build Jellyfin.Plugin.MediaDash.sln /property:GenerateFullPaths=true /con
 dotnet test
 ```
 
+`dotnet test` excludes `Category=ReportedIssueExternal` by default. Run those acceptance tests explicitly
+with `dotnet test --filter "Category=ReportedIssueExternal"` only after provisioning the owned fixture
+paths/mounts and FFmpeg required by each test; missing prerequisites deliberately fail that acceptance run.
+
+Manual Files-tab deletion is an explicit user action and remains exempt from the global dry-run toggle.
+Output verification retains its existing 2% duration tolerance (minimum 2 seconds), as chosen by the owner.
+
 Deploy for local testing: copy `bin/Debug/net9.0/publish/*` to `%LOCALAPPDATA%\jellyfin\plugins\MediaDash_X.Y.Z.0\` and restart the server (see template README §6 for .vscode automation). The plugin now targets `net9.0`, not `net8.0`, since Jellyfin 10.11 moved to .NET 9 and 12.0 to .NET 10 (net9.0 assemblies are forward-compatible with both hosts).
 
 ## Hard rules — safety invariants
@@ -32,7 +39,7 @@ These must hold in every code path and have unit tests. Do not relax them for co
 
 1. Never modify or delete a file outside the configured library paths.
 2. Never remove a file's last audio track or its video stream.
-3. Never replace an original until the new file passes ffprobe verification (duration within 2s, expected streams present).
+3. Never replace an original until the new file passes ffprobe verification (expected streams present; duration tolerance is 2% with a minimum of 2s, or the fixer's stricter check).
 4. All destructive operations respect the per-fix-type disposal setting (recycle bin vs permanent) and the global dry-run toggle. Dry-run defaults ON.
 5. Check free disk space (≥2× source size) before any transcode.
 6. **The plugin never throws on unexpected DB row shape.** Malformed rows (bad Guid strings, non-object DetailsJson roots, out-of-range enum values) are logged with the row id and skipped; loading + operating surfaces must return a partial result, never a 500.
@@ -54,3 +61,9 @@ These must hold in every code path and have unit tests. Do not relax them for co
 ## Verification checklist per phase
 
 After each PLAN.md §7 step: build clean, plugin loads without errors in the Jellyfin dashboard, run `tools/make-fixtures.sh` test library through a scan, confirm expected issue counts before moving on. Fixer phases additionally: run in dry-run first, diff expected vs planned actions, then run real and confirm restore from recycle bin works.
+
+## Test environment
+
+Test changes on the disposable Jellyfin hosts (Linux 12.4, Docker 10.11, Windows 12.4) with `./tools/testenv/testenv.ps1`. The full guide is shared with Codex in AGENTS.md:
+
+@AGENTS.md

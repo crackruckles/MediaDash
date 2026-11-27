@@ -54,6 +54,14 @@ function Invoke-BrowseChecked {
     return $r
 }
 
+function Assert-BrowseVisible {
+    param([string]$Bin, [string]$Selector)
+    $selectorJson = ConvertTo-Json -InputObject $Selector -Compress
+    $js = "(function(){var e=document.querySelector($selectorJson);if(!e)return 'NO';var s=getComputedStyle(e);return e.getClientRects().length>0&&s.display!=='none'&&s.visibility!=='hidden'?'YES':'NO';})()"
+    $result = (Invoke-BrowseChecked $Bin @('js',$js)).Output
+    Assert-Match 'YES' $result "visible element required: $Selector"
+}
+
 function Invoke-Phase-Ui {
     Start-Phase "UI — config page + tabs + no JS console errors"
 
@@ -64,6 +72,9 @@ function Invoke-Phase-Ui {
         return
     }
     Write-Log "    using browse: $browse"
+    Invoke-Test 'Prepare dashboard fixture beyond first-run walkthrough' {
+        Set-MediaDashConfig @{FirstRunDone=$true}
+    }
 
     Invoke-Test "Login page loads and login succeeds" {
         # Every browser interaction goes through Invoke-BrowseChecked so a broken
@@ -115,6 +126,7 @@ function Invoke-Phase-Ui {
     }
 
     Invoke-Test "Overview tab renders and includes system + drive widgets" {
+        Assert-BrowseVisible $browse '#mdTab-overview'
         # Default landing is Overview. Verify key children.
         $sys = (Invoke-BrowseChecked $browse @("js", "document.querySelector('#mdSystem') ? 'YES' : 'NO'")).Output
         Assert-Match "YES" $sys "#mdSystem should render"
@@ -130,6 +142,7 @@ function Invoke-Phase-Ui {
     Invoke-Test "Issues tab is clickable and shows filter chips" {
         Invoke-BrowseChecked $browse @("js", "var b=document.querySelector('[data-tab=issues]');b&&b.click();'ok'") | Out-Null
         Start-Sleep -Seconds 2
+        Assert-BrowseVisible $browse '#mdTab-issues'
         $totals = (Invoke-BrowseChecked $browse @("js", "document.querySelector('#mdIssueTotals')?document.querySelector('#mdIssueTotals').children.length:0")).Output
         Write-Log "    Issue type chips: $totals"
         # Assert we actually saw a numeric count from the DOM (nonzero) — previously we
@@ -140,6 +153,7 @@ function Invoke-Phase-Ui {
     Invoke-Test "Recycle bin tab loads without crash" {
         Invoke-BrowseChecked $browse @("js", "var b=document.querySelector('[data-tab=recycle]');b&&b.click();'ok'") | Out-Null
         Start-Sleep -Seconds 2
+        Assert-BrowseVisible $browse '#mdTab-recycle'
         $console = (Invoke-BrowseChecked $browse @("console", "--errors") -AllowEmpty).Output
         $realErrors = $console -split "`n" | Where-Object {
             $_ -match "error" -and
@@ -147,5 +161,15 @@ function Invoke-Phase-Ui {
             $_ -notmatch "WebSocket connection to 'ws://[^']*/socket"
         }
         Assert-Equal 0 $realErrors.Count "Recycle bin tab should not raise JS console errors"
+    }
+    foreach ($tabName in @('overview','issues','history','files','recycle','errors','settings')) {
+        Invoke-Test "Visible UI tab and screenshot: $tabName" {
+            Invoke-BrowseChecked $browse @('js',"document.querySelector('[data-tab=$tabName]').click();'clicked'") | Out-Null
+            Start-Sleep -Milliseconds 750
+            Assert-BrowseVisible $browse "#mdTab-$tabName"
+            $screenshot = Join-Path $Script:ArtifactsDir "ui-$tabName.png"
+            Invoke-BrowseChecked $browse @('screenshot','--viewport',$screenshot) | Out-Null
+            Assert-FileExists $screenshot 'browser screenshot must be saved'
+        }
     }
 }

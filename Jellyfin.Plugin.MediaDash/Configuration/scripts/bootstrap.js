@@ -6,7 +6,7 @@
         var styles = ['a11y', 'jump', 'tokens', 'layout', 'masthead', 'tabs', 'files',
             'recycle', 'errors', 'overview', 'issues', 'settings', 'wizard', 'history'];
         var scripts = ['page-lifetime', 'api-client', 'dom-helpers', 'library-breakdown',
-            'settings-mapper', 'history-tab', 'recycle-tab', 'issues-tab', 'errors-tab',
+            'settings-mapper', 'history-tab', 'recycle-tab', 'issues-tab', 'errors-tab', 'diagnostics-tab',
             'overview-tab', 'settings-tab', 'wizard', 'files-tab', 'page-controller'];
         function load(name, style) {
             return new Promise(function (resolve, reject) {

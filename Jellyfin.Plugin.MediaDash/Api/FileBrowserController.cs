@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.MediaDash.Configuration;
 using Jellyfin.Plugin.MediaDash.Fixers;
@@ -62,6 +63,8 @@ public class FileBrowserController : ControllerBase
     private readonly Data.HistoryStore _history;
     private readonly ProtectionService _protection;
     private readonly ILogger<FileBrowserController> _logger;
+    private readonly MediaMovePlanner? _movePlanner;
+    private readonly MediaMoveService? _moves;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FileBrowserController"/> class.
@@ -74,7 +77,9 @@ public class FileBrowserController : ControllerBase
     /// <param name="history">History-table store (05-C.3); used to record a history row per manual delete so the Recycle bin tab labels the entry correctly.</param>
     /// <param name="protection">Never-modify protection service (roadmap i-110-protected-media); refuses Delete for paths under a rule that masks ManualDelete.</param>
     /// <param name="logger">Logger.</param>
-    public FileBrowserController(LibraryGuard guard, RecycleBin recycleBin, ILibraryMonitor libraryMonitor, ILibraryManager libraryManager, IApplicationPaths appPaths, Data.HistoryStore history, ProtectionService protection, ILogger<FileBrowserController> logger)
+    /// <param name="movePlanner">Complete move-preview planner.</param>
+    /// <param name="moves">Durable move execution and recovery.</param>
+    public FileBrowserController(LibraryGuard guard, RecycleBin recycleBin, ILibraryMonitor libraryMonitor, ILibraryManager libraryManager, IApplicationPaths appPaths, Data.HistoryStore history, ProtectionService protection, ILogger<FileBrowserController> logger, MediaMovePlanner? movePlanner = null, MediaMoveService? moves = null)
     {
         _guard = guard;
         _recycleBin = recycleBin;
@@ -84,6 +89,8 @@ public class FileBrowserController : ControllerBase
         _history = history;
         _protection = protection;
         _logger = logger;
+        _movePlanner = movePlanner;
+        _moves = moves;
     }
 
     /// <summary>
@@ -104,7 +111,7 @@ public class FileBrowserController : ControllerBase
             var roots = _libraryManager.GetVirtualFolders()
                 .ToList()
                 .SelectMany(f => f.Locations)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Distinct(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal)
                 .Where(Directory.Exists)
                 .Select(location =>
                 {
@@ -145,7 +152,7 @@ public class FileBrowserController : ControllerBase
                 // Broad catch: this is a non-critical navigation shortcut; anything Plugin.Configuration
                 // or the RecycleBin resolver throws (NRE during startup race, InvalidOperationException on
                 // partial config) must NOT 500 the entire Files/List root.
-                Diagnostics.Record("FileBrowser.List", "Could not add recycle-bin shortcut to file browser root: " + ex.Message + ".");
+                Diagnostics.Record("FileBrowser.List", "The Files tab could not show its Recycle bin shortcut. The recycle bin is still available from the Recycle bin tab. Details: " + ex.Message);
             }
 
             // Same shortcut treatment for Jellyfin's log directory so admins can grab logs for bug
@@ -172,7 +179,7 @@ public class FileBrowserController : ControllerBase
             {
                 // Same reasoning as the recycle-bin shortcut above: non-critical, catch broad so any
                 // IApplicationPaths implementation quirk doesn't 500 the root listing.
-                Diagnostics.Record("FileBrowser.List", "Could not add logs shortcut to file browser root: " + ex.Message + ".");
+                Diagnostics.Record("FileBrowser.List", "The Files tab could not show its Logs shortcut. Check that Jellyfin's log folder exists and that the user Jellyfin runs as can read it. Details: " + ex.Message);
             }
 
             return new DirectoryListing { Path = string.Empty, Parent = null, IsRoot = true, Entries = roots };
@@ -213,7 +220,7 @@ public class FileBrowserController : ControllerBase
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
                     // Skip a single unreadable entry so one bad ACL doesn't 500 the whole listing.
-                    Diagnostics.Record("FileBrowser.List", "Skipping unreadable subfolder '" + dir + "': " + ex.Message + ".");
+                    Diagnostics.Record("FileBrowser.List", "The Files tab left out the folder '" + dir + "' because it could not be read. Check that the user Jellyfin runs as can read it. Details: " + ex.Message);
                 }
             }
 
@@ -232,18 +239,18 @@ public class FileBrowserController : ControllerBase
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
-                    Diagnostics.Record("FileBrowser.List", "Skipping unreadable file '" + file + "': " + ex.Message + ".");
+                    Diagnostics.Record("FileBrowser.List", "The Files tab left out the file '" + file + "' because it could not be read. Check that the user Jellyfin runs as can read it. Details: " + ex.Message);
                 }
             }
         }
         catch (UnauthorizedAccessException ex)
         {
-            Diagnostics.Record("FileBrowser.List", "Access denied listing '" + full + "': " + ex.Message + ". Grant the Jellyfin user read access on the folder.");
+            Diagnostics.Record("FileBrowser.List", "The Files tab could not open '" + full + "' because Jellyfin does not have permission to read it. Give the user Jellyfin runs as read access to this folder. Details: " + ex.Message);
             return StatusCode(StatusCodes.Status403Forbidden, "Jellyfin lacks read access to " + full + ".");
         }
         catch (IOException ex)
         {
-            Diagnostics.Record("FileBrowser.List", "IO error listing '" + full + "': " + ex.Message + ".");
+            Diagnostics.Record("FileBrowser.List", "The Files tab could not open '" + full + "'. The drive or network share may be offline or busy; check that it is connected and try again. Details: " + ex.Message);
             return StatusCode(StatusCodes.Status500InternalServerError, "Could not list folder: " + ex.Message);
         }
 
@@ -393,7 +400,7 @@ public class FileBrowserController : ControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public ActionResult Rename([FromBody] RenameRequest request)
+    public async Task<ActionResult> Rename([FromBody] RenameRequest request)
     {
         if (!IsSimpleName(request.NewName))
         {
@@ -405,53 +412,17 @@ public class FileBrowserController : ControllerBase
             return forbid;
         }
 
-        if (!System.IO.File.Exists(source) && !Directory.Exists(source))
+        var parent = Path.GetDirectoryName(source);
+        if (parent is null || _guard.IsLibraryRoot(source))
         {
-            return NotFound();
+            return StatusCode(StatusCodes.Status403Forbidden, "A library folder itself cannot be renamed here.");
         }
 
-        var target = Path.Combine(Path.GetDirectoryName(source)!, request.NewName);
-        // Pre-check kept as fast path for a clean 409; the Move-time check below is the real atomicity
-        // guarantee — Directory.Move throws on collision, and File.Move (default overwrite:false)
-        // uses rename(2) on Linux which is kernel-level atomic. A concurrent rename to the same name
-        // can no longer silently overwrite the first request's result.
-        if (System.IO.File.Exists(target) || Directory.Exists(target))
+        return await Move(new MoveOrCopyRequest
         {
-            return Conflict("An entry with that name already exists.");
-        }
-
-        if (!RevalidateInsideLibrary(source, out forbid) || !RevalidateInsideLibrary(target, out forbid))
-        {
-            return forbid;
-        }
-
-        try
-        {
-            if (Directory.Exists(source))
-            {
-                Directory.Move(source, target);
-            }
-            else
-            {
-                System.IO.File.Move(source, target, overwrite: false);
-            }
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return PermissionDenied(source, ex);
-        }
-        catch (IOException) when (System.IO.File.Exists(target) || Directory.Exists(target))
-        {
-            return Conflict("An entry with that name already exists (created by a concurrent request).");
-        }
-        catch (IOException ex)
-        {
-            return StatusCode(StatusCodes.Status500InternalServerError, "Rename failed: " + ex.Message);
-        }
-
-        _libraryMonitor.ReportFileSystemChanged(source);
-        _libraryMonitor.ReportFileSystemChanged(target);
-        return NoContent();
+            From = source, To = Path.Combine(parent, request.NewName),
+            PlanFingerprint = request.PlanFingerprint, PreviewOnly = request.PreviewOnly
+        }).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -465,109 +436,127 @@ public class FileBrowserController : ControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public ActionResult Move([FromBody] MoveOrCopyRequest request)
+    public async Task<ActionResult> Move([FromBody] MoveOrCopyRequest request)
     {
-        if (!TryResolveInsideLibrary(request.From, out var source, out var forbidFrom))
+        if (_movePlanner is null || _moves is null)
         {
-            return forbidFrom;
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, "Complete move previews are unavailable on this server.");
         }
 
-        if (!TryResolveInsideLibrary(request.To, out var target, out var forbidTo))
+        if (request.Selections is null || request.Selections.Count > 4096
+            || (request.Selections.Count > 0 && (!string.IsNullOrEmpty(request.From) || !string.IsNullOrEmpty(request.To))))
         {
-            return forbidTo;
+            return BadRequest("Provide either one source and destination or one complete selection of up to 4096 paths.");
         }
 
-        if (!System.IO.File.Exists(source) && !Directory.Exists(source))
+        var selection = request.Selections.Count == 0 ? new[] { new FileMoveSelection { From = request.From, To = request.To } } : request.Selections;
+        var paths = new List<(string Source, string Destination)>();
+        foreach (var selected in selection)
         {
-            return NotFound();
-        }
+            if (selected is null || !TryResolveInsideLibrary(selected.From, out var source, out var forbidFrom))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, "A selected source is outside library folders.");
+            }
 
-        if (System.IO.File.Exists(target) || Directory.Exists(target))
-        {
-            return Conflict("An entry already exists at the destination.");
-        }
+            if (!TryResolveInsideLibrary(selected.To, out var target, out var forbidTo))
+            {
+                return forbidTo;
+            }
 
-        if (!RevalidateInsideLibrary(source, out forbidFrom))
-        {
-            return forbidFrom;
-        }
+            if (!RevalidateInsideLibrary(source, out forbidFrom))
+            {
+                return forbidFrom;
+            }
 
-        if (!RevalidateInsideLibrary(target, out forbidTo))
-        {
-            return forbidTo;
-        }
+            if (!RevalidateInsideLibrary(target, out forbidTo))
+            {
+                return forbidTo;
+            }
 
-        var sourceIsDir = Directory.Exists(source);
+            if (!System.IO.File.Exists(source) && !Directory.Exists(source))
+            {
+                return NotFound("A selected source no longer exists. Refresh the folder before previewing again.");
+            }
 
-        // Review P1-3 (Move variant): reject moving a folder into itself or a descendant. Not the
-        // recursive-Copy explosion (Move only renames) but still a nonsense op that .NET reports
-        // via a bare IOException; catch it up front with a specific error.
-        if (sourceIsDir && IsSelfOrDescendant(target, source))
-        {
-            return Conflict("Cannot move a folder into itself or a subfolder of itself.");
+            paths.Add((source, target));
         }
 
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-            if (sourceIsDir)
-            {
-                Directory.Move(source, target);
-            }
-            else
-            {
-                // overwrite:false — on Linux this is a kernel-atomic rename(2). A concurrent Move to the
-                // same target throws IOException and gets translated to 409 below rather than silently
-                // clobbering the winner's result.
-                System.IO.File.Move(source, target, overwrite: false);
-            }
-        }
-        catch (IOException ex2) when (!IsCrossDeviceError(ex2) && (System.IO.File.Exists(target) || Directory.Exists(target)))
-        {
-            return Conflict("An entry already exists at the destination (created by a concurrent request).");
-        }
-        catch (IOException ex) when (IsCrossDeviceError(ex))
-        {
-            // Bind-mount setups: /movies and /media/shared-movies can both live under the same Jellyfin
-            // library while the container sees them as separate filesystems. rename() returns EXDEV — the
-            // .NET APIs surface it as IOException with "Invalid cross-device link". Fall back to copy →
-            // rename → delete-source with a staging suffix so an interruption never leaves a half-copied
-            // file under its final name.
+            IReadOnlyList<MediaBrowser.Controller.Entities.BaseItem> peers;
             try
             {
-                if (!RevalidateInsideLibrary(source, out forbidFrom))
+                peers = _libraryManager.GetItemList(MediaMovePlanner.CatalogQuery());
+            }
+            catch (InvalidOperationException error)
+            {
+                _logger.LogWarning(error, "The current media catalog could not be read for a complete move preview");
+                return Conflict("Jellyfin's current media catalog could not be read completely. Run its library scan and preview these files again. Nothing was moved.");
+            }
+
+            var plan = await _movePlanner.BuildExplicitAsync(paths, peers, Plugin.Instance!.Configuration, HttpContext?.RequestAborted ?? default).ConfigureAwait(false);
+            var preview = FileMovePreviewDto.FromPlan(plan);
+            preview.DryRun = Plugin.Instance.Configuration.DryRun;
+            if (!plan.HasValidDefinition())
+            {
+                preview.BlockingReasons = preview.BlockingReasons.Append("The selections overlap or the complete move could not be verified. Review the source and destination paths.").ToArray();
+            }
+
+            if (request.PreviewOnly)
+            {
+                return Ok(preview);
+            }
+
+            if (preview.BlockingReasons.Count != 0 || request.PlanFingerprint != plan.Fingerprint)
+            {
+                return Conflict(preview);
+            }
+
+            var result = await _moves.ExecuteExplicitAsync(plan, request.PlanFingerprint, null, HttpContext?.RequestAborted ?? default).ConfigureAwait(false);
+            if (!result.Success)
+            {
+                return Conflict(result);
+            }
+
+            if (!result.WasDryRun)
+            {
+                try
                 {
-                    return forbidFrom;
+                    _history.AddHistory(new Data.HistoryEntry
+                    {
+                        Type = Data.IssueType.ManualMove, Path = plan.Entries[0].Source,
+                        Action = "Moved the complete previewed selection.", Success = true, FixedAtUtc = DateTime.UtcNow,
+                        MoveOperationId = result.MoveOperationId
+                    });
+                }
+                catch (Microsoft.Data.Sqlite.SqliteException error)
+                {
+                    Diagnostics.Record("MediaMove.History", "The files were moved and Undo is still available, but this move could not be added to the History tab. Nothing needs fixing. Details: " + error.Message);
                 }
 
-                if (!RevalidateInsideLibrary(target, out forbidTo))
+                foreach (var entry in _moves.HandlesNativeRefresh ? Array.Empty<MediaMovePlan.Entry>() : plan.Entries)
                 {
-                    return forbidTo;
+                    foreach (var changedPath in new[] { entry.Source, entry.Destination })
+                    {
+                        try
+                        {
+                            _libraryMonitor.ReportFileSystemChanged(changedPath);
+                        }
+                        catch (Exception error) when (error is not OperationCanceledException)
+                        {
+                            _logger.LogWarning(error, "Completed move {OperationId} could not notify Jellyfin of {Path}", result.MoveOperationId, changedPath);
+                            Diagnostics.Record("MediaMove.Refresh", "The move finished, but Jellyfin could not refresh '" + changedPath + "', so it may still show the old location. Run 'Scan Media Library' in the Jellyfin dashboard to update it.");
+                        }
+                    }
                 }
+            }
 
-                CrossDeviceMove(source, target, sourceIsDir);
-            }
-            catch (UnauthorizedAccessException innerAuth)
-            {
-                return PermissionDenied(source + " -> " + target, innerAuth);
-            }
-            catch (IOException innerIo)
-            {
-                return StatusCode(StatusCodes.Status500InternalServerError, "Move failed: " + innerIo.Message);
-            }
+            return Ok(result);
         }
-        catch (UnauthorizedAccessException ex)
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException)
         {
-            return PermissionDenied(source + " -> " + target, ex);
+            return Conflict("The move could not be previewed safely: " + error.Message);
         }
-        catch (IOException ex)
-        {
-            return StatusCode(StatusCodes.Status500InternalServerError, "Move failed: " + ex.Message);
-        }
-
-        _libraryMonitor.ReportFileSystemChanged(source);
-        _libraryMonitor.ReportFileSystemChanged(target);
-        return NoContent();
     }
 
     /// <summary>
@@ -663,6 +652,12 @@ public class FileBrowserController : ControllerBase
             return forbid;
         }
 
+        if (_libraryManager.GetVirtualFolders().SelectMany(folder => folder.Locations ?? [])
+            .Any(root => LibraryGuard.IsUnder(Path.GetFullPath(root), full)))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, "A library folder itself cannot be deleted here.");
+        }
+
         if (!System.IO.File.Exists(full) && !Directory.Exists(full))
         {
             return NotFound();
@@ -737,7 +732,7 @@ public class FileBrowserController : ControllerBase
         }
         catch (IOException ex)
         {
-            return StatusCode(StatusCodes.Status500InternalServerError, "Delete failed: " + ex.Message);
+            return StatusCode(StatusCodes.Status409Conflict, "Delete failed: " + ex.Message);
         }
 
         // Record a history row so the Recycle bin tab's join labels this entry as "Manual delete
@@ -746,18 +741,25 @@ public class FileBrowserController : ControllerBase
         // branch ALSO catches older-version auto-fix recycles whose fixer paths didn't yet write
         // history rows, mislabelling them as manual. Splitting the two lets the manifest-only
         // fallback drop the misleading "manual" wording (see MediaDashController.GetRecycleBinItems).
-        _history.AddHistory(new Data.HistoryEntry
+        try
         {
-            IssueId = 0,
-            Type = Data.IssueType.ManualDelete,
-            Path = full,
-            Action = "Manual delete via Files tab",
-            BytesFreed = size,
-            RecyclePath = binPath,
-            FixedAtUtc = DateTime.UtcNow,
-            WasDryRun = false,
-            Success = true
-        });
+            _history.AddHistory(new Data.HistoryEntry
+            {
+                IssueId = 0,
+                Type = Data.IssueType.ManualDelete,
+                Path = full,
+                Action = "Manual delete via Files tab",
+                BytesFreed = size,
+                RecyclePath = binPath,
+                FixedAtUtc = DateTime.UtcNow,
+                WasDryRun = false,
+                Success = true
+            });
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException ex)
+        {
+            Diagnostics.Record("FileBrowser.DeleteHistory", "The file was moved to the recycle bin ('" + binPath + "'), but it could not be added to the History tab. You can still restore it from the Recycle bin tab. Details: " + ex.Message);
+        }
 
         _libraryMonitor.ReportFileSystemChanged(full);
         _logger.LogInformation("File browser recycled {Path}", full);
@@ -830,7 +832,7 @@ public class FileBrowserController : ControllerBase
         }
         catch (IOException ex)
         {
-            return StatusCode(StatusCodes.Status500InternalServerError, "Could not create upload file: " + ex.Message);
+            return StatusCode(StatusCodes.Status507InsufficientStorage, "Could not create upload file: " + ex.Message);
         }
 
         // MD-005: track over-cap breach with a flag rather than a distinguished exception so the
@@ -859,7 +861,7 @@ public class FileBrowserController : ControllerBase
             await output.FlushAsync(HttpContext.RequestAborted).ConfigureAwait(false);
             await output.DisposeAsync().ConfigureAwait(false);
 
-            if (!_guard.IsInsideLibrary(tempPath) || !_guard.IsInsideLibrary(target))
+            if (!_guard.IsInsideLibrary(tempPath) || !_guard.IsInsideLibrary(target) || _guard.IsMoveReserved(target))
             {
                 throw new IOException("Upload path changed after validation; refusing to finalize the file.");
             }
@@ -869,7 +871,7 @@ public class FileBrowserController : ControllerBase
             _logger.LogInformation("File browser uploaded {Target}", target);
             return NoContent();
         }
-        catch
+        catch (Exception failure)
         {
             await output.DisposeAsync().ConfigureAwait(false);
             if (System.IO.File.Exists(tempPath))
@@ -878,15 +880,25 @@ public class FileBrowserController : ControllerBase
                 {
                     System.IO.File.Delete(tempPath);
                 }
-                catch (IOException ex)
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
-                    Diagnostics.Record("FileBrowser.UploadCleanup", "Upload failed and the temp file at '" + tempPath + "' could not be removed: " + ex.Message + ". Delete it manually to reclaim the space.");
+                    Diagnostics.Record("FileBrowser.UploadCleanup", "An upload failed and its temporary file '" + tempPath + "' could not be removed. Delete that file by hand to free the space. Details: " + ex.Message);
                 }
             }
 
             if (exceededCap)
             {
                 return StatusCode(StatusCodes.Status413PayloadTooLarge, "Upload exceeds the " + (UploadMaxBytes / (1024L * 1024 * 1024)) + " GB per-file cap.");
+            }
+
+            if (failure is UnauthorizedAccessException denied)
+            {
+                return PermissionDenied(target, denied);
+            }
+
+            if (failure is IOException)
+            {
+                return StatusCode(StatusCodes.Status507InsufficientStorage, "Upload failed: " + failure.Message);
             }
 
             throw;
@@ -916,8 +928,19 @@ public class FileBrowserController : ControllerBase
                 return NotFound();
             }
 
-            var logStream = new FileStream(full, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, bufferSize: 81920, useAsync: true);
-            return File(logStream, "application/octet-stream", Path.GetFileName(full), enableRangeProcessing: true);
+            try
+            {
+                var logStream = new FileStream(full, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, bufferSize: 81920, useAsync: true);
+                return File(logStream, "application/octet-stream", Path.GetFileName(full), enableRangeProcessing: true);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return PermissionDenied(full, ex);
+            }
+            catch (IOException ex)
+            {
+                return Conflict("Download unavailable: " + ex.Message);
+            }
         }
 
         if (!TryResolveInsideLibrary(path, out full, out forbid))
@@ -930,13 +953,24 @@ public class FileBrowserController : ControllerBase
             return NotFound();
         }
 
-        if (!RevalidateInsideLibrary(full, out forbid))
+        if (!RevalidateInsideLibrary(full, out forbid, writing: false))
         {
             return forbid;
         }
 
-        var stream = new FileStream(full, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 81920, useAsync: true);
-        return File(stream, "application/octet-stream", Path.GetFileName(full), enableRangeProcessing: true);
+        try
+        {
+            var stream = new FileStream(full, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 81920, useAsync: true);
+            return File(stream, "application/octet-stream", Path.GetFileName(full), enableRangeProcessing: true);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return PermissionDenied(full, ex);
+        }
+        catch (IOException ex)
+        {
+            return Conflict("Download unavailable: " + ex.Message);
+        }
     }
 
     private bool TryResolveInsideLibrary(string? userPath, out string canonical, out ActionResult forbid)
@@ -974,8 +1008,14 @@ public class FileBrowserController : ControllerBase
         return true;
     }
 
-    private bool RevalidateInsideLibrary(string path, out ActionResult forbid)
+    private bool RevalidateInsideLibrary(string path, out ActionResult forbid, bool writing = true)
     {
+        if (writing && _guard.IsMoveReserved(path))
+        {
+            forbid = Conflict("This path is reserved by an unfinished move. Review its recorded paths before changing these files.");
+            return false;
+        }
+
         forbid = Conflict("Refused because the path changed after validation. Retry after checking the library folder for symlinks or junctions.");
         return _guard.IsInsideLibrary(path);
     }
@@ -1059,7 +1099,7 @@ public class FileBrowserController : ControllerBase
             System.IO.File.Copy(file, dst, overwrite: false);
             if (preserveTimestamps)
             {
-                System.IO.File.SetLastWriteTimeUtc(dst, System.IO.File.GetLastWriteTimeUtc(file));
+                MediaMoveMetadata.Preserve(file, dst, directory: false);
             }
         }
 
@@ -1070,7 +1110,7 @@ public class FileBrowserController : ControllerBase
 
         if (preserveTimestamps)
         {
-            Directory.SetLastWriteTimeUtc(target, Directory.GetLastWriteTimeUtc(source));
+            MediaMoveMetadata.Preserve(source, target, directory: true);
         }
     }
 
@@ -1085,179 +1125,16 @@ public class FileBrowserController : ControllerBase
             || ex.Message.Contains("cross-device", StringComparison.OrdinalIgnoreCase);
     }
 
-    internal static void CrossDeviceMove(string source, string target, bool sourceIsDir)
+    internal static void CrossDeviceMove(string source, string target, bool sourceIsDir, Action<string, string>? checkpoint = null, CancellationToken cancellationToken = default)
     {
-        // External audit P1 #1: directory copy intentionally skips reparse points (CopyDirectory's
-        // enumOpts) to defend against symlink cycles. The move path then deletes the source
-        // regardless, so every link in the tree is silently lost. Refuse the operation when the
-        // source tree contains any reparse point — the caller gets a clear 400/409 instead of a
-        // silent data mutation. Legitimate "move everything" workflows should resolve or remove
-        // the links first.
-        if (sourceIsDir && HasReparsePointBelow(source))
-        {
-            throw new IOException("Cross-device move refused: the source folder contains symlinks or junctions, which the move cannot preserve. Resolve or remove the links and retry.");
-        }
-
-        // Copy under a marker suffix first — if we die mid-copy, the partial payload is obvious and never
-        // sits under the final name. Only after the copy verifies do we rename → delete-source.
-        // Review P1-2: the staging suffix carries a per-operation GUID so two concurrent moves (or
-        // a retry landing next to an interrupted move's leftover) get distinct staging paths. With
-        // the old fixed name, File.Copy(overwrite:false) failed against a pre-existing file, and
-        // the catch-block cleanup then deleted THAT file — destroying data the current operation
-        // never owned.
-        var staging = target + ".mediadash-moving-" + Guid.NewGuid().ToString("N")[..12];
-
-        try
-        {
-            if (sourceIsDir)
-            {
-                CopyDirectory(source, staging, preserveTimestamps: true);
-                // External audit P1 #1: inventory compare before promoting + deleting source so
-                // a race (file created mid-walk, permissions bump, mount hiccup) doesn't let an
-                // uncopied entry get deleted when the source goes away. File count and total
-                // byte count are a cheap but strict check for structural parity across the pair.
-                var sourceInventory = GatherInventory(source);
-                var stagedInventory = GatherInventory(staging);
-                if (sourceInventory.Files != stagedInventory.Files
-                    || sourceInventory.Bytes != stagedInventory.Bytes)
-                {
-                    throw new IOException(string.Format(
-                        System.Globalization.CultureInfo.InvariantCulture,
-                        "Cross-device move refused: directory copy did not preserve the source inventory ({0} files / {1} bytes → {2} files / {3} bytes). Source is untouched.",
-                        sourceInventory.Files,
-                        sourceInventory.Bytes,
-                        stagedInventory.Files,
-                        stagedInventory.Bytes));
-                }
-            }
-            else
-            {
-                System.IO.File.Copy(source, staging, overwrite: false);
-                var copiedInfo = new FileInfo(staging);
-                var sourceInfo = new FileInfo(source);
-                if (copiedInfo.Length != sourceInfo.Length)
-                {
-                    throw new IOException("Copy verification failed: size mismatch (" + copiedInfo.Length + " vs " + sourceInfo.Length + " bytes).");
-                }
-
-                System.IO.File.SetLastWriteTimeUtc(staging, System.IO.File.GetLastWriteTimeUtc(source));
-            }
-
-            // Same-filesystem rename now — this one is a true atomic rename.
-            if (sourceIsDir)
-            {
-                Directory.Move(staging, target);
-            }
-            else
-            {
-                System.IO.File.Move(staging, target);
-            }
-
-            // Source removal LAST, so any failure above still leaves the user's original intact.
-            if (sourceIsDir)
-            {
-                Directory.Delete(source, recursive: true);
-            }
-            else
-            {
-                System.IO.File.Delete(source);
-            }
-        }
-        catch
-        {
-            // Any failure: sweep the staging file/dir. The user's source is untouched — that's the
-            // invariant this fallback guarantees.
-            try
-            {
-                if (Directory.Exists(staging))
-                {
-                    Directory.Delete(staging, recursive: true);
-                }
-                else if (System.IO.File.Exists(staging))
-                {
-                    System.IO.File.Delete(staging);
-                }
-            }
-            catch (IOException)
-            {
-            }
-            catch (UnauthorizedAccessException)
-            {
-            }
-
-            throw;
-        }
-    }
-
-    // External audit P1 #1: walk the source tree looking for any reparse point. We treat any
-    // link (symlink, NTFS junction, mount point) as a refusal reason — CopyDirectory's
-    // AttributesToSkip = ReparsePoint would silently omit them from the staged copy, and the
-    // subsequent recursive source delete would then destroy the link's target or the link row
-    // itself without any record of what was there.
-    private static bool HasReparsePointBelow(string root)
-    {
-        try
-        {
-            var rootInfo = new DirectoryInfo(root);
-            if ((rootInfo.Attributes & FileAttributes.ReparsePoint) != 0)
-            {
-                return true;
-            }
-
-            // Only enumerate once; the loop short-circuits on first hit.
-            var opts = new EnumerationOptions { RecurseSubdirectories = true, AttributesToSkip = 0, IgnoreInaccessible = false };
-            foreach (var dir in Directory.EnumerateDirectories(root, "*", opts))
-            {
-                var attrs = new DirectoryInfo(dir).Attributes;
-                if ((attrs & FileAttributes.ReparsePoint) != 0)
-                {
-                    return true;
-                }
-            }
-
-            foreach (var file in Directory.EnumerateFiles(root, "*", opts))
-            {
-                var attrs = new FileInfo(file).Attributes;
-                if ((attrs & FileAttributes.ReparsePoint) != 0)
-                {
-                    return true;
-                }
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            // On inability to walk, bias conservatively — refuse the move. Better a false refusal
-            // than a copy-and-delete against an un-inspectable tree.
-            return true;
-        }
-
-        return false;
-    }
-
-    // Cheap inventory for cross-device move verification: total file count + total size. We
-    // deliberately skip reparse points on both sides so the comparison is apples-to-apples with
-    // what CopyDirectory actually produces. HasReparsePointBelow has already refused the move
-    // if any link exists; this check catches races (file appeared between walk and copy) and
-    // partial-filesystem failures (one subdir unreadable on destination side).
-    private static (long Files, long Bytes) GatherInventory(string root)
-    {
-        var opts = new EnumerationOptions { RecurseSubdirectories = true, AttributesToSkip = FileAttributes.ReparsePoint, IgnoreInaccessible = false };
-        long count = 0;
-        long bytes = 0;
-        foreach (var file in Directory.EnumerateFiles(root, "*", opts))
-        {
-            count++;
-            try
-            {
-                bytes += new FileInfo(file).Length;
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                // Treat unreadable file as a mismatch — pretend its size is -1 so parity cannot hold.
-                bytes += -1;
-            }
-        }
-
-        return (count, bytes);
+        // Compatibility entry used by recycle operations. Cross-filesystem copy/delete
+        // is unsupported; a same-filesystem call keeps the complete source object.
+        cancellationToken.ThrowIfCancellationRequested();
+        MediaMoveSafety.RequireSameFilesystemMove(source, target);
+        checkpoint?.Invoke("BeforeNativeRename", source);
+        cancellationToken.ThrowIfCancellationRequested();
+        MediaMoveSafety.RequireSameFilesystemMove(source, target);
+        MediaMoveSafety.RenameNoCopy(source, target, sourceIsDir);
+        checkpoint?.Invoke("Published", target);
     }
 }

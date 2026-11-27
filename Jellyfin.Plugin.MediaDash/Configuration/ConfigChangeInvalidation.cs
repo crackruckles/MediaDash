@@ -66,6 +66,7 @@ public static class ConfigChangeInvalidation
         // Media sorter / grouper share the target-path family.
         [nameof(PluginConfiguration.MoviesTargetPath)] = [IssueType.Misplaced, IssueType.Ungrouped],
         [nameof(PluginConfiguration.TvTargetPath)] = [IssueType.Misplaced, IssueType.Ungrouped],
+        [nameof(PluginConfiguration.TvdbApiKey)] = [IssueType.Ungrouped],
         [nameof(PluginConfiguration.AnimeTargetPath)] = [IssueType.Misplaced, IssueType.Ungrouped],
         [nameof(PluginConfiguration.MusicTargetPath)] = [IssueType.Misplaced],
         [nameof(PluginConfiguration.BooksTargetPath)] = [IssueType.Misplaced],

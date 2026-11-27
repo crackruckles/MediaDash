@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Reflection;
+using Jellyfin.Plugin.MediaDash.Fixers;
 using Xunit;
 
 namespace Jellyfin.Plugin.MediaDash.Tests;
@@ -45,19 +47,27 @@ public sealed class DirectoryRestoreTests
         Assert.Contains("MoveAcrossVolumes(recyclePath, originalPath, sourceIsDir)", body);
     }
 
-    [Fact]
-    public void MoveAcrossVolumesBranchesOnSourceIsDir()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SameFilesystemRestoreMovesBothFilesAndDirectories(bool directory)
     {
-        var src = File.ReadAllText(RepoFile("Jellyfin.Plugin.MediaDash", "Fixers", "RecycleBin.cs"));
-        var start = src.IndexOf("private static void MoveAcrossVolumes(string source, string target, bool sourceIsDir", StringComparison.Ordinal);
-        Assert.True(start > 0, "MoveAcrossVolumes signature not found — has it been changed?");
-        var body = ExtractMethodBody(src, start);
-
-        // Both primitives must be reachable AND the cross-device fallback must know the source
-        // kind. Reverting any of the three re-introduces the MD-012 data-recovery gap.
-        Assert.Contains("Directory.Move(source, target)", body);
-        Assert.Contains("File.Move(source, target)", body);
-        Assert.Contains("sourceIsDir: sourceIsDir", body);
+        var root = Path.Combine(Path.GetTempPath(), "md-directory-restore-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var source = Path.Combine(root, "recycled");
+            var target = Path.Combine(root, "restored");
+            if (directory) Directory.CreateDirectory(Path.Combine(source, "empty"));
+            File.WriteAllText(directory ? Path.Combine(source, "payload") : source, "original bytes");
+            var move = typeof(RecycleBin).GetMethod("MoveAcrossVolumes", BindingFlags.Static | BindingFlags.NonPublic)!;
+            move.Invoke(null, [source, target, directory]);
+            Assert.Equal("original bytes", File.ReadAllText(directory ? Path.Combine(target, "payload") : target));
+            if (directory) Assert.True(Directory.Exists(Path.Combine(target, "empty")));
+            Assert.False(File.Exists(source) || Directory.Exists(source));
+            Assert.Single(Directory.GetFileSystemEntries(root));
+        }
+        finally { Directory.Delete(root, recursive: true); }
     }
 
     [Fact]

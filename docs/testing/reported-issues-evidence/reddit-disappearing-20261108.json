@@ -1,0 +1,25 @@
+{
+  "caseId": "reddit-disappearing",
+  "sourceDigest": "e99b757687a8a137daf5c8fb9f109642cebd19d8cc9d56441acd5e0125feb374",
+  "environment": "Owned Windows Jellyfin 10.11.11 and 12.0.0 profiles with generated media. MediaDash DLL SHA-256 fa17d0d813864d1ec00d91af9625c92a36c227911fed8d7a53b09fee2bb19dc7.",
+  "checks": [
+    {
+      "name": "exact preview and refusal",
+      "passed": true,
+      "skipped": false,
+      "observed": "The preview and late companion collision were attributed to the same issue ID and path, reported zero savings, and left every source and destination hash intact. The refused row remained queued under the same ID after rescan."
+    },
+    {
+      "name": "exact no-change",
+      "passed": true,
+      "skipped": false,
+      "observed": "An externally corrected source remained byte-for-byte unchanged during Fix. Its exact issue history recorded nothing to remove, unsuccessful attempt, zero savings and no recycle entry. The rescan no longer detected the corrected condition."
+    },
+    {
+      "name": "exact failed attempts",
+      "passed": true,
+      "skipped": false,
+      "observed": "Both controlled track-repair failures retained source bytes, kept their exact approved rows visible and recorded zero savings and no recycle entry."
+    }
+  ]
+}

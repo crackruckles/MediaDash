@@ -24,6 +24,14 @@ namespace Jellyfin.Plugin.MediaDash.Api;
 /// </remarks>
 public sealed class StatusQueryService
 {
+    /// <summary>Most recurring issues listed on the Overview banner; the total is reported separately.</summary>
+    internal const int RecurringIssueListCap = 25;
+
+    private static readonly UncVolumeProbe ShareProbe = new(
+        root => Fixers.FreeSpaceGuard.TryGetDiskSpace(root, out var free, out var total)
+            ? new UncVolumeProbe.Reading(true, free, total) : default,
+        TimeSpan.FromSeconds(30));
+
     private readonly MediaDashDb _db;
     private readonly IssueStore _issues;
     private readonly HistoryStore _history;
@@ -74,12 +82,14 @@ public sealed class StatusQueryService
         // returns "/" for every Linux path, which would collapse every library folder to root
         // and never match any mount point (leaving all drives unmarked as library drives on Linux,
         // which suppressed the SMART probe for every library drive there).
-        var libraryRoots = _libraryManager.GetVirtualFolders()
+        var libraryLocations = _libraryManager.GetVirtualFolders()
             .SelectMany(f => f.Locations)
+            .ToArray();
+        var libraryRoots = libraryLocations
             .Select(l => Fixers.RecycleBin.FindDriveForPath(l))
             .Where(d => d is not null)
             .Select(d => Path.TrimEndingDirectorySeparator(d!.RootDirectory.FullName))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            .ToHashSet(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
 
         var recycleDrive = Fixers.RecycleBin.FindDriveForPath(_recycleBin.GetEffectiveRoot());
         var recycleRoot = recycleDrive is null ? null : Path.TrimEndingDirectorySeparator(recycleDrive.RootDirectory.FullName);
@@ -129,11 +139,56 @@ public sealed class StatusQueryService
             }
             catch (IOException ex)
             {
-                Diagnostics.Record("SystemStats.DriveStat", "Could not read drive '" + drive.Name + "' for the Overview: " + ex.Message + ". Its free-space total will be missing until the next scan.");
+                Diagnostics.Record("SystemStats.DriveStat", "The Overview could not read drive '" + drive.Name + "', so its free space is not shown. It will try again on the next refresh. Details: " + ex.Message);
             }
             catch (UnauthorizedAccessException ex)
             {
-                Diagnostics.Record("SystemStats.DriveStat", "Access denied reading drive '" + drive.Name + "' for the Overview: " + ex.Message + ". Grant Jellyfin's user read permission on the drive root to include it.");
+                Diagnostics.Record("SystemStats.DriveStat", "The Overview could not read drive '" + drive.Name + "' because Jellyfin does not have permission. Give the user Jellyfin runs as read access to the drive's top folder to include it. Details: " + ex.Message);
+            }
+        }
+
+        // Library mounts can be network/unknown drives and still need capacity warnings.
+        foreach (var root in libraryRoots)
+        {
+            if (drives.Any(d => string.Equals(Path.TrimEndingDirectorySeparator(d.Root), root, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            try
+            {
+                var drive = new DriveInfo(root);
+                var usage = new DriveUsage
+                {
+                    Root = drive.Name,
+                    FreeBytes = drive.AvailableFreeSpace,
+                    TotalBytes = drive.TotalSize,
+                    IsLibraryDrive = true,
+                    IsRecycleBinDrive = string.Equals(root, recycleRoot, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal),
+                    IsPluginDataDrive = string.Equals(root, pluginDataRoot, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal),
+                    LowSpaceWarning = ComputeLowSpaceWarning(drive, alwaysCheck: true)
+                };
+                CopySmartFields(usage, Probing.SmartHealthProbe.Get(drive.Name));
+                drives.Add(usage);
+                freeDisk += usage.FreeBytes;
+                totalDisk += usage.TotalBytes;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                Diagnostics.Record("SystemStats.DriveStat", "The Overview could not read the drive holding '" + root + "', so its free space is not shown. Check that the drive or network share is connected. Details: " + ex.Message);
+            }
+        }
+
+        // Windows UNC shares never resolve through DriveInfo.GetDrives(). Keep their original paths
+        // and use the background cache; no network filesystem calls run on this request thread.
+        if (OperatingSystem.IsWindows())
+        {
+            var storageConfig = Plugin.Instance!.Configuration;
+            foreach (var share in GetUncLibraryDrives(libraryLocations, ShareProbe, storageConfig.LibraryDriveLowSpaceWarningEnabled, storageConfig.LibraryDriveWarnThresholdPercent))
+            {
+                drives.Add(share);
+                freeDisk += share.FreeBytes;
+                totalDisk += share.TotalBytes;
             }
         }
 
@@ -199,6 +254,7 @@ public sealed class StatusQueryService
             .Count(i => config.GetFixMode(i.Type) == Configuration.FixMode.Automatic);
         var binContents = SafeGetBinContents();
         var fixSnapshot = _runState.ReadSnapshot(RunRole.Fix);
+        var recurrences = _issues.GetRecurrences().Values.ToList();
 
         return new StatusResponse
         {
@@ -250,8 +306,70 @@ public sealed class StatusQueryService
             FixPauseReason = fixSnapshot.PauseReason,
             CurrentOperationProgress = fixSnapshot.CurrentOperationProgress,
             RedownloadWarnings = Plugin.RedownloadWarnings,
+            RecurringIssues = recurrences
+                .OrderByDescending(r => r.TimesFixed)
+                .ThenByDescending(r => r.LastFixedAtUtc)
+                .Take(RecurringIssueListCap)
+                .Select(RecurringIssue.From)
+                .ToList(),
+            RecurringIssueTotal = recurrences.Count,
             Repair = _db.GetRepairSummary(DateTime.UtcNow.AddDays(-30).Ticks)
         };
+    }
+
+    /// <summary>
+    /// Builds the lightweight live-progress payload. Zero DB queries, drive-capacity scans or SMART
+    /// probes. Resource sampling stays live during an active scan/fix without
+    /// contending with scanner DB writes. See <see cref="ProgressSnapshot"/> for why this exists.
+    /// </summary>
+    /// <returns>The progress snapshot.</returns>
+    public ProgressSnapshot BuildProgress()
+    {
+        var scanTask = _taskManager.ScheduledTasks.FirstOrDefault(w => w.ScheduledTask is ScanTask);
+        var fixTask = _taskManager.ScheduledTasks.FirstOrDefault(w => w.ScheduledTask is FixTask);
+        var fixSnapshot = _runState.ReadSnapshot(RunRole.Fix);
+        return new ProgressSnapshot
+        {
+            System = Plugin.Instance?.Configuration.ShowSystemPerformance != false ? SystemStats.Sample() : new SystemStats { SystemStatsAvailable = false },
+            IsScanning = scanTask is not null && scanTask.State != TaskState.Idle,
+            ScanProgress = scanTask?.CurrentProgress,
+            IsFixing = fixTask is not null && fixTask.State != TaskState.Idle,
+            FixProgress = fixTask?.CurrentProgress,
+            ScanScannersDone = Plugin.ScanScannersDone,
+            ScanScannersTotal = Plugin.ScanScannersTotal,
+            CurrentActivity = Plugin.CurrentActivity,
+            CurrentActivityLabel = Plugin.CurrentActivityLabel,
+            CurrentOperationProgress = fixSnapshot.CurrentOperationProgress,
+            FixPauseReason = fixSnapshot.PauseReason
+        };
+    }
+
+    // Adapted from PR #91. Distinct shares remain separate: equal capacities/free bytes are not
+    // evidence of volume identity. The Overview explains that share totals can overlap.
+    internal static IReadOnlyList<DriveUsage> GetUncLibraryDrives(IEnumerable<string> libraryLocations, UncVolumeProbe probe, bool warningsEnabled, int thresholdPercent)
+    {
+        var result = new List<DriveUsage>();
+        foreach (var root in UncLibraryRoots.From(libraryLocations))
+        {
+            if (!probe.TryGet(root, out var reading, out var stale))
+            {
+                continue;
+            }
+
+            result.Add(new DriveUsage
+            {
+                Root = root,
+                FreeBytes = reading.FreeBytes,
+                TotalBytes = reading.TotalBytes,
+                IsLibraryDrive = true,
+                IsNetworkShare = true,
+                SpaceReadingStale = stale,
+                LowSpaceWarning = warningsEnabled
+                    ? ComputeLowSpaceWarning(reading.FreeBytes, reading.TotalBytes, string.Empty, thresholdPercent) : null
+            });
+        }
+
+        return result;
     }
 
     private (int FileCount, long SizeBytes) SafeGetBinContents()

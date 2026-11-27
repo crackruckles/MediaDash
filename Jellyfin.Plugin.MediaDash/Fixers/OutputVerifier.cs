@@ -58,15 +58,26 @@ public sealed class OutputVerifier
             return "The new file could not be read back: " + (probe?.Error?.Message ?? "probe failed");
         }
 
-        if (!probe.Streams.Any(s => string.Equals(s.CodecType, "video", StringComparison.OrdinalIgnoreCase)))
+        var originalHadAudio = originalProbe.Streams?.Any(s => string.Equals(s.CodecType, "audio", StringComparison.OrdinalIgnoreCase)) ?? false;
+        var originalHadVideo = originalProbe.Streams?.Any(s => string.Equals(s.CodecType, "video", StringComparison.OrdinalIgnoreCase) && !s.IsAttachedPicture) ?? false;
+        if ((originalHadVideo || !originalHadAudio)
+            && !probe.Streams.Any(s => string.Equals(s.CodecType, "video", StringComparison.OrdinalIgnoreCase) && !s.IsAttachedPicture))
         {
             return "The new file has no video stream.";
         }
 
-        var originalHadAudio = originalProbe.Streams?.Any(s => string.Equals(s.CodecType, "audio", StringComparison.OrdinalIgnoreCase)) ?? false;
         if (originalHadAudio && !probe.Streams.Any(s => string.Equals(s.CodecType, "audio", StringComparison.OrdinalIgnoreCase)))
         {
             return "The new file has no audio stream but the original did.";
+        }
+
+        if (originalHadAudio && !originalHadVideo)
+        {
+            // Cover-art frame counts cannot prove that an audio repair retained the song.
+            return originalProbe.TryGetDuration(out var originalAudioDuration)
+                && probe.TryGetDuration(out var newAudioDuration)
+                && Math.Abs(originalAudioDuration - newAudioDuration) <= Math.Max(2.0, originalAudioDuration * 0.02)
+                    ? null : "The repaired audio duration could not be verified against the original.";
         }
 
         // Duration comparison ladder. Each layer's job is to accept the file when the higher layer
@@ -89,7 +100,7 @@ public sealed class OutputVerifier
         var newDuration = GetVideoDurationSeconds(probe);
         var slack = Math.Max(2.0, originalDuration * 0.02);
         var durationDelta = Math.Abs(originalDuration - newDuration);
-        var durationCheckPasses = originalDuration <= 0 || durationDelta <= slack;
+        var durationCheckPasses = originalDuration > 0 && newDuration > 0 && durationDelta <= slack;
 
         if (durationCheckPasses)
         {

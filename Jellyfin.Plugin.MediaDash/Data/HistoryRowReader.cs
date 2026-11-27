@@ -1,3 +1,4 @@
+using System;
 using Microsoft.Data.Sqlite;
 
 namespace Jellyfin.Plugin.MediaDash.Data;
@@ -12,7 +13,7 @@ internal static class HistoryRowReader
     // Positional projection consumed by TryRead. Keep the order and count identical across every
     // callsite; if a column moves, both the caller's SELECT and this reader break together.
     public const string ProjectionColumns =
-        "id, issue_id, type, path, action, bytes_freed, recycle_path, fixed_at_utc, dry_run, restored, success, acknowledged, saved_bytes";
+        "id, issue_id, type, path, action, bytes_freed, recycle_path, fixed_at_utc, dry_run, restored, success, acknowledged, saved_bytes, move_operation_id";
 
     // Hydrates one row from a reader positioned on a row projected via <see cref="ProjectionColumns"/>.
     // Returns false when the type column is out-of-range; the entry is left at its default so the
@@ -24,6 +25,13 @@ internal static class HistoryRowReader
         {
             entry = default!;
             return false;
+        }
+
+        var rawMoveId = reader.IsDBNull(13) ? null : reader.GetValue(13) as string;
+        var moveId = Guid.TryParseExact(rawMoveId, "N", out _) ? rawMoveId : null;
+        if (!reader.IsDBNull(13) && moveId is null)
+        {
+            Api.Diagnostics.Record("MediaMove.InvalidHistoryLink", "History entry #" + historyId + " has a damaged link to its move record, so it is shown without an Undo button. The files themselves are not affected.");
         }
 
         entry = new HistoryEntry
@@ -40,7 +48,8 @@ internal static class HistoryRowReader
             Restored = reader.GetInt32(9) != 0,
             Success = reader.GetInt32(10) != 0,
             Acknowledged = reader.GetInt32(11) != 0,
-            SavedBytes = reader.GetInt64(12)
+            SavedBytes = reader.GetInt64(12),
+            MoveOperationId = moveId
         };
         return true;
     }

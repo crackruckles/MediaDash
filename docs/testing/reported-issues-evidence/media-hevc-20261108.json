@@ -1,0 +1,25 @@
+{
+  "caseId": "media-hevc",
+  "sourceDigest": "e99b757687a8a137daf5c8fb9f109642cebd19d8cc9d56441acd5e0125feb374",
+  "environment": "Owned Windows loopback Jellyfin 12.0.0, MediaDash 1.0.8.2 DLL SHA-256 fa17d0d813864d1ec00d91af9625c92a36c227911fed8d7a53b09fee2bb19dc7. Both Jellyfin 10.11.11 and 12.0.0 bundled FFmpeg builds were tested.",
+  "checks": [
+    {
+      "name": "pinned-inputs",
+      "passed": true,
+      "skipped": false,
+      "observed": "https://www.itu.int/wftp3/av-arch/jctvc-site/bitstream_exchange/draft_conformance/HEVC_v1/AMP_A_Samsung_7.zip bitstream SHA-256 09A9C0D78A502ECE45F1DF02C773B18BB3133FE21A8F1E9046DB19BFA68F7C29; https://www.itu.int/wftp3/av-arch/jctvc-site/bitstream_exchange/draft_conformance/HEVC_v1/DBLK_A_MAIN10_VIXS_4.zip bitstream SHA-256 3A9089207BEDDDB0C8DB28B410441E37D4CFF5DD8301CB8BA7D2F75036E2D50C"
+    },
+    {
+      "name": "main-decode",
+      "passed": true,
+      "skipped": false,
+      "observed": "8-bit Main raw video matched published MD5 93a5875d58072db5539c04e1e943ed9d on both builds."
+    },
+    {
+      "name": "main10-decode",
+      "passed": true,
+      "skipped": false,
+      "observed": "10-bit Main 10 raw video matched published MD5 c4594956bb9e8303f1662f9eb1bcdf50 on both builds."
+    }
+  ]
+}

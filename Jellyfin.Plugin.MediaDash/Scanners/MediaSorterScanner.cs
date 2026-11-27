@@ -27,6 +27,7 @@ namespace Jellyfin.Plugin.MediaDash.Scanners;
 public sealed partial class MediaSorterScanner : IScanner
 {
     private readonly LibraryGuard _guard;
+    private readonly MediaMovePlanner _planner;
     private readonly ILogger<MediaSorterScanner> _logger;
 
     /// <summary>
@@ -34,9 +35,11 @@ public sealed partial class MediaSorterScanner : IScanner
     /// </summary>
     /// <param name="guard">The library path guard, used to short-circuit the scan when the user's target folders sit outside every Jellyfin library.</param>
     /// <param name="logger">The logger.</param>
-    public MediaSorterScanner(LibraryGuard guard, ILogger<MediaSorterScanner> logger)
+    /// <param name="planner">Complete move planning.</param>
+    public MediaSorterScanner(LibraryGuard guard, ILogger<MediaSorterScanner> logger, MediaMovePlanner planner)
     {
         _guard = guard;
+        _planner = planner;
         _logger = logger;
     }
 
@@ -142,114 +145,7 @@ public sealed partial class MediaSorterScanner : IScanner
             picturesTarget = null;
         }
 
-        var issues = new List<Issue>();
-        var processed = 0;
-        foreach (var item in items)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            foreach (var path in MediaFileHelper.GetFilePaths(item))
-            {
-                if (string.IsNullOrEmpty(path))
-                {
-                    continue;
-                }
-
-                try
-                {
-                    var kind = ClassifyItem(item, path, Config.MediaSortSource, animeEnabled: animeTarget is not null);
-                    if (kind is null)
-                    {
-                        // Unidentified: skip (surfaced as-is; user should fix metadata in Jellyfin).
-                        continue;
-                    }
-
-                    // Route each kind to its own target. Opt-in kinds (music/books/comics/pictures/audiobook)
-                    // are skipped when their target isn't set — user hasn't asked for that routing, so we
-                    // don't flag anything under an unrelated pile. AudioBook uses the Books target (same
-                    // physical library shape in practice; splitting would need a separate config setting).
-                    string? expectedRoot = kind switch
-                    {
-                        MediaKind.Movie => moviesTarget,
-                        MediaKind.Tv => tvTarget,
-                        MediaKind.Anime => animeTarget,
-                        MediaKind.Music => musicTarget,
-                        MediaKind.Book => booksTarget,
-                        MediaKind.AudioBook => booksTarget,
-                        MediaKind.Comic => comicsTarget,
-                        MediaKind.Picture => picturesTarget,
-                        _ => null
-                    };
-                    if (expectedRoot is null)
-                    {
-                        // No target path configured for this kind — treat as opt-out, no issue emitted.
-                        continue;
-                    }
-
-                    var otherRoots = new[] { moviesTarget, tvTarget, animeTarget, musicTarget, booksTarget, comicsTarget, picturesTarget }
-                        .Where(r => r is not null && !string.Equals(r, expectedRoot, StringComparison.OrdinalIgnoreCase))
-                        .ToArray();
-                    var fullPath = Path.GetFullPath(path);
-                    if (!otherRoots.Any(r => Fixers.LibraryGuard.IsUnder(fullPath, r!)))
-                    {
-                        // Not misplaced (may or may not be under the correct root — the sorter only
-                        // fixes files that are visibly in the wrong pile).
-                        continue;
-                    }
-
-                    var targetPath = Path.Combine(expectedRoot, Path.GetFileName(path)!);
-                    var savings = 0L;
-                    try
-                    {
-                        savings = File.Exists(path) ? new FileInfo(path).Length : 0;
-                    }
-                    catch (IOException)
-                    {
-                        // Broken file — Playability scanner's problem, not ours.
-                    }
-
-                    issues.Add(new Issue
-                    {
-                        Type = IssueType.Misplaced,
-                        ItemId = item.Id,
-                        Path = path,
-                        Status = IssueStatus.Detected,
-                        DetectedAtUtc = DateTime.UtcNow,
-                        SizeSavings = savings,
-                        SuggestedFix = string.Format(
-                            CultureInfo.InvariantCulture,
-                            "Move to {0}",
-                            expectedRoot),
-                        DetailsJson = JsonSerializer.Serialize(new
-                        {
-                            kind = kind.ToString(),
-                            targetPath,
-                            expectedRoot,
-                            source = Config.MediaSortSource.ToString()
-                        })
-                    });
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "MediaSorter failed on {Path}; skipping", path);
-                    Api.Diagnostics.Record(
-                        "MediaSorter.Classify",
-                        "The media sorter failed while classifying '" + path + "': " + ex.Message + ". The file was skipped; the rest of the scan continued.");
-                }
-            }
-
-            processed++;
-            if (items.Count > 0)
-            {
-                progress.Report(processed * 100.0 / items.Count);
-            }
-        }
-
-        progress.Report(100);
-        return Task.FromResult<IReadOnlyList<Issue>>(issues);
+        return _planner.ScanAsync(Type, items, Config, progress, cancellationToken);
     }
 
     /// <summary>
@@ -273,20 +169,158 @@ public sealed partial class MediaSorterScanner : IScanner
     }
 
     /// <summary>
+    /// A film Jellyfin filed as an episode of a same-named show. Production 2026-11-22: "Sinners 2025
+    /// 1080p WEBRip…" sat inside "Sinners (2016)" as an episode of unknown season, and once a season was
+    /// entered it was renamed "Saints &amp; Sinners S01E2025" (the film's year read as an episode number).
+    /// </summary>
+    /// <param name="episode">The episode item.</param>
+    /// <param name="path">Its file.</param>
+    /// <param name="formerPaths">Paths earlier moves recorded for this file, newest first.</param>
+    /// <returns>True when it should be treated as a movie.</returns>
+    internal static bool LooksLikeMovieFiledAsEpisode(Episode episode, string path, IReadOnlyList<string>? formerPaths = null)
+        => FilmIdentity(episode, path, formerPaths) is not null;
+
+    /// <summary>
+    /// The "Title (Year)" of a film filed as an episode, or null when the item reads as a real episode.
+    /// It has no usable episode number (none, or one that is really a year), no SxxEyy in any name it
+    /// has carried, a feature-length runtime when known, and a "Title Year" name whose year is not the
+    /// show's.
+    /// </summary>
+    /// <param name="episode">The episode item.</param>
+    /// <param name="path">Its file.</param>
+    /// <param name="formerPaths">Paths earlier moves recorded for this file, newest first.</param>
+    /// <returns>The canonical film name, or null.</returns>
+    internal static string? FilmIdentity(Episode episode, string path, IReadOnlyList<string>? formerPaths = null)
+    {
+        // A film sitting alone in a folder of its own name inside a TV library
+        // ("TV/Movie In Tv (2018)/Movie In Tv (2018).mkv"). Jellyfin makes the folder a show and the
+        // file its only episode, so the show's year always equals the film's and the check below
+        // cannot tell. No season, no episode number and no other video in the folder mark it as a film
+        // whatever its runtime.
+        if (OwnFolderFilm(episode, path) is { } ownFolder)
+        {
+            return ownFolder;
+        }
+
+        if (string.IsNullOrWhiteSpace(path)
+            || (episode.IndexNumber is int number && number is < 1900 or > 2100)
+            || (episode.IndexNumber is null && episode.ParentIndexNumber is not null)
+            || (episode.RunTimeTicks is long ticks && ticks > 0 && TimeSpan.FromTicks(ticks) < TimeSpan.FromMinutes(60)))
+        {
+            return null;
+        }
+
+        var names = new List<string>();
+        foreach (var candidate in (formerPaths ?? []).Prepend(path))
+        {
+            names.Add(Path.GetFileNameWithoutExtension(candidate));
+            names.Add(Path.GetFileName(Path.GetDirectoryName(candidate) ?? string.Empty));
+        }
+
+        names = names.Where(name => !string.IsNullOrWhiteSpace(name) && !SeasonLikeFolder().IsMatch(name) && !YearAsEpisode().IsMatch(name)).ToList();
+        if (names.Any(Fixers.MoveProvenance.HasEpisodeMarker))
+        {
+            return null;
+        }
+
+        int? seriesYear = null;
+        try
+        {
+            var series = episode.Series;
+            seriesYear = series?.ProductionYear ?? series?.PremiereDate?.Year;
+        }
+        catch (Exception ex) when (ex is NullReferenceException or InvalidOperationException)
+        {
+        }
+
+        for (var folder = Path.GetDirectoryName(path); seriesYear is null && !string.IsNullOrEmpty(folder); folder = Path.GetDirectoryName(folder))
+        {
+            var match = CanonicalFolder().Match(Path.GetFileName(folder));
+            if (match.Success)
+            {
+                seriesYear = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+            }
+        }
+
+        if (seriesYear is not int showYear)
+        {
+            return null;
+        }
+
+        foreach (var name in names)
+        {
+            var (title, year) = Metadata.MediaIdentityService.CleanTitle(Metadata.MediaIdentityService.StripSite(name));
+            if (year is int filmYear && title.Length > 0 && filmYear <= DateTime.UtcNow.Year + 1)
+            {
+                return Math.Abs(showYear - filmYear) > 1
+                    ? Fixers.RenameTemplate.Scrub(title + " (" + filmYear.ToString(CultureInfo.InvariantCulture) + ")")
+                    : null;
+            }
+        }
+
+        return null;
+    }
+
+    internal static string? OwnFolderFilm(Episode episode, string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || episode.ParentIndexNumber is not null)
+        {
+            return null;
+        }
+
+        var folder = Path.GetDirectoryName(path);
+        var folderName = Path.GetFileName(folder ?? string.Empty);
+        var match = CanonicalFolder().Match(folderName ?? string.Empty);
+        if (folder is null || !match.Success
+            || !string.Equals(Path.GetFileNameWithoutExtension(path), folderName, StringComparison.OrdinalIgnoreCase)
+            || Fixers.MoveProvenance.HasEpisodeMarker(folderName!)
+            || (episode.IndexNumber is int number && number != int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture)))
+        {
+            return null;
+        }
+
+        try
+        {
+            if (Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories).Count(file => MediaFormats.Video.Contains(Path.GetExtension(file))) != 1)
+            {
+                return null;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+
+        return Fixers.RenameTemplate.Scrub(folderName!);
+    }
+
+    [GeneratedRegex(@"^(?:season|series|specials)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex SeasonLikeFolder();
+
+    [GeneratedRegex(@"[Ss]\d{1,2}[Ee](?:19|20)\d{2}(?!\d)")]
+    private static partial Regex YearAsEpisode();
+
+    [GeneratedRegex(@"^.+ \((\d{4})\)$")]
+    private static partial Regex CanonicalFolder();
+
+    /// <summary>
     /// Returns the classification of an item under the configured source. Public/internal for tests.
     /// </summary>
     /// <param name="item">The library item.</param>
     /// <param name="path">The file path being considered.</param>
     /// <param name="source">Which source to use.</param>
     /// <param name="animeEnabled">True when an Anime target path is configured; controls whether the anime kind is returned. When false, anime collapses back to Movie/Tv so existing behaviour is preserved.</param>
+    /// <param name="comicsEnabled">True when a separate comic target is configured; comic Book items use that enabled destination.</param>
+    /// <param name="formerPaths">Paths earlier moves recorded for this file.</param>
     /// <returns>The kind, or null if unidentifiable.</returns>
-    internal static MediaKind? ClassifyItem(BaseItem item, string path, MediaSortSource source, bool animeEnabled = false)
+    internal static MediaKind? ClassifyItem(BaseItem item, string path, MediaSortSource source, bool animeEnabled = false, bool comicsEnabled = false, IReadOnlyList<string>? formerPaths = null)
     {
         if (source == MediaSortSource.JellyfinMetadata)
         {
             var baseKind = item switch
             {
                 Movie => (MediaKind?)MediaKind.Movie,
+                Episode episode when LooksLikeMovieFiledAsEpisode(episode, path, formerPaths) => MediaKind.Movie,
                 Episode => (MediaKind?)MediaKind.Tv,
                 _ => ClassifyByBaseItemKind(item.GetBaseItemKind())
             };
@@ -294,6 +328,11 @@ public sealed partial class MediaSorterScanner : IScanner
             if (baseKind is null)
             {
                 return null;
+            }
+
+            if (comicsEnabled && baseKind == MediaKind.Book && MediaFormats.Comics.Contains(Path.GetExtension(path)))
+            {
+                return MediaKind.Comic;
             }
 
             // Anime override only applies to video content (Movie/Tv). Books/Music are never "anime".

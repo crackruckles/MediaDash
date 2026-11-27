@@ -64,7 +64,6 @@
     "binViewShow":  "Ver contenido",
     "binRestoreHint":  "Para devolver un archivo, usa el botón Restaurar en la pestaña Historial.",
     "modeOff":  "Desactivado — ni siquiera escanear",
-    "modeDetect":  "Solo detectar — solo mostrar",
     "modeManual":  "Preguntarme primero",
     "modeAuto":  "Corregir automáticamente",
     "disposalRecycle":  "Papelera (recuperable)",

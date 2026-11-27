@@ -64,7 +64,6 @@
     "binViewShow":  "Voir le contenu",
     "binRestoreHint":  "Pour remettre un fichier en place, utilisez le bouton Restaurer dans l\u0027onglet Historique.",
     "modeOff":  "Désactivé — ne pas analyser",
-    "modeDetect":  "Détecter seulement — juste montrer",
     "modeManual":  "Me demander d\u0027abord",
     "modeAuto":  "Corriger automatiquement",
     "disposalRecycle":  "Corbeille (récupérable)",

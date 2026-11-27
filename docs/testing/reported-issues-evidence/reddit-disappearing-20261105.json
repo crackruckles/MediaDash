@@ -1,0 +1,35 @@
+{
+  "caseId": "reddit-disappearing",
+  "sourceDigest": "4045428334a7552f9d9afb435efff70ce81e5fe20308911afce7746a1e2c7e5e",
+  "dllSha256": "1b1eaaac59e05928c63f857653d0ed2cd9261c4f7a7ae00f0b7fd321bf071688",
+  "environment": "Windows interactive account, isolated loopback Jellyfin 10.11.11 and 12.0.0, owned generated media",
+  "checks": [
+    {
+      "name": "exact issue preview has zero savings and keeps the queued row",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "exact issue refusal writes failed history without savings or recycle",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "all unchanged originals and foreign destination retain exact hashes",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "refused row stays visible through rescan under the exact issue ID",
+      "passed": true,
+      "skipped": false
+    }
+  ],
+  "evidence": [
+    "artifacts/push-preparation-20261105-extra-live/v10/final-evidence/refused-move.json",
+    "artifacts/push-preparation-20261105-extra-live/v12/final-evidence/refused-move.json"
+  ],
+  "limitations": [
+    "Controlled equivalent for the unchanged-file and disappearing-row symptom. The exact Linux Mint reporter state remains unavailable."
+  ]
+}

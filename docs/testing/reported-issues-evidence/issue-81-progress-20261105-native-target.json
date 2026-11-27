@@ -1,0 +1,81 @@
+{
+  "caseId": "issue-81-progress",
+  "sourceDigest": "5bb602fa9950197fa215d8e5b21b8d52a22399c07dbf0f6c3c200d8cca4a2d95",
+  "dllSha256": "f225958b511271b532254ed3c9f04afe8e525d4610614f3020bec6806eac4e80",
+  "environment": "Windows interactive account; owned Jellyfin 12.0.0; headless Chrome; 1000 generated movies; other isolated acceptance profiles were active on this machine",
+  "checks": [
+    {
+      "name": "all 1000 generated movies indexed before scan measurement",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "cold loaded scan completed with responsive progress",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "warm loaded scan completed with responsive progress",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "cold/warm scan detects every generated unwanted-audio file exactly once",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "Rendered dashboard advanced through distinct progress widths and cleared on completion; all observed progress responses were HTTP 200 with no page errors",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "Profile settings libraries approvals and protection restored; 1000 fixture hashes verified before removal after host exit",
+      "passed": true,
+      "skipped": false
+    }
+  ],
+  "evidence": [
+    "artifacts/push-preparation-20261105-browser-repaired/v12/final-evidence/browser-progress.json",
+    "artifacts/push-preparation-20261105-browser-repaired/v12/final-evidence/cold-scan-timing.json",
+    "artifacts/push-preparation-20261105-browser-repaired/v12/final-evidence/warm-scan-timing.json",
+    "artifacts/push-preparation-20261105-browser-repaired/v12/final-evidence/cleanup.json",
+    "artifacts/push-preparation-20261105-browser-repaired/v12/final-evidence/fixture-cleanup.json",
+    "artifacts/push-preparation-20261105-browser-repaired/v12/final-evidence/scan-3.png",
+    "artifacts/push-preparation-20261105-browser-repaired/v12/final-evidence/after-scan.png"
+  ],
+  "limitations": [
+    "Host CPU metrics exclude child processes. Concurrent owned tests are part of the measurement environment. This is not a 20 TB workload or adaptive CPU RAM disk-pressure certification.",
+    "Earlier 404542 candidate 10.11 browser run failed its no-pageerror contract on a native Jellyfin notification permission error; it is not counted as acceptance."
+  ],
+  "rawArtifactHashes": [
+    {
+      "path": "artifacts/push-preparation-20261105-browser-repaired/v12/final-evidence/browser-progress.json",
+      "sha256": "d6bd03b967fd81ea79b7af7464b79891ad487d71a79ff721eab2c5bd04af1b26"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-browser-repaired/v12/final-evidence/cold-scan-timing.json",
+      "sha256": "e39b1614bbdbb13877f624b8a4b4a9631c3e99532b54370e2310cd0cbea6b0f9"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-browser-repaired/v12/final-evidence/warm-scan-timing.json",
+      "sha256": "413a836a5c13c5f2db7fc82d04672efd0ad5a90c34b28028316e2b4b2e39c8c8"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-browser-repaired/v12/final-evidence/cleanup.json",
+      "sha256": "089a4fafdc288289c3889911409dbcb0efd47223f1b32a56846865350e37f60a"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-browser-repaired/v12/final-evidence/fixture-cleanup.json",
+      "sha256": "463e0d3453fde50fb40f28200ee820214cbfd1670ced65d98115d4e63bbccfb0"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-browser-repaired/v12/final-evidence/scan-3.png",
+      "sha256": "aa893e8e1bc254bbaa85f36f154704c488cc3c2a9426995365079763106332f8"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-browser-repaired/v12/final-evidence/after-scan.png",
+      "sha256": "8ef8e0e63870fa200697e12a2c388041eee15b7b786f5aba8d4e19066fbcdd59"
+    }
+  ]
+}

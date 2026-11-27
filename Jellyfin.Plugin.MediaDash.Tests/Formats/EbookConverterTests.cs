@@ -1,7 +1,9 @@
 using System;
 using System.IO;
+using System.IO.Compression;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using Jellyfin.Plugin.MediaDash.Configuration;
 using Jellyfin.Plugin.MediaDash.Fixers.Converters;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -71,6 +73,10 @@ public class EbookConverterTests : FormatFixtureBase
         Assert.True(result.Success, result.Reason);
         Assert.True(File.Exists(target));
         Assert.True(new FileInfo(target).Length > 0);
+        using var epub = ZipFile.OpenRead(target);
+        var package = Assert.Single(epub.Entries, entry => entry.Name.EndsWith(".opf", StringComparison.Ordinal));
+        using var packageStream = package.Open();
+        Assert.Equal("3.0", (string?)XDocument.Load(packageStream).Root?.Attribute("version"));
     }
 
     private static EbookConverter NewConverter()

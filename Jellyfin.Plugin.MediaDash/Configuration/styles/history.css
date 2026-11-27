@@ -168,7 +168,8 @@
     color: var(--md-meta);
 }
 #MediaDashConfigPage .mdHistAct { margin-top: 0; }
-#MediaDashConfigPage .mdRestore {
+#MediaDashConfigPage .mdRestore,
+#MediaDashConfigPage .mdMoveUndo {
     display: inline-flex; align-items: center; gap: 6px;
     background: var(--md-neutral) !important;
     border: 1px solid var(--md-border-btn) !important;
@@ -178,8 +179,25 @@
     height: 34px; min-height: 34px !important;
     font: 600 13px Figtree, sans-serif !important;
 }
-#MediaDashConfigPage .mdRestore:hover { background: var(--md-neutral-hover) !important; }
-#MediaDashConfigPage .mdRestore .material-icons { font-size: 17px !important; }
+#MediaDashConfigPage .mdRestore:hover,
+#MediaDashConfigPage .mdMoveUndo:hover { background: var(--md-neutral-hover) !important; }
+#MediaDashConfigPage .mdRestore .material-icons,
+#MediaDashConfigPage .mdMoveUndo .material-icons { font-size: 17px !important; }
+#MediaDashConfigPage .mdRecordedMoves > summary {
+    display: list-item;
+    list-style-position: inside;
+    cursor: pointer;
+    margin: 0;
+}
+#MediaDashConfigPage .mdRecordedMoves > summary:focus-visible {
+    outline: 2px solid var(--md-primary);
+    outline-offset: 6px;
+    border-radius: 4px;
+}
+#MediaDashConfigPage .mdRecordedMovesBody { margin-top: 18px; }
+#MediaDashConfigPage .mdRecordedMovesBody > .fieldDescription { color: var(--md-meta); margin: 0 0 18px; }
+#MediaDashConfigPage .mdMovePaths { margin: 12px 0; }
+#MediaDashConfigPage .mdMovePaths > summary { cursor: pointer; }
 #MediaDashConfigPage .mdHistRetry {
     background: color-mix(in srgb, var(--md-error) 18%, transparent) !important;
     border-color: color-mix(in srgb, var(--md-error) 45%, transparent) !important;

@@ -55,6 +55,10 @@ public sealed class DuplicateFixer : IFixer
         var config = Plugin.Instance!.Configuration;
 
         string? keeperPath = null;
+
+        var aliasOnly = false;
+        (ulong Volume, ulong FileId)? observedKeeper = null;
+        (ulong Volume, ulong FileId)? observedLoser = null;
         try
         {
             using var details = JsonDocument.Parse(issue.DetailsJson);
@@ -65,6 +69,10 @@ public sealed class DuplicateFixer : IFixer
                 && kp.ValueKind == JsonValueKind.String)
             {
                 keeperPath = kp.GetString();
+                aliasOnly = details.RootElement.TryGetProperty("kind", out var kindElement) && kindElement.ValueKind == JsonValueKind.String
+                    && kindElement.GetString() == Scanners.DuplicateScanner.KindLibraryAlias;
+                observedKeeper = ReadObservedIdentity(details.RootElement, "keeperIdentity");
+                observedLoser = ReadObservedIdentity(details.RootElement, "loserIdentity");
             }
         }
         catch (JsonException)
@@ -130,18 +138,70 @@ public sealed class DuplicateFixer : IFixer
                 config.DuplicateAutoFixConfidence)));
         }
 
-        var size = new FileInfo(issue.Path).Length;
+        // Task-2 alias recheck: re-read physical identity for both paths at disposal time. If the
+        // loser or keeper has become a symlink / junction, or they now resolve to the same physical
+        // file (hardlink alias created, or user replaced the loser with a link to the keeper
+        // between scan and fix), refuse so we don't break the user's link or claim the link's
+        // bytes as freed. Platform read failures are inconclusive — refuse rather than guess.
+        var keeperIdent = Probing.PhysicalFileIdentity.TryRead(keeperPath, out var k) ? (Probing.PhysicalFileIdentity.Value?)k : null;
+        var loserIdent = Probing.PhysicalFileIdentity.TryRead(issue.Path, out var l) ? (Probing.PhysicalFileIdentity.Value?)l : null;
+        if (keeperIdent is null || loserIdent is null)
+        {
+            return Task.FromResult(FixResult.Refused(FixReason.SourceChanged, "Could not read physical file identity for the duplicate pair; the disposal is refused to avoid breaking a link. Re-scan and try again."));
+        }
+
+        if (loserIdent.Value.IsReparsePoint || keeperIdent.Value.IsReparsePoint)
+        {
+            return Task.FromResult(FixResult.Refused(FixReason.SourceChanged, "The duplicate pair now contains a symlink or junction; MediaDash will not break a filesystem link. Re-scan — the link will be excluded from duplicate findings."));
+        }
+
+        if (aliasOnly)
+        {
+            // One file under two library names: remove only the extra name. It must still be the very
+            // same file (so the keeper keeps every byte) and still have another name besides this one.
+            if (keeperIdent.Value.Volume != loserIdent.Value.Volume || keeperIdent.Value.FileId != loserIdent.Value.FileId || loserIdent.Value.LinkCount < 2)
+            {
+                return Task.FromResult(FixResult.Refused(FixReason.SourceChanged, "These two library entries are no longer the same file. Nothing was removed; re-scan to refresh the list."));
+            }
+        }
+        else if (keeperIdent.Value == loserIdent.Value)
+        {
+            return Task.FromResult(FixResult.Refused(FixReason.NothingToRemove, "The duplicate and the better copy are hardlinks to the same physical file — nothing would be freed by deleting one entry. Re-scan to drop this finding."));
+        }
+
+        if (!aliasOnly && loserIdent.Value.LinkCount > 1)
+        {
+            return Task.FromResult(FixResult.Refused(FixReason.SourceChanged, "This file has additional hardlinks pointing at the same bytes; deleting it would not free the storage and might break the other link. Re-scan — hardlinked files are excluded from duplicate findings."));
+        }
+
+        // Approval covers the two physical files observed by the scanner, not whatever later
+        // occupies their paths. Legacy rows cannot establish that consent and require a rescan.
+        if (observedKeeper is null || observedLoser is null
+            || observedKeeper.Value != (keeperIdent.Value.Volume, keeperIdent.Value.FileId)
+            || observedLoser.Value != (loserIdent.Value.Volume, loserIdent.Value.FileId))
+        {
+            return Task.FromResult(FixResult.Refused(FixReason.SourceChanged, "The duplicate pair no longer matches the files recorded at scan time, or its recorded identities are missing. Nothing was deleted; re-scan and approve the duplicate again."));
+        }
+
+        var size = aliasOnly ? 0 : new FileInfo(issue.Path).Length;
         var disposal = config.GetDisposal(IssueType.Duplicate);
         var sizeText = size >= 1_073_741_824
             ? string.Format(CultureInfo.InvariantCulture, "{0:F1} GB", size / 1_073_741_824.0)
             : string.Format(CultureInfo.InvariantCulture, "{0:F0} MB", size / 1_048_576.0);
-        var actionText = string.Format(
-            CultureInfo.InvariantCulture,
-            "{0} {1} ({2}) — better copy kept: {3}",
-            disposal == DisposalMethod.RecycleBin ? "moved to recycle bin" : "permanently deleted",
-            Path.GetFileName(issue.Path),
-            sizeText,
-            Path.GetFileName(keeperPath));
+        var actionText = aliasOnly
+            ? string.Format(
+                CultureInfo.InvariantCulture,
+                "{0} the extra library entry {1} — the same file stays at {2}; no space freed",
+                disposal == DisposalMethod.RecycleBin ? "moved to recycle bin" : "removed",
+                Path.GetFileName(issue.Path),
+                keeperPath)
+            : string.Format(
+                CultureInfo.InvariantCulture,
+                "{0} {1} ({2}) — better copy kept: {3}",
+                disposal == DisposalMethod.RecycleBin ? "moved to recycle bin" : "permanently deleted",
+                Path.GetFileName(issue.Path),
+                sizeText,
+                Path.GetFileName(keeperPath));
 
         if (config.DryRun)
         {
@@ -202,13 +262,25 @@ public sealed class DuplicateFixer : IFixer
         });
     }
 
+    private static (ulong Volume, ulong FileId)? ReadObservedIdentity(JsonElement details, string name)
+    {
+        if (!details.TryGetProperty(name, out var identity) || identity.ValueKind != JsonValueKind.Object
+            || !identity.TryGetProperty("vol", out var volume) || volume.ValueKind != JsonValueKind.String
+            || !identity.TryGetProperty("id", out var fileId) || fileId.ValueKind != JsonValueKind.String
+            || !ulong.TryParse(volume.GetString(), NumberStyles.None, CultureInfo.InvariantCulture, out var parsedVolume)
+            || !ulong.TryParse(fileId.GetString(), NumberStyles.None, CultureInfo.InvariantCulture, out var parsedFileId))
+        {
+            return null;
+        }
+
+        return (parsedVolume, parsedFileId);
+    }
+
     /// <summary>
     /// R07 (audit 2026-09-19): fix-time keeper viability gate. Refuses the delete when the
     /// current keeper is empty OR has shrunk materially below its scan-time size (recorded in
     /// <c>DetailsJson.keeper.Size</c>). Pure and testable — file existence + <see cref="FileInfo.Length"/>
     /// only; no probe / hash / library dependency so no per-fix cost beyond a Length read.
-    /// ponytail: content-hash identity check would be stronger, adds ffprobe cost + scanner-side
-    /// hash persistence; upgrade if a real deployment sees keeper substitution attacks.
     /// </summary>
     /// <param name="keeperPath">Path to the "better copy" the scanner picked.</param>
     /// <param name="detailsJson">The issue's DetailsJson blob, potentially carrying keeper.Size.</param>
@@ -344,7 +416,7 @@ public sealed class DuplicateFixer : IFixer
         foreach (var f in remainingFiles)
         {
             var ext = Path.GetExtension(f);
-            if (MediaFormats.Video.Contains(ext) || MediaFormats.Audio.Contains(ext))
+            if (MediaFormats.All.Contains(ext))
             {
                 return;
             }
@@ -352,6 +424,15 @@ public sealed class DuplicateFixer : IFixer
 
         foreach (var f in remainingFiles)
         {
+            var stem = Path.GetFileNameWithoutExtension(videoPath);
+            var name = Path.GetFileName(f);
+            if (!name.StartsWith(stem + ".", StringComparison.OrdinalIgnoreCase)
+                && !name.StartsWith(stem + "-", StringComparison.OrdinalIgnoreCase)
+                && !DuplicateScanner.IsSidecarPath(f))
+            {
+                continue;
+            }
+
             if (_protection?.IsFixerBlocked(f, IssueType.Duplicate) == true)
             {
                 continue;
@@ -376,11 +457,11 @@ public sealed class DuplicateFixer : IFixer
             }
             catch (IOException ex)
             {
-                Api.Diagnostics.Record("DuplicateFixer.SidecarSweep", "Failed to sweep '" + f + "': " + ex.Message);
+                Api.Diagnostics.Record("DuplicateFixer.SidecarSweep", "After fixing a duplicate, MediaDash could not remove the leftover file '" + f + "'. Delete it by hand if you no longer need it. Details: " + ex.Message);
             }
             catch (UnauthorizedAccessException ex)
             {
-                Api.Diagnostics.Record("DuplicateFixer.SidecarSweep", "Access denied sweeping '" + f + "': " + ex.Message);
+                Api.Diagnostics.Record("DuplicateFixer.SidecarSweep", "After fixing a duplicate, MediaDash could not remove the leftover file '" + f + "' because Jellyfin does not have permission. Give the user Jellyfin runs as write access to that folder, or delete the file by hand. Details: " + ex.Message);
             }
         }
 
@@ -397,11 +478,11 @@ public sealed class DuplicateFixer : IFixer
         {
             // Folder wasn't empty after sweep — a race, or a hidden file we didn't enumerate.
             // Not fatal: the video is recycled, sidecars are recycled, folder just persists.
-            Api.Diagnostics.Record("DuplicateFixer.FolderPrune", "Could not remove '" + folder + "' after sweep: " + ex.Message);
+            Api.Diagnostics.Record("DuplicateFixer.FolderPrune", "After fixing a duplicate, MediaDash could not remove the now-empty folder '" + folder + "'. Delete it by hand if you like. Details: " + ex.Message);
         }
         catch (UnauthorizedAccessException ex)
         {
-            Api.Diagnostics.Record("DuplicateFixer.FolderPrune", "Access denied removing '" + folder + "': " + ex.Message);
+            Api.Diagnostics.Record("DuplicateFixer.FolderPrune", "After fixing a duplicate, MediaDash could not remove the now-empty folder '" + folder + "' because Jellyfin does not have permission. Delete it by hand if you like. Details: " + ex.Message);
         }
     }
 }

@@ -55,11 +55,13 @@ internal static class FixPlanBuilder
             .Select(g => g.First())
             .ToList();
 
-        // Deterministic order: rank, then size, then id as the stable final tie-break so two
+        // Keep sources in place for repairs, then change filenames/formats, then move folders.
+        // Deterministic order within each phase: rank, size, then id as the stable final tie-break so two
         // issues at the same rank+size never flip position across runs even if the DB returns
         // rows in a different order or LINQ's stable-sort semantics change.
         var ordered = deduped
-            .OrderBy(i => fixerRank(i.Type))
+            .OrderBy(ExecutionPhase)
+            .ThenBy(i => fixerRank(i.Type))
             .ThenBy(issueSize)
             .ThenBy(i => i.Id)
             .ToList();
@@ -95,6 +97,15 @@ internal static class FixPlanBuilder
 
         return plans;
     }
+
+    private static int ExecutionPhase(Issue issue) => issue.Type switch
+    {
+        IssueType.Misplaced or IssueType.Ungrouped or IssueType.ManualMove => 2,
+        IssueType.Quality or IssueType.HeavyTranscode or IssueType.FailedTranscode or IssueType.FormatCompatibility => 1,
+        IssueType.Playability when IssueDetailsReader.TryReadPlayability(issue.DetailsJson, out var details)
+            && details?.Reason == "container-extension-mismatch" => 1,
+        _ => 0
+    };
 
     /// <summary>
     /// Groups every queued transcode-family issue with any <c>AudioLanguage</c>/<c>SubtitleLanguage</c>

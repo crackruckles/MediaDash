@@ -18,9 +18,13 @@ public sealed class RestoreOperationsTests : IDisposable
 {
     private readonly string _dbPath = Path.Combine(Path.GetTempPath(), "mediadash-restore-ops-" + Guid.NewGuid().ToString("N") + ".db");
     private readonly MediaDashDb _db;
+    private string FixtureRoot => _dbPath + ".fixtures";
+
+    private string OwnedPath(string path) => Path.Combine(FixtureRoot, path.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
 
     public RestoreOperationsTests()
     {
+        Directory.CreateDirectory(FixtureRoot);
         _db = new MediaDashDb(_dbPath);
     }
 
@@ -31,6 +35,9 @@ public sealed class RestoreOperationsTests : IDisposable
         {
             File.Delete(_dbPath);
         }
+
+        Assert.Equal(Path.TrimEndingDirectorySeparator(Path.GetTempPath()), Path.GetDirectoryName(FixtureRoot));
+        Directory.Delete(FixtureRoot, recursive: true);
     }
 
     // ─── TryBeginRestore ─────────────────────────────────────────────────
@@ -38,7 +45,7 @@ public sealed class RestoreOperationsTests : IDisposable
     [Fact]
     public void TryBeginRestore_FirstCall_ReturnsOwnerToken()
     {
-        var opId = _db.TryBeginRestore("/bin/movie.mkv", historyId: 1, sourcePath: "/bin/movie.mkv", destinationPath: "/lib/movie.mkv");
+        var opId = _db.TryBeginRestore(OwnedPath("/bin/movie.mkv"), historyId: 1, sourcePath: OwnedPath("/bin/movie.mkv"), destinationPath: OwnedPath("/lib/movie.mkv"));
         Assert.NotNull(opId);
         Assert.NotEmpty(opId!);
     }
@@ -46,18 +53,18 @@ public sealed class RestoreOperationsTests : IDisposable
     [Fact]
     public void TryBeginRestore_SecondCall_ReturnsNullWhileFirstIsPending()
     {
-        var first = _db.TryBeginRestore("/bin/movie.mkv", 1, "/bin/movie.mkv", "/lib/movie.mkv");
+        var first = _db.TryBeginRestore(OwnedPath("/bin/movie.mkv"), 1, OwnedPath("/bin/movie.mkv"), OwnedPath("/lib/movie.mkv"));
         Assert.NotNull(first);
 
-        var second = _db.TryBeginRestore("/bin/movie.mkv", 2, "/bin/movie.mkv", "/lib/movie.mkv");
+        var second = _db.TryBeginRestore(OwnedPath("/bin/movie.mkv"), 2, OwnedPath("/bin/movie.mkv"), OwnedPath("/lib/movie.mkv"));
         Assert.Null(second);
     }
 
     [Fact]
     public void TryBeginRestore_DifferentEntryKeys_BothSucceed()
     {
-        var a = _db.TryBeginRestore("/bin/a.mkv", 1, "/bin/a.mkv", "/lib/a.mkv");
-        var b = _db.TryBeginRestore("/bin/b.mkv", 2, "/bin/b.mkv", "/lib/b.mkv");
+        var a = _db.TryBeginRestore(OwnedPath("/bin/a.mkv"), 1, OwnedPath("/bin/a.mkv"), OwnedPath("/lib/a.mkv"));
+        var b = _db.TryBeginRestore(OwnedPath("/bin/b.mkv"), 2, OwnedPath("/bin/b.mkv"), OwnedPath("/lib/b.mkv"));
         Assert.NotNull(a);
         Assert.NotNull(b);
         Assert.NotEqual(a, b);
@@ -66,10 +73,10 @@ public sealed class RestoreOperationsTests : IDisposable
     [Fact]
     public void TryBeginRestore_AfterComplete_SameEntryKeyReclaimable()
     {
-        var first = _db.TryBeginRestore("/bin/movie.mkv", 1, "/bin/movie.mkv", "/lib/movie.mkv")!;
-        Assert.True(_db.CompleteRestore(first, "/lib/movie.mkv"));
+        var first = _db.TryBeginRestore(OwnedPath("/bin/movie.mkv"), 1, OwnedPath("/bin/movie.mkv"), OwnedPath("/lib/movie.mkv"))!;
+        Assert.True(_db.CompleteRestore(first, OwnedPath("/lib/movie.mkv")));
 
-        var second = _db.TryBeginRestore("/bin/movie.mkv", 1, "/bin/movie.mkv", "/lib/movie.mkv");
+        var second = _db.TryBeginRestore(OwnedPath("/bin/movie.mkv"), 1, OwnedPath("/bin/movie.mkv"), OwnedPath("/lib/movie.mkv"));
         Assert.NotNull(second);
         Assert.NotEqual(first, second);
     }
@@ -77,33 +84,33 @@ public sealed class RestoreOperationsTests : IDisposable
     [Fact]
     public void TryBeginRestore_AfterAbort_SameEntryKeyReclaimable()
     {
-        var first = _db.TryBeginRestore("/bin/movie.mkv", 1, "/bin/movie.mkv", "/lib/movie.mkv")!;
+        var first = _db.TryBeginRestore(OwnedPath("/bin/movie.mkv"), 1, OwnedPath("/bin/movie.mkv"), OwnedPath("/lib/movie.mkv"))!;
         Assert.True(_db.AbortRestore(first));
 
-        var second = _db.TryBeginRestore("/bin/movie.mkv", 1, "/bin/movie.mkv", "/lib/movie.mkv");
+        var second = _db.TryBeginRestore(OwnedPath("/bin/movie.mkv"), 1, OwnedPath("/bin/movie.mkv"), OwnedPath("/lib/movie.mkv"));
         Assert.NotNull(second);
     }
 
     [Fact]
     public void TryBeginRestore_WhileNeedsReview_ReturnsNull()
     {
-        var first = _db.TryBeginRestore("/bin/movie.mkv", 1, "/bin/movie.mkv", "/lib/movie.mkv")!;
+        var first = _db.TryBeginRestore(OwnedPath("/bin/movie.mkv"), 1, OwnedPath("/bin/movie.mkv"), OwnedPath("/lib/movie.mkv"))!;
         Assert.True(_db.MarkRestoreNeedsReview(first, "partial mutation on disk"));
 
-        var second = _db.TryBeginRestore("/bin/movie.mkv", 2, "/bin/movie.mkv", "/lib/movie.mkv");
+        var second = _db.TryBeginRestore(OwnedPath("/bin/movie.mkv"), 2, OwnedPath("/bin/movie.mkv"), OwnedPath("/lib/movie.mkv"));
         Assert.Null(second);
     }
 
     [Fact]
     public void TryBeginRestore_EmptyEntryKey_ReturnsNull()
     {
-        Assert.Null(_db.TryBeginRestore(string.Empty, 1, "/bin/x", "/lib/x"));
+        Assert.Null(_db.TryBeginRestore(string.Empty, 1, OwnedPath("/bin/x"), OwnedPath("/lib/x")));
     }
 
     [Fact]
     public void TryBeginRestore_HistoryIdNullable_AcceptedForManifestOnlyRestores()
     {
-        var op = _db.TryBeginRestore("/bin/orphan.srt", historyId: null, "/bin/orphan.srt", "/lib/orphan.srt");
+        var op = _db.TryBeginRestore(OwnedPath("/bin/orphan.srt"), historyId: null, OwnedPath("/bin/orphan.srt"), OwnedPath("/lib/orphan.srt"));
         Assert.NotNull(op);
         var row = Assert.Single(_db.GetRestoreOperations());
         Assert.Null(row.HistoryId);
@@ -114,7 +121,7 @@ public sealed class RestoreOperationsTests : IDisposable
     [Fact]
     public void CompleteRestore_UnknownOperation_ReturnsFalse()
     {
-        Assert.False(_db.CompleteRestore("does-not-exist", "/lib/x"));
+        Assert.False(_db.CompleteRestore("does-not-exist", OwnedPath("/lib/x")));
     }
 
     [Fact]
@@ -122,11 +129,11 @@ public sealed class RestoreOperationsTests : IDisposable
     {
         // Old owner from a previous crashed attempt: mustn't be able to close out a newer,
         // legitimately-owned Pending row on the same entry_key.
-        var oldOp = _db.TryBeginRestore("/bin/movie.mkv", 1, "/bin/movie.mkv", "/lib/movie.mkv")!;
+        var oldOp = _db.TryBeginRestore(OwnedPath("/bin/movie.mkv"), 1, OwnedPath("/bin/movie.mkv"), OwnedPath("/lib/movie.mkv"))!;
         Assert.True(_db.AbortRestore(oldOp)); // simulate old owner giving up
-        var newOp = _db.TryBeginRestore("/bin/movie.mkv", 1, "/bin/movie.mkv", "/lib/movie.mkv")!;
+        var newOp = _db.TryBeginRestore(OwnedPath("/bin/movie.mkv"), 1, OwnedPath("/bin/movie.mkv"), OwnedPath("/lib/movie.mkv"))!;
 
-        Assert.False(_db.CompleteRestore(oldOp, "/lib/movie.mkv"));
+        Assert.False(_db.CompleteRestore(oldOp, OwnedPath("/lib/movie.mkv")));
 
         var pending = Assert.Single(_db.GetRestoreOperations());
         Assert.Equal("Pending", pending.State);
@@ -142,9 +149,9 @@ public sealed class RestoreOperationsTests : IDisposable
     [Fact]
     public void AbortRestore_WithStaleOwnerToken_LeavesNewerClaimUntouched()
     {
-        var oldOp = _db.TryBeginRestore("/bin/movie.mkv", 1, "/bin/movie.mkv", "/lib/movie.mkv")!;
+        var oldOp = _db.TryBeginRestore(OwnedPath("/bin/movie.mkv"), 1, OwnedPath("/bin/movie.mkv"), OwnedPath("/lib/movie.mkv"))!;
         Assert.True(_db.AbortRestore(oldOp));
-        var newOp = _db.TryBeginRestore("/bin/movie.mkv", 1, "/bin/movie.mkv", "/lib/movie.mkv")!;
+        var newOp = _db.TryBeginRestore(OwnedPath("/bin/movie.mkv"), 1, OwnedPath("/bin/movie.mkv"), OwnedPath("/lib/movie.mkv"))!;
 
         Assert.False(_db.AbortRestore(oldOp));
 
@@ -161,7 +168,7 @@ public sealed class RestoreOperationsTests : IDisposable
     [Fact]
     public void MarkRestoreNeedsReview_PersistsDetail()
     {
-        var op = _db.TryBeginRestore("/bin/movie.mkv", 1, "/bin/movie.mkv", "/lib/movie.mkv")!;
+        var op = _db.TryBeginRestore(OwnedPath("/bin/movie.mkv"), 1, OwnedPath("/bin/movie.mkv"), OwnedPath("/lib/movie.mkv"))!;
 
         Assert.True(_db.MarkRestoreNeedsReview(op, "restore verification failed after move"));
 
@@ -175,9 +182,9 @@ public sealed class RestoreOperationsTests : IDisposable
     {
         // Successful restore may re-resolve destination if a late collision forced a suffix
         // change; Complete records the actual landing path just before the row is removed.
-        var op = _db.TryBeginRestore("/bin/movie.mkv", 1, "/bin/movie.mkv", "/lib/movie.mkv")!;
+        var op = _db.TryBeginRestore(OwnedPath("/bin/movie.mkv"), 1, OwnedPath("/bin/movie.mkv"), OwnedPath("/lib/movie.mkv"))!;
 
-        Assert.True(_db.CompleteRestore(op, "/lib/movie-restored.mkv"));
+        Assert.True(_db.CompleteRestore(op, OwnedPath("/lib/movie-restored.mkv")));
 
         Assert.Empty(_db.GetRestoreOperations());
     }
@@ -192,13 +199,14 @@ public sealed class RestoreOperationsTests : IDisposable
         // ordering false-pass in the atomic-claim implementation would eventually break.
         for (var trial = 0; trial < 20; trial++)
         {
-            var entryKey = "/bin/concurrent-" + trial.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".mkv";
+            var entryKey = OwnedPath("/bin/concurrent-") + trial.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".mkv";
             const int Concurrency = 8;
             var results = await Task.WhenAll(Enumerable.Range(0, Concurrency)
-                .Select(_ => Task.Run(() => _db.TryBeginRestore(entryKey, historyId: 1, entryKey, "/lib/x.mkv"))));
+                .Select(_ => Task.Run(() => _db.TryBeginRestore(entryKey, historyId: 1, entryKey, OwnedPath("/lib/x.mkv")))));
 
             var wins = results.Count(r => r is not null);
             Assert.Equal(1, wins);
+            Assert.True(_db.AbortRestore(results.Single(result => result is not null)!));
         }
     }
 
@@ -207,7 +215,7 @@ public sealed class RestoreOperationsTests : IDisposable
     [Fact]
     public void ReconcilePendingRestoresAtStartup_PendingRowsBecomeNeedsReview()
     {
-        var op = _db.TryBeginRestore("/bin/movie.mkv", 1, "/bin/movie.mkv", "/lib/movie.mkv")!;
+        var op = _db.TryBeginRestore(OwnedPath("/bin/movie.mkv"), 1, OwnedPath("/bin/movie.mkv"), OwnedPath("/lib/movie.mkv"))!;
 
         // Simulate process death: skip Complete/Abort/MarkNeedsReview. Rebuild MediaDashDb on
         // the same file — the ctor's reconciliation pass should transition Pending → NeedsReview.
@@ -224,7 +232,7 @@ public sealed class RestoreOperationsTests : IDisposable
     [Fact]
     public void Reconciliation_PreservesExistingNeedsReviewRows()
     {
-        var op = _db.TryBeginRestore("/bin/movie.mkv", 1, "/bin/movie.mkv", "/lib/movie.mkv")!;
+        var op = _db.TryBeginRestore(OwnedPath("/bin/movie.mkv"), 1, OwnedPath("/bin/movie.mkv"), OwnedPath("/lib/movie.mkv"))!;
         Assert.True(_db.MarkRestoreNeedsReview(op, "partial mutation observed"));
 
         SqliteConnection.ClearAllPools();
@@ -241,13 +249,13 @@ public sealed class RestoreOperationsTests : IDisposable
         // Simulate a crash between UPDATE-to-Completed and DELETE inside CompleteRestore by
         // writing a Completed row directly and reopening. Reconciliation should sweep it so the
         // entry_key stays free for re-restore.
-        SeedRawRestoreOperation("op-completed", "/bin/movie.mkv", state: "Completed");
+        SeedRawRestoreOperation("op-completed", OwnedPath("/bin/movie.mkv"), state: "Completed");
 
         SqliteConnection.ClearAllPools();
         var reopened = new MediaDashDb(_dbPath);
 
         Assert.Empty(reopened.GetRestoreOperations());
-        var reclaimed = reopened.TryBeginRestore("/bin/movie.mkv", 1, "/bin/movie.mkv", "/lib/movie.mkv");
+        var reclaimed = reopened.TryBeginRestore(OwnedPath("/bin/movie.mkv"), 1, OwnedPath("/bin/movie.mkv"), OwnedPath("/lib/movie.mkv"));
         Assert.NotNull(reclaimed);
     }
 
@@ -256,13 +264,13 @@ public sealed class RestoreOperationsTests : IDisposable
     {
         // Plan §05-B: NeedsReview blocks fresh claims. This is the safety invariant — do NOT
         // silently retry a partially-mutated restore.
-        var op = _db.TryBeginRestore("/bin/movie.mkv", 1, "/bin/movie.mkv", "/lib/movie.mkv")!;
+        var op = _db.TryBeginRestore(OwnedPath("/bin/movie.mkv"), 1, OwnedPath("/bin/movie.mkv"), OwnedPath("/lib/movie.mkv"))!;
 
         // Simulate process death (no CompleteRestore call). Ctor reconciles Pending → NeedsReview.
         SqliteConnection.ClearAllPools();
         var reopened = new MediaDashDb(_dbPath);
 
-        var retry = reopened.TryBeginRestore("/bin/movie.mkv", 1, "/bin/movie.mkv", "/lib/movie.mkv");
+        var retry = reopened.TryBeginRestore(OwnedPath("/bin/movie.mkv"), 1, OwnedPath("/bin/movie.mkv"), OwnedPath("/lib/movie.mkv"));
         Assert.Null(retry);
     }
 
@@ -277,7 +285,7 @@ public sealed class RestoreOperationsTests : IDisposable
         cmd.Parameters.AddWithValue("@op", operationId);
         cmd.Parameters.AddWithValue("@ek", entryKey);
         cmd.Parameters.AddWithValue("@src", entryKey);
-        cmd.Parameters.AddWithValue("@dst", "/lib/x");
+        cmd.Parameters.AddWithValue("@dst", OwnedPath("/lib/x"));
         cmd.Parameters.AddWithValue("@state", state);
         cmd.Parameters.AddWithValue("@ticks", DateTime.UtcNow.Ticks);
         cmd.ExecuteNonQuery();

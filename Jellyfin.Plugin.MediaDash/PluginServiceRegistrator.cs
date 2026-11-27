@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Reflection;
 using Jellyfin.Plugin.MediaDash.Analytics;
@@ -122,6 +122,14 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             sp.GetRequiredService<ILogger<CalibreToolchain>>(),
             Path.Combine(MediaDashDb.DataDirectory ?? string.Empty)));
         serviceCollection.AddSingleton<LibraryGuard>();
+        serviceCollection.AddSingleton<MediaIdentityStore>(sp => sp.GetRequiredService<MediaDashDb>().Identities);
+        serviceCollection.AddSingleton<Metadata.TvdbClient>();
+        serviceCollection.AddSingleton<Metadata.MediaIdentityService>();
+        serviceCollection.AddSingleton<MediaMovePlanner>();
+        serviceCollection.AddSingleton<MediaMoveService>();
+        serviceCollection.AddSingleton<MediaMoveUserData>();
+        serviceCollection.AddHostedService(sp => sp.GetRequiredService<MediaMoveUserData>());
+        serviceCollection.AddSingleton<MediaMoveStore>(sp => sp.GetRequiredService<MediaDashDb>().Moves);
         serviceCollection.AddSingleton<RecycleBin>();
         // 05-B: single owner of the "restore a recycled file back to a library" workflow.
         // Every route (History/{id}/Restore, RedownloadWarnings/{historyId}/RestoreOptimized,
@@ -130,6 +138,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<RestoreService>();
         serviceCollection.AddSingleton<FfmpegExecutor>();
         serviceCollection.AddSingleton<OutputVerifier>();
+        serviceCollection.AddSingleton<FixLibraryRefresher>();
+        serviceCollection.AddSingleton<NativeLibraryRefresher>();
         // 03-A: one auditable protocol for verify → stage → promote → dispose → commit.
         // Consumed by TranscodeFixer / TrackFixer / EmbeddedCoverArtFixer / PlayabilityFixer
         // through the migrations in 03-B and 03-C.
@@ -152,6 +162,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IFixer, MediaGrouperFixer>();
         serviceCollection.AddSingleton<IFixer, MissingSubtitleFixer>();
         serviceCollection.AddSingleton<IFixer, SuspiciousFileFixer>();
+        serviceCollection.AddSingleton<IFixer, StaleFixer>();
         serviceCollection.AddSingleton<IFixer, TrickplayOptimizeFixer>();
         serviceCollection.AddSingleton<IFixer, SubtitleFontFixer>();
         serviceCollection.AddSingleton<IFixer, OrphanCleanupFixer>();

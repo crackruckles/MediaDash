@@ -72,7 +72,16 @@ public sealed class AssSubtitleFile
 
         var hadBom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
         var start = hadBom ? 3 : 0;
-        var text = Encoding.UTF8.GetString(bytes, start, bytes.Length - start);
+        string text;
+        try
+        {
+            text = new UTF8Encoding(false, throwOnInvalidBytes: true).GetString(bytes, start, bytes.Length - start);
+        }
+        catch (DecoderFallbackException ex)
+        {
+            throw new NotSupportedException("Subtitle is not valid UTF-8.", ex);
+        }
+
         var newLine = text.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
         var lines = text.Split(newLine, StringSplitOptions.None);
 

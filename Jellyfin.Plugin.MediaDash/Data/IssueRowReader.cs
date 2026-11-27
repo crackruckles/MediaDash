@@ -27,11 +27,7 @@ internal static class IssueRowReader
         var itemIdStr = reader.GetString(2);
         if (!Guid.TryParseExact(itemIdStr, "N", out var itemId))
         {
-            Api.Diagnostics.Record(
-                "MediaDashDb.MalformedItemId",
-                "Skipped " + table + " row id=" + idColumn.ToString(CultureInfo.InvariantCulture)
-                    + ": item_id '" + itemIdStr + "' is not a valid 32-char hex GUID. Delete the row from SQLite to clean up (DELETE FROM "
-                    + table + " WHERE id = " + idColumn.ToString(CultureInfo.InvariantCulture) + ";).");
+            Api.Diagnostics.Record("MediaDashDb.MalformedItemId", "MediaDash skipped a damaged entry (#" + idColumn.ToString(CultureInfo.InvariantCulture) + ") in its " + table + " list: its item reference '" + itemIdStr + "' is not valid." + " It is ignored and does no harm. To remove it, run this against mediadash.db while Jellyfin is stopped: DELETE FROM " + table + " WHERE id = " + idColumn.ToString(CultureInfo.InvariantCulture) + ";");
             issue = default!;
             return false;
         }

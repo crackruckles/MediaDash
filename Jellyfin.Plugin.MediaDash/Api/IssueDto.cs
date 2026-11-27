@@ -55,6 +55,18 @@ public sealed class IssueDto
     /// </summary>
     public string Status { get; set; } = string.Empty;
 
+    /// <summary>Gets or sets the current setting, library or protection restriction that blocks approval, or null. Execution still rechecks safety.</summary>
+    public string? FixBlockedReason { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether a fresh scan is required before this finding can be approved.</summary>
+    public bool FixRequiresRescan { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether the move is blocked only by an earlier move left needing review, which "Move anyway" resolves.</summary>
+    public bool CanMoveAnyway { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether the move waits only on an unknown season, which the user can enter.</summary>
+    public bool NeedsSeason { get; set; }
+
     /// <summary>
     /// Gets or sets when the issue was detected (UTC).
     /// </summary>
@@ -67,6 +79,19 @@ public sealed class IssueDto
     /// isn't scheduled for a fix run and can Approve or Dismiss it manually.
     /// </summary>
     public bool WasPreviouslyRestored { get; set; }
+
+    /// <summary>
+    /// Gets or sets how many earlier issues at this same path and type were marked Fixed before
+    /// this one was detected. Above zero means the issue came back after a fix: the UI shows a
+    /// "came back" badge so the user knows something is recreating it or the fix didn't take.
+    /// </summary>
+    public int TimesFixedBefore { get; set; }
+
+    /// <summary>Gets or sets when the most recent earlier fix at this path ran, when <see cref="TimesFixedBefore"/> is above zero.</summary>
+    public DateTime? LastFixedBeforeAtUtc { get; set; }
+
+    /// <summary>Gets or sets what the most recent earlier fix at this path reported, when <see cref="TimesFixedBefore"/> is above zero.</summary>
+    public string? LastFixedBeforeMessage { get; set; }
 
     /// <summary>
     /// Gets or sets the data-loss / consent warnings the scanner attached to this issue.
@@ -91,6 +116,9 @@ public sealed class IssueDto
     /// retry" case; UI treats it distinctly from a never-run Queued item.</summary>
     public bool? LastAttemptSuccess { get; set; }
 
+    /// <summary>Gets or sets a value indicating whether repair failed for this unchanged file and Delete needs approval.</summary>
+    public bool RepairFailed { get; set; }
+
     /// <summary>
     /// Maps a database issue to the DTO.
     /// </summary>
@@ -110,7 +138,8 @@ public sealed class IssueDto
             SizeSavings = issue.SizeSavings,
             Status = issue.Status.ToString(),
             DetectedAtUtc = issue.DetectedAtUtc,
-            Warnings = ParseWarnings(issue.DetailsJson)
+            Warnings = ParseWarnings(issue.DetailsJson),
+            RepairFailed = PlayabilityRepairState.IsCurrent(issue)
         };
     }
 

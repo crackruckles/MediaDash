@@ -17,8 +17,7 @@ namespace Jellyfin.Plugin.MediaDash.Tests;
 /// </summary>
 public sealed class FixPlanBuilderTests
 {
-    // Test-local ranking mirrors FixTask.DefaultFixerRank's ordering intent WITHOUT reaching
-    // into that private helper. Two audio issues at the same rank + size still get the id
+    // Legacy ranks also exercise saved orders that put movers early. Two audio issues at the same rank + size still get the id
     // tie-break — that's the invariant the builder is responsible for, not the caller.
     private static int Rank(IssueType type) => type switch
     {
@@ -236,6 +235,45 @@ public sealed class FixPlanBuilderTests
         Assert.Same(playHiId, plans[1].Primary);
         Assert.Same(smallDup, plans[2].Primary);
         Assert.Same(largeDup, plans[3].Primary);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PathChangingFixesFollowRepairsAndFolderMovesRunLastEvenWithCustomRanks(bool reversed)
+    {
+        var repairs = new[] { IssueType.MalwareRisk, IssueType.Playability, IssueType.Duplicate,
+            IssueType.OrphanedDebris, IssueType.MissingSubtitles, IssueType.SubtitleLanguage,
+            IssueType.AudioLanguage, IssueType.SubtitleFonts, IssueType.EmbeddedCoverArt,
+            IssueType.CorruptNfo, IssueType.CorruptArtwork, IssueType.Stale, IssueType.LargeTrickplay }
+            .Select((type, index) => NewIssue(index + 1, type, "/lib/repair-" + index)).ToArray();
+        var rewrites = new[] { IssueType.Quality, IssueType.HeavyTranscode, IssueType.FailedTranscode, IssueType.FormatCompatibility }
+            .Select((type, index) => NewIssue(index + 100, type, "/lib/rewrite-" + index)).ToList();
+        var rename = NewIssue(200, IssueType.Playability, "/lib/wrong-extension.avi");
+        rename.DetailsJson = "{\"reason\":\"container-extension-mismatch\",\"rename_to_ext\":\"mkv\"}";
+        rewrites.Add(rename);
+        var moves = new[] { IssueType.Misplaced, IssueType.Ungrouped, IssueType.ManualMove }
+            .Select((type, index) => NewIssue(index + 300, type, "/lib/move-" + index)).ToArray();
+        var plans = FixPlanBuilder.Build(moves.Concat(rewrites).Concat(repairs).ToArray(),
+            type => reversed ? -(int)type : Rank(type), ZeroSize, StringComparer.Ordinal);
+
+        Assert.Equal(repairs.Select(issue => issue.Id).Order(), plans.Take(repairs.Length).Select(plan => plan.Primary.Id).Order());
+        Assert.Equal(rewrites.Select(issue => issue.Id).Order(), plans.Skip(repairs.Length).Take(rewrites.Count).Select(plan => plan.Primary.Id).Order());
+        Assert.Equal(moves.Select(issue => issue.Id).Order(), plans.TakeLast(moves.Length).Select(plan => plan.Primary.Id).Order());
+    }
+
+    [Fact]
+    public void DeferredTranscodeStillClaimsItsEarlierRankedTrackCompanions()
+    {
+        var transcode = NewIssue(1, IssueType.Quality, "/lib/film.mkv");
+        var audio = NewIssue(2, IssueType.AudioLanguage, transcode.Path);
+        var subtitle = NewIssue(3, IssueType.SubtitleLanguage, transcode.Path);
+        var sidecar = NewIssue(4, IssueType.SubtitleFonts, "/lib/film.en.ass");
+        var move = NewIssue(5, IssueType.Ungrouped, transcode.Path);
+        var plans = FixPlanBuilder.Build(new[] { move, transcode, audio, subtitle, sidecar }, _ => 0, ZeroSize, StringComparer.Ordinal);
+        Assert.Equal(new long[] { 4, 1, 5 }, plans.Select(plan => plan.Primary.Id));
+        Assert.Equal(PlannedFixKind.TranscodeWithTracks, plans[1].Kind);
+        Assert.Equal(new long[] { 2, 3 }, plans[1].Companions.Select(issue => issue.Id));
     }
 
     [Fact]

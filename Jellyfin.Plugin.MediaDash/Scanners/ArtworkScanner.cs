@@ -40,6 +40,9 @@ public sealed class ArtworkScanner : IScanner
     public IssueType Type => IssueType.CorruptArtwork;
 
     /// <inheritdoc />
+    public bool AlwaysUnscoped => true;
+
+    /// <inheritdoc />
     public Task<IReadOnlyList<Issue>> ScanAsync(IReadOnlyList<BaseItem> items, IProgress<double> progress, CancellationToken cancellationToken)
     {
         var issues = new List<Issue>();
@@ -116,6 +119,18 @@ public sealed class ArtworkScanner : IScanner
     /// <returns>Null when the file is fine, else a reason string.</returns>
     internal static string? EvaluateFile(string path, long? expectedLength)
     {
+        try
+        {
+            return EvaluateFileCore(path, expectedLength);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    private static string? EvaluateFileCore(string path, long? expectedLength)
+    {
         FileInfo info;
         try
         {
@@ -123,7 +138,7 @@ public sealed class ArtworkScanner : IScanner
         }
         catch (IOException)
         {
-            return "unreadable";
+            return null;
         }
 
         if (!info.Exists)
@@ -133,6 +148,15 @@ public sealed class ArtworkScanner : IScanner
 
         if (info.Length == 0)
         {
+            try
+            {
+                using var readable = MediaFileHelper.OpenSharedRead(path);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return null;
+            }
+
             return "empty file";
         }
 
@@ -145,35 +169,119 @@ public sealed class ArtworkScanner : IScanner
                 info.Length);
         }
 
+        FileStream stream;
         try
         {
-            using var stream = MediaFileHelper.OpenSharedRead(path);
-            var bridge = SkiaSharpBridge.Instance;
-            if (!bridge.IsAvailable)
+            stream = MediaFileHelper.OpenSharedRead(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // #88: a file held exclusively by another process (sharing violation) or an ACL
+            // denial is a transient/environment problem, not proof of on-disk corruption.
+            // Returning null leaves the file alone until a later scan can read it cleanly.
+            return null;
+        }
+
+        using (stream)
+        {
+            // #88: only raster formats are validated by the reflected SKBitmap raster decoder.
+            // SVG, HEIC, AVIF and anything else without a known raster magic header are not
+            // corruption signals from this scanner — refuse to flag. Prevents the reporter's
+            // valid SVG from being classified corrupt and the fixer deleting it.
+            if (!IsKnownRasterSignature(stream))
             {
-                // Host has no SkiaSharp loaded — treat as unverifiable, don't flag. Zero-byte
-                // and size-mismatch checks above still catch the common corruption cases.
                 return null;
             }
 
-            var result = bridge.Decode(stream);
-            if (!result.Ok)
+            stream.Position = 0;
+
+            var bridge = SkiaSharpBridge.Instance;
+            if (!bridge.IsAvailable)
             {
-                return result.Reason is null
-                    ? "decode failed"
-                    : "decode error: " + result.Reason;
+                return null;
             }
 
-            if (result.Width <= 0 || result.Height <= 0)
+            try
             {
-                return "decode produced zero-dimension bitmap";
+                var result = bridge.Decode(stream);
+                if (!result.Ok)
+                {
+                    return result.Reason is null
+                        ? null
+                        : "decode error: " + result.Reason;
+                }
+
+                if (result.Width <= 0 || result.Height <= 0)
+                {
+                    return "decode produced zero-dimension bitmap";
+                }
             }
-        }
-        catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException or InvalidOperationException)
-        {
-            return "decode error: " + ex.Message;
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException)
+            {
+                return null;
+            }
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Peeks the first bytes of the file and returns true only when they match a raster image
+    /// signature the SkiaSharp bridge actually validates (PNG / JPEG / GIF / BMP / WEBP / TIFF).
+    /// Vector or unknown formats return false — the scanner then leaves them alone instead of
+    /// treating a decoder refusal as proven corruption. Internal for direct unit testing.
+    /// </summary>
+    /// <param name="stream">Open stream positioned at the start of the file.</param>
+    /// <returns>True when the leading bytes match a validated raster format.</returns>
+    internal static bool IsKnownRasterSignature(Stream stream)
+    {
+        Span<byte> head = stackalloc byte[12];
+        var read = stream.Read(head);
+        if (read < 3)
+        {
+            return false;
+        }
+
+        // PNG: 89 50 4E 47 0D 0A 1A 0A
+        if (read >= 8 && head[0] == 0x89 && head[1] == 0x50 && head[2] == 0x4E && head[3] == 0x47
+            && head[4] == 0x0D && head[5] == 0x0A && head[6] == 0x1A && head[7] == 0x0A)
+        {
+            return true;
+        }
+
+        // JPEG: FF D8 FF
+        if (head[0] == 0xFF && head[1] == 0xD8 && head[2] == 0xFF)
+        {
+            return true;
+        }
+
+        // GIF: "GIF87a" / "GIF89a"
+        if (read >= 6 && head[0] == 0x47 && head[1] == 0x49 && head[2] == 0x46 && head[3] == 0x38)
+        {
+            return true;
+        }
+
+        // BMP: "BM"
+        if (head[0] == 0x42 && head[1] == 0x4D)
+        {
+            return true;
+        }
+
+        // TIFF: "II*\0" or "MM\0*"
+        if (read >= 4
+            && ((head[0] == 0x49 && head[1] == 0x49 && head[2] == 0x2A && head[3] == 0x00)
+                || (head[0] == 0x4D && head[1] == 0x4D && head[2] == 0x00 && head[3] == 0x2A)))
+        {
+            return true;
+        }
+
+        // WEBP: "RIFF" .... "WEBP"
+        if (read >= 12 && head[0] == 0x52 && head[1] == 0x49 && head[2] == 0x46 && head[3] == 0x46
+            && head[8] == 0x57 && head[9] == 0x45 && head[10] == 0x42 && head[11] == 0x50)
+        {
+            return true;
+        }
+
+        return false;
     }
 }

@@ -168,6 +168,16 @@ public sealed class StatusResponse
     public IReadOnlyList<RedownloadWarning> RedownloadWarnings { get; set; } = Array.Empty<RedownloadWarning>();
 
     /// <summary>
+    /// Gets or sets open issues that came back at the same path after being fixed, most-fixed
+    /// first and capped at <see cref="StatusQueryService.RecurringIssueListCap"/>. Feeds the
+    /// Overview "These issues keep coming back" banner.
+    /// </summary>
+    public IReadOnlyList<RecurringIssue> RecurringIssues { get; set; } = Array.Empty<RecurringIssue>();
+
+    /// <summary>Gets or sets the total number of open issues that came back after a fix (may exceed the listed rows).</summary>
+    public int RecurringIssueTotal { get; set; }
+
+    /// <summary>
     /// Gets or sets the Playability repair-ladder tally: 30-day + lifetime counts, saved
     /// bytes, and per-rung breakdown. Feeds the Overview "Broken files repaired" panel.
     /// Always populated; empty fields mean no repairs have succeeded yet.

@@ -1,0 +1,49 @@
+{
+  "sourceDigest": "5bb602fa9950197fa215d8e5b21b8d52a22399c07dbf0f6c3c200d8cca4a2d95",
+  "dllSha256": "f225958b511271b532254ed3c9f04afe8e525d4610614f3020bec6806eac4e80",
+  "sourceBytes": 567671503,
+  "sourceSha256": "f059380f70fdb8c16b7e40b663096ff9bbf0bd789a45288720af3c5d8f015c9d",
+  "nasPreviewOnly": true,
+  "nasSourceUnchanged": true,
+  "localMoveUndo": true,
+  "localEncodeRestore": true,
+  "videoAfter": {
+    "codec": "h264",
+    "height": 480
+  },
+  "scope": "Interactive account: read-only NAS preview plus real owned local-copy workflows; no writable service-account NAS certification",
+  "caseId": "issue-89",
+  "mandatoryScenarioComplete": false,
+  "retention": {
+    "sourceDigest": "5bb602fa9950197fa215d8e5b21b8d52a22399c07dbf0f6c3c200d8cca4a2d95",
+    "originalBytes": 567671503,
+    "encodedBytes": 116185256,
+    "restoredOriginalSha256": "f059380f70fdb8c16b7e40b663096ff9bbf0bd789a45288720af3c5d8f015c9d",
+    "retainedPacketHashes": [
+      {
+        "stream": "a:0",
+        "sha256": "cbb96b0b96f3ff07a713e26eefb05abb8665589fa4b013e1dec6cf6fc19d36d6",
+        "unchanged": true
+      },
+      {
+        "stream": "s:0",
+        "sha256": "6b2fbd62affb2f68a5ce41bb3b90b5e0a101a1efbf81905ac87e71faf9aaa676",
+        "unchanged": true
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "path": "artifacts/push-preparation-20261105-nas-local-retry.log",
+      "sha256": "9c13671cd435d53e68dbcf90ee9407c6924d61621c3c5f736dba47661478e33e"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-nas-local-retry/v12/final-evidence/cleanup.json",
+      "sha256": "dde636788c93bcb3b6e4ff73f846a3acce5ff421073329171778bf55c7a0b7a5"
+    }
+  ],
+  "limitations": [
+    "Remote NAS access was read-only under the interactive account; real mutation occurred only on an owned local copy.",
+    "This does not certify writable NAS service-account ACLs, quotas, interruption behavior, or the reporter LXC environment."
+  ]
+}

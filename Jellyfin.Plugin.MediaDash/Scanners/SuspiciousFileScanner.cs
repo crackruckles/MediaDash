@@ -35,7 +35,7 @@ public sealed class SuspiciousFileScanner : IScanner
     private static readonly EnumerationOptions WalkOptions = new()
     {
         RecurseSubdirectories = true,
-        IgnoreInaccessible = true,
+        IgnoreInaccessible = false,
         AttributesToSkip = FileAttributes.ReparsePoint
     };
 
@@ -55,6 +55,8 @@ public sealed class SuspiciousFileScanner : IScanner
         _logger = logger;
         _protection = protection;
     }
+
+    internal List<string> CompletedRoots { get; } = new();
 
     /// <inheritdoc />
     public IssueType Type => IssueType.MalwareRisk;
@@ -78,6 +80,63 @@ public sealed class SuspiciousFileScanner : IScanner
         return !string.IsNullOrEmpty(ext) && SuspiciousExtensions.Contains(ext);
     }
 
+    /// <summary>
+    /// Builds the finding for a disc image that is not a video disc: one holding programs or scripts
+    /// (a malware wrapper posing as an episode or film), or one holding no video at all. Real DVD and
+    /// Blu-ray images, and images MediaDash cannot read, are never flagged.
+    /// </summary>
+    /// <param name="path">The .iso or .img file.</param>
+    /// <returns>The finding, or null when the image looks like a real disc or cannot be read.</returns>
+    internal static Issue? DiscImageIssue(string path)
+    {
+        var contents = DiscImageInspector.Inspect(path);
+        if (!contents.HoldsPrograms && !contents.HoldsNoVideo)
+        {
+            return null;
+        }
+
+        long size = 0;
+        try
+        {
+            size = new FileInfo(path).Length;
+        }
+        catch (IOException)
+        {
+        }
+
+        var programs = contents.Programs.Take(5).ToList();
+        return new Issue
+        {
+            Type = IssueType.MalwareRisk,
+            ItemId = Guid.Empty,
+            Path = path,
+            Status = IssueStatus.Detected,
+            DetectedAtUtc = DateTime.UtcNow,
+            SizeSavings = size,
+            DetailsJson = contents.HoldsPrograms
+                ? JsonSerializer.Serialize(new { extension = Path.GetExtension(path).ToLowerInvariant(), discImage = "programs", programs })
+                : JsonSerializer.Serialize(new
+                {
+                    extension = Path.GetExtension(path).ToLowerInvariant(),
+                    discImage = "noVideo",
+                    fileCount = contents.FileCount,
+                    warnings = new[]
+                    {
+                        new IssueWarning
+                        {
+                            Code = "disc-image-no-video",
+                            Blocking = true,
+                            Message = "This disc image holds no DVD or Blu-ray video, so it is probably software or a game rather than media. Approve only if you did not put it here on purpose."
+                        }
+                    }
+                }),
+            SuggestedFix = contents.HoldsPrograms
+                ? "This disc image is not a video: it holds the program file(s) " + string.Join(", ", programs.Select(Path.GetFileName))
+                    + ". Disc images posing as episodes or films are a common way malware spreads. Delete it unless you put it there on purpose; a real copy of the video is a normal video file."
+                : "This disc image holds no DVD or Blu-ray video, so Jellyfin cannot play it. Delete it unless it is software or a game you keep here on purpose."
+        };
+    }
+
     /// <inheritdoc />
     public Task<IReadOnlyList<Issue>> ScanAsync(IReadOnlyList<BaseItem> items, IProgress<double> progress, CancellationToken cancellationToken)
     {
@@ -97,9 +156,11 @@ public sealed class SuspiciousFileScanner : IScanner
     /// </summary>
     /// <param name="progress">Progress reporter.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="completedRoots">Receives roots whose traversal completed successfully.</param>
     /// <returns>Detected suspicious-file issues.</returns>
-    internal Task<IReadOnlyList<Issue>> RunScanAsync(IProgress<double> progress, CancellationToken cancellationToken)
+    internal Task<IReadOnlyList<Issue>> RunScanAsync(IProgress<double> progress, CancellationToken cancellationToken, List<string>? completedRoots = null)
     {
+        CompletedRoots.Clear();
         var config = Plugin.Instance!.Configuration;
         var enabled = config.EnabledLibraries ?? [];
         var idLookup = enabled.Length == 0 ? null : VirtualFolderIdentity.BuildIdLookup(_libraryManager);
@@ -107,7 +168,7 @@ public sealed class SuspiciousFileScanner : IScanner
             .Where(f => enabled.Length == 0 || enabled.Contains(VirtualFolderIdentity.GetId(f, idLookup), StringComparer.OrdinalIgnoreCase))
             .SelectMany(f => f.Locations ?? [])
             .Where(Directory.Exists)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Distinct(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal)
             .ToList();
 
         var issues = new List<Issue>();
@@ -120,7 +181,22 @@ public sealed class SuspiciousFileScanner : IScanner
                 foreach (var path in Directory.EnumerateFiles(root, "*", WalkOptions))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    if (_protection?.IsScannerBlocked(path, Type) == true || !IsSuspicious(path))
+                    if (_protection?.IsScannerBlocked(path, Type) == true)
+                    {
+                        continue;
+                    }
+
+                    if (DiscImageInspector.IsDiscImage(path))
+                    {
+                        if (DiscImageIssue(path) is { } discIssue)
+                        {
+                            issues.Add(discIssue);
+                        }
+
+                        continue;
+                    }
+
+                    if (!IsSuspicious(path))
                     {
                         continue;
                     }
@@ -149,13 +225,14 @@ public sealed class SuspiciousFileScanner : IScanner
                         SuggestedFix = "Executable file inside a media folder. Almost always malware from a pirated release — delete unless you put it there on purpose."
                     });
                 }
+
+                CompletedRoots.Add(root);
+                completedRoots?.Add(root);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 _logger.LogWarning(ex, "SuspiciousFileScanner: could not walk {Root}", root);
-                Api.Diagnostics.Record(
-                    "SuspiciousFileScanner.WalkFailed",
-                    "The virus scan could not walk '" + root + "': " + ex.Message + ". Check Jellyfin's read permission on that folder. Remaining libraries continued scanning.");
+                Api.Diagnostics.Record("SuspiciousFileScanner.WalkFailed", "The suspicious file check could not read '" + root + "'. Give the user Jellyfin runs as read access to that folder. Other libraries were still checked. Details: " + ex.Message);
             }
 
             progress.Report((i + 1) * 100.0 / Math.Max(roots.Count, 1));

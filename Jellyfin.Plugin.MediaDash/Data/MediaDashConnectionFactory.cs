@@ -17,6 +17,9 @@ namespace Jellyfin.Plugin.MediaDash.Data;
 /// </remarks>
 public sealed class MediaDashConnectionFactory
 {
+    [ThreadStatic]
+    private static bool _recordingOpenFailure;
+
     private readonly string _connectionString;
 
     /// <summary>Initializes a new instance of the <see cref="MediaDashConnectionFactory"/> class.</summary>
@@ -49,7 +52,20 @@ public sealed class MediaDashConnectionFactory
             // tab and correlate with the resulting API 500. Rethrow — callers cannot recover from a
             // completely-unopenable database.
             connection.Dispose();
-            Api.Diagnostics.Record("MediaDashDb.Open", "Could not open SQLite database: " + ex.Message + ". Something else may be holding a lock on the file (backup software, antivirus, running scan).");
+            // Persisting a diagnostic opens this same database; only the outer failure records it.
+            if (!_recordingOpenFailure)
+            {
+                _recordingOpenFailure = true;
+                try
+                {
+                    Api.Diagnostics.Record("MediaDashDb.Open", "MediaDash could not open its database. Another program (backup software, antivirus or a second copy of Jellyfin) may be locking mediadash.db; close it or exclude the MediaDash data folder, then restart Jellyfin. Details: " + ex.Message);
+                }
+                finally
+                {
+                    _recordingOpenFailure = false;
+                }
+            }
+
             throw;
         }
     }

@@ -1,0 +1,76 @@
+# Mover implementation checkpoint - 30 October 2026
+
+The isolated development candidate now implements durable complete moves, recovery claims, explicit Files previews, typed finding/cache invalidation and separate Undo. Optional post-transcode canonical renaming uses the same journal and has its own Undo, which preserves the verified re-encode. **The issue table remains open: implementation and validation are incomplete, and this is not release certification. DO NOT PUSH OR PUBLISH.**
+
+All code remains in `artifacts/remaining-issue-repairs-worktree`. It has not been transferred into the original dirty checkout or deployed to either earlier frozen acceptance host. No commit, GitHub write, production update or real-library write occurred. The user authorized local test copies and read-only access to a real share; its UNC path has not been supplied, and that library has not been opened.
+
+## Earlier 30 October checkpoint
+
+| Check | Result | Scope |
+| --- | --- | --- |
+| Full Windows .NET suite with analyzers | 1,995 passed; zero failed/skipped/warnings | Current coherent development checkpoint; external prerequisites are tested separately. |
+| Linux mover/planning/recovery/Files/reported regressions | 230 passed; zero failed/skipped | Real case-sensitive `/tmp` and `/dev/shm`, including actual cross-filesystem moves and Undo. |
+| Offline harness suites | 11 passed | Includes 55 dashboard checks, Python contracts and shell/PowerShell checks. |
+| Generated media and owned loopback SMB with Jellyfin FFmpeg 7.1.4 | 6 passed | Actual service execution, decode, retained originals, canonical rename/Undo and exact-byte original restoration. |
+| Same workflows with Jellyfin FFmpeg 8.1.2 | 6 passed | The final added finding-path assertion must be rerun on this matching final DLL; the underlying workflow already passed. |
+| Fresh installed Jellyfin/browser/index/watch-state/playback acceptance | Pending | Earlier live-host evidence belongs to its frozen candidate only. |
+
+That checkpoint's source fingerprint: `82e75d2245f432aba5825536f1167578e8d84c618ab9d1278272a3ad3cea4e05`.
+
+[Source archive and DLL identity](../../artifacts/remaining-issue-repairs-worktree/artifacts/mover-canonical-evidence-identity.json), [source archive](../../artifacts/remaining-issue-repairs-worktree/artifacts/mover-canonical-source-evidence.zip), [Windows results](../../artifacts/remaining-issue-repairs-worktree/Jellyfin.Plugin.MediaDash.Tests/TestResults/mover-canonical-full-checkpoint2.trx), [Linux results](../../artifacts/remaining-issue-repairs-worktree/artifacts/mover-linux-executor/md-mover-executor-39o90E/mover-linux-executor.trx), [harness summary](../../artifacts/remaining-issue-repairs-worktree/artifacts/mover-canonical-harnesses/summary.json), [FFmpeg 7 results](../../artifacts/remaining-issue-repairs-worktree/Jellyfin.Plugin.MediaDash.Tests/TestResults/mover-canonical-real-unc-v10.trx), [FFmpeg 8 results](../../artifacts/remaining-issue-repairs-worktree/Jellyfin.Plugin.MediaDash.Tests/TestResults/mover-canonical-real-unc-v12.trx).
+
+## Implemented behavior
+
+- Complete approved inventories bind current payload bytes, physical identities, supported metadata, destinations, companion ownership and policy. Changed or ambiguous moves refuse visibly.
+- A durable operation claims source, destination, staging and recovery paths before mutation. Partial work retains its locations and claims for review; restart never silently replays filesystem actions.
+- Same-filesystem renames refuse overwrite. Cross-filesystem copies verify complete staging and final payloads before journaled source capture and nonrecursive cleanup.
+- Completed moves invalidate stale approvals, path-bound details, duplicate keeper references and caches transactionally. A stale queued snapshot cannot bypass mandatory rescan.
+- Orphan scans, sweeps, scheduled dispatch, recycle Restore and Files writes respect active move reservations. Move/Restore claims share one atomic SQLite boundary.
+- Files Move/Rename and bulk selections show a complete bounded-display preview, then require its current fingerprint. Dry run leaves files and journal unchanged. Stale previews require another review.
+- Undo verifies the entire recorded result and original vacancy, creates a reverse operation, preserves new imports/edits and cleans only unchanged empty folders that the original move created. Bookkeeping failure remains visible.
+- Optional canonical renaming includes owned companions, leaves folder artwork in place, records separate History and uses the output resolution in the filename. Its Undo preserves encoded bytes; original restoration remains the separate recycle Restore action.
+
+## Remaining work
+
+Complete the disc/book/comic/photo/audiobook/STRM and complete-family identity matrix; remaining conflicting-writer seams; crash/restart, platform/metadata/fault certification; fresh owned Jellyfin 10.11 and 12 browser/index/watch/playback/Undo acceptance; final independent review and safe transfer into the original concurrent tree. Bounded folder indexing remains unfinished. Reporter-specific MKVs/audio metadata, remote NAS/service-account/quota checks and the actual large-library benchmark remain unavailable.
+
+The scanner currently has static thread/priority controls and scheduled playback/native-scan deferral. **It has no dynamic CPU/RAM/disk-pressure backoff loop.** Earlier host CPU figures excluded ffprobe child processes and do not certify aggregate scanner resource pressure. The real-share benchmark will be read-only if its UNC path becomes available.
+
+The work order and remaining contract are in the [mover plan](../superpowers/plans/2026-10-23-media-mover-repair.md). Green checkpoints do not mark Tasks 3-8 or every reported issue complete.
+
+Further continuation (2026-10-30):
+
+- A later coherent isolated checkpoint (source `7ec0b962e6ad75de8847ef744f6ab18d09208b687bb1a6e42b6aa7cc99d8b2f7`, Release DLL `46eb649eefc9a6228dfdabf4e089f8a323ec01057a6a1c6307cc6b5c418b3dc8`) passed 2,024 analyzed offline tests, 257 actual Linux tests across `/tmp` and `/dev/shm`, and six real-media/owned-loopback-UNC workflows with each bundled FFmpeg version. The intermediate family checkpoint also passed all 11 offline harness suites and 55 dashboard tests. New repairs include complete non-video/disc planning, whole-family metadata identity, recoverable stale approvals, logical owner/family reservations, and preservation of findings from unavailable/unselected libraries. These are implementation and scoped validation, not release certification.
+- An owned fresh Jellyfin 10.11.11 host at `artifacts/remaining-issue-repairs-worktree/artifacts/mover-owned-host-20261030/v10/server` reproduced watched-state loss after native reindex changed the movie's path-derived ID. Complete preview, dry-run, real three-file move, exact hashes, linked journal/History, external subtitle indexing and full-body playback/decode passed; the watched-state assertion failed. Live Undo then restored all original bytes and playback. Settings, queues and libraries were restored, pending claims were empty, and the owned process was stopped. Raw failure/evidence is retained in that run's logs and `v10/evidence`.
+- Watched-state preservation is now being repaired in the isolated worktree using pre-mutation durable journal snapshots and native indexing events, with payload identity checks and protection of newer target activity. Offline and new fresh-host v10/v12 checks are in progress. The issue remains open; these changes have not been transferred into the original checkout or deployed to production.
+- Scanner root probing now bounds repeated outstanding stat workers and preserves unavailable-root findings. Dynamic CPU/RAM/disk-pressure backoff is still absent. The supplied real-library share remains read-only and has not been accessed during this continuation.
+
+Native lifecycle consistency follow-up:
+
+The declared-stream rename candidate passed 2,043 offline tests, 272 Linux cases, and complete Files Move/Rename/Undo workflows on Jellyfin 12. The corresponding Jellyfin 10 follow-up exposed an unfiltered catalog query attempting to deserialize a native `PLACEHOLDER` row after a watched item moved. Native logs also showed a user-data reattachment constraint error, despite successful payload/playback/user-state assertions. The run is retained as a failure, not complete native acceptance. Both owned hosts were restored and stopped.
+
+The isolated repair now uses supported media/family type filters for complete catalog reads. It defers watched-state restoration until a successful native `RefreshLibrary` completion, displays pending restoration in Moves, preserves deliberately cleared post-move user state, and keeps catalog failures before/after publication within the durable refusal/review protocol. The first lifecycle checkpoint passed 2,047 analyzed tests and 56 dashboard checks. Two further catalog-fault regressions passed; a fresh full suite and owned-host log consistency retry are in progress. Current source/DLL identity is recorded in `artifacts/remaining-issue-repairs-worktree/artifacts/mover-native-lifecycle-evidence-identity.json`. No updated code has been transferred into the original checkout.
+
+The corrected 1,000-file resource measurement and its limits are documented in [scanner resources](SCANNER-RESOURCES-2026-10-30.md). Dynamic resource-pressure backoff remains absent.
+
+## Verified continuation - 31 October
+
+The canonical user-data candidate passed 2,050 analyzed Windows tests and 279 Linux tests. Fresh owned Jellyfin 10.11.11 and 12.0.0 hosts each recorded 100 passing assertions and zero failures across grouping/Undo and Files Move/Rename/Undo. These include complete primary/NFO/SRT hashes, stale-preview refusal, linked History, native indexing, external subtitle discovery, full playback-body hashing and decode, watched-state preservation, and a favorite added after moving. Pending user-state markers cleared after successful native scans. Native logs contained no user-data reattachment, placeholder deserialization or request errors. Both hosts were restored and stopped. These are API/native acceptance checks; browser rendering remains pending.
+
+That cohort is bound to source `1597e97067e940d4257240b6e90fe5c6e3056234c7825830ab40bdd0e5c52eb6` and Release DLL `d603d9e6f46b803cfde381239beb8683db29db7f1f2b9597fa38b665bda5a657`: [identity](../../artifacts/remaining-issue-repairs-worktree/artifacts/mover-canonical-userdata-evidence-identity.json), [native evidence root](../../artifacts/remaining-issue-repairs-worktree/artifacts/mover-owned-host-canonical-userdata-20261031). Earlier native failures remain retained separately.
+
+A subsequent ownership candidate passed 2,054 analyzed Windows tests, 283 Linux tests and five actual Windows loopback-SMB alias cases. It blocks another move claiming the same recorded physical payload through a different path/catalog ID, and blocks automatic movie sorting into a foreign nonempty destination, including arrivals after approval/publication. Ordinary independent copies and empty destinations still work. [Ownership identity](../../artifacts/remaining-issue-repairs-worktree/artifacts/mover-physical-destination-evidence-identity.json) binds source `fc4f6a1f5f77d6f65ad6847fa94a7a412fac462221fbf77498b628f08c19442d`; its native host workflows have not yet been rerun.
+
+The current process-kill harness has passed 18 Windows crash boundaries. Every original payload survives at an accounted-for source, destination, staging or recovery location; reopening the journal performs no filesystem replay, retains review claims and preserves an unrelated queued approval. [Raw Windows crash results](../../artifacts/remaining-issue-repairs-worktree/Jellyfin.Plugin.MediaDash.Tests/TestResults/mover-owned-process-crash-windows.trx). This newer harness still needs matching Release/Linux validation and is not exhaustive crash certification.
+
+Atomic Restore/move aliases, future destination namespace aliases, bounded indexing, the remaining fault/media-kind/native/browser matrix, final independent review and safe integration remain open. The implementation still resides only in the isolated worktree. No GitHub, production or real-library writes occurred.
+
+## Native claims, OS faults and browser follow-up
+
+The later source `5637112b0d2e733a3f2c220bf9246e61392cedce0a537964f4a7a603da881ceb` passed 2,060 analyzed Windows tests, with the same product DLL as the preceding 335-case Linux checkpoint. The matching product passed nine actual Windows SMB alias cases and 20 process-kill boundaries. Move and recycle Restore now compare persisted native ancestor/relative-path claims inside their existing atomic SQLite boundary, covering the reproduced future-destination aliases and races. Native metadata is collected outside write transactions. Schema 13 preserves legacy uncertain restores and refuses unverifiable claims; progress cannot rewrite native reservations.
+
+Actual unprivileged Linux ENOSPC on a private 64 KiB tmpfs and actual destination permission denial both preserve complete source inventories, queued consent, zero savings and review claims across restart. A healthy complete move/Undo on the same owned mount succeeds. All three cases passed; the private mount was unmounted. [OS fault evidence](../../artifacts/remaining-issue-repairs-worktree/artifacts/mover-os-fault/md-owned-fs-fault-8cYKHH/mover-os-fault.trx), [source/DLL identity](../../artifacts/remaining-issue-repairs-worktree/artifacts/mover-os-fault-evidence-identity.json). These payload tests do not certify codecs or remote NAS interruption. Six real-media/owned-UNC workflows also pass with each bundled FFmpeg version on that product DLL.
+
+Fresh 12.0.0 native grouping and API Files Move/Rename/Undo preserve hashes, playback/decode, watched state and new favorites. Actual browser History Undo also succeeded and was verified by a subsequent native scan. [Browser Undo proof](../../artifacts/remaining-issue-repairs-worktree/artifacts/mover-owned-host-native-claims-20261031/v12/evidence/browser-undo-completed.png). The cohort remains a failed browser acceptance: Rename depended on unsupported native `prompt()`, and Move omitted the client's required JSON response type. Its strict log check also retains five pre-login `/socket` token errors from the browser's stale server/session identity; no user-data or placeholder error occurred. Original settings, queues, libraries and hashes were restored, pending claims were empty, and the owned server was stopped.
+
+Those browser failures are now reproduced in tests and repaired in isolated source `0631ee0042c4507e59a2219472807cd8d4820c1fec04d908466fae34e27859fc`. Files explicitly requests JSON preview/results, structured conflict previews retain fresh-consent behavior, and Rename uses an in-page dialog before the complete path preview. All 61 dashboard checks and 11 offline harness suites pass. The new analyzed suite, matching Linux and fresh browser/native acceptance are in progress. [New candidate identity](../../artifacts/remaining-issue-repairs-worktree/artifacts/mover-browser-json-evidence-identity.json). Neither this repair nor the earlier local evidence closes every issue or authorizes release.

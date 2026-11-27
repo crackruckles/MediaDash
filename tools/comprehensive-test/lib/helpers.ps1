@@ -8,10 +8,11 @@
 function Connect-JellyfinAdmin {
     param()
     $url = $Script:RunState.JellyfinUrl
+    Assert-SafeLiveTarget -Url $url
     $body = @{ Username = $Script:RunState.AdminUser; Pw = $Script:RunState.AdminPass } | ConvertTo-Json -Compress
     $bootstrapHeader = 'MediaBrowser Client="mdtest", Device="ci", DeviceId="ci-run", Version="1"'
     $r = Invoke-RestMethod -Method Post -Uri "$url/Users/AuthenticateByName" -ContentType application/json `
-        -Body $body -Headers @{ Authorization = $bootstrapHeader } -TimeoutSec 30
+        -Body $body -Headers @{ Authorization = $bootstrapHeader } -TimeoutSec 30 -MaximumRedirection 0 -NoProxy
     $token = $r.AccessToken
     $userId = $r.User.Id
     $Script:RunState.JellyfinToken = $token
@@ -35,6 +36,8 @@ function Invoke-JfApi {
         [switch]$IgnoreErrors
     )
     $url = ($Script:RunState.JellyfinUrl.TrimEnd('/')) + $Path
+    Assert-SafeLiveTarget -Url $Script:RunState.JellyfinUrl
+    if (-not $Path.StartsWith('/') -or $Path.StartsWith('//')) { throw 'API path must be relative to the selected server.' }
     $headers = @{}
     if ($Script:RunState.JellyfinAuthHeader) {
         $headers.Authorization = $Script:RunState.JellyfinAuthHeader
@@ -44,6 +47,8 @@ function Invoke-JfApi {
         Uri = $url
         Headers = $headers
         TimeoutSec = $TimeoutSec
+        MaximumRedirection = 0
+        NoProxy = $true
     }
     if ($null -ne $Body) {
         if ($Body -is [string]) { $argList.Body = $Body } else { $argList.Body = ($Body | ConvertTo-Json -Depth 10 -Compress) }
@@ -53,7 +58,8 @@ function Invoke-JfApi {
         if ($Raw) {
             return Invoke-WebRequest @argList -UseBasicParsing
         } else {
-            return Invoke-RestMethod @argList
+            $response = Invoke-RestMethod @argList
+            return $response
         }
     } catch {
         if ($IgnoreErrors) { return $null }
@@ -67,17 +73,21 @@ function Invoke-JfApi {
 
 function Add-JellyfinLibrary {
     param([string]$Name, [string]$Type, [string]$Path)
+    if (@(Get-JellyfinLibraries | Where-Object Name -EQ $Name).Count) { throw "Library name already exists: $Name" }
     $q = "name=$([Uri]::EscapeDataString($Name))&collectionType=$Type&paths=$([Uri]::EscapeDataString($Path))&refreshLibrary=false"
-    $body = @{ LibraryOptions = @{} } | ConvertTo-Json -Compress
+    $body = @{ LibraryOptions = @{ EnableRealtimeMonitor=$false; EnableInternetProviders=$false; SaveTrickplayWithMedia=$true } } | ConvertTo-Json -Compress
+    # Track before POST so a lost response does not orphan a created library.
+    $Script:RunState.AddedLibraryIds += $Name
     Invoke-JfApi -Method POST -Path "/Library/VirtualFolders?$q" -Body $body | Out-Null
     Write-Log "Added library: $Name ($Type) -> $Path"
-    $Script:RunState.AddedLibraryIds += $Name
 }
 
 function Remove-JellyfinLibrary {
     param([string]$Name)
+    if (-not @(Get-JellyfinLibraries | Where-Object Name -EQ $Name).Count) { return }
     $q = "name=$([Uri]::EscapeDataString($Name))&refreshLibrary=false"
-    Invoke-JfApi -Method DELETE -Path "/Library/VirtualFolders?$q" -IgnoreErrors | Out-Null
+    Invoke-JfApi -Method DELETE -Path "/Library/VirtualFolders?$q" | Out-Null
+    Assert-Equal 0 @(Get-JellyfinLibraries | Where-Object Name -EQ $Name).Count 'owned library must be removed'
     Write-Log "Removed library: $Name"
 }
 
@@ -124,6 +134,7 @@ function Set-MediaDashConfig {
 function Save-MediaDashConfigSnapshot {
     if (-not $Script:RunState.OriginalConfigSnapshot) {
         $Script:RunState.OriginalConfigSnapshot = Get-MediaDashConfig
+        $Script:RunState.OriginalConfigSnapshot | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $Script:ResultsDir 'config-before.json') -Encoding utf8
         Write-Log "Snapshotted original MediaDash config"
     }
 }
@@ -132,6 +143,8 @@ function Restore-MediaDashConfigSnapshot {
     if ($Script:RunState.OriginalConfigSnapshot) {
         $json = $Script:RunState.OriginalConfigSnapshot | ConvertTo-Json -Depth 10 -Compress
         Invoke-JfApi -Method POST -Path "/Plugins/$($Script:RunState.PluginId.Replace('-',''))/Configuration" -Body $json | Out-Null
+        $actual = Get-MediaDashConfig | ConvertTo-Json -Depth 10 -Compress
+        Assert-Equal $json $actual 'original configuration must be restored exactly'
         Write-Log "Restored original MediaDash config"
     }
 }
@@ -171,20 +184,56 @@ function Start-MediaDashScan {
 
 function Start-MediaDashFix {
     param([switch]$Wait, [int]$TimeoutSec = 1800)
+    foreach ($queuedIssue in @(Get-MediaDashIssues -Status 'Queued')) {
+        if (-not (Test-OwnedFixturePath $queuedIssue.Path)) { throw 'Refusing global Fix: an approval is outside this run.' }
+    }
+    $baseline = @((Get-MediaDashHistory).Items | Measure-Object -Property Id -Maximum)[0].Maximum
+    $Script:RunState | Add-Member -NotePropertyName LastFixHistoryId -NotePropertyValue ([long]$baseline) -Force
     Start-MediaDashTask -Key 'MediaDashFix' -Route '/MediaDash/Fix' -Wait:$Wait -TimeoutSec $TimeoutSec
+}
+
+function Test-OwnedFixturePath {
+    param([string]$Path)
+    if (-not $Path) { return $false }
+    if ($Script:RunState.PSObject.Properties['ArtworkFixturePath'] -and $Path -eq $Script:RunState.ArtworkFixturePath) { return $true }
+    try {
+        Assert-SafeLiveTarget -Url $Script:RunState.JellyfinUrl -AllowedFixturePaths @($Script:RunState.FixturesRoot) -FixturePath $Path
+        return $true
+    } catch { return $false }
+}
+
+function Clear-OwnedFixtureApprovals {
+    $task = @(Invoke-JfApi -Method GET -Path '/ScheduledTasks' | Where-Object Key -EQ 'MediaDashFix')
+    Assert-Equal 1 $task.Count 'fix task must be registered'
+    Assert-Equal 'Idle' $task[0].State 'do not alter approvals under a running task'
+    foreach ($queuedIssue in @(Get-MediaDashIssues -Status 'Queued')) {
+        if (-not (Test-OwnedFixturePath $queuedIssue.Path)) { throw 'Unexpected foreign approval; cleanup refused.' }
+        Invoke-JfApi -Method POST -Path "/MediaDash/Issues/$($queuedIssue.Id)/Revert" | Out-Null
+    }
+}
+
+function Get-CurrentFixHistory {
+    param([string]$FileName, [string]$Type)
+    if (-not $Script:RunState.PSObject.Properties['LastFixHistoryId']) { throw 'No fix-run baseline was captured.' }
+    $rows = @((Get-MediaDashHistory).Items | Where-Object {
+        $_.Id -gt $Script:RunState.LastFixHistoryId -and $_.FileName -eq $FileName -and $_.Type -eq $Type
+    })
+    Assert-Equal 1 $rows.Count 'exactly one new history row should describe this issue'
+    Assert-True $rows[0].Success 'the current fix must succeed'
+    return $rows[0]
 }
 function Get-MediaDashIssues {
     param([string]$Type = $null, [string]$Status = $null)
     $q = @()
     if ($Type) { $q += "type=$Type" }
     if ($Status) { $q += "status=$Status" }
+    else { $q += 'openOnly=true' }
     $qs = if ($q.Count -gt 0) { "?" + ($q -join "&") } else { "" }
     $r = Invoke-JfApi -Method GET -Path "/MediaDash/Issues$qs"
-    # Endpoint returns a bare JSON array. Force to array AND prevent PS return
-    # flattening via the leading comma — otherwise `return @()` collapses to
-    # $null in the caller and .Count throws under Set-StrictMode -Version 2.
+    # Stream rows so direct property filters work. Callers requiring an array
+    # for an empty response should collect with @(...).
     $arr = if ($null -eq $r) { @() } else { @($r) }
-    ,$arr
+    return $arr
 }
 
 function Approve-MediaDashIssue {
@@ -206,7 +255,7 @@ function Get-MediaDashRecycleBinItems {
     # Returns bare array of recycle-bin entries.
     $r = Invoke-JfApi -Method GET -Path "/MediaDash/RecycleBin/Items"
     $arr = if ($null -eq $r) { @() } else { @($r) }
-    ,$arr
+    return $arr
 }
 
 # Backward-compat alias — callers used $bin.Items before. Now returns the items array directly.
@@ -228,9 +277,9 @@ function Get-MediaDashHistory {
 
 function Get-MediaDashDiagnostics {
     # Real route is /MediaDash/Errors — /Diagnostics doesn't exist. Returns bare array.
-    $r = Invoke-JfApi -Method GET -Path "/MediaDash/Errors" -IgnoreErrors
+    $r = Invoke-JfApi -Method GET -Path "/MediaDash/Errors"
     $arr = if ($null -eq $r) { @() } else { @($r) }
-    ,$arr
+    return $arr
 }
 
 function Get-MediaDashStatus {

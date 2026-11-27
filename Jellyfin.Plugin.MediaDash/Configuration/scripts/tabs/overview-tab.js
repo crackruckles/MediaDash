@@ -124,6 +124,11 @@
                 var recycleBadge = dr.IsRecycleBinDrive
                     ? '<span class="mdBadge" style="background:rgba(236,72,153,.16);color:#f9a8d4;font:600 11px \'IBM Plex Mono\', monospace;padding:4px 9px;border-radius:6px;">recycle bin</span>' : '';
                 var pill = smartHeaderPillHtml(dr);
+                // Network-share presentation adapted from Icabaad's PR #91.
+                var shareBadge = dr.IsNetworkShare
+                    ? '<span class="mdBadge" style="background:rgba(148,163,184,.16);color:#cbd5e1;">' + deps.esc(deps.STR.driveNetworkShare) + '</span>' : '';
+                var staleBadge = dr.SpaceReadingStale
+                    ? '<span class="mdBadge" title="' + deps.esc(deps.STR.driveSpaceStaleHint) + '">' + deps.esc(deps.STR.driveSpaceStale) + '</span>' : '';
                 var tiles = smartTilesHtml(dr);
                 var usageTitle = deps.fmt(deps.STR.driveUsed, deps.bytes(used), deps.bytes(dr.TotalBytes));
 
@@ -134,7 +139,7 @@
                     '<div class="mdDriveRow">' +
                         '<div class="mdDriveHeadMain">' +
                             '<span class="mdDriveRoot">' + deps.esc(dr.Root) + '</span>' +
-                            libraryBadge + recycleBadge +
+                            libraryBadge + recycleBadge + shareBadge + staleBadge +
                         '</div>' +
                         '<div class="mdDriveUsage" style="flex:1 1 300px;">' +
                             '<div class="mdBarTrack" title="' + deps.esc(usageTitle) + '">' +
@@ -156,6 +161,7 @@
             // pending pill so a fresh boot doesn't briefly say "SMART unknown". The pill auto-heals
             // on the next /Status poll (~3 s during scan/fix, up to ~15 s idle) once the probe lands.
             function smartHeaderPillHtml(dr) {
+                if (dr.IsNetworkShare) return '';
                 if (!dr.IsLibraryDrive && !dr.IsRecycleBinDrive) return '';
                 if (!mdSmartMonitoringEnabled) {
                     return '<span class="mdSmartPill mdSmartPill--disabled" title="SMART monitoring is off. Right-click (or long-press) to re-enable.">' +
@@ -178,6 +184,7 @@
             // Stat tile row: temperature, wear, powered-on, uncorrected errors. Each tile only renders
             // when the server-side probe actually produced a value; skipping keeps the card honest.
             function smartTilesHtml(dr) {
+                if (dr.IsNetworkShare) return '';
                 if (!dr.IsLibraryDrive && !dr.IsRecycleBinDrive) return '';
                 if (!mdSmartMonitoringEnabled) return '';
                 var tiles = [];
@@ -234,6 +241,13 @@
             }
 
 
+            function driveCardsHtml(drives) {
+                var shares = drives.filter(function (d) { return d.IsNetworkShare; });
+                var note = shares.length > 1
+                    ? '<div class="fieldDescription" style="grid-column:1 / -1;">' + deps.esc(deps.STR.driveShareOverlap) + '</div>' : '';
+                return drives.map(driveCardHtml).join('') + note;
+            }
+
             // User preference — the System Performance card can be hidden via its right-click /
             // long-press menu. Cached so we survive the async config fetch that populates it, and
             // referenced by both the renderer and the toggle. Persisted to plugin config.
@@ -268,10 +282,10 @@
                 if (!grid) {
                     drivesEl.innerHTML = '<div class="mdCard mdFade">' +
                         '<div class="mdSecHead"><span class="material-icons">storage</span>' + deps.esc(deps.STR.driveStorage) + '</div>' +
-                        '<div class="mdDriveGrid">' + drives.map(driveCardHtml).join('') + '</div></div>';
+                        '<div class="mdDriveGrid">' + driveCardsHtml(drives) + '</div></div>';
                     return;
                 }
-                grid.innerHTML = drives.map(driveCardHtml).join('');
+                grid.innerHTML = driveCardsHtml(drives);
             }
 
             // Client-side 7-day dismissal for low-space warnings, per drive root. Deliberately not
@@ -337,14 +351,24 @@
                 var gpus = sys.Gpus || [];
                 var expectedGpuCells = Math.max(1, gpus.length);
                 var existingGpuCells = el.querySelectorAll('.mdSysCell[data-kind^="gpu"]').length;
+                var disks = sys.Disks && sys.Disks.length ? sys.Disks : [{}];
+                var existingDiskCells = el.querySelectorAll('.mdSysCell[data-kind^="disk-io-"]').length;
 
                 // Only rebuild the DOM structure when the card first appears or when the GPU list changes shape
                 // (adding/removing a card mid-session, or going from "no GPU detected" to detected).
-                if (!el.querySelector('.mdSysCell') || existingGpuCells !== expectedGpuCells) {
-                    el.innerHTML = buildSystemStatsHtml(sys, gpus);
+                if (!el.querySelector('.mdSysCell') || existingGpuCells !== expectedGpuCells || existingDiskCells !== disks.length) {
+                    el.innerHTML = buildSystemStatsHtml(gpus, disks);
+                    el.querySelectorAll('.mdSysInfo').forEach(function (info) {
+                        function restoreTooltip() { info.removeAttribute('data-dismissed'); }
+                        info.addEventListener('mouseenter', restoreTooltip);
+                        info.addEventListener('focusin', restoreTooltip);
+                        info.addEventListener('keydown', function (event) {
+                            if (event.key === 'Escape') info.setAttribute('data-dismissed', '');
+                        });
+                    });
                 }
 
-                updateSystemStatsInPlace(sys, gpus);
+                updateSystemStatsInPlace(sys, gpus, disks);
             }
 
 
@@ -432,7 +456,7 @@
                         drivesEl.innerHTML = '<div class="mdCard mdFade">' +
                             '<div class="mdSecHead"><span class="material-icons">storage</span>' + deps.esc(deps.STR.driveStorage) + '</div>' +
                             '<div class="mdDriveGrid">' +
-                            mdDrivesLast.map(driveCardHtml).join('') +
+                            driveCardsHtml(mdDrivesLast) +
                             '</div></div>';
                     }
                 }
@@ -454,10 +478,14 @@
             }
 
 
-            function buildSystemStatsHtml(sys, gpus) {
-                function cellHtml(icon, iconColor, title, kind) {
+            function buildSystemStatsHtml(gpus, disks) {
+                function cellHtml(icon, iconColor, title, kind, tooltip) {
+                    var tipId = 'mdSysTip-' + kind;
+                    var tip = tooltip ? '<span class="mdSysInfo"><button type="button" aria-label="' + deps.esc(title) +
+                        '" aria-describedby="' + tipId + '"><span class="material-icons" aria-hidden="true">info</span></button>' +
+                        '<span id="' + tipId + '" role="tooltip">' + deps.esc(tooltip) + '</span></span>' : '';
                     return '<div class="mdSysCell" data-kind="' + kind + '">' +
-                        '<div class="mdSysHead"><span class="material-icons" style="color:' + iconColor + ';">' + icon + '</span>' + deps.esc(title) + '</div>' +
+                        '<div class="mdSysHead"><span class="material-icons" style="color:' + iconColor + ';">' + icon + '</span><span data-field="title">' + deps.esc(title) + '</span>' + tip + '</div>' +
                         '<div class="mdSysValue" data-field="value"></div>' +
                         '<div class="mdBarTrack" data-field="track"><div class="mdBarFill" data-field="bar" style="width:3%;"></div></div>' +
                         '<div class="mdSysHint" data-field="hint"></div>' +
@@ -485,11 +513,16 @@
                         cellHtml('memory', '#22d3ee', deps.STR.statCpu, 'cpu') +
                         cellHtml('memory_alt', '#8b5cf6', deps.STR.statRam, 'ram') +
                         gpuCellsHtml +
+                        disks.map(function (disk, index) {
+                            return cellHtml('storage', '#f59e0b', deps.STR.statDiskIo, 'disk-io-' + index, deps.STR.statDiskIoTooltip);
+                        }).join('') +
                     '</div></div>';
             }
 
 
-            function updateSystemStatsInPlace(sys, gpus) {
+            var diskRatePeaks = Object.create(null);
+
+            function updateSystemStatsInPlace(sys, gpus, disks) {
                 var el = deps.view.querySelector('#mdSystem');
                 var platform = el.querySelector('[data-field="platform"]');
                 if (platform) platform.textContent = deps.fmt(deps.STR.statPlatform, sys.Platform || 'Unknown');
@@ -524,6 +557,31 @@
                         setCellValues(el, 'gpu-' + i, (g.Percent || 0).toFixed(1) + '%', hint, g.Percent, true);
                     }
                 }
+
+                function diskRate(value) {
+                    return Number.isFinite(value) && value >= 0 ? deps.esc(deps.bytes(value)) + '/s' : naPlain;
+                }
+                disks.forEach(function (disk, index) {
+                    var kind = 'disk-io-' + index;
+                    var title = el.querySelector('.mdSysCell[data-kind="' + kind + '"] [data-field="title"]');
+                    if (title) title.textContent = deps.STR.statDiskIo + (disk.Name ? ' · ' + disk.Name : '');
+                    var read = Number.isFinite(disk.ReadBytesPerSecond) && disk.ReadBytesPerSecond >= 0 ? disk.ReadBytesPerSecond : 0;
+                    var write = Number.isFinite(disk.WriteBytesPerSecond) && disk.WriteBytesPerSecond >= 0 ? disk.WriteBytesPerSecond : 0;
+                    // Throughput has no reported hardware ceiling; retain a shared observed peak per disk.
+                    var scale = Math.max(1048576, diskRatePeaks[disk.Name] || 0, read, write);
+                    diskRatePeaks[disk.Name] = scale;
+                    function arc(radius, rate, className) {
+                        var path = 'M ' + (100 - radius) + ' 100 A ' + radius + ' ' + radius + ' 0 0 1 ' + (100 + radius) + ' 100';
+                        return '<path class="mdDiskGaugeTrack" d="' + path + '"/>' +
+                            '<path class="' + className + '" d="' + path + '" pathLength="100" stroke-dasharray="' + (rate / scale * 100) + ' 100"/>';
+                    }
+                    var diskValues = '<svg class="mdDiskGauge" viewBox="0 0 200 112" aria-hidden="true" focusable="false">' +
+                        arc(88, read, 'mdDiskRead') + arc(66, write, 'mdDiskWrite') + '</svg>' +
+                        '<div class="mdDiskScale"><span>0</span><span>' + diskRate(scale) + '</span></div>' +
+                        '<div class="mdDiskLegend"><div class="mdDiskRead">' + deps.esc(deps.STR.statDiskRead) + ' ' + diskRate(disk.ReadBytesPerSecond) + '</div>' +
+                        '<div class="mdDiskWrite">' + deps.esc(deps.STR.statDiskWrite) + ' ' + diskRate(disk.WriteBytesPerSecond) + '</div></div>';
+                    setCellValues(el, kind, diskValues, disk.Name ? '' : platformHint, null);
+                });
             }
 
 
@@ -590,6 +648,7 @@
 
             function renderFixOrderList(order, disabled) {
                 disabled = disabled || [];
+                order = window.MediaDash.normalizeFixerOrder(order);
                 var listEl = deps.view.querySelector('#mdFixOrderList');
                 var html = '';
                 for (var i = 0; i < order.length; i++) {
@@ -598,8 +657,9 @@
                     var title = meta && meta.title ? meta.title : t;
                     var icon = meta && meta.icon ? meta.icon : 'build';
                     var color = meta && meta.color ? meta.color : 'var(--md-meta)';
-                    var upDisabled = i === 0 ? ' disabled' : '';
-                    var downDisabled = i === order.length - 1 ? ' disabled' : '';
+                    var phase = window.MediaDash.fixerOrderPhase(t);
+                    var upDisabled = i === 0 || phase !== window.MediaDash.fixerOrderPhase(order[i - 1]) ? ' disabled' : '';
+                    var downDisabled = i === order.length - 1 || phase !== window.MediaDash.fixerOrderPhase(order[i + 1]) ? ' disabled' : '';
                     var isOff = disabled.indexOf(t) !== -1;
                     var rowStyle = isOff ? ' style="opacity:.5;"' : '';
                     var labelStyle = isOff ? ' style="text-decoration:line-through;"' : '';
@@ -733,7 +793,7 @@
                         if (reason === 'Permission denied') {
                             msg += '\n\nFix on the host: give the user Jellyfin runs as (typically "jellyfin" on Linux) read+write on your library folders. Example: sudo chown -R jellyfin:jellyfin /mnt/media && sudo find /mnt/media -type d -exec chmod g+rwx {} +';
                         } else if (reason === 'Not enough free disk space') {
-                            msg += '\n\nFree some space on the target drive, then click "Retry all fixes" on the Errors tab.';
+                            msg += '\n\nEach row on the Errors tab shows the file size, how much the fix needs, and how much is free on the target drive. Free up that much space (or move the file to a drive that has it), then click "Retry all fixes".';
                         }
                         if (window.Dashboard && Dashboard.alert) {
                             Dashboard.alert({ title: 'Fix run finished with failures', message: msg });
@@ -777,16 +837,13 @@
 
                 if (s.IsScanning) {
                     busy.scan = true;
-                    var scanPct = s.ScanProgress || 0;
-                    // Mirror the fix branch below: derive both the percent text and the progress bar
-                    // fill from the server's scanner-count (N done / M total) so the whole progress
-                    // cluster tells one story. Falls back to the server-side ScanProgress while
-                    // ScanScannersTotal is null (very first poll before ScanTask has published).
+                    var scanPct = s.ScanProgress;
+                    // Include progress within the current scanner so a long stage does not look stalled.
                     var scannersDone = s.ScanScannersDone || 0;
                     var scannersTotal = s.ScanScannersTotal || 0;
-                    var scanItemsPct = scannersTotal > 0
-                        ? Math.round(scannersDone / scannersTotal * 100)
-                        : Math.round(scanPct);
+                    var scanItemsPct = typeof scanPct === 'number'
+                        ? Math.round(scanPct)
+                        : (scannersTotal > 0 ? Math.round(scannersDone / scannersTotal * 100) : 0);
                     var scanItemsPart = scannersTotal > 0
                         ? ' · ' + scannersDone + ' / ' + scannersTotal + ' scanners done'
                         : '';
@@ -832,7 +889,7 @@
                     busy.fix = false;
                     progressStart.fixPendingBase = 0;
                     setProgress(false);
-                    state.textContent = deps.STR.fixDone;
+                    state.textContent = curr && curr.FinishedAtUtc !== prevFinishedAt && curr.NoWorkReason ? curr.NoWorkReason : deps.STR.fixDone;
                     if (deps.view.querySelector('#mdTab-history').style.display !== 'none' && deps.historyTab) deps.historyTab.activate();
                 } else if (s.LastScanCompletedUtc || s.LastScanUtc) {
                     setProgress(false);
@@ -866,12 +923,14 @@
                 }
 
                 var pauseNote = deps.view.querySelector('#mdFixPauseNote');
-                if (s.IsFixing && s.FixPauseReason) {
-                    deps.view.querySelector('#mdFixPauseText').textContent = s.FixPauseReason;
+                var fixNote = s.FixPauseReason;
+                if (!s.IsScanning && fixNote) {
+                    deps.view.querySelector('#mdFixPauseText').textContent = fixNote;
                     pauseNote.style.display = 'flex';
                 } else {
                     pauseNote.style.display = 'none';
                 }
+                deps.view.querySelector('#mdFixIgnoreActivity').style.display = s.IsFixing && fixNote && !(curr && curr.NoWorkReason === fixNote) ? '' : 'none';
 
                 // Keep polling while the Overview tab is visible so the system-performance card is actually live
                 // (task-manager-ish). schedulePoll during scan/fix already handles those cases; this adds the idle
@@ -939,12 +998,37 @@
                             ? ' <button type="button" class="mdRedownloadRestoreOpt" data-history-id="' + w.HistoryId + '" style="background:transparent;border:1px solid #f59e0b;color:#f59e0b;border-radius:6px;padding:.05em .5em;margin-left:.4em;font-size:.85em;cursor:pointer;" title="Find the smaller remuxed copy in the recycle bin and restore it here. Acknowledges the row after.">Restore optimized</button>'
                             : '';
                         var ackBtn = ' <button type="button" class="mdRedownloadAck" data-history-id="' + w.HistoryId + '" style="background:transparent;border:1px solid #94a3b8;color:#94a3b8;border-radius:6px;padding:.05em .5em;margin-left:.4em;font-size:.85em;cursor:pointer;" title="Acknowledge this warning. The row stays in history; the banner stops flagging it on future scans.">Acknowledge</button>';
-                        return '<li title="' + deps.esc(w.Path) + '" data-history-id="' + w.HistoryId + '">' + deps.esc(w.Path.split('/').pop()) +
+                        return '<li title="' + deps.esc(w.Path) + '" data-history-id="' + w.HistoryId + '">' + deps.esc(w.Path.split(/[\\/]/).pop()) +
                                ' — original ' + mb(w.OriginalBytes) + ' → shrunk → now back at ' + mb(w.CurrentBytes) +
                                ' (fixed ' + new Date(w.FixedAtUtc).toLocaleDateString() + ')' + artifactTag + restoreBtn + ackBtn + '</li>';
                     }).join('');
                 } else {
                     redlBanner.style.display = 'none';
+                }
+
+                // Issues that came back at the same path after a fix. Server sends the most-fixed
+                // first, capped; RecurringIssueTotal carries the full count.
+                var recurBanner = deps.view.querySelector('#mdRecurringWarn');
+                var recur = s.RecurringIssues || [];
+                var recurTotal = s.RecurringIssueTotal || recur.length;
+                if (recurBanner && recur.length > 0 && !deps.bannerDismissed('mdRecurringWarn')) {
+                    recurBanner.style.display = '';
+                    var recurLead = recurTotal + ' open issue' + (recurTotal === 1 ? ' has' : 's have') + ' come back after being fixed.';
+                    if (recurTotal > recur.length) {
+                        recurLead += ' The ' + recur.length + ' that came back most often are listed.';
+                    }
+                    deps.view.querySelector('#mdRecurringWarnLead').textContent = recurLead;
+                    deps.view.querySelector('#mdRecurringWarnList').innerHTML = recur.map(function (r) {
+                        var typeTitle = (deps.STR.types[r.Type] || { title: r.Type }).title;
+                        var times = r.TimesFixed === 1 ? 'fixed once before' : 'fixed ' + r.TimesFixed + ' times before';
+                        var last = r.LastFixMessage
+                            ? '<div style="opacity:.75;">Last fix (' + new Date(r.LastFixedAtUtc).toLocaleString() + (r.LastFixSucceeded ? '' : ', changed nothing') + '): ' + deps.esc(r.LastFixMessage) + '</div>'
+                            : '';
+                        return '<li style="margin-bottom:.35em;" title="' + deps.esc(r.Path) + '"><span style="font-family:monospace;">' + deps.esc(r.Path) + '</span>' +
+                               ' <span style="color:#fbbf24;">— ' + deps.esc(typeTitle) + ', ' + times + '</span>' + last + '</li>';
+                    }).join('');
+                } else if (recurBanner) {
+                    recurBanner.style.display = 'none';
                 }
 
                 // Skip re-rendering the static content (hero, per-type cards, savings bars) on silent
@@ -1031,7 +1115,7 @@
                     }
                     var panelBg = getComputedStyle(deps.view).getPropertyValue('--md-panel').trim() || '#242b36';
                     // Left panel is exclusively about space reclaim. Filter out types that don't free
-                    // any bytes (Ungrouped is a move, MissingSubtitles adds a file, Stale is detect-only,
+                    // any bytes (Ungrouped is a move, MissingSubtitles adds a file, Stale is informational-only,
                     // etc.) — they showed up here with a count but no savings, which was confusing.
                     var reclaimCounts = counts.filter(function (c) { return (c.PotentialSavings || 0) > 0; });
                     var reclaimHtml =
@@ -1122,7 +1206,7 @@
                             drivesEl.innerHTML = '<div class="mdCard mdFade">' +
                                 '<div class="mdSecHead"><span class="material-icons">storage</span>' + deps.esc(deps.STR.driveStorage) + '</div>' +
                                 '<div class="mdDriveGrid">' +
-                                mdDrivesLast.map(driveCardHtml).join('') +
+                                driveCardsHtml(mdDrivesLast) +
                                 '</div></div>';
                         }
                     }

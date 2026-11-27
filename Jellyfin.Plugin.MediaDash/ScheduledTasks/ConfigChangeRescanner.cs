@@ -145,9 +145,7 @@ internal sealed class ConfigChangeRescanner : IHostedService, IDisposable
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "ConfigChangeRescanner: failed to wipe stale Detected rows; the next scheduled scan will refresh them.");
-            Api.Diagnostics.Record(
-                "ConfigChangeRescanner.WipeFailed",
-                "Failed to wipe stale Detected issue rows after a config change: " + ex.Message + ". The Issues tab may show stale details until the next scan.");
+            Api.Diagnostics.Record("ConfigChangeRescanner.WipeFailed", "After your settings change, MediaDash could not clear the old findings, so the Issues tab may show outdated items until the next scan. Details: " + ex.Message);
             return;
         }
 
@@ -210,9 +208,7 @@ internal sealed class ConfigChangeRescanner : IHostedService, IDisposable
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "ConfigChangeRescanner: targeted rescan failed to start; the next scheduled scan will still fire.");
-            Api.Diagnostics.Record(
-                "ConfigChangeRescanner.TriggerFailed",
-                "Failed to trigger the config-change rescan: " + ex.Message + ". The next scheduled scan will still catch up.");
+            Api.Diagnostics.Record("ConfigChangeRescanner.TriggerFailed", "After your settings change, MediaDash could not start a fresh scan. Click Scan now, or the next scheduled scan will update the results. Details: " + ex.Message);
         }
         finally
         {

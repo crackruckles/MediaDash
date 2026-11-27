@@ -1,0 +1,91 @@
+{
+  "sourceDigest": "ccc304c77cdee26f4770e1e995619361d1a7a2e38e7f80e9b78b00198861f4a7",
+  "dllSha256": "e89b68564fd93ba9128212879ba50074c89db212e25fa79ddcfc887658c8aba0",
+  "scope": "Partial local provider-write deferral repair; not full issue 43 or release acceptance",
+  "implementation": "Index native membership, verify missing sources, defer provider metadata when SaveLocalMetadata or MetadataSavers are enabled or options are unavailable; keep destination validation, durable user-data reconciliation and truthful pending-state messages. Ordinary fixer refresh and safe-library move refresh continue.",
+  "offline": {
+    "windows": 2122,
+    "linux": 2122,
+    "failed": 0,
+    "skipped": 0,
+    "dashboard": 61,
+    "gateSelfTests": 19,
+    "harnessSuites": 11
+  },
+  "native": {
+    "checks": 86,
+    "groups": {
+      "v10": 43,
+      "v12": 43
+    },
+    "hosts": [
+      "Windows Jellyfin 10.11.11",
+      "Windows Jellyfin 12.0.0 from 12.0-rc3 archive"
+    ],
+    "covered": "NFO with loopback remote thumb, future mtime, local savers enabled: no sidecar mutation, immediate Undo and favorite retention; configuration/libraries/queues/protection restored and hosts stopped"
+  },
+  "review": "Independent scoped review found pending watched-state message regression; failing-save test reproduced it and final fix checks durable Applied markers. Follow-up review found no remaining important concern within four-file scope.",
+  "verificationFailuresRetained": [
+    "Initial unfiltered test invocation included opt-in environments without setup: 20 failed, 2171 passed; not acceptance. Correct offline gate excludes ReportedIssueExternal.",
+    "First state-regression build collided with running testhost output and failed; retry demonstrated the expected assertion failure."
+  ],
+  "limits": [
+    "Native metadata remains pending in libraries permitting local media-folder writes. A later Jellyfin scan/refresh may change sidecars and correctly prevent stale-inventory Undo.",
+    "No guarantee that third-party providers obey library write settings.",
+    "No fresh full-family acceptance promotion from the prior source.",
+    "Linux writable-FD unlink and Windows new-ADS deletion races remain unresolved.",
+    "Reporter/NAS/container/platform/committed acceptance gaps remain."
+  ],
+  "artifacts": {
+    "artifacts/push-preparation-20261106-provider-native-final/v10/final-evidence/cleanup.json": "e880f1dfdc595330e5b25815987bbd7381761267111fcc0afbc0b5c982fd02d5",
+    "artifacts/push-preparation-20261106-provider-native-final/v10/final-evidence/config-fresh.json": "cedc717378b9e11df35cf77fcf2a176db6c724bf3c8fad6ea4a34a946b0145ea",
+    "artifacts/push-preparation-20261106-provider-native-final/v10/final-evidence/config-workflow.json": "456da8955cc794c421ceaae7da1ff1ecacf58add0b2fb6bcda291068e7ebeac3",
+    "artifacts/push-preparation-20261106-provider-native-final/v10/final-evidence/diagnostic.json": "59c41e0e48ca0e59eb922f5fbd2a0330eca15f0511b838f54599ca98889ad0d2",
+    "artifacts/push-preparation-20261106-provider-native-final/v10/final-evidence/fixture.json": "debd59f63ecbfea59096314eedb6194a6df8de0956d77f6415769ce0bddf4364",
+    "artifacts/push-preparation-20261106-provider-native-final/v10/final-evidence/issues-initial.json": "561df7fdf28850dd3636f44d6517839e379bb5c917c32757aec2528d4cebcc29",
+    "artifacts/push-preparation-20261106-provider-native-final/v10/final-evidence/move.json": "46d98c99c7b2761c5c5bc1885e127311f716d3c9b10c414d1e0bdd069fa696a9",
+    "artifacts/push-preparation-20261106-provider-native-final/v10/final-evidence/plugin.json": "15ad030f337f5897cb55a7b32115639b3f8f6bc56080f9cdbd99f51afad3fd87",
+    "artifacts/push-preparation-20261106-provider-native-final/v10/final-evidence/preview.json": "bff2fe84a62bec52ed8f7f53996db601771d506a2922d8fd8a726b2c917b6a63",
+    "artifacts/push-preparation-20261106-provider-native-final/v10/final-evidence/results.json": "d62332cc9130e80fa3cca95218b148549ed54c0dec677cd5758f7029a72070d9",
+    "artifacts/push-preparation-20261106-provider-native-final/v10/final-evidence/server.json": "2dcc5264f7ace89b514b0be208ab80c5a11442e8d908ed40044c08292dc6ac58",
+    "artifacts/push-preparation-20261106-provider-native-final/v10/final-evidence/undo.json": "16c809d839087bce6361f9cc01d6d5c3ac0aa373fb9dd07ceaa4722d534ad84e",
+    "artifacts/push-preparation-20261106-provider-native-final/v12/final-evidence/cleanup.json": "72f21125d0d907b1d26f4941e3d49c650e376c4800cbbc943e7b88f1c59ddb63",
+    "artifacts/push-preparation-20261106-provider-native-final/v12/final-evidence/config-fresh.json": "cedc717378b9e11df35cf77fcf2a176db6c724bf3c8fad6ea4a34a946b0145ea",
+    "artifacts/push-preparation-20261106-provider-native-final/v12/final-evidence/config-workflow.json": "456da8955cc794c421ceaae7da1ff1ecacf58add0b2fb6bcda291068e7ebeac3",
+    "artifacts/push-preparation-20261106-provider-native-final/v12/final-evidence/diagnostic.json": "5898cfe3d4d41cefda4f7ef1f0a6d62cb26a9c48b2f55892484ffea6ff264c23",
+    "artifacts/push-preparation-20261106-provider-native-final/v12/final-evidence/fixture.json": "9776c1197f2bee5813242199ec363b199c3a24358ccd77693c9f5746c83f5cda",
+    "artifacts/push-preparation-20261106-provider-native-final/v12/final-evidence/issues-initial.json": "bffa69bd410eebd97eb4e82d4d6bea4b3374da878e9bb3d6fabf448021ce2def",
+    "artifacts/push-preparation-20261106-provider-native-final/v12/final-evidence/move.json": "7f7831ae74d665f919bd785f4d33559cc9b0c7829c00e18100e389ef64ab5b3e",
+    "artifacts/push-preparation-20261106-provider-native-final/v12/final-evidence/plugin.json": "15ad030f337f5897cb55a7b32115639b3f8f6bc56080f9cdbd99f51afad3fd87",
+    "artifacts/push-preparation-20261106-provider-native-final/v12/final-evidence/preview.json": "5a6d27403e2651d410e5d76b83ef1612cfdd56faeb0cb6e215a70190e468fc87",
+    "artifacts/push-preparation-20261106-provider-native-final/v12/final-evidence/results.json": "afc374c1fcc59e7671e0494ba7bfec86e321cfed617aee4b5d4abbeffd366a96",
+    "artifacts/push-preparation-20261106-provider-native-final/v12/final-evidence/server.json": "5936f9c6c5c14fca4ec903ba688d849529b2994ed4d5af073b049e48eaf52b00",
+    "artifacts/push-preparation-20261106-provider-native-final/v12/final-evidence/undo.json": "5dcda68af9bc20b13a07301c2db58c03e4ae8d309833cf41f07881a910e0216f",
+    "artifacts/push-preparation-20261106-provider-guard/artifacts/provider-final-gate/reported-issues.trx": "5cfdc7df91f14453e04a991fa732390cac2f22647e9dc0c5dce71b17cb64bcda",
+    "artifacts/push-preparation-20261106-provider-guard/artifacts/provider-final-linux-results/provider-final-linux.trx": "f39c3b9cb5418eb712d0c1436d7768c74bc5c68b5fb676bcbeb21773e9a45911",
+    "artifacts/push-preparation-20261106-provider-guard/artifacts/provider-final-gate/summary.json": "8fdce1a4fe0520374b433c839336daaf84708b453f190888aaba04f2949bb749",
+    "artifacts/push-preparation-20261106-provider-guard/artifacts/provider-final-gate/dotnet.log": "cba965f82ba137e0d3a5b52df4f466f100bf82d01ce9fafe646620496d9f0264",
+    "artifacts/push-preparation-20261106-provider-guard/artifacts/provider-final-gate/ui.log": "5d02b66d531b621d58a3ad13f301b3f6f0e4f57337118bea178e37113c153631",
+    "artifacts/push-preparation-20261106-provider-guard/artifacts/provider-final-gate/gate-self-tests.log": "2e4cd7b51688a0bafd4dc2d7c8ac721d2a53515954f9bae7b94fc6565928b9de",
+    "artifacts/push-preparation-20261106-provider-guard/artifacts/provider-final-harnesses/summary.json": "245ac1bae3e139efe4406b3fe05b2ddf61fa06a85abc8def99cef18f5a18ce74",
+    "artifacts/push-preparation-20261106-provider-guard/artifacts/provider-final-linux.log": "604cee0c2935b62d78e0e98169b1fff3565e7614ffcaa8310f0e3c2f32342bb5",
+    "artifacts/push-preparation-20261106-provider-guard/artifacts/provider-final-linux-source.zip": "ce2b86552c534c42d592daab31a092e1d8fc3f8f11999900b882a97a78615ec4",
+    "artifacts/push-preparation-20261106-provider-guard/artifacts/provider-red/provider-red.trx": "9445c6315840721a4c8443b32660cb5de3b51ea2ad043fd5d5d2ea44861c15dc",
+    "artifacts/push-preparation-20261106-provider-guard/artifacts/provider-state-red/provider-state-red.trx": "32bf3a4dbd72f84a92240a423014d8e10ba6e1716852cf82447c81f860dd8d8e",
+    "artifacts/push-preparation-20261106-provider-guard/artifacts/provider-final-focused/provider-final-focused.trx": "d7d42d675517c675a42e8c6a2cc62bbc55c37befc05bc59ece6d8c0c0c40306a",
+    "artifacts/push-preparation-20261106-provider-guard/artifacts/provider-full.log": "f9c05b213795e0c29b77a3c6b0d9de8eec56061e5a62acb66d9da9ed80bf596d",
+    "artifacts/push-preparation-20261106-provider-guard/artifacts/provider-state-red.log": "7517e2f2508398a01dfaf6aed4c4ec31f2fbd26dd26b40ca3cb65887a50e57ed",
+    "artifacts/push-preparation-20261106-provider-native-final/base.py": "9ac38372dc6d28c1327671bdcf9098db35813674725f7fdbf8a6b3d2aa38ea0f",
+    "artifacts/push-preparation-20261106-provider-native-final/continuation.py": "24dae04435974ce3866b1f89c07cef521ff37cfc7f089cd46a63c2bb2ae2ec08",
+    "artifacts/push-preparation-20261106-provider-native-final/integrate.py": "d539069f8db22292d8647c890bbaf34fa37e9b0ca386fc6d30decc38dbfa1818",
+    "artifacts/push-preparation-20261106-provider-native-final/record.py": "e64fe82c7f3a864f51f6d414b52a7d4bf08472e98f8da129f88f7cf6f2899de5",
+    "artifacts/push-preparation-20261106-provider-native-final/run.py": "fd7e102d0a7264d8d3a143a992bd72310124449f5e43ce6dc954b6d9933ac13b",
+    "artifacts/push-preparation-20261106-provider-native-final/primary-integration.json": "d783174c8a91439907c160347f0a9c1de3723318ab7526e548ec5e356e0aecb4",
+    "artifacts/push-preparation-20261106-provider-native-final/primary-original-bytes.zip": "bb10a987c95408810ecffcfddaad19f208bb72718283a10e6742c0e06b9a234e",
+    "Jellyfin.Plugin.MediaDash/ScheduledTasks/NativeLibraryRefresher.cs": "3175ab9a01d01b16d353e3d984cfdc35fc611f0b5408d4e3afb2f887b1b12ced",
+    "Jellyfin.Plugin.MediaDash/Fixers/MediaMoveService.cs": "8183a56e57f5c551124f078784d213dfb53055a00c3d263a4bcba2e4644961c2",
+    "Jellyfin.Plugin.MediaDash.Tests/NativeLibraryRefreshTests.cs": "d3ede1ccd5c75953d7fd11fe18ff0a4cfd7eef3b3b7a8c3469056018661a7606",
+    "Jellyfin.Plugin.MediaDash.Tests/MediaMoveExecutionTests.cs": "9031402ad12c664cbdb25b8c07f46b024a1f1722946e2cba14dfda91f87e631a",
+    "artifacts/push-preparation-20261106-provider-primary-build.log": "ccdf52571047d51b3fd33afdc3b117b4d6b240e3d2d6757e991125f613007e0c"
+  }
+}

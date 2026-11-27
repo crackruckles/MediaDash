@@ -1,0 +1,5 @@
+# Shell test entry points must run in Git Bash and Linux without CRLF repair.
+*.sh text eol=lf
+.githooks/* text eol=lf
+docs/testing/reported-issues-evidence.json text eol=lf
+docs/testing/reported-issues-evidence/** text eol=lf

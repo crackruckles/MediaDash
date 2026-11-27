@@ -1,4 +1,4 @@
-﻿# 02-scanners.ps1 — one test per scanner class. Each verifies that a known
+# 02-scanners.ps1 — one test per scanner class. Each verifies that a known
 # fixture surfaces the expected issue type, and that unrelated files are not
 # flagged. This phase is READ-ONLY — no fixes are applied.
 
@@ -16,7 +16,10 @@ function Invoke-Phase-Scanners {
 
     # ─── One test per scanner ───
 
-    Invoke-Test "DuplicateScanner flags Big Buck Test (2020) 4K + 1080p as duplicates" -SkipReason "DuplicateScanner requires a Jellyfin metadata match (TMDb/TVDB) to correlate two files as the same movie. Our test box has no metadata providers configured, so duplicates by filename alone are not detected. To enable this test, configure TMDb/TVDB in the test-fixture Jellyfin and re-run — expect a Duplicate issue on Big Buck Test 4K + 1080p." { }
+    Invoke-Test 'DuplicateScanner flags the two separately indexed Big Buck fixtures' {
+        $duplicates = @($Script:RunState.InitialIssues | Where-Object { $_.Type -eq 'Duplicate' -and $_.Path -like '*Big Buck Test*' })
+        Assert-GreaterOrEqual 1 $duplicates.Count 'local NFO title and year should group the duplicate fixtures'
+    }
 
     Invoke-Test "QualityScanner flags Big Buck Test 4K high-bitrate" {
         $q = @($Script:RunState.InitialIssues | Where-Object { $_.Type -eq "Quality" -and $_.Path -like "*Big Buck Test 4K*" })
@@ -62,7 +65,12 @@ function Invoke-Phase-Scanners {
         Assert-GreaterOrEqual 1 $n.Count "expected CorruptNfo issue on Broken Nfo fixture"
     }
 
-    Invoke-Test "ArtworkScanner flags 0-byte poster.jpg" -SkipReason "ArtworkScanner targets corrupt artwork under Jellyfin's Internal Metadata Path (per its docstring), not sidecar poster.jpg files next to media. To enable this test, plant a 0-byte file under `%LOCALAPPDATA%\jellyfin\metadata\...` for a known item and re-run." { }
+    Invoke-Test 'ArtworkScanner flags only the owned managed poster' {
+        $issues = @(Get-MediaDashIssues -Type 'CorruptArtwork')
+        Assert-GreaterOrEqual 1 @($issues | Where-Object Path -EQ $Script:RunState.ArtworkFixturePath).Count 'managed zero-byte image must be detected'
+        $sidecar = Join-Path (Split-Path -Parent $Script:RunState.ArtworkVideoPath) 'poster.jpg'
+        Assert-Equal 0 @($issues | Where-Object Path -EQ $sidecar).Count 'user-placed sidecar artwork must be preserved'
+    }
 
     Invoke-Test "OrphanCleanupScanner flags ghost.en.srt" {
         $issues = Get-MediaDashIssues
@@ -73,15 +81,13 @@ function Invoke-Phase-Scanners {
     Invoke-Test "SubtitleFontScanner flags .ass with font ref (or skips gracefully)" {
         $issues = Get-MediaDashIssues
         $sf = @($issues | Where-Object { $_.Type -eq "SubtitleFonts" -and $_.Path -like "*Ass Sub Test*" })
-        # SubtitleFontScanner's threshold may not catch our synthetic fixture — surface as UNVERIFIABLE
-        if ($sf.Count -eq 0) {
-            Write-Log "    UNVERIFIABLE: SubtitleFontScanner did not flag fixture — may need heavier .ass content"
-        } else {
-            Write-Log "    detected $($sf.Count) SubtitleFonts issue(s)"
-        }
+        Assert-GreaterOrEqual 1 $sf.Count 'expected SubtitleFonts issue on the ASS fixture'
     }
 
-    Invoke-Test "TrickplayOptimizeScanner flags the padded .trickplay folder" -SkipReason "TrickplayOptimizeScanner's media-folder walk is gated on the library's SaveTrickplayWithMedia option (see log: 'skipping media-folder walk — SaveTrickplayWithMedia=false'). Our test suite adds libraries with default options which sets this false. To enable this test, add the fixture library with LibraryOptions.SaveTrickplayWithMedia=true and re-run." { }
+    Invoke-Test 'TrickplayOptimizeScanner flags the padded .trickplay folder' {
+        $issues = @(Get-MediaDashIssues -Type 'LargeTrickplay' | Where-Object Path -Like '*Trickplay Test*')
+        Assert-GreaterOrEqual 1 $issues.Count 'SaveTrickplayWithMedia is enabled on generated libraries'
+    }
 
     Invoke-Test "PlayabilityScanner does not flag Clean Movie (2024)" {
         $issues = Get-MediaDashIssues
@@ -96,6 +102,8 @@ function Invoke-Phase-Scanners {
         $mp = @($issues | Where-Object { $_.Type -eq "Misplaced" -and $_.Path -notlike "*_orphans*" })
         $ug = @($issues | Where-Object { $_.Type -eq "Ungrouped" })
         Write-Log "    Misplaced=$($mp.Count) · Ungrouped=$($ug.Count)"
+        Assert-Equal 0 $mp.Count 'properly foldered fixtures should not be misplaced'
+        Assert-Equal 0 $ug.Count 'properly foldered fixtures should not be ungrouped'
     }
 
     Invoke-Test "StaleContentScanner runs without crashing (may find nothing on fresh library)" {

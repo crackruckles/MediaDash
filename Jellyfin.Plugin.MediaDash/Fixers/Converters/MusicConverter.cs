@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Data.Enums;
+using Jellyfin.Plugin.MediaDash.Probing;
 using Jellyfin.Plugin.MediaDash.Scanners;
 using MediaBrowser.Controller.MediaEncoding;
 using Microsoft.Extensions.Logging;
@@ -117,7 +118,10 @@ public sealed class MusicConverter : IFormatConverter
 
             psi.ArgumentList.Add(stagedTargetPath);
 
-            using var proc = new Process { StartInfo = psi };
+            var media = await MediaProcess.AcquireAsync(cancellationToken).ConfigureAwait(false);
+            await using var lifetime = media.ConfigureAwait(false);
+            var proc = media.Process;
+            proc.StartInfo = psi;
             var stderr = new StringBuilder();
             proc.ErrorDataReceived += (_, e) =>
             {
@@ -127,7 +131,7 @@ public sealed class MusicConverter : IFormatConverter
                 }
             };
 
-            if (!proc.Start())
+            if (!media.Start())
             {
                 return new ConversionResult(false, null, "ffmpeg failed to start.");
             }
@@ -140,14 +144,8 @@ public sealed class MusicConverter : IFormatConverter
             {
                 await proc.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false);
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                TryKill(proc);
-                throw;
-            }
-            catch (OperationCanceledException)
-            {
-                TryKill(proc);
                 return new ConversionResult(false, null, "ffmpeg timed out after " + ConversionTimeout.TotalMinutes + " minutes.");
             }
 
@@ -192,20 +190,6 @@ public sealed class MusicConverter : IFormatConverter
                 yield return "-c:a";
                 yield return "flac";
                 break;
-        }
-    }
-
-    private static void TryKill(Process proc)
-    {
-        try
-        {
-            if (!proc.HasExited)
-            {
-                proc.Kill(true);
-            }
-        }
-        catch (InvalidOperationException)
-        {
         }
     }
 

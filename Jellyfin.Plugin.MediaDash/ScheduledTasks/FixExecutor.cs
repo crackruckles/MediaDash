@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -48,6 +48,7 @@ public sealed class FixExecutor
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<FixExecutor> _logger;
     private readonly Fixers.ProtectionService _protection;
+    private readonly MediaMoveStore? _moves;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FixExecutor"/> class.
@@ -58,13 +59,15 @@ public sealed class FixExecutor
     /// <param name="timeProvider">Clock used for sharing-violation retry delays. Injected so tests can fake-tick.</param>
     /// <param name="protection">Never-modify protection gate. Roadmap i-110-protected-media.</param>
     /// <param name="logger">Diagnostics logger.</param>
+    /// <param name="moves">Durable move reservations checked before dispatch.</param>
     public FixExecutor(
         IssueStore issues,
         IEnumerable<IFixer> fixers,
         IPluginConfigurationProvider configProvider,
         TimeProvider timeProvider,
         Fixers.ProtectionService protection,
-        ILogger<FixExecutor> logger)
+        ILogger<FixExecutor> logger,
+        MediaMoveStore? moves = null)
     {
         _issues = issues;
         _fixers = fixers;
@@ -72,6 +75,7 @@ public sealed class FixExecutor
         _timeProvider = timeProvider;
         _protection = protection;
         _logger = logger;
+        _moves = moves;
     }
 
     /// <summary>
@@ -83,11 +87,34 @@ public sealed class FixExecutor
     /// <param name="itemProgress">Per-item progress sink — the fixer reports 0–1 as it runs.</param>
     /// <param name="cancellationToken">Cancellation token propagated to the fixer and the retry-delay loop.</param>
     /// <returns>An execution result, or null when the operation was silently skipped.</returns>
-    internal async Task<FixExecutionResult?> ExecuteAsync(
+    internal Task<FixExecutionResult?> ExecuteAsync(
         PlannedFix plan,
         bool withinEnabledLibrary,
         IProgress<double> itemProgress,
         CancellationToken cancellationToken)
+        => ExecuteAsync(plan, withinEnabledLibrary, itemProgress, silentSkipTally: null, cancellationToken);
+
+    /// <summary>
+    /// Overload that tallies silent-skip reasons so <see cref="FixTask"/> can surface a
+    /// NoWorkReason when every queue item hits a per-item recheck (status changed, policy
+    /// refused, protected, no fixer registered). Without this, a non-empty queue of items
+    /// that all silently skip produces "Completed after 0 seconds" with zero explanation —
+    /// the exact failure mode reported on #81 upgrades.
+    /// </summary>
+    /// <param name="plan">The plan produced by <see cref="FixPlanBuilder"/>.</param>
+    /// <param name="withinEnabledLibrary">Caller-computed library-scope check.</param>
+    /// <param name="itemProgress">Per-item progress sink.</param>
+    /// <param name="silentSkipTally">Optional sink for silent-skip reason tallies (key = reason label, value = count). Null disables tallying — tests pass null to keep existing assertions.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="onFixStarted">Captures affected libraries before a real fixer can move or delete its source.</param>
+    /// <returns>An execution result, or null when the operation was silently skipped.</returns>
+    internal async Task<FixExecutionResult?> ExecuteAsync(
+        PlannedFix plan,
+        bool withinEnabledLibrary,
+        IProgress<double> itemProgress,
+        IDictionary<string, int>? silentSkipTally,
+        CancellationToken cancellationToken,
+        Action<Issue>? onFixStarted = null)
     {
         // FU-4 (2026-09-19) preserved: re-read the CURRENT config per item. The run-start
         // snapshot can drift on a long queue — user disables a fixer / unticks a library / turns
@@ -98,19 +125,33 @@ public sealed class FixExecutor
 
         // Primary consent recheck. The queue snapshot is minutes to hours old on big libraries.
         var primary = plan.Primary;
-        var currentStatus = _issues.GetIssueStatus(primary.Id);
+        var current = _issues.GetIssue(primary.Id);
+        var currentStatus = current?.Status;
         if (currentStatus != IssueStatus.Queued)
         {
             _logger.LogInformation(
                 "Skipping {Path}: status changed to {Status} since queue snapshot.",
                 primary.Path,
                 currentStatus?.ToString() ?? "gone");
+            TallySilentSkip(silentSkipTally, "status changed between approval and run");
+            return null;
+        }
+
+        if (current!.RequiresRescan)
+        {
+            TallySilentSkip(silentSkipTally, "finding requires a fresh scan after a move");
+            return null;
+        }
+
+        if (current.IsReportOnly || plan.Companions.Any(companion => _issues.GetIssue(companion.Id)?.IsReportOnly == true))
+        {
+            TallySilentSkip(silentSkipTally, "this finding has no available repair");
             return null;
         }
 
         // Policy recheck against the CURRENT snapshot. 02-B: same evaluator as the run-start
         // filter, so refusal reasons stay consistent (TypeDisabled vs LibraryDisabled vs
-        // TypeDetectOnly are distinguishable in the operator log).
+        // ManualApprovalRequired are distinguishable in the operator log).
         var recheck = FixPolicyEvaluator.Evaluate(
             currentConfig,
             primary.Type,
@@ -125,6 +166,7 @@ public sealed class FixExecutor
                 "Skipping {Path}: policy re-check refused with {Reason} (was runnable at run-start snapshot).",
                 primary.Path,
                 recheck.Reason);
+            TallySilentSkip(silentSkipTally, "settings changed mid-run (" + recheck.Reason + ")");
             return null;
         }
 
@@ -137,14 +179,24 @@ public sealed class FixExecutor
                 "Skipping {Path}: protected against {Type} fixer.",
                 primary.Path,
                 primary.Type);
+            TallySilentSkip(silentSkipTally, "protected from modification");
             return null;
         }
 
         // Fixer dispatch — silent skip when nothing handles the type (matches pre-refactor
         // "if (fixer is null) continue").
+        if (_moves is not null && (_moves.HasActiveConflict(primary.Path) || _moves.HasActiveItemConflict(primary.ItemId)))
+        {
+            return new FixExecutionResult(
+                FixResult.Refused(FixReason.MoveNeedsReview, "This item or path is reserved by an unfinished move. Review the recorded move before running another fix on its files."),
+                primary.Id,
+                []);
+        }
+
         var fixer = _fixers.FirstOrDefault(f => f.CanFix(primary.Type));
         if (fixer is null)
         {
+            TallySilentSkip(silentSkipTally, "no fixer registered for this issue type");
             return null;
         }
 
@@ -178,10 +230,31 @@ public sealed class FixExecutor
 
         // Dispatch. Exception translation lives in DispatchAsync — one place per catch shape so
         // the message wording stays consistent with the pre-refactor Diagnostics.Record entries.
-        var result = await DispatchAsync(fixer, primary, partner, isCombinedPair, itemProgress, cancellationToken).ConfigureAwait(false);
+        if (!currentConfig.DryRun)
+        {
+            onFixStarted?.Invoke(primary);
+        }
 
-        var resolvedIds = ComputeResolvedIds(plan, result, currentConfig, isCombinedPair, partner);
-        return new FixExecutionResult(result, primary.Id, resolvedIds);
+        using var diagnostics = RunDiagnostics.Start(_logger, "fix", fixer.GetType().Name);
+        var outcome = "Failed";
+        int? resolvedCount = null;
+        try
+        {
+            var result = await DispatchAsync(fixer, primary, partner, isCombinedPair, diagnostics?.Observe(itemProgress) ?? itemProgress, cancellationToken).ConfigureAwait(false);
+            var resolvedIds = ComputeResolvedIds(plan, result, currentConfig, isCombinedPair, partner);
+            outcome = result.WasDryRun ? "Preview" : result.Outcome != FixOutcome.Unspecified ? result.Outcome.ToString() : result.Success ? "Applied" : "Failed";
+            resolvedCount = result.Success && !result.WasDryRun ? resolvedIds.Length : 0;
+            return new FixExecutionResult(result, primary.Id, resolvedIds);
+        }
+        catch (OperationCanceledException)
+        {
+            outcome = "Cancelled";
+            throw;
+        }
+        finally
+        {
+            diagnostics?.Finish(outcome, null, null, isCombinedPair ? 2 : 1, resolvedCount);
+        }
     }
 
     private async Task<FixResult> DispatchAsync(
@@ -225,7 +298,7 @@ public sealed class FixExecutor
         catch (FileNotFoundException ex)
         {
             _logger.LogInformation(ex, "File missing at fix time: {Path}", primary.Path);
-            Api.Diagnostics.Record("FixTask.FileMissing", primary.Path + ": " + ex.Message);
+            Api.Diagnostics.Record("FixTask.FileMissing", "Fix skipped: '" + primary.Path + "' no longer exists. It was moved or deleted after the scan; run a scan to refresh the Issues list. Details: " + ex.Message);
             return FixResult.Fail(
                 FixReason.SourceMissing,
                 "Fix skipped — the file went missing between scan and fix. Re-scan to refresh.",
@@ -234,7 +307,7 @@ public sealed class FixExecutor
         catch (DirectoryNotFoundException ex)
         {
             _logger.LogInformation(ex, "Directory missing at fix time: {Path}", primary.Path);
-            Api.Diagnostics.Record("FixTask.FileMissing", primary.Path + ": " + ex.Message);
+            Api.Diagnostics.Record("FixTask.FileMissing", "Fix skipped: the folder holding '" + primary.Path + "' no longer exists. It was moved or deleted after the scan; run a scan to refresh the Issues list. Details: " + ex.Message);
             return FixResult.Fail(
                 FixReason.SourceMissing,
                 "Fix skipped — the containing folder went missing between scan and fix. Re-scan to refresh.",
@@ -243,7 +316,7 @@ public sealed class FixExecutor
         catch (IOException ex) when (IsSharingViolation(ex))
         {
             _logger.LogWarning(ex, "File held open after retries: {Path}", primary.Path);
-            Api.Diagnostics.Record("FixTask.FileLocked", primary.Path + ": still held open after 3 retries (~7.5s). " + ex.Message);
+            Api.Diagnostics.Record("FixTask.FileLocked", "Fix skipped: '" + primary.Path + "' is open in another program (still in use after 3 tries over about 8 seconds). Close whatever is using it, such as a playing stream or a download client; the fix will run again next time. Details: " + ex.Message);
             return FixResult.Fail(
                 FixReason.FileLocked,
                 "Fix failed — file was locked by another process even after retrying. " + ex.Message,
@@ -252,7 +325,7 @@ public sealed class FixExecutor
         catch (IOException ex) when (IsDiskFull(ex))
         {
             _logger.LogWarning(ex, "Disk full while fixing {Path}", primary.Path);
-            Api.Diagnostics.Record("FixTask.DiskFull", primary.Path + ": " + ex.Message);
+            Api.Diagnostics.Record("FixTask.DiskFull", "Fix stopped: the drive ran out of space while fixing '" + primary.Path + "'. Free some space and the fix will run again next time. Details: " + ex.Message);
             return FixResult.Fail(
                 FixReason.InsufficientSpace,
                 "Fix failed — the drive ran out of space mid-fix. Free some space and it'll retry on the next run.",
@@ -261,7 +334,7 @@ public sealed class FixExecutor
         catch (IOException ex)
         {
             _logger.LogWarning(ex, "I/O error fixing {Path}", primary.Path);
-            Api.Diagnostics.Record("FixTask.IOError", primary.Path + ": " + ex.Message);
+            Api.Diagnostics.Record("FixTask.IOError", "Fix failed for '" + primary.Path + "' because of a disk or network error. Check that the drive or share is connected and healthy; the fix will run again next time. Details: " + ex.Message);
             return FixResult.Fail(
                 FixReason.Unknown,
                 "Fix failed — " + ex.Message,
@@ -270,7 +343,7 @@ public sealed class FixExecutor
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unexpected error fixing {Path}", primary.Path);
-            Api.Diagnostics.Record("FixTask", primary.Path + ": " + ex.Message);
+            Api.Diagnostics.Record("FixTask", "Fix failed for '" + primary.Path + "' because of an unexpected error. It will run again next time; if it keeps failing, please report it on GitHub with the Jellyfin log. Details: " + ex.GetType().Name + ": " + ex.Message);
             return FixResult.Fail(
                 FixReason.Unknown,
                 "Fix failed — unexpected error: " + ex.Message,
@@ -300,7 +373,7 @@ public sealed class FixExecutor
         }
     }
 
-    private static long[] ComputeResolvedIds(
+    private long[] ComputeResolvedIds(
         PlannedFix plan,
         FixResult result,
         PluginConfiguration currentConfig,
@@ -316,7 +389,7 @@ public sealed class FixExecutor
 
             if (plan.Kind == PlannedFixKind.TranscodeWithTracks)
             {
-                return new[] { plan.Primary.Id }.Concat(plan.Companions.Select(c => c.Id)).ToArray();
+                return new[] { plan.Primary.Id }.Concat(plan.Companions.Where(c => _issues.GetIssueStatus(c.Id) == IssueStatus.Queued).Select(c => c.Id)).ToArray();
             }
 
             return new[] { plan.Primary.Id };
@@ -332,6 +405,17 @@ public sealed class FixExecutor
         }
 
         return Array.Empty<long>();
+    }
+
+    private static void TallySilentSkip(IDictionary<string, int>? tally, string reason)
+    {
+        if (tally is null)
+        {
+            return;
+        }
+
+        tally.TryGetValue(reason, out var count);
+        tally[reason] = count + 1;
     }
 
     // Windows sharing/lock violations (HRESULTs 0x80070020, 0x80070021) show up when Jellyfin's

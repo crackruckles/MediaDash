@@ -1,0 +1,167 @@
+{
+  "sourceDigest": "5bb602fa9950197fa215d8e5b21b8d52a22399c07dbf0f6c3c200d8cca4a2d95",
+  "dllSha256": "f225958b511271b532254ed3c9f04afe8e525d4610614f3020bec6806eac4e80",
+  "caseId": "issue-43",
+  "mandatoryScenarioComplete": false,
+  "verifiedFamilies": {
+    "v10": {
+      "EPUB": {
+        "type": "Book",
+        "originalHashes": {
+          "metadata.opf": "c5a44bd5fc0a62b086b1c90acfcb081a7766f908d11ed9e2e280289f1011bd03",
+          "notes.txt": "d269c65de70c43abe0cc0370d0ffd877a58db46083b57094664883a45a4c5ab1",
+          "Owned Book.epub": "b0758715bbcc0a70d3d31a881401457ced96f70bb598aa9948c4cb1bdc520ad2"
+        },
+        "historyIds": [
+          1
+        ],
+        "restartUndoVerified": true
+      },
+      "Comic": {
+        "type": "Book",
+        "originalHashes": {
+          "ComicInfo.xml": "b9819d1352e2c8d210feebdff7f8f12204a3fefab37e404301acf70a77b6f78c",
+          "notes.txt": "d269c65de70c43abe0cc0370d0ffd877a58db46083b57094664883a45a4c5ab1",
+          "Owned Comic.cbz": "e4df1c9157124e826635448a150dc7051d5d7730067cd3ecf077b719565cc700"
+        },
+        "historyIds": [
+          3
+        ],
+        "restartUndoVerified": true
+      },
+      "Audiobook": {
+        "type": "AudioBook",
+        "originalHashes": {
+          "chapters.txt": "efcc2feab981d40bdcc8a9087cf3ab056c75099715931534bc784054cf13762e",
+          "notes.txt": "d269c65de70c43abe0cc0370d0ffd877a58db46083b57094664883a45a4c5ab1",
+          "Owned Book.m4b": "b64c5a17f2faf928bcad8472480fb9c8f6d58a55ad9113de4af933c944b9c1cf"
+        },
+        "historyIds": [
+          5
+        ],
+        "restartUndoVerified": true
+      },
+      "Photo": {
+        "type": "Photo",
+        "originalHashes": {
+          "Holiday.jpg": "4bd310b5e7cb33bb674f9136163ec570a95ebdb3aeccf596506ec6aed9914c41",
+          "Holiday.xmp": "732bcd6e8130b49eca0dcffe9559eafc78332f46258c242c9f09948b5a66664a",
+          "notes.txt": "1605e2f2d28f6d5ff78fb7f74dbb807c969463f3d20f55fd0f5d04924b52de76"
+        },
+        "historyIds": [
+          1
+        ],
+        "restartUndoVerified": true
+      }
+    },
+    "v12": {
+      "EPUB": {
+        "type": "Book",
+        "originalHashes": {
+          "metadata.opf": "c5a44bd5fc0a62b086b1c90acfcb081a7766f908d11ed9e2e280289f1011bd03",
+          "notes.txt": "d269c65de70c43abe0cc0370d0ffd877a58db46083b57094664883a45a4c5ab1",
+          "Owned Book.epub": "bf949b29668e3e8b478be1c7cecbc3d616c6806dbf8cf3cece0b2800bafd0d5c"
+        },
+        "historyIds": [
+          1
+        ],
+        "restartUndoVerified": true
+      },
+      "Comic": {
+        "type": "Book",
+        "originalHashes": {
+          "ComicInfo.xml": "b9819d1352e2c8d210feebdff7f8f12204a3fefab37e404301acf70a77b6f78c",
+          "notes.txt": "d269c65de70c43abe0cc0370d0ffd877a58db46083b57094664883a45a4c5ab1",
+          "Owned Comic.cbz": "14b7691bfd454a0dc94718808dd26a2134266dec0dedaf317b332e4558dd6563"
+        },
+        "historyIds": [
+          3
+        ],
+        "restartUndoVerified": true
+      },
+      "Audiobook": {
+        "type": "AudioBook",
+        "originalHashes": {
+          "chapters.txt": "efcc2feab981d40bdcc8a9087cf3ab056c75099715931534bc784054cf13762e",
+          "notes.txt": "d269c65de70c43abe0cc0370d0ffd877a58db46083b57094664883a45a4c5ab1",
+          "Owned Book.m4b": "70ede92cc031f5be66239fcf7d7110387b0d4d3f6849aeb4f6243b244dd9ab09"
+        },
+        "historyIds": [
+          5
+        ],
+        "restartUndoVerified": true
+      },
+      "Photo": {
+        "type": "Photo",
+        "originalHashes": {
+          "Holiday.jpg": "de027d463efbac220198a24d3eb4d434f1be3e1b17c095fa8da853fd8af99cba",
+          "Holiday.xmp": "732bcd6e8130b49eca0dcffe9559eafc78332f46258c242c9f09948b5a66664a",
+          "notes.txt": "1605e2f2d28f6d5ff78fb7f74dbb807c969463f3d20f55fd0f5d04924b52de76"
+        },
+        "historyIds": [
+          1
+        ],
+        "restartUndoVerified": true
+      }
+    }
+  },
+  "remaining": [
+    "Complete disc and STRM family acceptance",
+    "Remaining concurrent-writer, native cross-volume playback/Undo, platform metadata and remote interruption coverage"
+  ],
+  "evidence": [
+    {
+      "path": "artifacts/push-preparation-20261105-mover-families-final/v10/final-evidence/EPUB-verified.json",
+      "sha256": "eeef7c1ccf3b7b365f82d1dba980f12208393846a0f290154a1c825ea0f55bff"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-mover-families-final/v10/final-evidence/Comic-verified.json",
+      "sha256": "bd055dc160e1e8300a66d76b6b407cc3425035dc9e83e8769524cd51bc11197b"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-mover-families-final/v10/final-evidence/Audiobook-verified.json",
+      "sha256": "1572143bbf71eb4f7b07224f9aefb51a2923d27ba4fd58e612239bd8b1bf97e8"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-photo-proof/v10/final-evidence/Photo-verified.json",
+      "sha256": "56aca3e364d265dc12079daec4edbbea3df55216fe2dcb183598692270b215ff"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-mover-families-final/v12/final-evidence/EPUB-verified.json",
+      "sha256": "965291ac92643df2be51c9624d9d95e09b58aa8f20de1bdaadd759d1bfacc241"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-mover-families-final/v12/final-evidence/Comic-verified.json",
+      "sha256": "cbc2cdc6ef82e360e5221a80e9af60b5447c97366e1deb9cfc619abd79320680"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-mover-families-final/v12/final-evidence/Audiobook-verified.json",
+      "sha256": "41258c55131365708a518d8510d9923a036359160483b165f390b3e6caf74c76"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-photo-proof/v12/final-evidence/Photo-verified.json",
+      "sha256": "0d726e37e873ff0272d63a71f4cd157f656bff3516a9ddaf99ef3f4ef6604614"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-native-target-extra.log",
+      "sha256": "119a8d16c2b8ead7b136c8758cc5a7e00e0545c88577bcb906d409d81472c1a7"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-native-target-extra-recover.log",
+      "sha256": "9acb8c01147fbb811c42ebf66102583b38bb7a89748e2f9548de28b47a71e4f0"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-native-target-extra-v12.log",
+      "sha256": "10f873eed31761ec16dbe2a9c4ea61aabc992c249153f58f4b5374276e5d35d4"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-native-target-linux-external.log",
+      "sha256": "a5dd1c730097a1c02a365b88d58de7615242a1dd5ab6b7d8084d0d28a5c926d2"
+    }
+  ],
+  "limitations": [
+    "The initial photos-type PNG fixture was not indexed by either native host and did not count as acceptance. A separate 640x480 JPEG in a homevideos library with EnablePhotos passed both hosts.",
+    "The v10 album extension hit stale harness bookkeeping after an earlier bulk-fixture trim. A separate cleanup recovery passed; its failed attempt is retained.",
+    "Linux filesystem/crash controls execute the production move service with a controlled catalog fixture; they are not full native Jellyfin cross-volume playback acceptance."
+  ]
+}

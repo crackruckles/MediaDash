@@ -48,4 +48,52 @@ public class ScanTaskProbeTests
         var reached = await ScanTask.ProbeReachableAsync(Path.GetTempPath(), TimeSpan.Zero, CancellationToken.None);
         Assert.False(reached);
     }
+
+    [Fact]
+    public async Task RepeatedUnavailableRootChecksShareOneBlockedNativeProbe()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "md-blocked-root-" + Guid.NewGuid().ToString("N"));
+        var blocked = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        Task<bool> Stat(string _) { Interlocked.Increment(ref calls); return blocked.Task; }
+        try
+        {
+            Assert.False(await ScanTask.ProbeAvailableAsync(root, TimeSpan.FromMilliseconds(20), CancellationToken.None, Stat));
+            Assert.False(await ScanTask.ProbeAvailableAsync(root, TimeSpan.FromMilliseconds(20), CancellationToken.None, Stat));
+            Assert.Equal(1, calls);
+            blocked.SetResult(true);
+            Assert.True(await ScanTask.ProbeAvailableAsync(root, TimeSpan.FromSeconds(1), CancellationToken.None, _ =>
+            {
+                Interlocked.Increment(ref calls);
+                return Task.FromResult(true);
+            }));
+            Assert.Equal(2, calls);
+        }
+        finally
+        {
+            blocked.TrySetResult(false);
+        }
+    }
+
+    [Fact]
+    public async Task CancellingARootWaitDoesNotStartAnotherNativeProbeOnTheNextScan()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "md-cancelled-root-" + Guid.NewGuid().ToString("N"));
+        var blocked = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        using var cancellation = new CancellationTokenSource();
+        Task<bool> Stat(string _) { Interlocked.Increment(ref calls); return blocked.Task; }
+        try
+        {
+            var first = ScanTask.ProbeAvailableAsync(root, TimeSpan.FromSeconds(1), cancellation.Token, Stat);
+            cancellation.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+            Assert.False(await ScanTask.ProbeAvailableAsync(root, TimeSpan.FromMilliseconds(20), CancellationToken.None, Stat));
+            Assert.Equal(1, calls);
+        }
+        finally
+        {
+            blocked.TrySetResult(false);
+        }
+    }
 }

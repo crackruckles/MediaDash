@@ -37,6 +37,7 @@ public sealed class FormatCompatibilityScanner : IScanner
     private readonly IPluginConfigurationProvider _configProvider;
     private readonly ILogger<FormatCompatibilityScanner> _logger;
     private readonly ProtectionService? _protection;
+    private readonly Func<VirtualFolderInfo, string?> _getFolderId;
 
     /// <summary>Initializes a new instance of the <see cref="FormatCompatibilityScanner"/> class.</summary>
     /// <param name="registry">Converter registry.</param>
@@ -52,7 +53,14 @@ public sealed class FormatCompatibilityScanner : IScanner
         IPluginConfigurationProvider configProvider,
         ILogger<FormatCompatibilityScanner> logger,
         ProtectionService? protection = null)
-        : this(registry, resolver, libraryManager.GetVirtualFolders, configProvider, logger, protection)
+        : this(
+            registry,
+            resolver,
+            libraryManager.GetVirtualFolders,
+            configProvider,
+            logger,
+            protection,
+            folder => !string.IsNullOrEmpty(folder.ItemId) ? folder.ItemId : VirtualFolderIdentity.GetId(folder, VirtualFolderIdentity.BuildIdLookup(libraryManager)))
     {
     }
 
@@ -63,7 +71,8 @@ public sealed class FormatCompatibilityScanner : IScanner
         Func<IEnumerable<VirtualFolderInfo>> getFolders,
         IPluginConfigurationProvider configProvider,
         ILogger<FormatCompatibilityScanner> logger,
-        ProtectionService? protection = null)
+        ProtectionService? protection = null,
+        Func<VirtualFolderInfo, string?>? getFolderId = null)
     {
         _registry = registry;
         _resolver = resolver;
@@ -71,6 +80,7 @@ public sealed class FormatCompatibilityScanner : IScanner
         _configProvider = configProvider;
         _logger = logger;
         _protection = protection;
+        _getFolderId = getFolderId ?? (folder => VirtualFolderIdentity.GetId(folder));
     }
 
     /// <inheritdoc />
@@ -183,7 +193,7 @@ public sealed class FormatCompatibilityScanner : IScanner
         foreach (var folder in _getFolders())
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (hasEnabledFilter && !enabledSet!.Contains(folder.ItemId))
+            if (hasEnabledFilter && !enabledSet!.Contains(_getFolderId(folder) ?? string.Empty))
             {
                 continue;
             }
@@ -317,7 +327,7 @@ public sealed class FormatCompatibilityScanner : IScanner
         foreach (var folder in _getFolders())
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (hasEnabledFilter && !enabledSet!.Contains(folder.ItemId))
+            if (hasEnabledFilter && !enabledSet!.Contains(_getFolderId(folder) ?? string.Empty))
             {
                 continue;
             }

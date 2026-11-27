@@ -259,6 +259,25 @@
 #MediaDashConfigPage #mdTab-settings a.emby-button { min-height: 40px; }
 #MediaDashConfigPage #mdTab-settings .mdControl--slider { height: 6px !important; }
 
+/* Maintenance section buttons + "Report an issue" linkbutton. Same fix as the Overview banner
+   CTAs: raw .raised emby-button inherits dashboard-theme defaults that render as muted
+   near-invisible chips on the Light theme. Force token-based fill + ink so each primary action
+   reads as a real button in both themes. #mdResetScan is excluded — it carries an inline
+   destructive-red fill. */
+#MediaDashConfigPage #mdSet-maintenance button.raised:not(#mdResetScan),
+#MediaDashConfigPage #mdSet-maintenance a[is="emby-linkbutton"].raised {
+    background: var(--md-neutral) !important;
+    color: var(--md-ink) !important;
+    border: 1px solid var(--md-border-card) !important;
+}
+#MediaDashConfigPage #mdSet-maintenance button.raised:not(#mdResetScan):not(:disabled):hover,
+#MediaDashConfigPage #mdSet-maintenance a[is="emby-linkbutton"].raised:hover {
+    background: var(--md-neutral-hover) !important;
+}
+#MediaDashConfigPage #mdSet-maintenance button.raised:disabled {
+    opacity: .55;
+}
+
 /* Playability "Thorough" row: main + hint stack vertically. */
 #MediaDashConfigPage .mdInsetRow--stack {
     display: flex; flex-direction: column;
@@ -501,6 +520,13 @@
     accent-color: var(--md-accent, var(--md-primary));
     cursor: pointer; margin: 0;
 }
+#MediaDashConfigPage #mdSet-task-FormatCompatibility .mdInsetRow {
+    display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: start; gap: 6px 12px;
+}
+#MediaDashConfigPage #mdSet-task-FormatCompatibility .mdInsetRow > span {
+    min-width: 0; overflow-wrap: anywhere;
+}
+#MediaDashConfigPage #mdSet-task-FormatCompatibility .mdInsetRow > .mdFieldHint { grid-column: 2; }
 #MediaDashConfigPage .mdInfoStrip {
     display: flex; align-items: center; gap: 10px;
     padding: 12px 14px; border-radius: 10px;
@@ -761,4 +787,11 @@
 #MediaDashConfigPage .mdProtOrphanBannerBody { flex: 1; min-width: 16em; }
 #MediaDashConfigPage .mdProtOrphanBannerTitle {
     font-weight: 700; color: #f59e0b;
+}
+/* Light-mode: amber-on-amber-tint washes out. Same darker-amber pair the
+   .mdWarnStrip override above uses. */
+@media (prefers-color-scheme: light) {
+    #MediaDashConfigPage .mdProtOrphanBanner { background: rgba(180,83,9,.1); border-color: #b45309; }
+    #MediaDashConfigPage .mdProtOrphanBannerIcon,
+    #MediaDashConfigPage .mdProtOrphanBannerTitle { color: #92400e; }
 }

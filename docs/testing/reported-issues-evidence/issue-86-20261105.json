@@ -1,0 +1,65 @@
+{
+  "caseId": "issue-86",
+  "sourceDigest": "4045428334a7552f9d9afb435efff70ce81e5fe20308911afce7746a1e2c7e5e",
+  "dllSha256": "1b1eaaac59e05928c63f857653d0ed2cd9261c4f7a7ae00f0b7fd321bf071688",
+  "environment": "Windows interactive account, isolated loopback Jellyfin 10.11.11 and 12.0.0, owned generated media",
+  "checks": [
+    {
+      "name": "metadata observation and queued approval survive actual host restart",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "all metadata waits for a later host scan",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "selected protected child prevents metadata disposal",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "all metadata restoration recovers exact original bytes",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "selected metadata restoration recovers exact original bytes",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "custom-all metadata restoration recovers exact original bytes",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "custom-selected metadata restoration recovers exact original bytes",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "same-size metadata edit with retained timestamp refuses disposal",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "actual metadata recycle failure preserves bytes and approval",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "server configuration restored after custom metadata acceptance",
+      "passed": true,
+      "skipped": false
+    }
+  ],
+  "evidence": [
+    "artifacts/push-preparation-20261105-final-live.log",
+    "artifacts/push-preparation-20261105-final-windows-gate/reported-issues.trx"
+  ],
+  "limitations": [
+    "Controlled default and custom roots. Regression suite covers returning owners, path escapes and protected content."
+  ]
+}

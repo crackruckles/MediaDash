@@ -319,6 +319,56 @@ public sealed class OrphanCleanupScannerTests
         Assert.Empty(issues);
     }
 
+    // Production report 2026-11-21: release folders whose movie had moved to "Title (Year)/" kept a
+    // movie.nfo, Jellyfin artwork and tracker .txt files. Artwork counted as pictures and .txt as a
+    // book, so the folders were never reported. In Movies/Shows libraries they are metadata.
+    [Fact]
+    public void DetectEmptyFolders_VideoLibrary_MetadataOnlyReleaseFolderIsFlagged()
+    {
+        using var scratch = new Scratch();
+        var leftover = scratch.Sub("Toy Story 5 (2026) [1080p] [BluRay] [5.1] [YTS.BZ]");
+        Directory.CreateDirectory(leftover);
+        foreach (var name in new[] { "movie.nfo", "folder.jpg", "backdrop.jpg", "landscape.jpg", "logo.png", "YTSProxies.com.txt" })
+            File.WriteAllText(Path.Combine(leftover, name), string.Empty);
+        var episodeArt = scratch.Sub("Show (2020)");
+        Directory.CreateDirectory(Path.Combine(episodeArt, "Old.Release.S01E01-GRP"));
+        File.WriteAllText(Path.Combine(episodeArt, "Old.Release.S01E01-GRP", "Old.Release.S01E01-GRP-thumb.jpg"), string.Empty);
+        Directory.CreateDirectory(Path.Combine(episodeArt, "Season 01"));
+        File.WriteAllText(Path.Combine(episodeArt, "Season 01", "Show S01E01.mkv"), string.Empty);
+        File.WriteAllText(Path.Combine(episodeArt, "poster.jpg"), string.Empty);
+
+        var roots = new HashSet<string> { scratch.Root };
+        var issues = new List<Issue>();
+        OrphanCleanupScanner.DetectEmptyFolders(new[] { scratch.Root }, issues, CancellationToken.None, videoLibraryRoots: roots);
+
+        Assert.Equal(2, issues.Count);
+        Assert.Contains(issues, issue => issue.Path == leftover);
+        Assert.Contains(issues, issue => issue.Path == Path.Combine(episodeArt, "Old.Release.S01E01-GRP"));
+        Assert.All(issues, issue => Assert.True(Jellyfin.Plugin.MediaDash.Fixers.OrphanCleanupFixer.ReadVideoLibrary(issue.DetailsJson)));
+
+        // Outside a Movies/Shows library the same folder still counts as pictures and books.
+        var other = new List<Issue>();
+        OrphanCleanupScanner.DetectEmptyFolders(new[] { scratch.Root }, other, CancellationToken.None);
+        Assert.Empty(other);
+    }
+
+    [Fact]
+    public void DetectEmptyFolders_VideoLibrary_KeepsFoldersWithMediaOrNonArtworkPictures()
+    {
+        using var scratch = new Scratch();
+        Directory.CreateDirectory(scratch.Sub("Film (2020)"));
+        File.WriteAllText(Path.Combine(scratch.Sub("Film (2020)"), "Film (2020).mkv"), string.Empty);
+        File.WriteAllText(Path.Combine(scratch.Sub("Film (2020)"), "folder.jpg"), string.Empty);
+        Directory.CreateDirectory(scratch.Sub("Behind the camera"));
+        File.WriteAllText(Path.Combine(scratch.Sub("Behind the camera"), "IMG_0001.jpg"), string.Empty);
+
+        var issues = new List<Issue>();
+        OrphanCleanupScanner.DetectEmptyFolders(new[] { scratch.Root }, issues, CancellationToken.None, videoLibraryRoots: new HashSet<string> { scratch.Root });
+
+        Assert.Empty(issues);
+        Assert.False(Jellyfin.Plugin.MediaDash.Fixers.OrphanCleanupFixer.ReadVideoLibrary("{\"kind\":\"EmptyFolder\"}"));
+    }
+
     [Fact]
     public void DetectEmptyFolders_TopmostVideoFreeIsPickedNotNestedLeaves()
     {

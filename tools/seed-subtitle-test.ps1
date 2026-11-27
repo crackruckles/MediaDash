@@ -4,12 +4,17 @@
 param(
     [string]$LibraryDir = 'C:\Users\crackruckles\Downloads\jellyfin_12-amd64\jellyfin\New folder',
     [string]$Ffmpeg    = 'C:\Users\crackruckles\Downloads\jellyfin_12-amd64\jellyfin\ffmpeg.exe',
-    [string]$JellyfinUrl = 'http://localhost:8096',
+    [string]$JellyfinUrl = 'http://localhost:8099',
     [string]$User      = 'test',
-    [string]$Pass      = 'test'
+    [string]$Pass      = 'test',
+    [switch]$ConfirmLive
 )
 
 $ErrorActionPreference = 'Stop'
+. "$PSScriptRoot/comprehensive-test/lib/framework.ps1"
+if (-not $ConfirmLive) { throw 'Seeding modifies a live fixture library; specify -ConfirmLive and an explicit -LibraryDir.' }
+if (-not $PSBoundParameters.ContainsKey('LibraryDir')) { throw 'Supply an owned fixture library using -LibraryDir.' }
+Assert-SafeLiveTarget -Url $JellyfinUrl
 
 if (-not (Test-Path $LibraryDir)) { New-Item -ItemType Directory -Path $LibraryDir -Force | Out-Null }
 
@@ -17,6 +22,9 @@ $videoBase = 'MediaDash Font Test'
 $videoPath = Join-Path $LibraryDir "$videoBase.mp4"
 $assMulti  = Join-Path $LibraryDir "$videoBase.en.ass"
 $assSimple = Join-Path $LibraryDir "$videoBase.jp.ass"
+foreach ($ownedPath in @($videoPath,$assMulti,$assSimple)) {
+    if (Test-Path -LiteralPath $ownedPath) { throw "Refusing to overwrite an existing fixture: $ownedPath" }
+}
 
 # --- 1. Video: 5 seconds of colour bars + 440Hz tone. Tiny, portable, always renders.
 # ffmpeg writes progress/log to stderr; in PS 5.1 with $ErrorActionPreference=Stop that trips
@@ -121,22 +129,22 @@ $authHeaders = @{
 }
 $authBody = @{ Username = $User; Pw = $Pass } | ConvertTo-Json
 $auth = Invoke-RestMethod -Method POST -Uri "$JellyfinUrl/Users/AuthenticateByName" `
-                          -Headers $authHeaders -Body $authBody
+                          -Headers $authHeaders -Body $authBody -MaximumRedirection 0 -TimeoutSec 30
 $token = $auth.AccessToken
-"    got token, ends in $($token.Substring($token.Length - 6))"
+Write-Host '    authenticated'
 
 $authHeaders['Authorization'] = $authHeaders['Authorization'] + ", Token=$token"
 
 # --- 4. Force library refresh so Jellyfin picks up the new video
 Write-Host '4) Triggering library refresh...'
-Invoke-RestMethod -Method POST -Uri "$JellyfinUrl/Library/Refresh" -Headers $authHeaders | Out-Null
+Invoke-RestMethod -Method POST -Uri "$JellyfinUrl/Library/Refresh" -Headers $authHeaders -MaximumRedirection 0 -TimeoutSec 30 | Out-Null
 
 # Poll for a couple seconds — the video is 5 seconds long, refresh over 3 files should be instant.
 Write-Host '5) Waiting for Jellyfin to see the new video...'
 $found = $false
 for ($i = 0; $i -lt 20; $i++) {
     Start-Sleep -Seconds 1
-    $items = Invoke-RestMethod -Method GET -Uri "$JellyfinUrl/Items?SearchTerm=MediaDash&Recursive=true&IncludeItemTypes=Movie,Video" -Headers $authHeaders
+    $items = Invoke-RestMethod -Method GET -Uri "$JellyfinUrl/Items?SearchTerm=MediaDash&Recursive=true&IncludeItemTypes=Movie,Video" -Headers $authHeaders -MaximumRedirection 0 -TimeoutSec 30
     if ($items.Items -and ($items.Items | Where-Object { $_.Name -like 'MediaDash Font Test*' })) {
         $found = $true; "    found after ~$($i+1)s"; break
     }
@@ -145,12 +153,12 @@ if (-not $found) { Write-Warning 'Video not visible via API yet; MediaDash scan 
 
 # --- 6. Kick MediaDash scan directly (bypasses idle check)
 Write-Host '6) Triggering MediaDash scan...'
-Invoke-RestMethod -Method POST -Uri "$JellyfinUrl/MediaDash/Scan" -Headers $authHeaders | Out-Null
+Invoke-RestMethod -Method POST -Uri "$JellyfinUrl/MediaDash/Scan" -Headers $authHeaders -MaximumRedirection 0 -TimeoutSec 30 | Out-Null
 Start-Sleep -Seconds 4
 
 # --- 7. Report what MediaDash sees
 Write-Host '7) SubtitleFonts issues after scan:'
-$issues = Invoke-RestMethod -Method GET -Uri "$JellyfinUrl/MediaDash/Issues" -Headers $authHeaders
+$issues = Invoke-RestMethod -Method GET -Uri "$JellyfinUrl/MediaDash/Issues" -Headers $authHeaders -MaximumRedirection 0 -TimeoutSec 30
 $sub = $issues | Where-Object { $_.Type -eq 'SubtitleFonts' }
 if ($sub) {
     $sub | Select-Object Type,Path,SizeSavings,SuggestedFix | Format-List

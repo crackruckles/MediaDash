@@ -1,0 +1,25 @@
+{
+  "caseId": "reddit-disappearing",
+  "sourceDigest": "18cccce8ee54105a3c80edb05e03e1a84971113da6a3775da8716bf3be1b96c8",
+  "environment": "Owned Windows Jellyfin 12.0.0 instance with exact issue-ID and path attribution. MediaDash DLL SHA-256 58693ddcbec0b98b7653e1b696fedfc4714c306a324644f40f0e6465de45339d.",
+  "checks": [
+    {
+      "name": "exact preview and refusal",
+      "passed": true,
+      "skipped": false,
+      "observed": "Late companion collision retained every source and destination hash. Preview and refusal reported zero savings, and the queued issue kept the same ID after rescan."
+    },
+    {
+      "name": "exact no-change",
+      "passed": true,
+      "skipped": false,
+      "observed": "Externally corrected bytes remained unchanged. The same issue reported no action, savings, or recycle entry, and the next scan cleared it."
+    },
+    {
+      "name": "exact failed attempts",
+      "passed": true,
+      "skipped": false,
+      "observed": "Two controlled track failures kept exact queued rows visible, preserved playable originals, and recorded zero savings and no recycle entry. These are synthetic controls, separate from the deferred reporter-specific case."
+    }
+  ]
+}

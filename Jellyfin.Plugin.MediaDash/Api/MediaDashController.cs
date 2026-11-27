@@ -5,7 +5,9 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Plugin.MediaDash.Configuration;
 using Jellyfin.Plugin.MediaDash.Data;
 using Jellyfin.Plugin.MediaDash.Fixers;
 using Jellyfin.Plugin.MediaDash.Scanners;
@@ -49,6 +51,9 @@ public class MediaDashController : ControllerBase
     private readonly RestoreService _restoreService;
     private readonly StatusQueryService _statusQuery;
     private readonly Fixers.ProtectionService _protection;
+    private readonly IEnumerable<IFixer>? _fixers;
+    private readonly MediaMoveService? _moves;
+    private readonly MediaMovePlanner? _planner;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MediaDashController"/> class.
@@ -69,6 +74,9 @@ public class MediaDashController : ControllerBase
     /// <param name="restoreService">05-B: single owner of the restore workflow (owner-tokened claim + FS + DB bookkeeping).</param>
     /// <param name="statusQuery">05-C.7: composes the /Status payload. Owns drive scan, SMART probe, aggregate history reads, recycle-bin contents and library-drive classification.</param>
     /// <param name="protection">Roadmap i-110-protected-media: applied to targeted rescans; also backs the /Protection CRUD endpoints.</param>
+    /// <param name="fixers">Registered handlers used to explain unsupported approvals.</param>
+    /// <param name="moves">Complete move recovery and Undo.</param>
+    /// <param name="planner">Re-plans one move after the user supplies a missing season.</param>
     public MediaDashController(
         MediaDashDb db,
         IssueStore issues,
@@ -85,8 +93,12 @@ public class MediaDashController : ControllerBase
         ScheduledTasks.RunState runState,
         RestoreService restoreService,
         StatusQueryService statusQuery,
-        Fixers.ProtectionService protection)
+        Fixers.ProtectionService protection,
+        IEnumerable<IFixer>? fixers = null,
+        MediaMoveService? moves = null,
+        MediaMovePlanner? planner = null)
     {
+        _planner = planner;
         _db = db;
         _issues = issues;
         _history = history;
@@ -103,6 +115,8 @@ public class MediaDashController : ControllerBase
         _restoreService = restoreService;
         _statusQuery = statusQuery;
         _protection = protection;
+        _fixers = fixers;
+        _moves = moves;
         // 02-A: bridge to Plugin.AttachedRunState so the display-only Plugin.CurrentActivity /
         // ScanScannersDone/Total facades resolve to this same instance. Idempotent — ScanTask
         // and FixTask do the same on their own resolution.
@@ -115,7 +129,29 @@ public class MediaDashController : ControllerBase
     /// <returns>The status.</returns>
     [HttpGet("Status")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public ActionResult<StatusResponse> GetStatus() => _statusQuery.BuildStatus();
+    public ActionResult<StatusResponse> GetStatus()
+    {
+        // Status aggregates ~10 DB queries + drive scan + SMART + system stats. On loaded servers
+        // during a scan this competes with scanner DB writes and the Overview polling loop can
+        // fire a new request before the previous one serializes. Same request-teardown class that
+        // crashed /Issues in #80 — bail out early if the client has already disconnected.
+        HttpContext?.RequestAborted.ThrowIfCancellationRequested();
+        return _statusQuery.BuildStatus();
+    }
+
+    /// <summary>
+    /// Lightweight live-progress payload for Overview polling during an active scan/fix. Does zero
+    /// DB work so it never contends with scanner writes. The Overview tab polls this on fast ticks
+    /// and falls back to full /Status on the slower cold-tick cadence. See <see cref="ProgressSnapshot"/>.
+    /// </summary>
+    /// <returns>The progress snapshot.</returns>
+    [HttpGet("Status/Progress")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<ProgressSnapshot> GetStatusProgress()
+    {
+        HttpContext?.RequestAborted.ThrowIfCancellationRequested();
+        return _statusQuery.BuildProgress();
+    }
 
     /// <summary>
     /// Gets issues, optionally filtered by type and status.
@@ -131,6 +167,14 @@ public class MediaDashController : ControllerBase
         [FromQuery] IssueStatus? status = IssueStatus.Detected,
         [FromQuery] bool openOnly = false)
     {
+        if (!ModelState.IsValid || (type.HasValue && !Enum.IsDefined(type.Value))
+            || (status.HasValue && !Enum.IsDefined(status.Value)))
+        {
+            return BadRequest("Choose a valid issue type and status.");
+        }
+
+        var cancellationToken = HttpContext?.RequestAborted ?? default;
+        cancellationToken.ThrowIfCancellationRequested();
         var rows = openOnly
             ? _issues.GetIssues(type, IssueStatus.Detected).Concat(_issues.GetIssues(type, IssueStatus.Queued)).ToList()
             : _issues.GetIssues(type, status).ToList();
@@ -142,11 +186,26 @@ public class MediaDashController : ControllerBase
         // Per-row last-attempt lookup: one batched query for the whole page, keyed by issue id.
         // Empty on a Detected-only page (nothing's been attempted yet); populated when Queued
         // rows keep failing silently so the UI can render "last attempt: X, Y ago".
-        var lastAttempts = _history.GetLatestAttemptsByIssueIds(rows.Select(r => r.Id).ToList());
+        var lastAttempts = _history.GetLatestAttemptsByIssueIds(rows.Select(r => r.Id).ToList(), cancellationToken);
+        // Open rows that already came back after a fix at the same path. Closed rows never match.
+        var recurrences = rows.Any(r => r.Status is IssueStatus.Detected or IssueStatus.Queued)
+            ? _issues.GetRecurrences(cancellationToken)
+            : new Dictionary<long, IssueRecurrence>();
         var dtos = new List<IssueDto>(rows.Count);
+        var config = Plugin.Instance?.Configuration ?? new PluginConfiguration();
+        var enabledLocations = _libraryGuard?.GetEnabledLibraryLocations(config.EnabledLibraries);
+        var protectionCheck = _protection?.CreateFixerCheck();
+        var typeReasons = rows.Select(issue => issue.Type).Distinct().ToDictionary(type => type, type =>
+            GetFixBlockedReason(config, type) ?? (_fixers is not null && !_fixers.Any(fixer => fixer.CanFix(type))
+                ? "No fixer is available for this issue type on this server." : null));
         foreach (var issue in rows)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var dto = IssueDto.FromIssue(issue);
+            dto.FixBlockedReason = GetFixBlockedReason(config, issue, out var requiresRescan, enabledLocations, typeReasons, protectionCheck);
+            dto.FixRequiresRescan = requiresRescan;
+            dto.CanMoveAnyway = issue.Status == IssueStatus.Detected && IsBlockedOnlyByParkedMove(issue);
+            dto.NeedsSeason = issue.Status == IssueStatus.Detected && IsBlockedOnlyByUnknownSeason(issue);
             if (!restoredByType.TryGetValue(issue.Type, out var restored))
             {
                 restored = _db.GetRestoredPathsBlockingAutoQueue(issue.Type);
@@ -154,6 +213,13 @@ public class MediaDashController : ControllerBase
             }
 
             dto.WasPreviouslyRestored = restored.Contains(issue.Path);
+            if (recurrences.TryGetValue(issue.Id, out var recurrence))
+            {
+                dto.TimesFixedBefore = recurrence.TimesFixed;
+                dto.LastFixedBeforeAtUtc = recurrence.LastFixedAtUtc;
+                dto.LastFixedBeforeMessage = recurrence.LastFixMessage;
+            }
+
             if (lastAttempts.TryGetValue(issue.Id, out var lastAttempt))
             {
                 dto.LastAttemptMessage = lastAttempt.Action;
@@ -174,14 +240,89 @@ public class MediaDashController : ControllerBase
     [HttpPost("Scan")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public ActionResult StartScan()
+        => StartScanCore(null);
+
+    /// <summary>Starts only the ungrouped-media scanner.</summary>
+    /// <returns>No content when the scan is scheduled.</returns>
+    [HttpPost("Scan/Ungrouped")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public ActionResult StartUngroupedScan()
+        => StartScanCore(new HashSet<IssueType> { IssueType.Ungrouped });
+
+    /// <summary>Starts only the scanners for the chosen issue types (Scan now's right-click / long-press picker).</summary>
+    /// <param name="request">The issue type names to scan.</param>
+    /// <returns>No content when the scan is scheduled; bad request when the selection is empty or unknown.</returns>
+    [HttpPost("Scan/Selected")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public ActionResult StartSelectedScan([FromBody] ScanSelectionRequest request)
     {
-        var scanTask = GetScanTask();
-        if (scanTask is not null && scanTask.State == TaskState.Idle)
+        if (!TryParseScanSelection(request?.Types, out var types, out var error))
         {
-            _runState.ArmBypassIdleCheck(ScheduledTasks.RunRole.Scan);
-            _taskManager.Execute(scanTask, new TaskOptions());
+            return BadRequest(new { Error = error });
         }
 
+        return StartScanCore(types);
+    }
+
+    /// <summary>
+    /// Parses a scan-picker selection into scanner issue types. Rejects an empty selection (an
+    /// empty filter would mean "run everything", the opposite of what the user ticked), unknown
+    /// names, and record-only types that no scanner produces.
+    /// </summary>
+    /// <param name="names">The submitted issue type names.</param>
+    /// <param name="types">The parsed types.</param>
+    /// <param name="error">The validation error, when parsing fails.</param>
+    /// <returns>True when at least one valid scanner type was selected.</returns>
+    internal static bool TryParseScanSelection(IEnumerable<string>? names, out HashSet<IssueType> types, out string? error)
+    {
+        types = new HashSet<IssueType>();
+        error = null;
+        foreach (var name in names ?? Array.Empty<string>())
+        {
+            var trimmed = (name ?? string.Empty).Trim();
+            if (trimmed.Length == 0)
+            {
+                continue;
+            }
+
+            if (int.TryParse(trimmed, out _)
+                || !Enum.TryParse<IssueType>(trimmed, true, out var type)
+                || !Enum.IsDefined(type)
+                || type is IssueType.ManualDelete or IssueType.ManualMove)
+            {
+                error = "Unknown scan type '" + trimmed + "'.";
+                return false;
+            }
+
+            types.Add(type);
+        }
+
+        if (types.Count == 0)
+        {
+            error = "Choose at least one scan to run.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private ActionResult StartScanCore(IReadOnlySet<IssueType>? types)
+    {
+        var scanTask = GetScanTask();
+        if (scanTask is null)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, "The scan task is unavailable.");
+        }
+
+        if (scanTask.State != TaskState.Idle)
+        {
+            return Conflict("A scan is already running or cancelling.");
+        }
+
+        _runState.ArmNextScanTypeFilter(types);
+        _runState.ArmBypassIdleCheck(ScheduledTasks.RunRole.Scan);
+        _taskManager.Execute(scanTask, new TaskOptions());
         return NoContent();
     }
 
@@ -197,6 +338,12 @@ public class MediaDashController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<ActionResult<object>> ScanSuspicious()
     {
+        var scanTask = GetScanTask();
+        if (scanTask is not null && scanTask.State != TaskState.Idle)
+        {
+            return Conflict("Wait for the current scan to finish.");
+        }
+
         var scanner = _scanners.OfType<SuspiciousFileScanner>().FirstOrDefault();
         if (scanner is null)
         {
@@ -205,16 +352,118 @@ public class MediaDashController : ControllerBase
 
         var start = DateTime.UtcNow;
         var progress = new Progress<double>();
-        var issues = await scanner.RunScanAsync(progress, HttpContext.RequestAborted).ConfigureAwait(false);
+        var completedRoots = new List<string>();
+        var issues = await scanner.RunScanAsync(progress, HttpContext.RequestAborted, completedRoots).ConfigureAwait(false);
         // Roadmap i-110-protected-media: apply protection to targeted rescans too.
         issues = _protection.FilterEmittable(issues, scanner.Type);
-        _issues.ReplaceDetectedIssues(scanner.Type, issues, null);
+        var replacementPaths = _issues.GetIssues(scanner.Type, IssueStatus.Detected)
+            .Where(issue => completedRoots.Any(root => LibraryGuard.IsUnder(issue.Path, root)))
+            .Select(issue => issue.Path).Concat(issues.Select(issue => issue.Path))
+            .Distinct(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal).ToList();
+        _issues.ReplaceDetectedIssues(scanner.Type, issues, replacementPaths);
         return Ok(new
         {
             Detected = issues.Count,
             ElapsedMs = (long)(DateTime.UtcNow - start).TotalMilliseconds,
         });
     }
+
+    /// <summary>
+    /// "Move anyway" for a move blocked by an earlier move left needing review: each such parked move is
+    /// finished forward when that is safe, otherwise its reservation is released with every file left
+    /// in place. Ungrouped/Misplaced media is then rescanned so the item gets a fresh, movable plan.
+    /// </summary>
+    /// <param name="id">The issue id.</param>
+    /// <returns>What was done.</returns>
+    [HttpPost("Issues/{id}/MoveAnyway")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public ActionResult<string> MoveAnyway([FromRoute] long id)
+    {
+        var issue = _issues.GetIssue(id);
+        if (issue is null)
+        {
+            return NotFound();
+        }
+
+        if (issue.Type is not (IssueType.Ungrouped or IssueType.Misplaced) || MediaMovePlan.ReadIssue(issue) is not { } plan || _moves is null)
+        {
+            return Conflict("Move anyway only applies to a move blocked by an earlier move.");
+        }
+
+        var parked = _db.Moves.FindParkedBlocking(plan);
+        var outcomes = parked.Select(operation => _moves.ResolveParked(operation)).ToArray();
+        var scan = StartScanCore(new HashSet<IssueType> { issue.Type });
+        var rescanning = scan is NoContentResult;
+        var message = (outcomes.Length == 0 ? "Nothing reserves this item any more." : string.Join(" ", outcomes))
+            + (rescanning ? " Scanning again now; approve the item when it reappears with a fresh plan." : " Scan again when the current scan finishes, then approve the item.");
+        return Ok(message);
+    }
+
+    /// <summary>
+    /// "Enter season number" for an episode Jellyfin could not place in a season: the number is kept
+    /// for the episode (later scans use it too), the item is planned again into that season folder,
+    /// approved, and a fix run starts.
+    /// </summary>
+    /// <param name="id">The issue id.</param>
+    /// <param name="season">The season number the user entered (0 for specials).</param>
+    /// <param name="cancellationToken">Request cancellation.</param>
+    /// <returns>What happens next, or why the item still cannot move.</returns>
+    [HttpPost("Issues/{id}/Season")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<string>> SetSeason([FromRoute] long id, [FromQuery] int season, CancellationToken cancellationToken)
+    {
+        if (season is < 0 or > 999)
+        {
+            return BadRequest("Enter a season number from 0 (specials) to 999.");
+        }
+
+        var issue = _issues.GetIssue(id);
+        if (issue is null)
+        {
+            return NotFound();
+        }
+
+        if (_planner is null || issue.Status != IssueStatus.Detected || !IsBlockedOnlyByUnknownSeason(issue) || MediaMovePlan.ReadIssue(issue) is not { } current)
+        {
+            return Conflict("A season number can only be entered for a move waiting on an unknown season.");
+        }
+
+        var config = Plugin.Instance?.Configuration ?? new PluginConfiguration();
+        _db.SetState(MediaMovePlanner.SeasonOverrideKey(current.ItemId), season.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        var items = _libraryManager.GetItemList(MediaMovePlanner.CatalogQuery());
+        var planned = await _planner.PlanItemAsync(issue.Type, items, config, current.ItemId, cancellationToken).ConfigureAwait(false);
+        if (planned is null || MediaMovePlan.ReadIssue(planned) is not { } plan)
+        {
+            return Conflict("Season " + season + " was saved, but this item no longer needs a move. Scan again to refresh the list.");
+        }
+
+        _issues.ReplacePlan(issue.Id, planned);
+        if (plan.BlockingReasons.Length > 0)
+        {
+            return Conflict("Season " + season + " was saved, but the move still needs review: " + plan.BlockingReasons[0]);
+        }
+
+        _issues.TryTransitionIssueStatus(issue.Id, [IssueStatus.Detected], IssueStatus.Queued);
+        var started = StartFix() is NoContentResult;
+        return Ok("Season " + season + " saved. The move to '" + plan.Entries[0].Destination + "' is approved"
+            + (started ? " and the fix run has started." : "; it runs with the next fix run."));
+    }
+
+    private static bool IsBlockedOnlyByUnknownSeason(Issue issue)
+        => issue.Type is IssueType.Ungrouped or IssueType.Misplaced
+            && MediaMovePlan.ReadIssue(issue) is { BlockingReasons.Length: > 0 } plan
+            && plan.BlockingReasons.All(reason => reason.StartsWith("The season is unknown", StringComparison.Ordinal));
+
+    private bool IsBlockedOnlyByParkedMove(Issue issue)
+        => issue.Type is IssueType.Ungrouped or IssueType.Misplaced
+            && MediaMovePlan.ReadIssue(issue) is { BlockingReasons.Length: > 0 } plan
+            && plan.BlockingReasons.All(reason => reason.StartsWith("A move operation has reserved", StringComparison.Ordinal)
+                || reason.StartsWith("Another operation or a previous move attempt reserves", StringComparison.Ordinal));
 
     /// <summary>
     /// Approves an issue: it is queued for the next fix run. Only legal from Detected —
@@ -229,9 +478,25 @@ public class MediaDashController : ControllerBase
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public ActionResult ApproveIssue([FromRoute] long id)
     {
+        var issue = _issues.GetIssue(id);
+        if (issue is null)
+        {
+            return NotFound();
+        }
+
+        if (issue.Status != IssueStatus.Detected)
+        {
+            return Conflict("Approve is only legal from Detected. Refresh the Issues tab to see its current status.");
+        }
+
+        var blocked = GetFixBlockedReason(Plugin.Instance?.Configuration ?? new PluginConfiguration(), issue);
+        if (blocked is not null)
+        {
+            return Conflict(blocked);
+        }
+
         // For FormatCompatibility issues in a mixed library, patch approvedInMixedLibrary=true
         // so FormatCompatibilityFixer will honor the user's explicit approval.
-        var issue = _issues.GetIssue(id);
         if (issue is { Type: IssueType.FormatCompatibility, DetailsJson: { } json })
         {
             var patched = PatchApprovedInMixedLibrary(json);
@@ -349,7 +614,7 @@ public class MediaDashController : ControllerBase
         {
             using var doc = JsonDocument.Parse(detailsJson);
             var root = doc.RootElement;
-            if (!root.TryGetProperty("mixedLibrary", out var m) || m.ValueKind != JsonValueKind.True)
+            if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("mixedLibrary", out var m) || m.ValueKind != JsonValueKind.True)
             {
                 return null;
             }
@@ -501,13 +766,49 @@ public class MediaDashController : ControllerBase
     public ActionResult StartFix()
     {
         var fixTask = _taskManager.ScheduledTasks.FirstOrDefault(w => w.ScheduledTask is FixTask);
-        if (fixTask is not null && fixTask.State == TaskState.Idle)
+        if (fixTask is null)
         {
-            _runState.ArmBypassIdleCheck(ScheduledTasks.RunRole.Fix);
-            _taskManager.Execute(fixTask, new TaskOptions());
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, "The MediaDash fix task is unavailable. Check Jellyfin's startup log and Dashboard → Scheduled Tasks for 'Apply approved fixes'.");
+        }
+
+        if (fixTask.State != TaskState.Idle)
+        {
+            return Conflict("The fix task is already running or stopping. Wait for it to finish, then try again.");
+        }
+
+        _runState.ArmBypassIdleCheck(ScheduledTasks.RunRole.Fix);
+        try
+        {
+            var execution = _taskManager.Execute(fixTask, new TaskOptions());
+            if (execution.IsCompleted)
+            {
+                execution.GetAwaiter().GetResult();
+            }
+            else
+            {
+                // Execute represents the entire run; observe dispatch faults without holding the HTTP request open.
+                var runState = _runState;
+                _ = execution.ContinueWith(
+                    failed => RecordFixDispatchFailure(runState, failed.Exception!.GetBaseException()),
+                    default,
+                    TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
+            }
+        }
+        catch (Exception ex)
+        {
+            RecordFixDispatchFailure(_runState, ex);
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, "Could not start the fix task. See the Errors tab and Jellyfin log for details.");
         }
 
         return NoContent();
+    }
+
+    private static void RecordFixDispatchFailure(RunState runState, Exception error)
+    {
+        runState.ConsumeBypassIdleCheck(RunRole.Fix);
+        runState.SetPauseReason(RunRole.Fix, "Could not start the fix task. See the Errors tab and Jellyfin log for details.");
+        Diagnostics.Record("FixTask.Start", "The fix run could not start. Try again; if it keeps failing, restart Jellyfin. Details: " + error.Message);
     }
 
     /// <summary>
@@ -626,6 +927,12 @@ public class MediaDashController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult<int> ApproveAll([FromQuery] IssueType? type = null)
     {
+        var config = Plugin.Instance?.Configuration ?? new PluginConfiguration();
+        if (type is not null && GetFixBlockedReason(config, type.Value) is { } blocked)
+        {
+            return Conflict(blocked);
+        }
+
         // Consent gate: blocking-warning rows (bitmap-sub removals, low-space overrides, etc.)
         // require an explicit per-row Approve from the Issues tab and must NOT be auto-approved
         // by a bulk "Approve all of type X" click — the user can't see the warning bubble on a
@@ -633,18 +940,17 @@ public class MediaDashController : ControllerBase
         // then run RollbackAutoQueuedBlockingWarnings against that exact set so blocking rows
         // bounce back to Detected. The count we return excludes the reverts so the toast tells
         // the truth about what's actually queued to run.
-        var autoQueuedIds = new List<long>();
-        if (type is not null)
+        var enabledLocations = _libraryGuard?.GetEnabledLibraryLocations(config.EnabledLibraries);
+        var candidates = _issues.GetIssues(type, IssueStatus.Detected);
+        var ids = candidates
+            .Where(issue => GetFixBlockedReason(config, issue, enabledLocations) is null)
+            .Select(issue => issue.Id).ToList();
+        if (type is not null && ids.Count == 0 && candidates.Count > 0)
         {
-            autoQueuedIds.AddRange(_issues.QueueDetectedIssues(type.Value));
+            return Conflict(GetFixBlockedReason(config, candidates[0], enabledLocations));
         }
-        else
-        {
-            foreach (var t in Enum.GetValues<IssueType>())
-            {
-                autoQueuedIds.AddRange(_issues.QueueDetectedIssues(t));
-            }
-        }
+
+        var autoQueuedIds = _issues.BulkUpdateOpenIssueStatus(ids, IssueStatus.Queued);
 
         var reverted = _issues.RollbackAutoQueuedBlockingWarnings(autoQueuedIds);
         return autoQueuedIds.Count - reverted;
@@ -665,7 +971,7 @@ public class MediaDashController : ControllerBase
         var config = Plugin.Instance!.Configuration;
         var enabledLocations = _libraryGuard.GetEnabledLibraryLocations(config.EnabledLibraries);
         var staleIds = _issues.GetIssues(status: IssueStatus.Queued)
-            .Where(i => !LibraryGuard.IsInEnabledLocations(i.Path, enabledLocations))
+            .Where(i => !_libraryGuard.IsIssueInEnabledLocations(i, enabledLocations))
             .Select(i => i.Id)
             .ToList();
         if (staleIds.Count == 0)
@@ -725,7 +1031,21 @@ public class MediaDashController : ControllerBase
         // never expanded, so run the RollbackAutoQueuedBlockingWarnings pass against the exact
         // just-transitioned IDs (same pattern the FixTask auto-queue uses). Dismiss action has no
         // consent gate — bulk-dismissing a blocking-warning row is a valid "never touch this" click.
-        var transitioned = _issues.BulkUpdateOpenIssueStatus(request.Ids, target);
+        IReadOnlyList<long> ids = request.Ids;
+        if (target == IssueStatus.Queued)
+        {
+            var config = Plugin.Instance?.Configuration ?? new PluginConfiguration();
+            var requested = request.Ids.ToHashSet();
+            var candidates = _issues.GetIssues(status: IssueStatus.Detected).Where(i => requested.Contains(i.Id)).ToList();
+            var enabledLocations = _libraryGuard?.GetEnabledLibraryLocations(config.EnabledLibraries);
+            ids = candidates.Where(i => GetFixBlockedReason(config, i, enabledLocations) is null).Select(i => i.Id).ToList();
+            if (ids.Count == 0 && candidates.Count > 0)
+            {
+                return Conflict(GetFixBlockedReason(config, candidates[0], enabledLocations));
+            }
+        }
+
+        var transitioned = _issues.BulkUpdateOpenIssueStatus(ids, target);
         if (target == IssueStatus.Queued)
         {
             var reverted = _issues.RollbackAutoQueuedBlockingWarnings(transitioned);
@@ -733,6 +1053,124 @@ public class MediaDashController : ControllerBase
         }
 
         return transitioned.Count;
+    }
+
+    private string? GetFixBlockedReason(
+        PluginConfiguration config,
+        Issue issue,
+        IReadOnlyList<string>? enabledLocations = null,
+        Dictionary<IssueType, string?>? typeReasons = null,
+        Func<string, IssueType, bool>? protectionCheck = null)
+        => GetFixBlockedReason(config, issue, out _, enabledLocations, typeReasons, protectionCheck);
+
+    private string? GetFixBlockedReason(
+        PluginConfiguration config,
+        Issue issue,
+        out bool requiresRescan,
+        IReadOnlyList<string>? enabledLocations = null,
+        Dictionary<IssueType, string?>? typeReasons = null,
+        Func<string, IssueType, bool>? protectionCheck = null)
+    {
+        requiresRescan = false;
+        if (issue.RequiresRescan)
+        {
+            requiresRescan = true;
+            return "This finding changed after a move. Scan again and review the current finding before approval.";
+        }
+
+        if (issue.IsReportOnly)
+        {
+            return "This finding is report-only. No automatic repair is available; Ignore it or manage the file from Files.";
+        }
+
+        var typeReason = typeReasons is null ? GetFixBlockedReason(config, issue.Type) : typeReasons[issue.Type];
+        if (typeReason is not null)
+        {
+            return typeReason;
+        }
+
+        if (typeReasons is null && _fixers is not null && !_fixers.Any(fixer => fixer.CanFix(issue.Type)))
+        {
+            return "No fixer is available for this issue type on this server.";
+        }
+
+        if (issue.Type is IssueType.Ungrouped or IssueType.Misplaced)
+        {
+            if (MediaMovePlan.ReadIssue(issue) is not { } movePlan)
+            {
+                requiresRescan = true;
+                return "Re-scan this item before approval so you can review its complete, current move preview.";
+            }
+
+            if (movePlan.BlockingReasons.Length > 0)
+            {
+                // No setting changes a move plan's blockers: offer a fresh scan (or Move anyway, below).
+                requiresRescan = !IsBlockedOnlyByParkedMove(issue) && !IsBlockedOnlyByUnknownSeason(issue);
+                return "This move needs review: " + movePlan.BlockingReasons[0];
+            }
+
+            if (MediaMovePlanner.PolicyStamp(config, issue.Type) != movePlan.PolicyStamp)
+            {
+                requiresRescan = true;
+                return "Move settings changed after this preview. Scan again and review the new plan before approval.";
+            }
+        }
+
+        if (issue.Type == IssueType.OrphanedDebris && OrphanCleanupFixer.ReadKind(issue.DetailsJson) == Scanners.OrphanCleanupScanner.KindOrphanMetadata
+            && !config.OrphanScanMetadata)
+        {
+            return "Orphan metadata cleanup is disabled. Enable it in Settings, then scan again before approving this folder.";
+        }
+
+        if (_libraryGuard is not null && !_libraryGuard.IsIssueInEnabledLocations(issue, enabledLocations ?? _libraryGuard.GetEnabledLibraryLocations(config.EnabledLibraries)))
+        {
+            return "This issue's library or artwork owner is not enabled. Check Settings → Libraries, then scan again.";
+        }
+
+        if ((protectionCheck?.Invoke(issue.Path, issue.Type) ?? _protection?.IsFixerBlocked(issue.Path, issue.Type)) == true)
+        {
+            return "This file is protected from modification. Review its protection in Settings before approving it.";
+        }
+
+        if (issue.Type == IssueType.OrphanedDebris && OrphanCleanupFixer.ReadKind(issue.DetailsJson) == Scanners.OrphanCleanupScanner.KindOrphanMetadata
+            && _protection?.IsAnyDescendantProtected(issue.Path, issue.Type) == true)
+        {
+            return "This metadata folder contains protected content. Review its protection in Settings before approving it.";
+        }
+
+        if (issue.Type == IssueType.CorruptArtwork && _protection is not null)
+        {
+            try
+            {
+                var owner = _libraryManager.GetItemById(issue.ItemId);
+                if (owner is null || _protection.IsFixerBlocked(owner.Path, issue.Type))
+                {
+                    return "The artwork owner is unavailable or protected from modification. Review its protection in Settings before approving it.";
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                return "The artwork owner could not be verified. Scan again before approving this issue.";
+            }
+        }
+
+        return null;
+    }
+
+    private static string? GetFixBlockedReason(PluginConfiguration config, IssueType type)
+    {
+        var policy = FixPolicyEvaluator.Evaluate(config, type, IssueStatus.Detected, FixIntent.Approved, withinEnabledLibrary: true, autoQueueRestoredBlocked: false, hasApprovedCompanionOnPath: false);
+        if (policy.Allowed)
+        {
+            return null;
+        }
+
+        return policy.Reason switch
+        {
+            FixReason.TypeDisabled when config.GetFixMode(type) == FixMode.Off => "This type is Off. In Settings → What to fix, choose Ask me first and save, then approve the issue.",
+            FixReason.TypeDisabled => "This fixer is disabled. Enable it in Fix order, then approve the issue.",
+            _ => "No fix is available for this issue type."
+        };
     }
 
     /// <summary>
@@ -745,16 +1183,50 @@ public class MediaDashController : ControllerBase
     {
         // Cache library locations once per request so per-row lookup is a linear scan over a small
         // in-memory list, not a fresh call into ILibraryManager for every history row.
-        var libraryLocations = _libraryManager.GetVirtualFolders()
-            .SelectMany(f => (f.Locations ?? []).Select(l => (Name: f.Name, Root: Path.TrimEndingDirectorySeparator(Path.GetFullPath(l)))))
-            .ToList();
+        var libraryLocations = GetHistoryLibraryLocations();
 
         return Ok(_history.GetHistory().Select(entry =>
         {
             var dto = HistoryDto.FromEntry(entry);
+            if (entry.MoveOperationId is { } moveId && _db.Moves.Read(moveId) is { } operation)
+            {
+                dto.MoveState = operation.State;
+                dto.CanUndoMove = MoveOperationDto.FromOperation(operation).CanUndo;
+            }
+
             dto.Library = ResolveLibraryName(entry.Path, libraryLocations);
             return dto;
         }).ToList());
+    }
+
+    /// <summary>Gets durable moves, including interrupted work without a History row.</summary>
+    /// <returns>Recent operations with incomplete work first.</returns>
+    [HttpGet("Moves")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<IReadOnlyList<MoveOperationDto>> GetMoves()
+        => Ok(_db.Moves.GetVisible(Plugin.Instance!.Configuration.HistoryHiddenBeforeUtcTicks).Select(MoveOperationDto.FromOperation).ToList());
+
+    /// <summary>Undoes a complete recorded move after verifying current payloads and original-path vacancy.</summary>
+    /// <param name="operationId">Move selected by the administrator.</param>
+    /// <param name="cancellationToken">Request cancellation.</param>
+    /// <returns>Real completion, preview, or a visible refusal preserving existing payloads.</returns>
+    [HttpPost("Moves/{operationId}/Undo")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<FixResult>> UndoMove([FromRoute] string operationId, CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParseExact(operationId, "N", out _))
+        {
+            return BadRequest("Select a recorded move operation.");
+        }
+
+        if (_moves is null)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, "Move recovery is unavailable on this host.");
+        }
+
+        var result = await _moves.UndoAsync(operationId, null, cancellationToken).ConfigureAwait(false);
+        return result.Success ? Ok(result) : Conflict(result);
     }
 
     /// <summary>
@@ -768,9 +1240,7 @@ public class MediaDashController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult<object> GetHistoryStats()
     {
-        var libraryLocations = _libraryManager.GetVirtualFolders()
-            .SelectMany(f => (f.Locations ?? []).Select(l => (Name: f.Name, Root: Path.TrimEndingDirectorySeparator(Path.GetFullPath(l)))))
-            .ToList();
+        var libraryLocations = GetHistoryLibraryLocations();
 
         long total = 0;
         var byLibrary = new Dictionary<string, long>(StringComparer.Ordinal);
@@ -791,6 +1261,27 @@ public class MediaDashController : ControllerBase
         });
     }
 
+    private List<(string Name, string Root)> GetHistoryLibraryLocations()
+    {
+        var locations = new List<(string Name, string Root)>();
+        foreach (var folder in _libraryManager.GetVirtualFolders())
+        {
+            foreach (var location in folder.Locations ?? [])
+            {
+                try
+                {
+                    locations.Add((folder.Name, Path.TrimEndingDirectorySeparator(Path.GetFullPath(location))));
+                }
+                catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
+                {
+                    Diagnostics.Record("History.LibraryLocation", "MediaDash could not work out which library a History entry belongs to, so its library name is missing. Nothing else is affected. Details: " + ex.Message);
+                }
+            }
+        }
+
+        return locations;
+    }
+
     private static string ResolveLibraryName(string path, List<(string Name, string Root)> libraries)
     {
         string fullPath;
@@ -798,7 +1289,7 @@ public class MediaDashController : ControllerBase
         {
             fullPath = Path.GetFullPath(path);
         }
-        catch (ArgumentException)
+        catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
         {
             return string.Empty;
         }
@@ -815,7 +1306,7 @@ public class MediaDashController : ControllerBase
     }
 
     /// <summary>
-    /// Advances the history-hidden watermark so every existing row disappears from the History tab list.
+    /// Advances the history-hidden watermark so existing history rows and recorded moves disappear from the History tab.
     /// The rows themselves stay in the DB, so per-library chart, "Reclaimed since install", and monthly
     /// analytics all keep their totals - only the visible list gets a fresh slate.
     /// </summary>
@@ -879,7 +1370,8 @@ public class MediaDashController : ControllerBase
                 var entry = new LibraryAccessResult { Name = folder.Name, Path = location };
                 try
                 {
-                    _ = System.IO.Directory.EnumerateFileSystemEntries(location).GetEnumerator().MoveNext();
+                    using var entries = System.IO.Directory.EnumerateFileSystemEntries(location).GetEnumerator();
+                    _ = entries.MoveNext();
                     entry.CanRead = true;
                 }
                 catch (System.IO.DirectoryNotFoundException)
@@ -938,7 +1430,8 @@ public class MediaDashController : ControllerBase
         try
         {
             System.IO.Directory.CreateDirectory(effectiveRoot);
-            _ = System.IO.Directory.EnumerateFileSystemEntries(effectiveRoot).GetEnumerator().MoveNext();
+            using var entries = System.IO.Directory.EnumerateFileSystemEntries(effectiveRoot).GetEnumerator();
+            _ = entries.MoveNext();
             entry.CanRead = true;
         }
         catch (UnauthorizedAccessException)
@@ -1129,7 +1622,7 @@ public class MediaDashController : ControllerBase
         }
 
         var kind = string.Equals(request.Kind, "library", StringComparison.OrdinalIgnoreCase) ? "library" : "folder";
-        if (kind == "folder" && !Path.IsPathRooted(request.Target))
+        if (kind == "folder" && !Path.IsPathFullyQualified(request.Target))
         {
             return BadRequest(new { Error = "Folder target must be an absolute path." });
         }
@@ -1357,15 +1850,12 @@ public class MediaDashController : ControllerBase
                 continue;
             }
 
-            LibraryStat? stat = null;
-            foreach (var f in folders)
-            {
-                if (f.Locations.Any(loc => item.Path.StartsWith(loc, StringComparison.OrdinalIgnoreCase)))
-                {
-                    stat = stats[f.Id];
-                    break;
-                }
-            }
+            var matchedFolder = folders
+                .SelectMany(f => f.Locations.Select(loc => new { Folder = f, Location = loc }))
+                .Where(f => LibraryGuard.IsUnder(item.Path, f.Location))
+                .OrderByDescending(f => f.Location.Length)
+                .FirstOrDefault();
+            var stat = matchedFolder is null ? null : stats[matchedFolder.Folder.Id];
 
             if (stat is null)
             {
@@ -1460,10 +1950,10 @@ public class MediaDashController : ControllerBase
         // Join each bin file back to its history row so the UI can show a per-item Restore button.
         // History is authoritative for the original destination path AND the reason (issue type +
         // action text) — the bin itself doesn't store either.
-        var byRecyclePath = _history.GetHistory()
+        var byRecyclePath = _history.GetActiveRecycleEntries()
             .Where(h => !h.Restored && !string.IsNullOrEmpty(h.RecyclePath))
-            .GroupBy(h => h.RecyclePath!, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.OrderByDescending(h => h.FixedAtUtc).First(), StringComparer.OrdinalIgnoreCase);
+            .GroupBy(h => h.RecyclePath!, OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(h => h.FixedAtUtc).First(), OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
 
         var retentionDays = Plugin.Instance?.Configuration.RecycleBinRetentionDays ?? 0;
         return Ok(_recycleBin.ListContents()
@@ -1661,12 +2151,12 @@ public class MediaDashController : ControllerBase
         }
         catch (UnauthorizedAccessException ex)
         {
-            Diagnostics.Record("RecycleBin.DeletePermissionDenied", "Could not delete '" + entry.BinPath + "': " + ex.Message);
+            Diagnostics.Record("RecycleBin.DeletePermissionDenied", "Could not delete '" + entry.BinPath + "' from the recycle bin because Jellyfin does not have permission. Give the user Jellyfin runs as write access to the recycle bin folder, then try again. Details: " + ex.Message);
             return StatusCode(StatusCodes.Status500InternalServerError, "Permission denied deleting the file. Check the Jellyfin user has write access to the recycle bin folder.");
         }
         catch (IOException ex)
         {
-            Diagnostics.Record("RecycleBin.DeleteIOError", "Could not delete '" + entry.BinPath + "': " + ex.Message);
+            Diagnostics.Record("RecycleBin.DeleteIOError", "Could not delete '" + entry.BinPath + "' from the recycle bin. A file inside it may be open in another program; close it and try again. Details: " + ex.Message);
             return StatusCode(StatusCodes.Status500InternalServerError, "Could not delete the file: " + ex.Message);
         }
 
@@ -1678,26 +2168,35 @@ public class MediaDashController : ControllerBase
     /// UI can poll <c>RecycleBin</c> for a bar; older builds ran this synchronously and appeared frozen for
     /// large bins.
     /// </summary>
+    /// <param name="everywhere">When true, also empties every older recycle location MediaDash used (see <c>RecycleBin/EmptyPlan</c>).</param>
     /// <returns>The recycle bin state with <c>IsEmptying=true</c> when the run started.</returns>
     [HttpPost("RecycleBin/Empty")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public ActionResult<RecycleBinInfo> EmptyRecycleBin()
+    public ActionResult<RecycleBinInfo> EmptyRecycleBin([FromQuery] bool everywhere = false)
     {
         var alreadyRunning = _recycleBin.GetEmptyingProgress().IsRunning;
         if (!alreadyRunning)
         {
+            var history = _history;
             _ = System.Threading.Tasks.Task.Run(() =>
             {
                 try
                 {
-                    _recycleBin.EmptyAll();
+                    if (everywhere)
+                    {
+                        _recycleBin.EmptyEverywhere(history);
+                    }
+                    else
+                    {
+                        _recycleBin.EmptyAll();
+                    }
                 }
                 catch (Exception ex)
                 {
                     // Fire-and-forget — no caller sees the exception. Surface via Diagnostics so a
                     // silently-failed empty (permission denied on a bin folder, disk gone away) isn't
                     // invisible to the user; the next Empty click retries.
-                    Diagnostics.Record("RecycleBin.EmptyAll", "Recycle-bin empty did not complete: " + ex.Message + ". The next Empty click retries.");
+                    Diagnostics.Record("RecycleBin.EmptyAll", "Emptying the recycle bin did not finish. Click Empty again to retry. Details: " + ex.Message);
                 }
             });
         }
@@ -1712,6 +2211,29 @@ public class MediaDashController : ControllerBase
             EmptyingDone = done,
             EmptyingTotal = total,
             EmptyingError = error
+        };
+    }
+
+    /// <summary>
+    /// Every recycle location MediaDash created files in (current bin, default bin, earlier bin paths
+    /// and batches from older MediaDash versions), with what "empty every recycle bin" would delete.
+    /// Read-only; the Recycle bin tab shows it before asking which empty the user wants.
+    /// </summary>
+    /// <returns>The plan.</returns>
+    [HttpGet("RecycleBin/EmptyPlan")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<RecycleBinEmptyPlan> GetRecycleBinEmptyPlan()
+    {
+        var locations = _recycleBin.PlanEmptyEverywhere(_history)
+            .Select(l => new RecycleBinEmptyPlanLocation { RootPath = l.RootPath, BatchCount = l.Batches.Count, SizeBytes = l.SizeBytes, IsCurrent = l.IsCurrent })
+            .OrderByDescending(l => l.IsCurrent)
+            .ToList();
+        return new RecycleBinEmptyPlan
+        {
+            Locations = locations,
+            TotalBatches = locations.Sum(l => l.BatchCount),
+            TotalBytes = locations.Sum(l => l.SizeBytes),
+            CurrentBinBatches = _recycleBin.CountEmptyAllBatches()
         };
     }
 
@@ -1869,6 +2391,16 @@ public class MediaDashController : ControllerBase
     public async Task<ActionResult<object>> RunPostUpgradeCleanup([FromQuery] bool dismissOnly = false)
     {
         var config = Plugin.Instance!.Configuration;
+        if (_appHost.ApplicationVersion.Major < 12 || config.PostV12CleanupCompleted)
+        {
+            return Conflict("Post-upgrade cleanup is unavailable or already completed.");
+        }
+
+        if (_taskManager.ScheduledTasks.Any(task => task.ScheduledTask.Key == "RefreshLibrary" && task.State != TaskState.Idle))
+        {
+            return Conflict("Wait for the library scan to finish before cleanup.");
+        }
+
         if (dismissOnly)
         {
             config.PostV12CleanupCompleted = true;
@@ -1876,26 +2408,29 @@ public class MediaDashController : ControllerBase
             return Ok(new { OrphanedFoldersDeleted = 0, BytesFreed = 0L, Errors = Array.Empty<string>(), Dismissed = true });
         }
 
-        var result = await _postUpgradeCleanup.RunAsync().ConfigureAwait(false);
+        var result = await _postUpgradeCleanup.RunAsync(config.DryRun).ConfigureAwait(false);
         _history.AddHistory(new Data.HistoryEntry
         {
             Type = Data.IssueType.Stale,
             Path = "(post-Jellyfin-12 cleanup)",
-            Action = $"Removed {result.OrphanedFoldersDeleted} orphaned trickplay folder(s) reclaiming {result.BytesFreed} bytes.",
+            Action = config.DryRun
+                ? $"Preview: would remove {result.OrphanedFoldersDeleted} orphaned trickplay folder(s), reclaiming {result.BytesFreed} bytes."
+                : $"Removed {result.OrphanedFoldersDeleted} orphaned trickplay folder(s) reclaiming {result.BytesFreed} bytes.",
             FixedAtUtc = DateTime.UtcNow,
             BytesFreed = result.BytesFreed,
-            Success = result.Errors.Count == 0
+            Success = result.Errors.Count == 0,
+            WasDryRun = config.DryRun
         });
         // Only mark the sweep permanently completed when nothing failed. If some folders errored the
         // banner stays available so the user can retry, otherwise the failed folders would be
         // unreachable through the UI.
-        if (result.Errors.Count == 0)
+        if (!config.DryRun && result.Errors.Count == 0)
         {
             config.PostV12CleanupCompleted = true;
             Plugin.Instance!.SaveConfiguration();
         }
 
-        return Ok(new { OrphanedFoldersDeleted = result.OrphanedFoldersDeleted, BytesFreed = result.BytesFreed, Errors = result.Errors, Dismissed = false });
+        return Ok(new { OrphanedFoldersDeleted = result.OrphanedFoldersDeleted, BytesFreed = result.BytesFreed, Errors = result.Errors, Dismissed = false, WasDryRun = config.DryRun });
     }
 
     /// <summary>
@@ -1947,6 +2482,21 @@ public class MediaDashController : ControllerBase
         }
 
         return Conflict(outcome.TechnicalDetail ?? "Could not restore optimized copy.");
+    }
+
+    /// <summary>
+    /// Gets the latest scan and fix recordings while diagnostics mode is enabled.
+    /// </summary>
+    /// <returns>The latest recordings, or null for runs not recorded yet.</returns>
+    [HttpGet("Diagnostics/LastScan")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public ActionResult GetLastScanDiagnostics()
+    {
+        return Plugin.Instance?.Configuration.DiagnosticsEnabled == true
+            ? Ok(new { Scan = ScheduledTasks.RunDiagnosticsRecording.Read(_db), Fix = ScheduledTasks.RunDiagnosticsRecording.Read(_db, "fix") })
+            : NotFound();
     }
 
     /// <summary>

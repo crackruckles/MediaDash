@@ -43,8 +43,9 @@ public sealed class PostUpgradeCleanup
     /// Runs the sweep. Returns quickly on small libraries; can take a few seconds on large ones because
     /// each candidate GUID triggers a GetItemById lookup.
     /// </summary>
+    /// <param name="preview">Count candidates without deleting them.</param>
     /// <returns>The sweep result.</returns>
-    public Task<PostUpgradeCleanupResult> RunAsync()
+    public Task<PostUpgradeCleanupResult> RunAsync(bool preview = false)
     {
         // Jellyfin's trickplay layout has shifted across versions: 10.x kept per-item GUID folders
         // under <data>/trickplay OR <metadata>/trickplay, while 12.x puts trickplay next to media in
@@ -61,7 +62,7 @@ public sealed class PostUpgradeCleanup
         var errors = new List<string>();
         var deleted = 0;
         long bytes = 0;
-        var swept = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var swept = new HashSet<string>(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
 
         foreach (var trickplayRoot in candidateRoots)
         {
@@ -70,39 +71,63 @@ public sealed class PostUpgradeCleanup
                 continue;
             }
 
-            foreach (var dir in Directory.EnumerateDirectories(trickplayRoot))
+            try
             {
-                var name = Path.GetFileName(dir);
-                if (!Guid.TryParse(name, out var itemId))
+                if (LibraryGuard.HasReparsePointAncestor(trickplayRoot))
                 {
-                    continue;
+                    throw new IOException("Cleanup root contains a symbolic link or junction.");
                 }
 
-                if (_libraryManager.GetItemById(itemId) is not null)
+                foreach (var dir in Directory.EnumerateDirectories(trickplayRoot))
                 {
-                    continue;
-                }
-
-                long folderBytes = 0;
-                try
-                {
-                    foreach (var file in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
+                    var name = Path.GetFileName(dir);
+                    if (!Guid.TryParse(name, out var itemId))
                     {
-                        folderBytes += new FileInfo(file).Length;
+                        continue;
                     }
 
-                    Directory.Delete(dir, recursive: true);
-                    deleted++;
-                    bytes += folderBytes;
-                    _logger.LogInformation("PostUpgradeCleanup: removed orphaned trickplay folder {Path} ({Bytes} bytes)", dir, folderBytes);
+                    if (_libraryManager.GetItemById(itemId) is not null)
+                    {
+                        continue;
+                    }
+
+                    long folderBytes = 0;
+                    try
+                    {
+                        if (LibraryGuard.HasReparsePointAncestor(dir)
+                            || Directory.EnumerateFileSystemEntries(dir, "*", SearchOption.AllDirectories)
+                                .Any(entry => (File.GetAttributes(entry) & FileAttributes.ReparsePoint) != 0))
+                        {
+                            throw new IOException("Cleanup folder contains a symbolic link or junction.");
+                        }
+
+                        foreach (var file in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
+                        {
+                            folderBytes += new FileInfo(file).Length;
+                        }
+
+                        if (!preview)
+                        {
+                            Directory.Delete(dir, recursive: true);
+                        }
+
+                        deleted++;
+                        bytes += folderBytes;
+                        _logger.LogInformation("PostUpgradeCleanup: removed orphaned trickplay folder {Path} ({Bytes} bytes)", dir, folderBytes);
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        var msg = "After the update, MediaDash could not remove the old trickplay folder '" + name + "'. Delete it by hand to free the space. Details: " + ex.Message;
+                        errors.Add(msg);
+                        _logger.LogWarning(ex, "PostUpgradeCleanup: could not remove {Path}", dir);
+                        Api.Diagnostics.Record("PostUpgradeCleanup.DeleteFailed", msg);
+                    }
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-                {
-                    var msg = $"{name}: {ex.Message}";
-                    errors.Add(msg);
-                    _logger.LogWarning(ex, "PostUpgradeCleanup: could not remove {Path}", dir);
-                    Api.Diagnostics.Record("PostUpgradeCleanup.DeleteFailed", msg);
-                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                errors.Add(trickplayRoot + ": " + ex.Message);
+                Api.Diagnostics.Record("PostUpgradeCleanup.WalkFailed", "After the update, MediaDash could not look through '" + trickplayRoot + "' for old trickplay folders. Check that the user Jellyfin runs as can read it. Details: " + ex.Message);
             }
         }
 

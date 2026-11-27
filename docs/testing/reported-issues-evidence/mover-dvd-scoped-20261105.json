@@ -1,0 +1,1153 @@
+{
+  "caseId": "issue-43",
+  "sourceDigest": "5bb602fa9950197fa215d8e5b21b8d52a22399c07dbf0f6c3c200d8cca4a2d95",
+  "dllSha256": "f225958b511271b532254ed3c9f04afe8e525d4610614f3020bec6806eac4e80",
+  "mandatoryScenarioComplete": false,
+  "environment": "Windows NTFS, fresh owned loopback Jellyfin 10.11.11 and 12.0.0, generated PAL DVD authored with dvdauthor 0.7.2",
+  "checks": [
+    {
+      "name": "v10: port 8096 is unoccupied",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: installed candidate DLL hash matches",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: owned server became ready",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: three required tasks registered",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: task idle before isolation MediaDashFix",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: task idle before isolation MediaDashScan",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: task idle before isolation RefreshLibrary",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: fresh host has no libraries",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: fresh host has no queued issues",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: fresh install defaults to preview",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: fresh audio and artwork require approval",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: generated two-audio fixture decodes",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: RefreshLibrary fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: indexed library only contains owned media",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: MediaDashScan fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: PAL DVD source generated and fully decoded",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: owned DVD structure and ISO authored successfully",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: RefreshLibrary fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: native DVD movie indexed at folder path",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: native playback recognizes DVD structure",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: DVD title and complete native response both fully decode",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: full DVD decoded video and audio hashes available",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: full DVD decoded video and audio hashes available",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: complete native DVD playback preserves every decoded video and audio sample",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: DVD preview includes every authored file and user sidecar",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: DVD move preserves exact complete structure and empty directory",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: native DVD movie indexed at folder path",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: native playback recognizes DVD structure",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: DVD title and complete native response both fully decode",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: full DVD decoded video and audio hashes available",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: full DVD decoded video and audio hashes available",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: complete native DVD playback preserves every decoded video and audio sample",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: DVD favorite preserved after move",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: shutdown targets this owned data directory",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: owned server process exited",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: port 8096 is unoccupied",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: installed candidate DLL hash matches",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: owned server became ready",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: three required tasks registered",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: task idle before isolation MediaDashFix",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: task idle before isolation MediaDashScan",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: task idle before isolation RefreshLibrary",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: native DVD movie indexed at folder path",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: native playback recognizes DVD structure",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: DVD title and complete native response both fully decode",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: full DVD decoded video and audio hashes available",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: full DVD decoded video and audio hashes available",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: complete native DVD playback preserves every decoded video and audio sample",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: DVD restart Undo restores exact complete structure",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: native DVD movie indexed at folder path",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: native playback recognizes DVD structure",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: DVD title and complete native response both fully decode",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: full DVD decoded video and audio hashes available",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: full DVD decoded video and audio hashes available",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: complete native DVD playback preserves every decoded video and audio sample",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: DVD favorite preserved after Undo",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: DVD History linked success with zero savings",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: MediaDashScan fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: DVD rescan preserves original structure",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: no queued work before restoration",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: every repaired or refused media fixture retains its exact original hash",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: cleanup library path is owned",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: RefreshLibrary fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: three required tasks registered",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: task idle before isolation MediaDashFix",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: task idle before isolation MediaDashScan",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: task idle before isolation RefreshLibrary",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: initial user configuration and empty library list restored",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: no approval or protection rule remains",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: shutdown targets this owned data directory",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v10: owned server process exited",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: port 8096 is unoccupied",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: installed candidate DLL hash matches",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: owned server became ready",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: three required tasks registered",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: task idle before isolation MediaDashFix",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: task idle before isolation MediaDashScan",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: task idle before isolation RefreshLibrary",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: fresh host has no libraries",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: fresh host has no queued issues",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: fresh install defaults to preview",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: fresh audio and artwork require approval",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: generated two-audio fixture decodes",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: RefreshLibrary fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: indexed library only contains owned media",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: MediaDashScan fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: PAL DVD source generated and fully decoded",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: owned DVD structure and ISO authored successfully",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: RefreshLibrary fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: native DVD movie indexed at folder path",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: native playback recognizes DVD structure",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: DVD title and complete native response both fully decode",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: full DVD decoded video and audio hashes available",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: full DVD decoded video and audio hashes available",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: complete native DVD playback preserves every decoded video and audio sample",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: DVD preview includes every authored file and user sidecar",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: DVD move preserves exact complete structure and empty directory",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: native DVD movie indexed at folder path",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: native playback recognizes DVD structure",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: DVD title and complete native response both fully decode",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: full DVD decoded video and audio hashes available",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: full DVD decoded video and audio hashes available",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: complete native DVD playback preserves every decoded video and audio sample",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: DVD favorite preserved after move",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: shutdown targets this owned data directory",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: owned server process exited",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: port 8096 is unoccupied",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: installed candidate DLL hash matches",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: owned server became ready",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: three required tasks registered",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: task idle before isolation MediaDashFix",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: task idle before isolation MediaDashScan",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: task idle before isolation RefreshLibrary",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: native DVD movie indexed at folder path",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: native playback recognizes DVD structure",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: DVD title and complete native response both fully decode",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: full DVD decoded video and audio hashes available",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: full DVD decoded video and audio hashes available",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: complete native DVD playback preserves every decoded video and audio sample",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: DVD restart Undo restores exact complete structure",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: native DVD movie indexed at folder path",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: native playback recognizes DVD structure",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: DVD title and complete native response both fully decode",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: full DVD decoded video and audio hashes available",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: full DVD decoded video and audio hashes available",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: complete native DVD playback preserves every decoded video and audio sample",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: DVD favorite preserved after Undo",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: DVD History linked success with zero savings",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: MediaDashScan fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: DVD rescan preserves original structure",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: no queued work before restoration",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: every repaired or refused media fixture retains its exact original hash",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: cleanup library path is owned",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: RefreshLibrary fresh completion",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: three required tasks registered",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: task idle before isolation MediaDashFix",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: task idle before isolation MediaDashScan",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: task idle before isolation RefreshLibrary",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: initial user configuration and empty library list restored",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: no approval or protection rule remains",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: authenticated data directory matches owned host",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: candidate plugin is Active",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: shutdown targets this owned data directory",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "v12: owned server process exited",
+      "passed": true,
+      "skipped": false
+    }
+  ],
+  "verifiedFamilies": {
+    "v10": {
+      "DVD": {
+        "sourceDigest": "5bb602fa9950197fa215d8e5b21b8d52a22399c07dbf0f6c3c200d8cca4a2d95",
+        "dllSha256": "f225958b511271b532254ed3c9f04afe8e525d4610614f3020bec6806eac4e80",
+        "originalHashes": {
+          "notes.txt": "1b2c455dcf8e231fa76eee47dbc92088d69cef81a5da4601b93e90f28de5a898",
+          "VIDEO_TS/VIDEO_TS.BUP": "e333335505e1d3d7e72c2dd1e13a87e41dacaa571b43d229af2508b087bc5aa1",
+          "VIDEO_TS/VIDEO_TS.IFO": "e333335505e1d3d7e72c2dd1e13a87e41dacaa571b43d229af2508b087bc5aa1",
+          "VIDEO_TS/VTS_01_0.BUP": "b917727fda94bc42c6da13d60d60c8f3aa15ba3de483d2c03613e3e87ca684ac",
+          "VIDEO_TS/VTS_01_0.IFO": "b917727fda94bc42c6da13d60d60c8f3aa15ba3de483d2c03613e3e87ca684ac",
+          "VIDEO_TS/VTS_01_1.VOB": "bad1d244ccd9e4eccf2f2687348aac488a18bd02f3c541de91ef7a65180433c6"
+        },
+        "nativeFullPlayback": true,
+        "restartUndo": true
+      },
+      "passingChecks": 81,
+      "cleanup": {
+        "userConfigRestored": true,
+        "internalBookkeepingDifferences": {},
+        "libraries": [],
+        "queued": [],
+        "protection": [],
+        "verifiedSourceHashes": {
+          "C:\\dev\\mediadash\\artifacts\\push-preparation-20261105-disc-progressive\\v10\\media\\Audio fixture (2026)\\Audio fixture (2026).mkv": "16ed2b1577912bc914bd212fbc292f02695ab05c2c93418141aef354de632f4d"
+        },
+        "testTaskTriggersDisabled": true
+      },
+      "journal": [
+        {
+          "operation_id": "b19179a87f71448cbe4dc4ad8ff82c55",
+          "state": "Undone",
+          "cleanup_complete": 1,
+          "undo_of": null
+        },
+        {
+          "operation_id": "3ee837c80c604e8d9af6e51ff2b0d1b5",
+          "state": "Completed",
+          "cleanup_complete": 1,
+          "undo_of": "b19179a87f71448cbe4dc4ad8ff82c55"
+        }
+      ]
+    },
+    "v12": {
+      "DVD": {
+        "sourceDigest": "5bb602fa9950197fa215d8e5b21b8d52a22399c07dbf0f6c3c200d8cca4a2d95",
+        "dllSha256": "f225958b511271b532254ed3c9f04afe8e525d4610614f3020bec6806eac4e80",
+        "originalHashes": {
+          "notes.txt": "1b2c455dcf8e231fa76eee47dbc92088d69cef81a5da4601b93e90f28de5a898",
+          "VIDEO_TS/VIDEO_TS.BUP": "e333335505e1d3d7e72c2dd1e13a87e41dacaa571b43d229af2508b087bc5aa1",
+          "VIDEO_TS/VIDEO_TS.IFO": "e333335505e1d3d7e72c2dd1e13a87e41dacaa571b43d229af2508b087bc5aa1",
+          "VIDEO_TS/VTS_01_0.BUP": "b917727fda94bc42c6da13d60d60c8f3aa15ba3de483d2c03613e3e87ca684ac",
+          "VIDEO_TS/VTS_01_0.IFO": "b917727fda94bc42c6da13d60d60c8f3aa15ba3de483d2c03613e3e87ca684ac",
+          "VIDEO_TS/VTS_01_1.VOB": "3c5f41d6c2c0ad25d28c3b13c3dd9e14acfeaf20ebdb370e647d5d2908ade6f0"
+        },
+        "nativeFullPlayback": true,
+        "restartUndo": true
+      },
+      "passingChecks": 81,
+      "cleanup": {
+        "userConfigRestored": true,
+        "internalBookkeepingDifferences": {},
+        "libraries": [],
+        "queued": [],
+        "protection": [],
+        "verifiedSourceHashes": {
+          "C:\\dev\\mediadash\\artifacts\\push-preparation-20261105-disc-progressive\\v12\\media\\Audio fixture (2026)\\Audio fixture (2026).mkv": "43e58c52f294aaf45071ead584fb2da12b293b01c912770df874545b133dd5bc"
+        },
+        "testTaskTriggersDisabled": true
+      },
+      "journal": [
+        {
+          "operation_id": "e1435a683a8441b68d18a63af56c854e",
+          "state": "Undone",
+          "cleanup_complete": 1,
+          "undo_of": null
+        },
+        {
+          "operation_id": "095c9d6520d64d2dbed560a2d68306e3",
+          "state": "Completed",
+          "cleanup_complete": 1,
+          "undo_of": "e1435a683a8441b68d18a63af56c854e"
+        }
+      ]
+    }
+  },
+  "evidence": [
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/run.py",
+      "sha256": "9113a16d74a0cb2f5b7f85cf55c547d04543ad0004d238d281743472b6e865fb"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/author.sh",
+      "sha256": "5036a60a0bbeb29eb3822b98cb0c5638388e1be9d2d1488713311e26a29e5b86"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/record.py",
+      "sha256": "4ae2b3c08fb15c642645776ad441ec9d4de4dc385b3f1a22ed044d94243f0f46"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-native-v10.log",
+      "sha256": "a769825760ebedd838623c384acc812fb07f56f2c65db599744d52fcfed08618"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive.log",
+      "sha256": "1c0c39e8d50a7cc98b6a145e430388d11a614f72bd2f9a56543fc0a825dfb7b6"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-native/v10/server/log/FFmpeg.DirectStream-2026-11-05_20-13-19__450640e1.log",
+      "sha256": "171b09b128d4ec0bf3982274d0fe1c64da783b2ed7141fce30d92c9a6319db27"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/before-playback-info.json",
+      "sha256": "03163fd198a452cb70c20b4f476f29a19f7a540d8fd8610a49157fa62fd44b62"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/before-delivery.json",
+      "sha256": "fe1ba51cafd5ee94e84fda9faf5111e118ff34c152f96b51eb1b299190f81793"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/before-decoded-stream-hashes.json",
+      "sha256": "5bdc679dcad3976226600ca76ec7a535270f0cfe52d64c48e6fa4701cddd4ad8"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/before-full-playback.ts",
+      "sha256": "f51b67fcf09f677750db2fabe34c9ae855a8e3e599e0993a732a222476ef7cbb"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/moved-playback-info.json",
+      "sha256": "743169fcd50ccc490d81064fae6089380e60dd2cf7d4e48a595694122f646682"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/moved-delivery.json",
+      "sha256": "fe1ba51cafd5ee94e84fda9faf5111e118ff34c152f96b51eb1b299190f81793"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/moved-decoded-stream-hashes.json",
+      "sha256": "5bdc679dcad3976226600ca76ec7a535270f0cfe52d64c48e6fa4701cddd4ad8"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/moved-full-playback.ts",
+      "sha256": "f51b67fcf09f677750db2fabe34c9ae855a8e3e599e0993a732a222476ef7cbb"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/restarted-playback-info.json",
+      "sha256": "c75d45fc196aaabe84280934472dfb26a5791ede420a4beca85503ff373152f9"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/restarted-delivery.json",
+      "sha256": "fe1ba51cafd5ee94e84fda9faf5111e118ff34c152f96b51eb1b299190f81793"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/restarted-decoded-stream-hashes.json",
+      "sha256": "5bdc679dcad3976226600ca76ec7a535270f0cfe52d64c48e6fa4701cddd4ad8"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/restarted-full-playback.ts",
+      "sha256": "f51b67fcf09f677750db2fabe34c9ae855a8e3e599e0993a732a222476ef7cbb"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/restored-playback-info.json",
+      "sha256": "606936f6286b148aec98734a3ff71db8ef96ef14c78b1d812046ec902e3a4d3c"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/restored-delivery.json",
+      "sha256": "fe1ba51cafd5ee94e84fda9faf5111e118ff34c152f96b51eb1b299190f81793"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/restored-decoded-stream-hashes.json",
+      "sha256": "5bdc679dcad3976226600ca76ec7a535270f0cfe52d64c48e6fa4701cddd4ad8"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/restored-full-playback.ts",
+      "sha256": "f51b67fcf09f677750db2fabe34c9ae855a8e3e599e0993a732a222476ef7cbb"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/results.json",
+      "sha256": "79016a1740cf35dede55e5ddac98448d4feb4e687edee16d5b9818ee5f91e627"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/cleanup.json",
+      "sha256": "c9d530642fcda9501b963471b7a534c49fb29c925b375395d425bccca65874b5"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/DVD-original.json",
+      "sha256": "3cd9a4556f68d84427136ea1700353035dcff04f932eccb4ea14c8caf707a16b"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/DVD-preview.json",
+      "sha256": "7a26c15b52d16122878432bd57d1003be1fc4c404dbc5a82a0aee63e6bc0be4d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/DVD-move.json",
+      "sha256": "b1bc6d5ef3559351c68160ad77faf35620379de56963880af2fed9e67934f0c0"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/DVD-undo.json",
+      "sha256": "f4b6976da7b2830bb85023a7634e2f4df3541f3bbde49ff4b64e451f1076dc07"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/DVD-history.json",
+      "sha256": "7d7f66ae89c675b802ae13ff6f26e0f7516c1c247099d07c0051a3c230dca480"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/DVD-verified.json",
+      "sha256": "b978f9af5180da3ff77371eddc3413a953b421084301f81916bcb8ef72cef7d1"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/author.log",
+      "sha256": "5b2e68aaa0b69402e67c89b92f340eccccb2bd298a501a2ab12d0266d47cf081"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/final-evidence/post-shutdown-journal.json",
+      "sha256": "4f269dbbf45484959f35764c17d98721c9002d41064f04ba2aaaf7e3df8c9e6e"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v10/server/plugins/MediaDash_acceptance/Jellyfin.Plugin.MediaDash.dll",
+      "sha256": "f225958b511271b532254ed3c9f04afe8e525d4610614f3020bec6806eac4e80"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/before-playback-info.json",
+      "sha256": "21f58fcda4f3ee59c4993082e4c5c126a635b52399d79dec4e1d693c446547ed"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/before-delivery.json",
+      "sha256": "b1cc61d22f9c7ced6b1bbcbce0be8364945db097aa7697c8c54b8a91c3e0077d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/before-decoded-stream-hashes.json",
+      "sha256": "bcd5cca4b36411e4e83d0fc51e26bd2871241d21b41f02779463dec4bffe4edb"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/before-full-playback.ts",
+      "sha256": "c6e62ff21201503710823ec87ff409aae7b1b9ed785dfefe83cada88bedc7874"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/moved-playback-info.json",
+      "sha256": "c63737ef4c7d043f47631f232ed25f6d751402e7aa1806716036b34460c75158"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/moved-delivery.json",
+      "sha256": "b1cc61d22f9c7ced6b1bbcbce0be8364945db097aa7697c8c54b8a91c3e0077d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/moved-decoded-stream-hashes.json",
+      "sha256": "bcd5cca4b36411e4e83d0fc51e26bd2871241d21b41f02779463dec4bffe4edb"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/moved-full-playback.ts",
+      "sha256": "c6e62ff21201503710823ec87ff409aae7b1b9ed785dfefe83cada88bedc7874"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/restarted-playback-info.json",
+      "sha256": "d00e091a3404fd314fa53cdd5df0aabaf5ec4d51b95c5d17c590ff82323c5d26"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/restarted-delivery.json",
+      "sha256": "b1cc61d22f9c7ced6b1bbcbce0be8364945db097aa7697c8c54b8a91c3e0077d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/restarted-decoded-stream-hashes.json",
+      "sha256": "bcd5cca4b36411e4e83d0fc51e26bd2871241d21b41f02779463dec4bffe4edb"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/restarted-full-playback.ts",
+      "sha256": "c6e62ff21201503710823ec87ff409aae7b1b9ed785dfefe83cada88bedc7874"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/restored-playback-info.json",
+      "sha256": "74f7c4ef333057d10d8d9c8099e3f05901abe0691730a6988540ab1854df66ee"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/restored-delivery.json",
+      "sha256": "b1cc61d22f9c7ced6b1bbcbce0be8364945db097aa7697c8c54b8a91c3e0077d"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/restored-decoded-stream-hashes.json",
+      "sha256": "bcd5cca4b36411e4e83d0fc51e26bd2871241d21b41f02779463dec4bffe4edb"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/restored-full-playback.ts",
+      "sha256": "c6e62ff21201503710823ec87ff409aae7b1b9ed785dfefe83cada88bedc7874"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/results.json",
+      "sha256": "701a38109d6672aba78786828b963ce706f4b47da290d0260579e1b15fa1026f"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/cleanup.json",
+      "sha256": "a92906aceb1c86bca434d8da885382e5d6595ee16609b983c24d4d88d990f999"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/DVD-original.json",
+      "sha256": "8df6237cf1e6f64ebefe5bb7b5cb52805c36788dfa0237dcc6de781c0ca87913"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/DVD-preview.json",
+      "sha256": "514ce6ff2538db1dfb54547e069ea1b23fd1558ea4842a47acfc7969ca9d4951"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/DVD-move.json",
+      "sha256": "1a9b2b77ea931b05ea84ddd630afd59b63521a3067f30c739e534d6240d7e4ef"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/DVD-undo.json",
+      "sha256": "b7488f284650e95f620ba58daf37f29274e914a207d657c06bf9afe894b6822f"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/DVD-history.json",
+      "sha256": "5a176ccd5e0b58e60fef1b2fb429a4d245ce971fec00e88274d3d0be9d430054"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/DVD-verified.json",
+      "sha256": "257352865b8487a62aa1d46b4e24546ca8652f0c6299763512af4957e4d31b39"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/author.log",
+      "sha256": "cbbcb72bbb8bea4a569671b6ec92020301f142f15a22920f4148f034e6de2fc8"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/final-evidence/post-shutdown-journal.json",
+      "sha256": "1c8c441dc387be198ce26d9a10eb2467d5be48feea82b65b8d76050b3a60ab91"
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-disc-progressive/v12/server/plugins/MediaDash_acceptance/Jellyfin.Plugin.MediaDash.dll",
+      "sha256": "f225958b511271b532254ed3c9f04afe8e525d4610614f3020bec6806eac4e80"
+    }
+  ],
+  "limitations": [
+    "One generated single-title PAL DVD folder; no physical optical disc, encrypted disc, Blu-ray or ISO move/playback certification.",
+    "ISO images were authored as prerequisites but were not moved or served by the native host in this workflow.",
+    "The first playback prerequisite used a default MPEG container/AAC combination that FFmpeg rejected before any move. The compatible MPEG-TS stream-copy run is separate and repeats before/after/restart/Undo playback.",
+    "Remaining writer-during-copy/commit, Windows cross-volume, remote interruption, reporter-specific, NAS and committed-candidate requirements remain open."
+  ]
+}

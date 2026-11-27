@@ -12,6 +12,18 @@
     var ns = (typeof window !== 'undefined') ? window : globalThis;
     ns.MediaDash = ns.MediaDash || {};
 
+    ns.MediaDash.fixerOrderPhase = function (type) {
+        if (type === 'Misplaced' || type === 'Ungrouped' || type === 'ManualMove') return 2;
+        if (type === 'Quality' || type === 'HeavyTranscode' || type === 'FailedTranscode' || type === 'FormatCompatibility') return 1;
+        return 0;
+    };
+
+    ns.MediaDash.normalizeFixerOrder = function (order) {
+        return [0, 1, 2].reduce(function (result, phase) {
+            return result.concat(order.filter(function (type) { return ns.MediaDash.fixerOrderPhase(type) === phase; }));
+        }, []);
+    };
+
     // HTML-escape a string so it's safe in either text content OR an HTML attribute.
     // textContent → innerHTML escapes <, >, and & correctly but leaves " unescaped.
     // Every callsite that dumps this into an HTML attribute (title="…", data-…="…")
@@ -54,9 +66,20 @@
         scanStarting: 'Starting scan…',
         scanDone: 'Scan finished — {0} open issue(s) found.',
         scanNowLabel: 'Scan now',
+        moveAnyway: 'Move anyway',
+        issueReplaced: 'A newer scan replaced this finding. Reloading the list — try again on the updated row.',
+        moveAnywayHint: 'Finish or release the earlier move that holds this item, then plan it again.',
+        enterSeason: 'Enter season number',
+        enterSeasonHint: 'Jellyfin could not tell which season this episode belongs to. Enter it and MediaDash moves it.',
+        enterSeasonPrompt: 'Which season is this episode in? Enter 0 for specials.',
+        enterSeasonInvalid: 'Enter a season number such as 4, or 0 for specials.',
         stopScanLabel: 'Stop scanning',
         fixRunning: 'Applying fixes… {0}%',
         fixStarting: 'Starting fix run…',
+        fixStartFailed: 'Could not start fixes.',
+        issueActionFailed: 'Could not update this issue.',
+        fixSettings: 'Fix settings',
+        approvePartial: 'Queued {0} of {1} issues. Settings or issue status changed; review the refreshed list.',
         fixNowLabel: 'Run fixes now',
         stopFixLabel: 'Stop running fixes',
         fixDone: 'Fix run finished — see History for what was done.',
@@ -67,11 +90,25 @@
         diskContext: '{0} free of {1} on your library drives',
         driveStorage: 'Library drive storage',
         driveUsed: '{0} used of {1}',
+        driveNetworkShare: 'network share',
+        driveSpaceStale: 'last known',
+        driveSpaceStaleHint: 'The share has not supplied a fresh reading. Showing its last known capacity.',
+        driveShareOverlap: 'Network share totals may overlap when several shares use the same disk.',
         driveFree: '{0} free',
         systemStats: 'System performance',
         statCpu: 'CPU',
         statRam: 'Memory',
         statGpu: 'GPU',
+        openItemInJellyfin: 'Open item in Jellyfin',
+        missingArtwork: 'Missing artwork',
+        corruptArtwork: 'Corrupt artwork',
+        missingArtworkHint: 'Jellyfin has a path recorded for this image, but the file was missing when MediaDash checked it.',
+        clearMissingArtwork: 'Clear missing image reference',
+        clearMissingArtworkHint: 'Clears the missing image reference so Jellyfin can fetch artwork again.',
+        statDiskIo: 'Disk I/O',
+        statDiskIoTooltip: 'Shows local disk activity only. Network drive and NAS disk performance is unavailable.',
+        statDiskRead: 'Read',
+        statDiskWrite: 'Write',
         statCpuHint: 'System-wide across {0} cores',
         statRamHint: '{0} used of {1}',
         statGpuHint: 'via {0}',
@@ -88,7 +125,61 @@
         whereSavings: 'Where the savings are',
         issuesByType: 'Issues found',
         noIssues: 'No issues found — your library is in good shape. New scans run automatically on schedule.',
+        issuesLoadFailed: "Couldn't load issues. Previously loaded results may be out of date. Retry, or check Jellyfin's logs if this continues.",
+        retry: 'Retry',
         noHistory: 'Nothing has been fixed yet. Fixes appear here after a fix run, with a Restore button for anything recoverable.',
+        recordedMoves: 'Recorded moves',
+        diagnosticsNoScan: 'Run a scan with diagnostics enabled to record its details.',
+        diagnosticsNoFix: 'Run fixes with diagnostics enabled to record their details.',
+        diagnosticsScanners: 'Scanners',
+        diagnosticsFixers: 'Fixers',
+        diagnosticsFixer: 'Fixer',
+        diagnosticsTargets: 'Targets',
+        diagnosticsResolved: 'Issues resolved',
+        diagnosticsFixersHint: 'Totals combine calls to each fixer. Targets include dry-run previews; resolved issues count applied fixes only.',
+        diagnosticsScanner: 'Scanner',
+        diagnosticsTime: 'Time',
+        diagnosticsItemsFound: 'Items found',
+        diagnosticsMaxCpu: 'Max CPU',
+        diagnosticsMaxIo: 'Max I/O',
+        diagnosticsMaxNetwork: 'Max network',
+        diagnosticsMaxRam: 'Max RAM',
+        diagnosticsMaxGpu: 'Max GPU',
+        diagnosticsPeaksHint: 'Sampled host/container peaks. I/O combines reads and writes; network combines receive and send.',
+        diagnosticsLoadFailed: 'Diagnostics could not be loaded. Refresh to try again.',
+        undoCompleteMove: 'Undo complete move',
+        moveNeedsReview: 'Needs review',
+        moveUndone: 'Undone',
+        moveCompleted: 'Completed',
+        moveUndoCompleted: 'Undo completed',
+        moveInProgress: 'Move in progress',
+        moveRecordedPaths: 'Recorded paths',
+        moveOriginal: 'Original',
+        moveDestination: 'Destination',
+        moveRecovery: 'Recovery locations — preserve these while reviewing',
+        moveUserStatePending: "Run Jellyfin's library scan to finish indexing and restore watched state.",
+        moveReviewRequired: 'Review the recorded move before continuing',
+        moveUndoChecking: 'Checking the complete move and original locations…',
+        moveUndoFailed: 'Undo could not complete. Review the recorded move and its current files.',
+        moveLoadFailed: 'Move recovery records could not be loaded. Refresh this tab to try again.',
+        moveRecoveryHelp: 'These records remain available if a move stops before History is saved. Undo restores the complete recorded item only when its files are unchanged and the original locations are free. Dry run previews Undo without changing files.',
+        movePreviewLabel: 'Review complete move',
+        moveSourceCleanup: 'After the last episode moves, recycle unchanged source metadata that already exists at the destination and remove the empty source folder.',
+        moveFolder: 'Folder',
+        moveFile: 'File',
+        moveShowMore: 'Show more paths',
+        fileMovePaths: "paths in this complete move",
+        fileRenameTitle: 'Rename item',
+        fileRenameName: 'New name',
+        fileRenameReview: 'Review related paths',
+        fileMoveDryRunHelp: "Dry run is on. Files will stay in place.",
+        fileMoveHelp: "Move all the paths below together. The complete recorded move can be undone from History when its files are unchanged.",
+        fileMoveCheckDryRun: "Check dry run",
+        fileMoveAccept: "Move these paths",
+        fileMovePreviewFailed: "The complete move could not be previewed.",
+        fileMoveDone: "The complete move finished. See History for Undo.",
+        fileMoveChanged: "The preview changed. Review the current paths before approving again.",
+        fileMoveFailed: "The move stopped. Review its recorded paths in History.",
         allTypes: 'All issue types',
         showingOf: 'Showing the first {0} of {1} issues. Use the filter above to narrow the list.',
         approve: 'Approve',
@@ -97,7 +188,11 @@
         dismissHint: 'Won’t report this file for this issue again.',
         approveAll: 'Approve all {0} shown',
         approveAllTypes: 'Approve all {0} issues (all types)',
-        approveAllNote: 'Approves every issue currently listed — each will be fixed on the next fix run.',
+        rescanApproveAll: 'Scan & approve all ({0})',
+        rescanApproveScanning: 'Scanning again for the issues that need a fresh scan… keep this page open.',
+        rescanApproveApproving: 'Scan finished. Approving every issue that is now ready…',
+        rescanApproveDone: 'Approved {0} issue(s) after the fresh scan. Anything still blocked is listed with its reason.',
+        approveAllNote: 'Queues eligible issues in this filtered list. Blocked, already queued, and needs-review issues are excluded.',
         clearAll: 'Clear all {0} shown',
         clearAllConfirm: 'Ignore all {0} issue(s) currently listed? They won’t be reported again by future scans. This does not touch files on disk.',
         clearAllNothing: 'No issues to clear.',
@@ -143,12 +238,18 @@
         resetBusy: 'Cannot reset right now: a scan or fix is running. Wait for it to finish, then try again.',
         binHolding: 'Currently holding {0} file(s) ({1}).',
         binEmpty: 'The recycle bin is empty.',
+        emptyAllTitle: 'Empty recycle bins',
+        emptyAllIntro: 'Some recycled files sit outside what a normal empty clears: bins from an earlier bin path, or batches from an older MediaDash version. Emptying permanently deletes them; restore will no longer be possible.',
+        emptyAllButton: 'Empty all locations ({0})',
+        emptyCurrentButton: 'Current bin only ({0})',
+        emptyCurrentTag: 'current bin',
+        emptyLocationLine: '{0} batch(es), {1}',
+        emptyCancel: 'Cancel',
         binViewHide: 'Hide contents',
         binViewShow: 'View contents',
         binRestoreHint: 'To put a file back, use the Restore button on the History tab.',
         binPerItemRestoreHint: 'Click Restore on any row to put that file back at its original location. Files without a "no history" tag can also be restored from the History tab.',
         modeOff: "Off — don't even scan",
-        modeDetect: 'Detect only — just show me',
         modeManual: 'Ask me first',
         modeAuto: 'Fix automatically',
         disposalRecycle: 'Recycle bin (recoverable)',
@@ -157,6 +258,9 @@
         unitPercent: '{0}%',
         unitDays: '{0} days',
         types: {
+            ManualMove: {
+                title: 'Moves and renames', hint: 'Complete moves approved in Files, including optional renames after re-encoding.', color: '#64748b', icon: 'drive_file_move'
+            },
             Duplicate: {
                 title: 'Duplicate copies', hint: 'The same movie or episode exists more than once.', color: '#d946ef', icon: 'content_copy',
                 action: 'Delete this copy', actionHint: 'Queues deletion of this copy for the next fix run; the better copy stays.', approveAll: 'Delete all {0} duplicate copies shown',
@@ -164,8 +268,8 @@
             },
             Playability: {
                 title: "Files that won't play", hint: 'These files are broken or unreadable.', color: '#eab308', icon: 'play_disabled',
-                action: 'Repair / Remove file', actionHint: 'Tries to repair the file first. If it can\'t be repaired, the file is removed.', approveAll: 'Repair / Remove all {0} broken files shown',
-                doRecycle: 'Try to repair; if it can\'t be repaired, remove the file (recoverable from the recycle bin)', doPermanent: 'Try to repair; if it can\'t be repaired, remove the file permanently'
+                action: 'Repair file', actionHint: 'Try to repair. If repair fails, keep the file and ask you to approve deletion.', approveAll: 'Repair all {0} broken files shown',
+                doRecycle: 'Try to repair; failed repairs are kept for you to review or delete', doPermanent: 'Try to repair; failed repairs are kept for you to review or delete'
             },
             Quality: {
                 title: 'Files wasting space', hint: 'Bigger than your chosen quality ceiling.', color: '#3b82f6', icon: 'compress',
@@ -237,8 +341,8 @@
                 action: 'Group under title folder', actionHint: 'Moves the file or folder into a folder named after the identified title (franchise stem when siblings share it).', approveAll: 'Group all {0} items shown'
             },
             CorruptArtwork: {
-                title: 'Corrupt artwork', hint: 'Poster / backdrop / thumb files inside Jellyfin\'s metadata folder that are zero-byte, truncated, or fail to decode.', color: '#e11d48', icon: 'broken_image',
-                action: 'Delete corrupt artwork', actionHint: 'Removes the broken image; Jellyfin\'s next library scan re-fetches from providers.', approveAll: 'Delete all {0} corrupt artwork files shown'
+                title: 'Missing or corrupt artwork', hint: 'Jellyfin-managed artwork with a missing file or a file that fails validation.', color: '#e11d48', icon: 'broken_image',
+                action: 'Delete corrupt artwork', actionHint: 'Removes the broken image; Jellyfin\'s next library scan re-fetches from providers.', approveAll: 'Approve all {0} artwork fixes shown'
             },
             FormatCompatibility: {
                 title: 'Unsupported format', hint: 'Ebooks and comics in formats Jellyfin cannot display — converted to EPUB/PDF or CBZ so the browser reader works.', color: '#7c3aed', icon: 'inventory_2',

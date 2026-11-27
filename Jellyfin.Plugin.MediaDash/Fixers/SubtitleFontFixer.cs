@@ -23,14 +23,17 @@ public sealed class SubtitleFontFixer : IFixer
     private const string TmpMarker = ".mediadash.tmp";
 
     private readonly LibraryGuard _libraryGuard;
+    private readonly RecycleBin _recycleBin;
     private readonly ILogger<SubtitleFontFixer> _logger;
 
     /// <summary>Initializes a new instance of the <see cref="SubtitleFontFixer"/> class.</summary>
     /// <param name="libraryGuard">Confirms the sidecar path sits inside a real library before touching it.</param>
     /// <param name="logger">The logger.</param>
-    public SubtitleFontFixer(LibraryGuard libraryGuard, ILogger<SubtitleFontFixer> logger)
+    /// <param name="recycleBin">Recovery storage for the original subtitle.</param>
+    public SubtitleFontFixer(LibraryGuard libraryGuard, ILogger<SubtitleFontFixer> logger, RecycleBin recycleBin)
     {
         _libraryGuard = libraryGuard;
+        _recycleBin = recycleBin;
         _logger = logger;
     }
 
@@ -148,6 +151,7 @@ public sealed class SubtitleFontFixer : IFixer
         }
 
         var tmp = issue.Path + TmpMarker;
+        string? recyclePath = null;
         try
         {
             if (File.Exists(tmp))
@@ -156,10 +160,29 @@ public sealed class SubtitleFontFixer : IFixer
             }
 
             ass.Save(tmp);
-            File.Move(tmp, issue.Path, overwrite: true);
+            if (config.GetDisposal(IssueType.SubtitleFonts) == Configuration.DisposalMethod.RecycleBin)
+            {
+                recyclePath = _recycleBin.MoveToBin(issue.Path);
+            }
+
+            File.Move(tmp, issue.Path, overwrite: recyclePath is null);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            if (recyclePath is not null)
+            {
+                try
+                {
+                    _recycleBin.Restore(recyclePath, issue.Path);
+                }
+                catch (Exception restoreError) when (restoreError is IOException or UnauthorizedAccessException)
+                {
+                    var failed = FixResult.Fail(FixReason.RecoveryRequired, "The subtitle rewrite failed; recover the original from " + recyclePath, restoreError.Message);
+                    failed.RecyclePath = recyclePath;
+                    return Task.FromResult(failed);
+                }
+            }
+
             TryDelete(tmp);
             return Task.FromResult(FixResult.Fail(FixReason.AccessDenied, "Couldn't write " + Path.GetFileName(issue.Path) + " — check that Jellyfin has write access to the containing folder.", ex.Message));
         }
@@ -185,7 +208,7 @@ public sealed class SubtitleFontFixer : IFixer
             string.IsNullOrEmpty(forceFont) ? string.Empty : " and forced font \"" + forceFont + "\"",
             freed);
 
-        return Task.FromResult(new FixResult { Success = true, Outcome = FixOutcome.Applied, Message = msg, BytesFreed = freed });
+        return Task.FromResult(new FixResult { Success = true, Outcome = FixOutcome.Applied, Message = msg, BytesFreed = freed, RecyclePath = recyclePath });
     }
 
     private static void TryDelete(string path)

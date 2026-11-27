@@ -71,7 +71,7 @@ public static class SmartHealthProbeWmi
             // 10-min refreshes short-circuit above.
             if (WmiKnownFailing.TryAdd(letter, 0))
             {
-                Diagnostics.Record("SmartHealth.Wmi", "WMI query failed for " + letter + ": " + ex.Message + ". Falling back to smartctl. This drive will use smartctl for the rest of the session.");
+                Diagnostics.Record("SmartHealth.Wmi", "Windows could not report drive health for " + letter + ", so MediaDash is using smartctl for this drive instead. Details: " + ex.Message);
             }
 
             return null;
@@ -80,7 +80,7 @@ public static class SmartHealthProbeWmi
         {
             if (WmiKnownFailing.TryAdd(letter, 0))
             {
-                Diagnostics.Record("SmartHealth.Wmi", "WMI access denied for " + letter + ": " + ex.Message + ". Jellyfin needs admin rights to read SMART via WMI on some hosts. Falling back to smartctl for the rest of the session.");
+                Diagnostics.Record("SmartHealth.Wmi", "Windows would not report drive health for " + letter + " (on some systems this needs administrator rights), so MediaDash is using smartctl for this drive instead. Details: " + ex.Message);
             }
 
             return null;
@@ -89,7 +89,7 @@ public static class SmartHealthProbeWmi
         {
             if (WmiKnownFailing.TryAdd(letter, 0))
             {
-                Diagnostics.Record("SmartHealth.Wmi", "WMI COM error for " + letter + ": " + ex.Message + ". Falling back to smartctl for the rest of the session.");
+                Diagnostics.Record("SmartHealth.Wmi", "Windows could not report drive health for " + letter + ", so MediaDash is using smartctl for this drive instead. Details: " + ex.Message);
             }
 
             return null;
@@ -273,18 +273,18 @@ public static class SmartHealthProbeWmi
         }
         catch (System.Management.ManagementException ex)
         {
-            Diagnostics.Record("SmartHealth.Wmi", "MSFT_StorageReliabilityCounter lookup failed for " + (result.ModelName ?? "physical disk") + ": " + ex.Message + ". Stats will be blank.");
+            Diagnostics.Record("SmartHealth.Wmi", "Windows could not provide detailed health stats for " + (result.ModelName ?? "a drive") + ", so those tiles are blank. The overall health badge still works. Details: " + ex.Message);
         }
         catch (UnauthorizedAccessException ex)
         {
             // Some Windows hosts require elevation to read StorageReliabilityCounter even when the
             // health pill is readable. Surface this specifically so users know to run Jellyfin
             // elevated (or accept blank tiles) — the pill still shows honestly.
-            Diagnostics.Record("SmartHealth.Wmi", "Access denied reading MSFT_StorageReliabilityCounter for " + (result.ModelName ?? "physical disk") + ": " + ex.Message + ". Detail tiles will be blank; run Jellyfin as an administrator to expose them (the SMART pill still works).");
+            Diagnostics.Record("SmartHealth.Wmi", "Windows would not provide detailed health stats for " + (result.ModelName ?? "a drive") + ", so those tiles are blank. Running Jellyfin as an administrator shows them; the overall health badge still works. Details: " + ex.Message);
         }
         catch (COMException ex)
         {
-            Diagnostics.Record("SmartHealth.Wmi", "MSFT_StorageReliabilityCounter COM error for " + (result.ModelName ?? "physical disk") + ": " + ex.Message + ".");
+            Diagnostics.Record("SmartHealth.Wmi", "Windows could not provide detailed health stats for " + (result.ModelName ?? "a drive") + ", so those tiles are blank. The overall health badge still works. Details: " + ex.Message);
         }
     }
 

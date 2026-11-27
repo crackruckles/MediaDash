@@ -41,6 +41,36 @@ public sealed class DuplicateConfidenceTests
         Assert.Equal("titleJaccardBelowThreshold", signals["vetoReason"]);
     }
 
+    // Production 2026-11-22: three releases of Rick and Morty S09E05. The bare "…s09e05.multi…" name
+    // shares few title tokens with "…S09E05.Jer.Bud…", so every pair against it was vetoed and the
+    // group was dropped. The same episode marker on both sides overrides the title veto.
+    [Theory]
+    [InlineData("Rick.and.Morty.S09E05.Jer.Bud.1080p.AMZN.WEB-DL.DDP5.1.H.264-FLUX.mkv", "rick.and.morty.s09e05.multi.1080p.web.h264-higgsboson.mkv")]
+    [InlineData("Rick and Morty S09E05 Jer Bud 1080p AMZN WEB-DL DDP5 1 H 264-playWEB.mkv", "rick.and.morty.s09e05.multi.1080p.web.h264-higgsboson.mkv")]
+    public void SameEpisodeMarker_OverridesTitleVeto(string keeperName, string loserName)
+    {
+        var keeper = C("/media/Rick and Morty (2013)/Season 9/" + keeperName);
+        var loser = C("/media/Rick and Morty (2013)/Season 9/" + loserName);
+        var (confidence, vetoed, signals) = DuplicateScanner.ScorePair(
+            keeper, loser, ConfidenceTier.Heuristic, sameDirectoryDistinctStems: true, hashesMatch: false, DefaultConfig());
+
+        Assert.False(vetoed);
+        Assert.True(confidence > 0);
+        Assert.Equal(true, signals["sameEpisodeMarker"]);
+    }
+
+    [Fact]
+    public void DifferentEpisodeMarkers_StillHonourTheTitleVeto()
+    {
+        var keeper = C("/media/Show/Season 1/Show.S01E05.Pilot.Part.One.1080p-GRP.mkv");
+        var loser = C("/media/Show/Season 1/Totally.Different.Special.S01E06.720p-XYZ.mkv");
+        var (_, vetoed, signals) = DuplicateScanner.ScorePair(
+            keeper, loser, ConfidenceTier.Heuristic, sameDirectoryDistinctStems: true, hashesMatch: false, DefaultConfig());
+
+        Assert.True(vetoed);
+        Assert.Equal("titleJaccardBelowThreshold", signals["vetoReason"]);
+    }
+
     // ── Tier 0 (Exact) ──────────────────────────────────────────────────────
 
     [Fact]

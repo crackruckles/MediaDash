@@ -19,12 +19,49 @@
                                 <p class="mdMastheadMeta" id="mdLastScan"></p>
                             </div>
                             <div class="mdMastheadActions">
-                                <button is="emby-button" type="button" id="mdScanNow" class="raised mdActionBtn mdActionScan" title="Scan all enabled libraries for issues. Click again while running to stop.">
+                                <button is="emby-button" type="button" id="mdScanNow" class="raised mdActionBtn mdActionScan" title="Scan all enabled libraries for issues. Click again while running to stop. Right-click (or long-press on touch) to choose which scans to run.">
                                     <span class="material-icons">search</span><span id="mdScanNowLabel">Scan now</span>
                                 </button>
                                 <button is="emby-button" type="button" id="mdFixNow" class="raised mdActionBtn mdActionFix" title="Run every approved fix in the queue. Click again while running to stop. Right-click (or long-press on touch) to reorder fixers.">
                                     <span class="material-icons">build</span><span id="mdFixNowLabel">Run fixes now</span>
                                 </button>
+                            </div>
+                            <!-- Scan picker. Right-click / long-press on "Scan now" runs only the ticked scans.
+                                 Rows are painted at open time; types switched Off in Settings are shown greyed. -->
+                            <div id="mdScanPickDialog" class="mdModalScrim">
+                                <div class="mdModalCard" role="dialog" aria-modal="true" aria-labelledby="mdScanPickTitle">
+                                    <div class="mdModalHeader">
+                                        <div class="mdModalTitle" id="mdScanPickTitle">Choose scans to run</div>
+                                        <div class="mdModalHint">Only the ticked scans run. Results from the other scans stay as they are.</div>
+                                    </div>
+                                    <div id="mdScanPickList" class="mdModalBody"></div>
+                                    <div class="mdModalFooter">
+                                        <button type="button" id="mdScanPickAll" class="mdActionBtn" title="Tick every scan that is turned on in Settings."><span class="material-icons">done_all</span><span>Select all</span></button>
+                                        <button type="button" id="mdScanPickNone" class="mdActionBtn"><span>Clear</span></button>
+                                        <span style="flex:1;"></span>
+                                        <button type="button" id="mdScanPickCancel" class="mdActionBtn"><span>Cancel</span></button>
+                                        <button type="button" id="mdScanPickRun" class="mdActionBtn mdActionFix" disabled><span class="material-icons">search</span><span id="mdScanPickRunLabel">Run scan</span></button>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Season dialog for an episode Jellyfin could not place ("Enter season number" on an issue row). -->
+                            <div id="mdSeasonDialog" class="mdModalScrim">
+                                <div class="mdModalCard" role="dialog" aria-modal="true" aria-labelledby="mdSeasonTitle">
+                                    <div class="mdModalHeader">
+                                        <div class="mdModalTitle" id="mdSeasonTitle">Enter season number</div>
+                                        <div class="mdModalHint" id="mdSeasonFile"></div>
+                                    </div>
+                                    <div class="mdModalBody">
+                                        <label for="mdSeasonInput" class="mdModalHint">Which season is this episode in? Enter 0 for specials.</label>
+                                        <input id="mdSeasonInput" type="number" min="0" max="999" step="1" inputmode="numeric" autocomplete="off" style="width:7em;margin-top:.5em;" />
+                                        <div id="mdSeasonError" class="mdModalWarn" style="display:none;"></div>
+                                    </div>
+                                    <div class="mdModalFooter">
+                                        <span style="flex:1;"></span>
+                                        <button type="button" id="mdSeasonCancel" class="mdActionBtn"><span>Cancel</span></button>
+                                        <button type="button" id="mdSeasonSave" class="mdActionBtn mdActionFix"><span class="material-icons">drive_file_move</span><span>Move to this season</span></button>
+                                    </div>
+                                </div>
                             </div>
                             <!-- Fixer-order dialog. Field report E1: reorder fix types (phases), not individual files.
                                  Populated at open time from the configured order (or the default when empty). -->
@@ -32,7 +69,7 @@
                                 <div class="mdModalCard">
                                     <div class="mdModalHeader">
                                         <div class="mdModalTitle">Fix order</div>
-                                        <div class="mdModalHint">Higher rows run first. Files inside each phase still go smallest first.</div>
+                                        <div class="mdModalHint">Repairs run first, then filename or format changes, then sorting and grouping. Reorder within each group; smaller files run first. Extension corrections wait with filename changes.</div>
                                     </div>
                                     <div id="mdFixOrderList" class="mdModalBody"></div>
                                     <div id="mdFixOrderWarn" class="mdModalWarn" style="display:none;"></div>
@@ -65,7 +102,7 @@
 
                 <div id="mdFixPauseNote" style="display:none;max-width:36em;margin:.4em 0 .8em;padding:.7em 1em;border-radius:10px;background:rgba(245,158,11,.16);border:1px solid rgba(245,158,11,.5);align-items:center;gap:.8em;flex-wrap:wrap;">
                     <span class="material-icons" style="color:#f59e0b;">pause_circle</span>
-                    <span id="mdFixPauseText" style="flex:1;min-width:12em;font-size:.9em;"></span>
+                    <span id="mdFixPauseText" role="status" style="flex:1;min-width:12em;font-size:.9em;"></span>
                     <button is="emby-button" type="button" id="mdFixIgnoreActivity" class="raised" style="font-size:80%;" title="Continue the fix run even while someone is watching. Only affects this run.">
                         <span class="material-icons" style="font-size:1.1em;margin-right:.3em;">play_arrow</span><span>Ignore activity</span>
                     </button>
@@ -198,7 +235,7 @@
                                     <input id="mdWizThorough" type="checkbox" is="emby-checkbox" />
                                     <span>Thorough playability check (recommended)</span>
                                 </label>
-                                <div class="fieldDescription">Test-plays three points in every file. Slower on first scan; results are cached for unchanged files. Turn off for a much faster header-only check.</div>
+                                <div class="fieldDescription">On adds full multi-track audio and interleave checks. Off samples video and all audio tracks in short windows. Sampled checks can miss damage between windows.</div>
                             </div>
                         </div>
 
@@ -493,7 +530,7 @@
                                     <input id="mdWizStaleEnabled" type="checkbox" is="emby-checkbox" />
                                     <span>Yes, flag media that has been sitting unwatched</span>
                                 </label>
-                                <div class="fieldDescription">Detect-only. MediaDash never deletes stale files automatically — the list shows on the Issues tab so you decide.</div>
+                                <div class="fieldDescription">Ask me first. MediaDash never deletes stale files automatically — the list shows on the Issues tab so you decide.</div>
                             </div>
                             <div class="inputContainer" style="max-width:14em;margin-top:.6em;">
                                 <label class="inputLabel inputLabelUnfocused" for="mdWizStaleThreshold">Consider stale after (days)</label>
@@ -507,8 +544,8 @@
                             <p class="mdWizIntro">Some files in your library might be in formats Jellyfin's browser player can't open directly — like MOBI ebooks, CBR comics, HEIC photos, or RMVB videos. MediaDash can detect them and (optionally) convert them to formats that just work.</p>
                             <div class="checkboxContainer checkboxContainer-withDescription" style="margin-bottom:.5em;">
                                 <label class="emby-checkbox-label">
-                                    <input id="mdWizFormatDetectOnly" type="radio" name="mdWizFormatMode" value="DetectOnly" checked />
-                                    <span>Detect only (recommended)</span>
+                                    <input id="mdWizFormatManualApprove" type="radio" name="mdWizFormatMode" value="ManualApprove" checked />
+                                    <span>Ask me first (recommended)</span>
                                 </label>
                                 <div class="fieldDescription">Flags incompatible files on the Issues tab — you choose what to convert and when. Nothing changes on disk until you approve.</div>
                             </div>
@@ -582,6 +619,7 @@
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="files" title="Browse and manage the files inside your libraries"><span data-i18n="tab.files">Files</span></button>
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="recycle" title="Files removed by MediaDash. Restore anything you still want, or empty the bin to reclaim space now."><span data-i18n="tab.recyclebin">Recycle bin</span></button>
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="errors" title="Plugin errors captured during scans and fixes"><span data-i18n="tab.errors">Errors</span><span id="mdErrorBadge" class="mdBadge" style="display:none;">0</span></button>
+                    <button is="emby-button" type="button" class="raised mdTab" data-tab="diagnostics" style="display:none;"><span data-i18n="tab.diagnostics">Diagnostics</span></button>
                     <button is="emby-button" type="button" class="raised mdTab" data-tab="settings" title="Configure MediaDash"><span data-i18n="tab.settings">Settings</span></button>
                 </div>
 
@@ -609,6 +647,21 @@
                                 </details>
                             </div>
                             <button is="emby-button" type="button" class="mdDismissBanner" data-banner="mdRedownloadWarn" style="background:transparent;border:0;color:#ef4444;padding:.3em;min-width:0;" title="Hide this notice for this browser session. It comes back on next scan if the condition still holds."><span class="material-icons" style="font-size:1.2em;">close</span></button>
+                        </div>
+                    </div>
+                    <div id="mdRecurringWarn" style="display:none;margin-bottom:1em;padding:.8em 1.2em;border-radius:12px;background:rgba(245,158,11,.14);border:2px solid #f59e0b;">
+                        <div style="display:flex;gap:.8em;align-items:flex-start;flex-wrap:wrap;">
+                            <span class="material-icons" style="color:#f59e0b;font-size:1.5em;">sync_problem</span>
+                            <div style="flex:1;min-width:20em;">
+                                <div style="font-weight:600;color:#f59e0b;">These issues keep coming back</div>
+                                <div class="fieldDescription" style="margin-top:.2em;"><span id="mdRecurringWarnLead"></span> Each was fixed before, but a later scan found the same problem at the same place. Usually something outside MediaDash is recreating it: Sonarr or Radarr still pointing at an old folder, Jellyfin saving artwork and NFO files into a folder it still lists, or a sync or backup tool putting files back. If the last fix says the folder or file was left in place, MediaDash closed the issue without changing anything. Fixing it again won't help until the cause is sorted.</div>
+                                <details style="margin-top:.4em;">
+                                    <summary style="cursor:pointer;font-size:.9em;color:rgba(230,237,243,.75);">Show the issues</summary>
+                                    <ul id="mdRecurringWarnList" style="margin:.4em 0 0;padding-left:1.4em;font-size:.85em;overflow-wrap:anywhere;word-break:break-word;"></ul>
+                                </details>
+                            </div>
+                            <button is="emby-button" type="button" id="mdRecurringWarnShow" class="raised" style="font-size:80%;" title="Open the Issues tab. Issues that came back are marked there."><span>Show in Issues</span></button>
+                            <button is="emby-button" type="button" class="mdDismissBanner" data-banner="mdRecurringWarn" style="background:transparent;border:0;color:#f59e0b;padding:.3em;min-width:0;" title="Hide this notice for this browser session. It comes back on the next scan if these issues are still open."><span class="material-icons" style="font-size:1.2em;">close</span></button>
                         </div>
                     </div>
                     <div id="mdRecycleWarn" style="display:none;margin-bottom:1em;padding:.8em 1.2em;border-radius:12px;background:rgba(245,158,11,.16);border:2px solid #f59e0b;">
@@ -668,11 +721,18 @@
                             <button is="emby-button" type="button" id="mdApproveAll" class="raised mdApproveAllBtn" style="display:none;">
                                 <span class="material-icons">done_all</span><span class="mdApproveAllLabel"></span>
                             </button>
+                            <button is="emby-button" type="button" id="mdRescanApproveAll" class="raised mdApproveAllBtn" style="display:none;" title="Scan again for the listed issues that need a fresh scan, then approve every one that comes back ready. Keep this page open until it finishes.">
+                                <span class="material-icons">sync</span><span class="mdRescanApproveAllLabel"></span>
+                            </button>
                             <button is="emby-button" type="button" id="mdClearAllIssues" class="raised mdApproveAllBtn" style="display:none;" title="Ignore every issue currently listed — they won't be reported again. Files on disk are untouched.">
                                 <span class="material-icons" id="mdClearAllIcon">delete_sweep</span><span id="mdClearAllLabel"></span>
                             </button>
                         </div>
                         <div id="mdApproveAllNote" class="mdIssueApproveNote"></div>
+                    </div>
+                    <div id="mdIssueLoadError" class="mdWarnStrip" role="alert" style="display:none;">
+                        <span id="mdIssueLoadErrorText"></span>
+                        <button is="emby-button" type="button" id="mdIssueLoadRetry" class="raised">Retry</button>
                     </div>
                     <div id="mdIssueList"></div>
                     <div id="mdIssuePager" style="display:none;justify-content:center;align-items:center;flex-wrap:wrap;gap:.6em;margin-top:1em;">
@@ -687,18 +747,19 @@
                     <div class="mdTabHeader">
                         <div class="mdTabHeaderText">
                             <h2 class="mdTabTitle">History</h2>
-                            <p class="mdTabDesc">Every fix MediaDash has run, with a Restore button for anything sent to the recycle bin. Filter by outcome or clear the list — clearing hides rows here but keeps the underlying totals.</p>
+                            <p class="mdTabDesc">Review fix outcomes, restore recycled files, or undo complete recorded moves. Interrupted moves remain available for review even when History could not be saved. Clearing History hides current history rows and recorded moves while keeping savings totals. Moves updated afterwards appear again.</p>
                         </div>
                         <div id="mdHistorySummary"></div>
                     </div>
                     <div id="mdHistoryChart" class="mdSection"></div>
+                    <div id="mdMoveOperations" class="mdSection"></div>
                     <div class="mdCard mdIssueFilterCard" style="margin-top:22px;padding:14px 24px;gap:8px;">
                         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
                             <div class="mdIssueSearchWrap">
                                 <span class="material-icons mdIssueSearchIcon">search</span>
                                 <input type="search" id="mdHistorySearch" placeholder="Search by filename…" autocomplete="off" title="Client-side filter — matches the filename shown on each row.">
                             </div>
-                            <button is="emby-button" type="button" id="mdHistoryClear" class="raised" style="font-size:80%;background:#7f1d1d;color:#fff;" title="Hide every current history row from this list. The rows stay in the database, so the per-library chart and 'Reclaimed since install' totals are untouched."><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;margin-right:.3em;">delete_sweep</span><span>Clear history log</span></button>
+                            <button is="emby-button" type="button" id="mdHistoryClear" class="raised" style="font-size:80%;background:#7f1d1d;color:#fff;" title="Clear current history rows and recorded moves from this tab. Savings totals stay intact; moves updated afterwards appear again."><span class="material-icons" style="font-size:1.1em;vertical-align:-3px;margin-right:.3em;">delete_sweep</span><span>Clear history log</span></button>
                         </div>
                         <div id="mdHistoryFilterBar" style="display:flex;gap:.4em;align-items:center;flex-wrap:wrap;">
                         <button is="emby-button" type="button" class="raised mdHistFilter mdHistFilterActive" data-filter="all" style="font-size:80%;--md-hist-accent:#00a4dc;background:#00a4dc;" title="Every history entry"><span>All</span> <b class="mdHistCount"></b></button>
@@ -726,6 +787,17 @@
                         <span id="mdErrorsMsg" class="fieldDescription"></span>
                     </div>
                     <div id="mdErrorList"></div>
+                </div>
+
+                <div id="mdTab-diagnostics" style="display:none;">
+                    <div class="mdTabHeader">
+                        <div class="mdTabHeaderText">
+                            <h2 class="mdTabTitle" data-i18n="tab.diagnostics">Diagnostics</h2>
+                            <p class="mdTabDesc" data-i18n="diagnostics.description">Scanner and fixer timings, results and peak resource usage from the latest diagnostic scan and fix run.</p>
+                        </div>
+                        <button is="emby-button" type="button" id="mdDiagnosticsRefresh" class="raised"><span class="material-icons">refresh</span><span data-i18n="diagnostics.refresh">Refresh</span></button>
+                    </div>
+                    <div id="mdDiagnosticsData"></div>
                 </div>
 
                 <div id="mdTab-files" style="display:none;">
@@ -773,6 +845,33 @@
                         <div class="mdCtxItem" data-ctx="protect" role="button" tabindex="0">
                             <span class="material-icons">shield</span>
                             <span>Protect this path</span>
+                        </div>
+                    </div>
+
+                    <div id="mdFileRenameDialog" class="mdDialog" role="dialog" aria-modal="true" aria-labelledby="mdFileRenameTitle" style="display:none;">
+                        <div class="mdDialogInner">
+                            <h2 id="mdFileRenameTitle">Rename item</h2>
+                            <label id="mdFileRenameLabel" for="mdFileRenameName">New name</label>
+                            <input is="emby-input" id="mdFileRenameName" type="text" autocomplete="off" />
+                            <div class="mdDialogActions">
+                                <button is="emby-button" type="button" id="mdFileRenameCancel" class="raised">Cancel</button>
+                                <button is="emby-button" type="button" id="mdFileRenameAccept" class="raised button-submit">Review related paths</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="mdFileMoveDialog" class="mdDialog" role="dialog" aria-modal="true" aria-labelledby="mdFileMoveTitle" style="display:none;">
+                        <div class="mdDialogInner">
+                            <h2 id="mdFileMoveTitle">Review complete move</h2>
+                            <div id="mdFileMoveHelp" class="fieldDescription"></div>
+                            <div id="mdFileMoveCount" class="fieldDescription"></div>
+                            <div id="mdFileMovePaths" style="max-height:45vh;overflow:auto;word-break:break-all;"></div>
+                            <button is="emby-button" type="button" id="mdFileMoveMore" class="raised" style="display:none;">Show more paths</button>
+                            <div id="mdFileMoveMessage" role="status" class="fieldDescription" style="white-space:pre-line;"></div>
+                            <div class="mdDialogActions">
+                                <button is="emby-button" type="button" id="mdFileMoveCancel" class="raised">Cancel</button>
+                                <button is="emby-button" type="button" id="mdFileMoveAccept" class="raised button-submit">Move these paths</button>
+                            </div>
                         </div>
                     </div>
 
@@ -1045,6 +1144,13 @@
                                 </span>
                                 <span class="material-icons mdSetHeadChevron">expand_more</span>
                             </h2>
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label class="emby-checkbox-label">
+                                    <input id="mdDiagnosticsEnabled" type="checkbox" is="emby-checkbox" />
+                                    <span data-i18n="settings.maintenance.diagnostics">Diagnostics mode</span>
+                                </label>
+                                <div class="fieldDescription" data-i18n="settings.maintenance.diagnosticsHint">Save changes, then run a scan or fixes to record timings, results and resource peaks. The Diagnostics tab appears next to Errors while this is enabled. The latest diagnostic scan and fix run are retained separately.</div>
+                            </div>
                             <div style="margin:.4em 0;display:flex;gap:.6em;align-items:center;flex-wrap:wrap;">
                                 <button is="emby-button" type="button" id="mdRerunSetup" class="raised" title="Reopen the first-run walkthrough at the top of Overview" style="font-size:80%;"><span>Run first-time setup again</span></button>
                                 <span class="fieldDescription">Brings back the multi-step first-run walkthrough.</span>

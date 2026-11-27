@@ -5,6 +5,9 @@ set -euo pipefail
 
 OUT="${1:?usage: make-fixtures.sh <output-dir> [ffmpeg-path]}"
 FFMPEG="${2:-ffmpeg}"
+command -v "$FFMPEG" >/dev/null || { echo "ffmpeg not found: $FFMPEG" >&2; exit 2; }
+if [ -e "$OUT" ]; then echo 'Use a new output directory; refusing to overwrite fixture evidence.' >&2; exit 2; fi
+mkdir -p "$OUT"
 
 SRC_ARGS=(-f lavfi -i "testsrc2=duration=20:size=WIDTHxHEIGHT:rate=24" -f lavfi -i "sine=frequency=440:duration=20")
 
@@ -18,12 +21,15 @@ gen() { # gen <outfile> <width> <height> <video-args...>
 }
 
 # 1. Quality issue: 4K H.264 at a deliberately high bitrate
-gen "$OUT/movies/Big Buck Test (2020)/Big Buck Test (2020) - 2160p.mkv" 3840 2160 \
+gen "$OUT/movies/Big Buck Test 4K (2020)/Big Buck Test (2020).mkv" 3840 2160 \
   -c:v libx264 -b:v 9M -minrate 9M -maxrate 9M -bufsize 2M -c:a aac -metadata:s:a:0 language=eng
 
 # 2. Duplicate: same movie again in 1080p (same folder => same title+year group)
-gen "$OUT/movies/Big Buck Test (2020)/Big Buck Test (2020) - 1080p.mkv" 1920 1080 \
+gen "$OUT/movies/Big Buck Test (2020)/Big Buck Test (2020).mkv" 1920 1080 \
   -c:v libx264 -crf 30 -c:a aac -metadata:s:a:0 language=eng
+for folder in 'Big Buck Test 4K (2020)' 'Big Buck Test (2020)'; do
+  printf '%s\n' '<movie><title>Big Buck Test</title><year>2020</year><uniqueid type="tmdb" default="true">999999990</uniqueid></movie>' > "$OUT/movies/$folder/Big Buck Test (2020).nfo"
+done
 
 # 3. Playability issue: generate then truncate to 40% of its size
 gen "$OUT/movies/Truncated Movie (2021)/Truncated Movie (2021).mkv" 1280 720 \
@@ -52,9 +58,9 @@ printf '1\n00:00:01,000 --> 00:00:05,000\nTest subtitle\n' > "$srt"
   -f lavfi -i "testsrc2=duration=20:size=1280x720:rate=24" \
   -f lavfi -i "sine=frequency=440:duration=20" \
   -i "$srt" -i "$srt" -i "$srt" \
-  -map 0:v -map 1:a -map 2:s -map 3:s -map 4:s \
+  -map 0:v -map 1:a -map 1:a -map 2:s -map 3:s -map 4:s \
   -c:v libx264 -crf 30 -c:a aac -c:s srt \
-  -metadata:s:a:0 language=eng \
+  -metadata:s:a:0 language=eng -metadata:s:a:1 language=fra \
   -metadata:s:s:0 language=eng -metadata:s:s:1 language=fra -metadata:s:s:2 language=deu \
   "$OUT/movies/Sub Heavy (2023)/Sub Heavy (2023).mkv"
 rm -f "$srt"

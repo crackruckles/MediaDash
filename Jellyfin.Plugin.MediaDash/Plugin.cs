@@ -31,6 +31,14 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         : base(applicationPaths, xmlSerializer)
     {
         Instance = this;
+        // Pre-1.0.9 defaulted every FixMode to DetectOnly. The enum value is kept as an XML
+        // tombstone (see FixMode.cs) so BasePlugin's XmlSerializer still deserialises older
+        // configs; NormaliseFixModes promotes any stored DetectOnly to ManualApprove so the
+        // next save drops the tombstone.
+        if (Configuration.NormaliseFixModes())
+        {
+            SaveConfiguration();
+        }
     }
 
     /// <inheritdoc />

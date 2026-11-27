@@ -58,7 +58,9 @@ public sealed class SuspiciousFileFixer : IFixer
             return Task.FromResult(FixResult.Refused(FixReason.OutsideLibrary, "The file is outside your library folders; MediaDash will not touch it."));
         }
 
-        if (!SuspiciousFileScanner.IsSuspicious(issue.Path))
+        // A disc image is only removed while it still holds programs or no video (checked again now,
+        // in case the file was replaced with a real disc since the scan).
+        if (DiscImageInspector.IsDiscImage(issue.Path) ? SuspiciousFileScanner.DiscImageIssue(issue.Path) is null : !SuspiciousFileScanner.IsSuspicious(issue.Path))
         {
             return Task.FromResult(FixResult.NoChange(FixReason.AlreadyHealthy, "File extension is no longer flagged as suspicious; re-scan to refresh the list."));
         }

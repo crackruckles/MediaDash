@@ -1,68 +1,50 @@
-﻿# 04-combined-pass.ps1 — verifies FixTask.BuildTranscodeCompanions and
-# TrackFixer.FixCombinedAsync — the combined ffmpeg pass that groups
-# Track + Sub language issues and Transcode + track companions into a single
-# ffmpeg invocation.
-#
-# We use a file that has BOTH Audio and Subtitle language issues (Sub Heavy
-# fixture) and verify History records two rows against ONE ffmpeg execution.
+# Shared evidence for two distinct combined-fix routes.
+function Assert-CombinedFixtureFix {
+    param([string]$PathLike, [string[]]$IssueTypes, [int]$MaxHeight = 0)
+    Start-MediaDashScan -Wait -TimeoutSec 600
+    $pair = @(Get-MediaDashIssues | Where-Object { $_.Path -like "*$PathLike*" -and $_.Type -in $IssueTypes })
+    Assert-Equal $IssueTypes.Count $pair.Count 'every required companion issue must be detected'
+    Assert-Equal $IssueTypes.Count @($pair.Type | Select-Object -Unique).Count 'distinct companion types required'
+    Assert-Equal 1 @($pair.Path | Select-Object -Unique).Count 'companions must share one full source path'
+    $source = $pair[0].Path
+    $originalHash = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
+    $beforeBins = @((Get-MediaDashRecycleBinItems).BinPath)
+    foreach ($issue in $pair) { Approve-MediaDashIssue $issue.Id }
+    Start-MediaDashFix -Wait -TimeoutSec 900
+    $firstRow = $null
+    foreach ($issueType in $IssueTypes) {
+        $row = Get-CurrentFixHistory -FileName ([IO.Path]::GetFileName($source)) -Type $issueType
+        if ($null -eq $firstRow) { $firstRow = $row }
+    }
+    $entries = @(Get-MediaDashRecycleBinItems | Where-Object { $_.OriginalPath -eq $source -and $_.BinPath -notin $beforeBins })
+    Assert-Equal 1 $entries.Count 'combined action must recycle the original exactly once'
+    Assert-Equal $originalHash (Get-FileHash -LiteralPath $entries[0].BinPath -Algorithm SHA256).Hash 'recycled original hash'
+    $ffmpeg = Get-JellyfinFfmpegPath
+    $ffprobe = Join-Path (Split-Path -Parent $ffmpeg) ('ffprobe' + [IO.Path]::GetExtension($ffmpeg))
+    $raw = & $ffprobe -v error -show_streams -of json $source
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot probe combined output.' }
+    $streams = ($raw | ConvertFrom-Json).streams
+    Assert-Equal 1 @($streams | Where-Object codec_type -EQ 'audio').Count 'one English audio stream retained'
+    Assert-Equal 0 @($streams | Where-Object { $_.codec_type -in @('audio','subtitle') -and $_.tags.language -ne 'eng' }).Count 'disallowed tracks removed'
+    if ($MaxHeight -gt 0) {
+        $video = @($streams | Where-Object codec_type -EQ 'video')
+        Assert-Equal 1 $video.Count 'one video stream retained'
+        Assert-LessOrEqual $MaxHeight $video[0].height 'quality companion obeys the configured ceiling'
+    }
+    & $ffmpeg -nostdin -v error -xerror -i $source -map '0:v?' -map '0:a?' -f null - 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Combined output failed full audio/video decode.' }
+    Restore-FromRecycleBin -HistoryId $firstRow.Id
+    Assert-Equal $originalHash (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash 'restored original hash'
+}
 
 function Invoke-Phase-CombinedPass {
-    Start-Phase "Combined ffmpeg pass — TrackFixer + companion routing"
-
-    Invoke-Test "Combined pass eligibility: Sub Heavy has both Audio+Sub language issues" {
-        Set-MediaDashConfig @{
-            AllowedAudioLanguages = @("eng")
-            AllowedSubtitleLanguages = @("eng")
-            DryRun = $false
-        }
-        Start-MediaDashScan -Wait -TimeoutSec 600
-        $issues = Get-MediaDashIssues
-        $sh = @($issues | Where-Object { $_.Path -like "*Sub Heavy*" })
-        $audio = @($sh | Where-Object { $_.Type -eq "AudioLanguage" })
-        $sub   = @($sh | Where-Object { $_.Type -eq "SubtitleLanguage" })
-        # Sub Heavy has eng audio only (no offending audio langs) — verify it still
-        # has SUB language issues. If audio issue absent, log UNVERIFIABLE and
-        # exercise sub-only path (still passes through combined-pass code, just
-        # not the "combined" branch).
-        Assert-GreaterOrEqual 1 $sub.Count "expected SubtitleLanguage on Sub Heavy"
-        if ($audio.Count -eq 0) {
-            Write-Log "    NOTE: Sub Heavy has no AudioLanguage issue — combined-pair path not exercised here"
-        } else {
-            Write-Log "    combined-eligible: audio + subtitle both queued for same file"
-        }
+    Start-Phase 'Combined track and transcode-companion routing'
+    Invoke-Test 'Combined audio/subtitle fix produces current history and one original' {
+        Set-MediaDashConfig @{AllowedAudioLanguages=@('eng'); AllowedSubtitleLanguages=@('eng'); DryRun=$false}
+        Assert-CombinedFixtureFix -PathLike 'Sub Heavy' -IssueTypes @('AudioLanguage','SubtitleLanguage')
     }
-
-    Invoke-Test "Approve + run + verify single-file combined fix history" {
-        $issues = Get-MediaDashIssues
-        $shIssues = @($issues | Where-Object { $_.Path -like "*Sub Heavy*" })
-        foreach ($i in $shIssues) { Approve-MediaDashIssue $i.Id }
-        Start-MediaDashFix -Wait -TimeoutSec 900
-
-        $history = Get-MediaDashHistory -Limit 50
-        $shHistory = @($history.Items | Where-Object { $_.FileName -like "*Sub Heavy*" })
-        Assert-GreaterOrEqual 1 $shHistory.Count "expected at least one history row for Sub Heavy fix"
-
-        # If both audio and sub issues existed, we expect TWO history rows for the ONE ffmpeg pass.
-        # Verify the rows share a RecyclePath (single bin entry) which is the combined-pass signature.
-        if ($shHistory.Count -ge 2) {
-            $recyclePaths = @($shHistory | ForEach-Object { $_.RecyclePath } | Where-Object { $_ } | Select-Object -Unique)
-            if ($recyclePaths.Count -eq 1) {
-                Write-Log "    ✓ combined-pass confirmed: 2 history rows share 1 recycle bin path"
-            } else {
-                Write-Log "    NOTE: 2 rows have $($recyclePaths.Count) recycle paths — may indicate separate passes ran"
-            }
-        }
+    Invoke-Test 'Transcode + Track companion routing produces one recoverable original' {
+        Assert-CombinedFixtureFix -PathLike 'Companion Quality' -IssueTypes @('Quality','AudioLanguage') -MaxHeight (Get-MediaDashConfig).MaxResolutionHeight
     }
-
-    Invoke-Test "Transcode + Track companion routing (skip if Big Buck 4K not re-encoded)" {
-        # This test requires a file that has BOTH a Quality/HeavyTranscode issue AND
-        # an AudioLanguage or SubtitleLanguage issue queued together. The base fixtures
-        # don't produce this naturally, but the multi-lang Multi Audio + fake bitrate
-        # trigger could — needs a custom fixture. Report UNVERIFIABLE for now.
-        Write-Log "    UNVERIFIABLE: transcode-companion routing requires a fixture with both Quality + AudioLang; not in base set"
-    }
-
-    Invoke-Test "Post-combined-pass: restore DryRun ON" {
-        Set-MediaDashConfig @{ DryRun = $true }
-    }
+    Invoke-Test 'Post-combined-pass: restore DryRun ON' { Set-MediaDashConfig @{DryRun=$true} }
 }

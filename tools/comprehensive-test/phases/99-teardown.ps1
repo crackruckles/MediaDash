@@ -1,102 +1,68 @@
-﻿# 99-teardown.ps1 — clean up after the run so the box is in a known state.
-# Always runs (even if earlier phases errored). Best-effort — every step
-# swallows its own errors so one broken cleanup step doesn't hide others.
-
+# Invoke-Test records failures and continues. Never swallow cleanup errors.
 function Invoke-Phase-Teardown {
-    Start-Phase "Teardown — restore config, empty test recycle bin, remove test libraries"
-
-    Invoke-Test "Restore MediaDash config to pre-run snapshot" {
-        try {
-            Restore-MediaDashConfigSnapshot
-        } catch {
-            Write-Log "    warn: config restore failed — $($_.Exception.Message)"
+    Start-Phase 'Teardown - restore settings and remove only resources owned by this run'
+    if (-not $Script:RunState.JellyfinAuthHeader) { return }
+    $tasks = @(Invoke-JfApi -Method GET -Path '/ScheduledTasks')
+    foreach ($key in @('MediaDashFix','MediaDashScan','RefreshLibrary')) {
+        $task = @($tasks | Where-Object Key -eq $key)
+        if ($task.Count -ne 1 -or $task[0].State -ne 'Idle') {
+            throw "Cleanup blocked: $key is not idle. Retaining fixture isolation; recover from config-before.json after tasks stop."
         }
     }
-
-    Invoke-Test "Empty the recycle bin of any test-created entries" {
-        try {
-            $items = Get-MediaDashRecycleBinItems
-            $testEntries = @($items | Where-Object {
-                $_.OriginalPath -like "*mediadash-fixtures*" -or
-                $_.OriginalPath -like "*_test-scratch*"
-            })
-            if ($testEntries.Count -gt 0) {
-                # External audit P2 #10: /MediaDash/RecycleBin/Items/Delete expects BinDeleteRequest
-                # with a `BinPath` string (see Api/BinDeleteRequest.cs). The previous payload sent
-                # `HistoryIds` which the controller discards; the endpoint responded 400, -IgnoreErrors
-                # hid the failure, and teardown reported entries cleared while the bin still held them.
-                $cleared = 0
-                $failed = 0
-                foreach ($e in $testEntries) {
-                    $binPath = $e.BinPath
-                    if (-not $binPath) {
-                        $failed++
-                        continue
-                    }
-
-                    $resp = Invoke-JfApi -Method POST -Path "/MediaDash/RecycleBin/Items/Delete" -Body @{ BinPath = $binPath } -IgnoreErrors
-                    if ($null -ne $resp) {
-                        $cleared++
-                    } else {
-                        $failed++
-                    }
-                }
-
-                # Verify by re-listing: anything we targeted that still shows up is a real failure.
-                $remaining = @((Get-MediaDashRecycleBinItems) | Where-Object { $_.OriginalPath -like "*mediadash-fixtures*" -or $_.OriginalPath -like "*_test-scratch*" })
-                if ($remaining.Count -eq 0) {
-                    Write-Log "    cleared $cleared test recycle-bin entries"
-                } else {
-                    Write-Log "    warn: $($remaining.Count) test entries still in bin after delete (sent=$($testEntries.Count), accepted=$cleared, rejected=$failed) — pollutes later runs"
-                }
-            }
-        } catch {
-            Write-Log "    warn: recycle bin cleanup failed — $($_.Exception.Message)"
-        }
-    }
-
-    Invoke-Test "Remove test Jellyfin libraries added during setup" {
-        foreach ($libName in @("MediaDash Test", "MediaDash Scratch")) {
+    Invoke-Test 'Remove only current-run fixture recycle entries' {
+        if ($null -eq $Script:RunState.OriginalBinPaths) { return }
+        $entries = @(Get-MediaDashRecycleBinItems | Where-Object {
+            $_.BinPath -and $_.BinPath -notin $Script:RunState.OriginalBinPaths
+        } | Where-Object {
+            if (-not $_.OriginalPath) { return $false }
+            if ($Script:RunState.PSObject.Properties['ArtworkFixturePath'] -and $_.OriginalPath -eq $Script:RunState.ArtworkFixturePath) { return $true }
             try {
-                Remove-JellyfinLibrary $libName
-            } catch {
-                Write-Log "    warn: could not remove $libName — $($_.Exception.Message)"
+                Assert-SafeLiveTarget -Url $Script:RunState.JellyfinUrl -AllowedFixturePaths @($Script:RunState.FixturesRoot) -FixturePath $_.OriginalPath
+                $true
+            } catch { $false }
+        })
+        foreach ($entry in $entries) {
+            Invoke-JfApi -Method POST -Path '/MediaDash/RecycleBin/Items/Delete' -Body @{ BinPath = $entry.BinPath } | Out-Null
+        }
+        $remaining = @(Get-MediaDashRecycleBinItems | Where-Object BinPath -In @($entries.BinPath))
+        Assert-Equal 0 $remaining.Count 'current-run recycle entries should be removed'
+    }
+    foreach ($libraryName in $Script:RunState.AddedLibraryIds) {
+        Invoke-Test "Remove owned Jellyfin library: $libraryName" { Remove-JellyfinLibrary $libraryName }
+    }
+    Invoke-Test 'Dismiss only owned open issues and verify approvals are cleared' {
+        $ownedIssues = @(Get-MediaDashIssues | Where-Object {
+            if (-not $_.Path) { return $false }
+            if ($Script:RunState.PSObject.Properties['ArtworkFixturePath'] -and $_.Path -eq $Script:RunState.ArtworkFixturePath) { return $true }
+            try {
+                Assert-SafeLiveTarget -Url $Script:RunState.JellyfinUrl -AllowedFixturePaths @($Script:RunState.FixturesRoot) -FixturePath $_.Path
+                $true
+            } catch { $false }
+        })
+        foreach ($ownedIssue in $ownedIssues) { Dismiss-MediaDashIssue $ownedIssue.Id }
+        $remaining = @(Get-MediaDashIssues | Where-Object Id -In @($ownedIssues.Id))
+        Assert-Equal 0 $remaining.Count 'owned open issues must be dismissed before settings restoration'
+    }
+    if ($Script:RunState.PSObject.Properties['ScratchRoot']) {
+        Invoke-Test 'Remove scratch fixture directory' { Remove-ScratchFixtures }
+    }
+    Invoke-Test 'Record fixture integrity after the run' {
+        if (-not $Script:RunState.PSObject.Properties['BackupRoot']) { return }
+        $changes = @(Test-FixtureIntegrity -FixturesRoot $Script:RunState.FixturesRoot)
+        $changes | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $Script:ArtifactsDir 'fixture-changes.json') -Encoding utf8
+        Write-Log "    $($changes.Count) base fixture(s) changed; see fixture-changes.json"
+    }
+    # Restoring configuration can start a rescan. Do it after all fixture I/O.
+    Invoke-Test 'Restore MediaDash config to pre-run snapshot' { Restore-MediaDashConfigSnapshot }
+    if ($Script:RunState.PSObject.Properties['OriginalTasks']) {
+        foreach ($originalTask in $Script:RunState.OriginalTasks) {
+            Invoke-Test "Restore scheduled triggers: $($originalTask.Key)" {
+                $json = ConvertTo-Json -InputObject @($originalTask.Triggers) -Depth 10 -Compress
+                Invoke-JfApi -Method POST -Path "/ScheduledTasks/$($originalTask.Id)/Triggers" -Body $json | Out-Null
+                $actualTask = @(Invoke-JfApi -Method GET -Path '/ScheduledTasks' | Where-Object Key -EQ $originalTask.Key)
+                Assert-Equal 1 $actualTask.Count 'original task must remain registered'
+                Assert-Equal $json (ConvertTo-Json -InputObject @($actualTask[0].Triggers) -Depth 10 -Compress) 'original triggers must be restored'
             }
-        }
-    }
-
-    Invoke-Test "Remove scratch fixture directory" {
-        try {
-            Remove-ScratchFixtures
-        } catch {
-            Write-Log "    warn: scratch cleanup failed — $($_.Exception.Message)"
-        }
-    }
-
-    Invoke-Test "Fixture integrity check — report what the run modified" {
-        try {
-            $changes = Test-FixtureIntegrity -FixturesRoot $Script:RunState.FixturesRoot
-            if ($changes.Count -eq 0) {
-                Write-Log "    all fixture files match backup manifest (no modifications)"
-            } else {
-                Write-Log "    $($changes.Count) fixture file(s) changed during the run:"
-                foreach ($c in $changes) { Write-Log "      [$($c.kind)] $($c.path)" }
-                # Also write to an artifact so it's in the summary
-                $artifactPath = Join-Path $Script:ArtifactsDir "fixture-changes.json"
-                $changes | ConvertTo-Json -Depth 6 | Set-Content -Path $artifactPath -Encoding utf8
-                Write-Log "    → $artifactPath"
-            }
-        } catch {
-            Write-Log "    warn: integrity check failed — $($_.Exception.Message)"
-        }
-    }
-
-    Invoke-Test "Verify no MediaDash issues remain in DB (informational)" {
-        try {
-            $issues = Get-MediaDashIssues
-            Write-Log "    issues remaining in DB after teardown: $($issues.Count) (informational only)"
-        } catch {
-            Write-Log "    warn: issue count check failed — $($_.Exception.Message)"
         }
     }
 }

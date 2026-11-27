@@ -66,6 +66,51 @@ public sealed class FreeSpaceGuardTests : IDisposable
     }
 
     [Fact]
+    public void DescribeShortfall_ReturnsNullWhenSpaceGatePasses()
+    {
+        // Happy path: 1 KB file × 2 fits on any host running the test suite, so the guard reports
+        // "no shortfall" via null. Callers key off this to decide whether to emit the error row.
+        Assert.Null(FreeSpaceGuard.DescribeShortfall(_tempFile, multiplier: 2));
+    }
+
+    [Fact]
+    public void DescribeShortfall_UnmeasurablePathDoesNotClaimMeasuredShortage()
+    {
+        var message = FreeSpaceGuard.DescribeShortfall("\0invalid-path", multiplier: 2);
+        Assert.NotNull(message);
+        Assert.Contains("couldn't determine free space", message);
+        Assert.DoesNotContain("Not enough free", message);
+    }
+
+    [Fact]
+    public void DescribeShortfall_MeasuredShortageReportsTheOutputDirectory()
+    {
+        using (var source = File.OpenWrite(_tempFile))
+        {
+            source.SetLength(1024 * 1024);
+        }
+
+        Assert.False(FreeSpaceGuard.HasEnoughFreeSpace(_tempFile, int.MaxValue));
+        var message = FreeSpaceGuard.DescribeShortfall(_tempFile, int.MaxValue);
+        Assert.NotNull(message);
+        Assert.Contains("Not enough free disk space", message);
+        Assert.Contains(Path.GetDirectoryName(_tempFile)!, message);
+        Assert.Contains("available", message);
+    }
+
+    [Fact]
+    public void DescribeShortfall_FailClosedBranchStaysBucketCompatible()
+    {
+        // Missing file + unresolvable path both return a non-null string. The callers prefix
+        // "Not enough free disk space to …" + this fragment, so the BucketReason regex must still
+        // bucket the composite as "Not enough free disk space". We only check the fragment is
+        // non-empty — the prefix is what the bucketing matches on.
+        var missing = Path.Combine(Path.GetTempPath(), "mediadash-space-missing-" + Guid.NewGuid().ToString("N") + ".bin");
+        Assert.False(string.IsNullOrEmpty(FreeSpaceGuard.DescribeShortfall(missing, multiplier: 2)));
+        Assert.False(string.IsNullOrEmpty(FreeSpaceGuard.DescribeShortfall("\0invalid-path", multiplier: 2)));
+    }
+
+    [Fact]
     public void OverflowSafeArithmeticNeverThrows()
     {
         // Documents the intent: the helper divides available-space by multiplier instead of

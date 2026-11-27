@@ -99,7 +99,7 @@ class HarnessWorkflowContracts(unittest.TestCase):
     def test_case_catalog_has_unique_ids_and_all_five_rungs(self):
         self.assertEqual(len(h.CASES),len({c[0] for c in h.CASES}))
         self.assertTrue(set(h.RUNGS).issubset({c[4] for c in h.CASES}))
-        self.assertTrue({'healthy','repair','partial','recycle','rename','collision'}.issubset({c[3] for c in h.CASES}))
+        self.assertTrue({'healthy','repair','review-delete','refuse','rename','collision'}.issubset({c[3] for c in h.CASES}))
 
     def test_issue_queries_include_queued_and_keep_owned_scope(self):
         from pathlib import Path
@@ -125,6 +125,7 @@ class HarnessWorkflowContracts(unittest.TestCase):
         harness.changed=True
         harness.config_path='/Plugins/test/Configuration'
         harness.original={'DryRun':False}
+        harness.safe={'DryRun':True,'AudioFixMode':'Off','EnabledLibraries':['00000000000000000000000000000000'],'FixerDisabled':['AudioLanguage']}
         harness.held_queue=[]
         harness.run_task=Mock()
         harness.task=Mock(return_value={'State':'Idle'})
@@ -148,12 +149,27 @@ class HarnessWorkflowContracts(unittest.TestCase):
         harness.held_queue=[queued]
         harness.open_issues=Mock(side_effect=[[detected],[detected],[detected],[queued]])
         harness.api=Mock(side_effect=lambda path,*args,**kwargs: [dismissed] if path=='/MediaDash/Issues?status=Dismissed' else harness.original)
+        harness.configure=Mock()
         harness.cleanup()
+        restore_config=harness.configure.call_args.args[0]
+        self.assertTrue(restore_config['DryRun'])
+        self.assertEqual(['00000000000000000000000000000000'],restore_config['EnabledLibraries'])
+        self.assertEqual('ManualApprove',restore_config['AudioFixMode'])
+        self.assertEqual([],restore_config['FixerDisabled'])
         paths=[call.args[0] for call in harness.api.call_args_list]
         self.assertLess(paths.index('/MediaDash/Issues/44/Revert'), paths.index('/MediaDash/Issues/44/Approve'))
         self.assertLess(paths.index('/MediaDash/Issues/44/Approve'), paths.index(harness.config_path))
         self.assertNotIn('/MediaDash/Issues/44/Dismiss',paths)
         harness.record.assert_any_call('original queue restored',True)
+
+    def test_failed_restore_isolation_never_attempts_reapproval(self):
+        from unittest.mock import Mock
+        harness=self.cleanup_harness()
+        harness.held_queue=[{'Id':44,'Path':str(harness.root.parent/'foreign.mp4'),'Status':'Queued'}]
+        harness.configure=Mock(side_effect=RuntimeError('read-back mismatch'))
+        harness.cleanup()
+        self.assertFalse(any('/Approve' in call.args[0] for call in harness.api.call_args_list))
+        self.assertTrue(any(call.args[0]=='queue restoration' and not call.args[1] for call in harness.record.call_args_list))
 
     def test_unstoppable_owned_task_retains_isolation_and_reports_failure(self):
         from unittest.mock import Mock
@@ -185,5 +201,43 @@ class HarnessWorkflowContracts(unittest.TestCase):
         with patch.object(h.sys,'stdout',stream):
             h.Harness.record(harness,'unicode',True,'healthy \u2192 repaired \u5065\u5168')
         self.assertEqual('PASS',harness.results[0]['status'])
+
+    def test_each_case_releases_owned_queue_even_after_recorded_failure(self):
+        from unittest.mock import Mock
+        harness=self.make_harness()
+        harness.fixtures=[dict(ready=True,outcome='refuse',case='disabled')]
+        harness.exercise=Mock(return_value=None)
+        harness.idle=Mock()
+        harness.issues=Mock(return_value=[dict(Id=7,Status='Queued')])
+        harness.api=Mock()
+        harness.exercise_cases({})
+        harness.api.assert_called_once_with('/MediaDash/Issues/7/Revert','POST')
+
+    def test_failed_repair_fixture_requires_fresh_delete_consent(self):
+        outcomes={case[0]:case[3] for case in h.CASES}
+        for case in ('partial','zero','header'):
+            self.assertEqual('review-delete',outcomes[case])
+        self.assertEqual('refuse',outcomes['disabled'])
+
+    def test_delete_review_uses_warning_json_field_names(self):
+        for key in ('blocking','Blocking'):
+            self.assertTrue(h.is_delete_review(dict(Status='Detected',RepairFailed=True,Warnings=[{key:True}])))
+        self.assertFalse(h.is_delete_review(dict(Status='Queued',RepairFailed=True,Warnings=[{'blocking':True}])))
+        self.assertFalse(h.is_delete_review(dict(Status='Detected',RepairFailed=True,Warnings=[])))
+
+    def test_delete_review_never_approves_without_failed_repair_state(self):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import Mock
+        with tempfile.TemporaryDirectory() as root:
+            path=Path(root)/'movie.mp4'
+            path.write_bytes(b'unchanged')
+            harness=self.make_harness()
+            harness.record=lambda name,ok,*args,**kwargs: ok
+            harness.scan=Mock()
+            harness.issues=Mock(return_value=[dict(Id=7,Path=str(path),Status='Detected',RepairFailed=False,Warnings=[])])
+            harness.api=Mock()
+            harness.review_then_delete(dict(case='review',path=str(path),sha256=h.sha(path)),dict(success=0,recycle_path=None,bytes_freed=0,saved_bytes=0,action='failed'))
+            harness.api.assert_not_called()
 
 if __name__=='__main__': unittest.main()

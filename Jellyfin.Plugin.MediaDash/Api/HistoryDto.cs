@@ -67,6 +67,15 @@ public sealed class HistoryDto
     /// </summary>
     public bool CanRestore { get; set; }
 
+    /// <summary>Gets or sets the durable move operation, including recovery after a failed run.</summary>
+    public string? MoveOperationId { get; set; }
+
+    /// <summary>Gets or sets the current move state.</summary>
+    public string? MoveState { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether complete move Undo is available.</summary>
+    public bool CanUndoMove { get; set; }
+
     /// <summary>
     /// Maps a database entry to the DTO.
     /// </summary>
@@ -85,6 +94,7 @@ public sealed class HistoryDto
             FixedAtUtc = entry.FixedAtUtc,
             WasDryRun = entry.WasDryRun,
             Success = entry.Success,
+            MoveOperationId = entry.MoveOperationId,
             // Directory-recycled entries (orphan cleanup, Files-tab folder delete) go through the
             // same RestoreFromHistory endpoint, which already accepts both file and directory
             // paths via `File.Exists || Directory.Exists`. Mirror that here — otherwise the UI

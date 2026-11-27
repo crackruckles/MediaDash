@@ -61,6 +61,16 @@ public sealed class BulkApproveConsentTests : IDisposable
     }
 
     [Fact]
+    public void AutomaticQueueRollsBackReportOnlyRowsWithoutBlockingSupportedRows()
+    {
+        var ids = InsertIssues(("/lib/report-only.mkv", "{\"fixerAvailable\":false}"), ("/lib/supported.mkv", "{}"));
+        var queued = _db.QueueDetectedIssues(IssueType.AudioLanguage);
+        Assert.Equal(1, _db.RollbackAutoQueuedBlockingWarnings(queued));
+        Assert.Equal(IssueStatus.Detected, _db.GetIssueStatus(ids["/lib/report-only.mkv"]));
+        Assert.Equal(IssueStatus.Queued, _db.GetIssueStatus(ids["/lib/supported.mkv"]));
+    }
+
+    [Fact]
     public void BulkDismiss_StillTouchesBothDetectedAndQueuedRows()
     {
         // The tightened source filter is Approve-specific. Dismiss must still catch already-queued

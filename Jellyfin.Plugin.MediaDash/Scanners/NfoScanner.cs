@@ -101,6 +101,7 @@ public sealed class NfoScanner : IScanner
                     continue;
                 }
 
+                using var operation = ScheduledTasks.RunDiagnostics.Track("read and parse NFO", examinesFile: true);
                 var reason = EvaluateFile(nfo);
                 if (reason is null)
                 {
@@ -206,7 +207,9 @@ public sealed class NfoScanner : IScanner
                 return null;
             }
 
-            return "no root element";
+            var hint = File.ReadAllText(path).Trim();
+            return System.Text.RegularExpressions.Regex.IsMatch(hint, @"^(?:tt\d{7,}|https?://(?:www\.)?(?:imdb\.com/title/tt\d+|(?:themoviedb\.org|thetvdb\.com|tmdb\.org|tvdb\.com)/\S+))/?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+                ? null : "no root element";
         }
         catch (XmlException ex)
         {

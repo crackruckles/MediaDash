@@ -10,25 +10,25 @@ public class TranscodeFixerSidecarTests
     [Fact]
     public void SidecarPath_ShortName_AppendsMarkerAndInflightTail()
     {
-        // R09 (2026-09-20): sidecar tail is `.mediaDash.tmp` so Jellyfin doesn't index the
+        // R09 (2026-09-20): sidecar tail is `.mediadash.tmp` so Jellyfin doesn't index the
         // in-flight file as media. Extension is preserved in the middle for human-readability
         // and for the ffmpeg -f mapping at call sites.
         var path = TranscodeFixer.SidecarPath(@"/mnt/media/movies/Short.mkv", "tmp", "mkv");
-        Assert.EndsWith("Short.mkv.mediadash.tmp.mkv.mediaDash.tmp", path.Replace('\\', '/'));
+        Assert.EndsWith("Short.mkv.mediadash.tmp.mkv.mediadash.tmp", path.Replace('\\', '/'));
     }
 
     [Fact]
     public void SidecarPath_ShortName_NoExtension_AppendsBareMarkerAndInflightTail()
     {
         var path = TranscodeFixer.SidecarPath(@"/mnt/media/movies/Short.mkv", "new", string.Empty);
-        Assert.EndsWith("Short.mkv.mediadash.new.mediaDash.tmp", path.Replace('\\', '/'));
+        Assert.EndsWith("Short.mkv.mediadash.new.mediadash.tmp", path.Replace('\\', '/'));
     }
 
     [Fact]
     public void SidecarPath_LongCyrillicName_FallsBackToHashedName()
     {
         // The real production filename that triggered ffmpeg's "Error opening output". Appending
-        // ".mediadash.tmp.mkv.mediaDash.tmp" would push this over the 255-byte Linux NAME_MAX.
+        // ".mediadash.tmp.mkv.mediadash.tmp" would push this over the 255-byte Linux NAME_MAX.
         var longName = "Бродяга Кэнсин - Начало _ Ruroni Kenshin - Sai shusho - The Beginning _ Rurouni Kenshin - Final Chapter Part II [2021, Япония, Боевик, драма, WEB-DL 1080p] DVO (RealFake) + Sub Rus, Eng + Multi + Original Jpn.mkv";
         var input = "/mnt/media/Movies/" + longName;
 
@@ -38,7 +38,7 @@ public class TranscodeFixerSidecarTests
         Assert.True(Encoding.UTF8.GetByteCount(sidecarName) <= 255,
             $"Sidecar filename must fit under Linux NAME_MAX (got {Encoding.UTF8.GetByteCount(sidecarName)} bytes).");
         Assert.StartsWith("mediadash.tmp.", sidecarName);
-        Assert.EndsWith(".mediaDash.tmp", sidecarName);
+        Assert.EndsWith(".mediadash.tmp", sidecarName);
     }
 
     [Fact]
@@ -92,11 +92,10 @@ public class TranscodeFixerSidecarTests
     }
 
     [Fact]
-    public void ContainerToFfmpegFormat_UnknownPassesThroughLowercased()
+    public void ContainerToFfmpegFormat_UnknownIsUnsupported()
     {
-        // Fallback: unknown containers pass through as-is; ffmpeg then errors clearly instead
-        // of writing a broken file to a non-media-tail path.
-        Assert.Equal("weirdformat", TranscodeFixer.ContainerToFfmpegFormat("WeirdFormat"));
+        // Callers refuse an empty muxer before starting ffmpeg.
+        Assert.Equal(string.Empty, TranscodeFixer.ContainerToFfmpegFormat("WeirdFormat"));
     }
 
     [Fact]

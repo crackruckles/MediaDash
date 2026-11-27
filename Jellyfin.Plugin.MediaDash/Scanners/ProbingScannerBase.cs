@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.MediaDash.Configuration;
@@ -44,6 +45,13 @@ public abstract class ProbingScannerBase : IScanner
     /// </summary>
     protected static PluginConfiguration Config => Plugin.Instance!.Configuration;
 
+    /// <summary>
+    /// Gets a value indicating whether this scanner's per-file evaluation is safe to run on
+    /// several files at once. When true and Low system impact mode is off, files are evaluated
+    /// two at a time.
+    /// </summary>
+    protected virtual bool SupportsParallelFiles => false;
+
     /// <inheritdoc />
     public async Task<IReadOnlyList<Issue>> ScanAsync(IReadOnlyList<BaseItem> items, IProgress<double> progress, CancellationToken cancellationToken)
     {
@@ -57,6 +65,19 @@ public abstract class ProbingScannerBase : IScanner
         // Uses the concrete scanner's type name (DuplicateScanner, PlayabilityScanner, …) so the
         // Overview activity line shows *what* is running, not just a file path.
         var label = GetType().Name;
+        if (SupportsParallelFiles && MediaProcess.AllowsConcurrency && Environment.ProcessorCount >= 4)
+        {
+            try
+            {
+                return await ScanFilesInParallelAsync(items, label, progress, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                Plugin.CurrentActivity = null;
+                Plugin.CurrentActivityLabel = null;
+            }
+        }
+
         try
         {
             for (var i = 0; i < items.Count; i++)
@@ -83,34 +104,9 @@ public abstract class ProbingScannerBase : IScanner
                         continue;
                     }
 
-                    Plugin.CurrentActivityLabel = label;
-                    Plugin.CurrentActivity = path;
-                    try
+                    if (await EvaluateFileAsync(item, path, label, cancellationToken).ConfigureAwait(false) is { } issue)
                     {
-                        var probe = await Ffprobe.ProbeAsync(path, cancellationToken).ConfigureAwait(false);
-                        var issue = await EvaluateAsync(item, path, probe, cancellationToken).ConfigureAwait(false);
-                        if (issue is not null)
-                        {
-                            issue.Type = Type;
-                            issue.ItemId = item.Id;
-                            issue.Path = path;
-                            issue.Status = IssueStatus.Detected;
-                            issue.DetectedAtUtc = DateTime.UtcNow;
-                            issues.Add(issue);
-                        }
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        throw;
-                    }
-                    catch (Exception ex)
-                    {
-                        // Never let a single bad file abort the whole scan. Surface to the Errors tab so
-                        // the admin can act, and move on to the next file.
-                        Logger.LogWarning(ex, "Scanner {Type} failed on {Path}; skipping", Type, path);
-                        Api.Diagnostics.Record(
-                            "Scanner." + Type,
-                            "Scanner '" + Type + "' failed while examining '" + path + "': " + ex.Message + ". The file was skipped; the rest of the scan continued.");
+                        issues.Add(issue);
                     }
                 }
 
@@ -124,6 +120,98 @@ public abstract class ProbingScannerBase : IScanner
         }
 
         return issues;
+    }
+
+    // Same per-file work as the sequential loop, two files at a time. Results keep item order;
+    // progress counts the leading run of finished items so it only moves forward.
+    private async Task<IReadOnlyList<Issue>> ScanFilesInParallelAsync(IReadOnlyList<BaseItem> items, string label, IProgress<double> progress, CancellationToken cancellationToken)
+    {
+        var work = new List<(int Item, string Path)>();
+        var remaining = new int[items.Count];
+        for (var i = 0; i < items.Count; i++)
+        {
+            foreach (var path in MediaFileHelper.GetFilePaths(items[i]))
+            {
+                if (!Plugin.IsDoomed(path) && !MediaFormats.NonProbable.Contains(System.IO.Path.GetExtension(path)))
+                {
+                    work.Add((i, path));
+                    remaining[i]++;
+                }
+            }
+        }
+
+        var results = new Issue?[work.Count];
+        var progressLock = new object();
+        var nextItem = 0;
+        void ReportFinishedPrefix()
+        {
+            while (nextItem < items.Count && remaining[nextItem] == 0)
+            {
+                nextItem++;
+            }
+
+            progress.Report(nextItem * 100.0 / Math.Max(1, items.Count));
+        }
+
+        lock (progressLock)
+        {
+            ReportFinishedPrefix();
+        }
+
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, work.Count),
+            new ParallelOptions { MaxDegreeOfParallelism = MediaProcess.MaxConcurrent, CancellationToken = cancellationToken },
+            async (index, token) =>
+            {
+                var (itemIndex, path) = work[index];
+                if (!Plugin.IsDoomed(path))
+                {
+                    results[index] = await EvaluateFileAsync(items[itemIndex], path, label, token).ConfigureAwait(false);
+                }
+
+                lock (progressLock)
+                {
+                    remaining[itemIndex]--;
+                    ReportFinishedPrefix();
+                }
+            }).ConfigureAwait(false);
+
+        progress.Report(100);
+        return results.Where(issue => issue is not null).Select(issue => issue!).ToList();
+    }
+
+    private async Task<Issue?> EvaluateFileAsync(BaseItem item, string path, string label, CancellationToken cancellationToken)
+    {
+        Plugin.CurrentActivityLabel = label;
+        Plugin.CurrentActivity = path;
+        try
+        {
+            using var operation = ScheduledTasks.RunDiagnostics.Track("probe and evaluate media", examinesFile: true);
+            var probe = await Ffprobe.ProbeAsync(path, cancellationToken).ConfigureAwait(false);
+            var issue = await EvaluateAsync(item, path, probe, cancellationToken).ConfigureAwait(false);
+            if (issue is not null)
+            {
+                issue.Type = Type;
+                issue.ItemId = item.Id;
+                issue.Path = path;
+                issue.Status = IssueStatus.Detected;
+                issue.DetectedAtUtc = DateTime.UtcNow;
+            }
+
+            return issue;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Never let a single bad file abort the whole scan. Surface to the Errors tab so
+            // the admin can act, and move on to the next file.
+            Logger.LogWarning(ex, "Scanner {Type} failed on {Path}; skipping", Type, path);
+            Api.Diagnostics.Record("Scanner." + Type, "The " + Type + " check could not examine '" + path + "', so that file was skipped; the rest of the scan continued. It will be tried again on the next scan. Details: " + ex.Message);
+            return null;
+        }
     }
 
     /// <summary>

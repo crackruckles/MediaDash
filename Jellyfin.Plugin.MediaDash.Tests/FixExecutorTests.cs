@@ -29,9 +29,10 @@ public sealed class FixExecutorTests : IDisposable
     public FixExecutorTests()
     {
         _db = new MediaDashDb(_dbPath);
-        // Default PluginConfiguration sets every FixMode to DetectOnly, which the policy
-        // evaluator refuses. Flip the ones our tests exercise to Automatic so the recheck
-        // passes; tests that specifically want a refusal set the mode back to Off inline.
+        // Default PluginConfiguration sets every FixMode to ManualApprove, which the policy
+        // evaluator refuses under FixIntent.Scheduled. Flip the ones our tests exercise to
+        // Automatic so the recheck passes; tests that specifically want a refusal set the mode
+        // back to Off inline.
         _config.PlayabilityFixMode = FixMode.Automatic;
         _config.TranscodeFixMode = FixMode.Automatic;
         _config.AudioFixMode = FixMode.Automatic;
@@ -89,8 +90,82 @@ public sealed class FixExecutorTests : IDisposable
 
     private Issue Load(long id) => _db.GetIssues().Single(i => i.Id == id);
 
+    [Fact]
+    public async Task ExecuteAsync_CurrentFindingRequiresRescan_RefusesOlderQueuedSnapshot()
+    {
+        var id = SeedQueued(IssueType.AudioLanguage, Path.Combine(Path.GetTempPath(), "moved-approved.mkv"));
+        var plan = SinglePlan(Load(id));
+        using (var connection = _db.ConnectionFactory.Open())
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "UPDATE issues SET details='{" + "\"requiresRescan\":true}' WHERE id=@id";
+            command.Parameters.AddWithValue("@id", id);
+            command.ExecuteNonQuery();
+        }
+
+        var called = false;
+        var fixer = new StubFixer(IssueType.AudioLanguage, _ =>
+        {
+            called = true;
+            return Task.FromResult(new FixResult { Success = true });
+        });
+        Assert.Null(await NewExecutor(fixer).ExecuteAsync(plan, true, NullProgress, CancellationToken.None));
+        Assert.False(called);
+    }
+
     private static PlannedFix SinglePlan(Issue primary)
         => new(PlannedFixKind.Single, primary, Array.Empty<Issue>());
+
+    [Fact]
+    public async Task ReportOnlyFindingAddedAfterApprovalDoesNotInvokeTheFixer()
+    {
+        var id = SeedQueued(IssueType.Quality, Path.Combine(Path.GetTempPath(), "report-only.m4a"));
+        var plan = SinglePlan(Load(id));
+        using (var connection = _db.ConnectionFactory.Open())
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "UPDATE issues SET details='{\"fixerAvailable\":false}' WHERE id=@id";
+            command.Parameters.AddWithValue("@id", id);
+            command.ExecuteNonQuery();
+        }
+
+        var called = false;
+        var fixer = new StubFixer(IssueType.Quality, _ =>
+        {
+            called = true;
+            return Task.FromResult(new FixResult { Success = true });
+        });
+        Assert.Null(await NewExecutor(fixer).ExecuteAsync(plan, true, NullProgress, CancellationToken.None));
+        Assert.False(called);
+    }
+
+    [Theory]
+    [InlineData(PlannedFixKind.TrackPair)]
+    [InlineData(PlannedFixKind.TranscodeWithTracks)]
+    internal async Task ReportOnlyCompanionInvalidatesAnOlderCombinedPlan(PlannedFixKind kind)
+    {
+        var path = Path.Combine(Path.GetTempPath(), "report-only-companion.mkv");
+        var primaryId = SeedQueued(IssueType.Quality, path);
+        var companionId = SeedQueued(IssueType.SubtitleLanguage, path);
+        var plan = new PlannedFix(kind, Load(primaryId), [Load(companionId)]);
+        using (var connection = _db.ConnectionFactory.Open())
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "UPDATE issues SET details='{\"fixerAvailable\":false}' WHERE id=@id";
+            command.Parameters.AddWithValue("@id", companionId);
+            command.ExecuteNonQuery();
+        }
+
+        var called = false;
+        var fixer = new StubFixer(IssueType.Quality, _ =>
+        {
+            called = true;
+            return Task.FromResult(new FixResult { Success = true });
+        });
+        Assert.Null(await NewExecutor(fixer).ExecuteAsync(plan, true, NullProgress, CancellationToken.None));
+        Assert.False(called);
+        Assert.Equal(IssueStatus.Queued, Load(companionId).Status);
+    }
 
     // Jellyfin's DI resolves plugin services through Microsoft.Extensions.DependencyInjection,
     // which only sees PUBLIC constructors. An internal-only ctor here makes the plugin load
@@ -104,6 +179,55 @@ public sealed class FixExecutorTests : IDisposable
     {
         var ctors = type.GetConstructors(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
         Assert.NotEmpty(ctors);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SilentSkipTally_RecordsReasonForEachSkipPath()
+    {
+        var tally = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        // Path 1: no fixer registered.
+        var noFixerId = SeedQueued(IssueType.Playability, Path.Combine(Path.GetTempPath(), "no-fixer.mkv"));
+        await NewExecutor().ExecuteAsync(SinglePlan(Load(noFixerId)), withinEnabledLibrary: true, NullProgress, tally, CancellationToken.None);
+
+        // Path 2: policy refuses (fixer type set to Off mid-run).
+        var policyId = SeedQueued(IssueType.AudioLanguage, Path.Combine(Path.GetTempPath(), "policy.mkv"));
+        _config.AudioFixMode = FixMode.Off;
+        await NewExecutor(new StubFixer(IssueType.AudioLanguage, _ => Task.FromResult(FixResult.Fail("should not run"))))
+            .ExecuteAsync(SinglePlan(Load(policyId)), withinEnabledLibrary: true, NullProgress, tally, CancellationToken.None);
+        _config.AudioFixMode = FixMode.Automatic;
+
+        // Path 3: status changed between snapshot and execution.
+        var statusId = SeedQueued(IssueType.Playability, Path.Combine(Path.GetTempPath(), "status.mkv"));
+        var snapshot = Load(statusId);
+        _db.Issues.TryTransitionIssueStatus(statusId, new[] { IssueStatus.Queued }, IssueStatus.Dismissed);
+        await NewExecutor(new StubFixer(IssueType.Playability, _ => Task.FromResult(new FixResult { Success = true })))
+            .ExecuteAsync(SinglePlan(snapshot), withinEnabledLibrary: true, NullProgress, tally, CancellationToken.None);
+
+        // Path 4: protection added mid-run.
+        var protectedPath = Path.Combine(Path.GetTempPath(), "protected.mkv");
+        var protectedId = SeedQueued(IssueType.Playability, protectedPath);
+        _db.Protection.Add(new ProtectionRule { Kind = "folder", Target = protectedPath, ScannersMask = "*", FixersMask = "*" });
+        await NewExecutor(new StubFixer(IssueType.Playability, _ => Task.FromResult(new FixResult { Success = true })))
+            .ExecuteAsync(SinglePlan(Load(protectedId)), withinEnabledLibrary: true, NullProgress, tally, CancellationToken.None);
+
+        Assert.Equal(4, tally.Values.Sum());
+        Assert.True(tally.ContainsKey("no fixer registered for this issue type"));
+        Assert.Contains(tally.Keys, k => k.StartsWith("settings changed mid-run", StringComparison.Ordinal));
+        Assert.True(tally.ContainsKey("status changed between approval and run"));
+        Assert.True(tally.ContainsKey("protected from modification"));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SilentSkipTally_LegacyOverloadStillReturnsNull()
+    {
+        // The no-tally overload is the one existing production code and 20+ tests use. A regression
+        // here (e.g. tally overload accidentally changing return semantics) would silently break
+        // every FixExecutorTests.Null assertion. Pins the forwarder's shape.
+        var id = SeedQueued(IssueType.Playability, "");
+        var executor = NewExecutor();
+        var result = await executor.ExecuteAsync(SinglePlan(Load(id)), withinEnabledLibrary: true, NullProgress, CancellationToken.None);
+        Assert.Null(result);
     }
 
     [Fact]

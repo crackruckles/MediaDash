@@ -1,4 +1,4 @@
-﻿# 03-fixers.ps1 — exercise every IFixer end-to-end through the plugin.
+# 03-fixers.ps1 — exercise every IFixer end-to-end through the plugin.
 #
 # For each fixer:
 #   1. Locate the scanner-produced Issue for the target fixture
@@ -45,13 +45,22 @@ function Invoke-Phase-Fixers {
         Assert-Equal $false $cfg.DryRun "DryRun should be OFF for the fixer phase"
     }
 
-    # ─── DuplicateFixer — deletes the loser copy ───
-    # Both DuplicateFixer tests need a Duplicate issue detected first, which requires
-    # a Jellyfin metadata provider match (TMDb/TVDB) — a bare install can't correlate
-    # two files by filename alone. To exercise these tests, configure metadata
-    # providers on the test-fixture Jellyfin and remove -SkipReason.
-    Invoke-Test "DuplicateFixer removes the losing duplicate and sends it to recycle bin" -SkipReason "Cascades from DuplicateScanner (skipped — requires TMDb/TVDB metadata providers)." { }
-    Invoke-Test "DuplicateFixer restore returns the original file bit-for-bit" -SkipReason "Cascades from DuplicateFixer removal test (skipped — same reason)." { }
+    Invoke-Test 'DuplicateFixer recycles its owned loser and restores the original bytes' {
+        Start-MediaDashScan -Wait -TimeoutSec 600
+        $issue = Get-IssueForPath -PathLike 'Big Buck Test' -Type 'Duplicate'
+        Assert-True ([bool]$issue) 'a duplicate fixture issue is required'
+        $originalHash = (Get-FileHash -LiteralPath $issue.Path -Algorithm SHA256).Hash
+        $oldBins = @((Get-MediaDashRecycleBinItems).BinPath)
+        Approve-MediaDashIssue $issue.Id
+        Start-MediaDashFix -Wait -TimeoutSec 300
+        Get-CurrentFixHistory -FileName ([IO.Path]::GetFileName($issue.Path)) -Type 'Duplicate' | Out-Null
+        Assert-FileMissing $issue.Path 'the losing duplicate should leave the library'
+        $entries = @(Get-MediaDashRecycleBinItems | Where-Object { $_.OriginalPath -eq $issue.Path -and $_.BinPath -notin $oldBins })
+        Assert-Equal 1 $entries.Count 'one new recycle entry must belong to this exact source'
+        Assert-Equal $originalHash (Get-FileHash -LiteralPath $entries[0].BinPath -Algorithm SHA256).Hash 'recycled original bytes'
+        Invoke-JfApi -Method POST -Path '/MediaDash/RecycleBin/Items/Restore' -Body @{BinPath=$entries[0].BinPath} | Out-Null
+        Assert-Equal $originalHash (Get-FileHash -LiteralPath $issue.Path -Algorithm SHA256).Hash 'restored original bytes'
+    }
 
     # ─── TrackFixer — remuxes to drop unwanted audio tracks ───
     Invoke-Test "TrackFixer drops disallowed audio tracks (fra/deu) from Multi Audio" {
@@ -67,10 +76,7 @@ function Invoke-Phase-Fixers {
         Approve-MediaDashIssue $issue.Id
         Start-MediaDashFix -Wait -TimeoutSec 600
 
-        $history = Get-MediaDashHistory -Limit 20
-        $latest = @($history.Items | Where-Object { $_.FileName -like "*Multi Audio*" } | Sort-Object FixedAtUtc -Descending)[0]
-        Assert-True ([bool]$latest) "history row expected for Multi Audio"
-        Assert-Equal $true $latest.Success "TrackFixer should report success"
+        $latest = Get-CurrentFixHistory -FileName ([IO.Path]::GetFileName($issue.Path)) -Type 'AudioLanguage'
         Assert-FileExists $srcPath "output file should be at original path (in-place replace)"
         $postSize = (Get-Item -LiteralPath $srcPath).Length
         Write-Log "    pre=$preSize bytes, post=$postSize bytes"
@@ -81,8 +87,7 @@ function Invoke-Phase-Fixers {
         Start-MediaDashScan -Wait -TimeoutSec 600
         $issue = Get-IssueForPath -PathLike "Big Buck Test 4K" -Type "Quality"
         if (-not $issue) {
-            Write-Log "    UNVERIFIABLE: no Quality issue on Big Buck 4K — skipping"
-            return
+            throw [TestAssertionFailedException]::new('required fixture issue was not detected', 'scanner-produced issue', 'none')
         }
         $srcPath = $issue.Path
         $preSize = (Get-Item -LiteralPath $srcPath).Length
@@ -90,6 +95,7 @@ function Invoke-Phase-Fixers {
         Approve-MediaDashIssue $issue.Id
         Start-MediaDashFix -Wait -TimeoutSec 1800
 
+        Get-CurrentFixHistory -FileName ([IO.Path]::GetFileName($issue.Path)) -Type 'Quality' | Out-Null
         Assert-FileExists $srcPath "re-encoded file expected at original path"
         $postSize = (Get-Item -LiteralPath $srcPath).Length
         Write-Log "    pre=$preSize, post=$postSize"
@@ -101,16 +107,14 @@ function Invoke-Phase-Fixers {
         Start-MediaDashScan -Wait -TimeoutSec 300
         $issue = Get-IssueForPath -PathLike "Truncated Movie" -Type "Playability"
         if (-not $issue) {
-            Write-Log "    UNVERIFIABLE: Playability issue not present — file may have been already handled"
-            return
+            throw [TestAssertionFailedException]::new('required fixture issue was not detected', 'scanner-produced issue', 'none')
         }
         Approve-MediaDashIssue $issue.Id
         Start-MediaDashFix -Wait -TimeoutSec 300
 
-        $history = Get-MediaDashHistory -Limit 20
-        $latest = @($history.Items | Where-Object { $_.FileName -like "*Truncated Movie*" } | Sort-Object FixedAtUtc -Descending)[0]
-        Assert-True ([bool]$latest) "history row expected"
-        Write-Log "    Success=$($latest.Success), Action=$($latest.Action.Substring(0, [Math]::Min(80, $latest.Action.Length)))"
+        Get-CurrentFixHistory -FileName ([IO.Path]::GetFileName($issue.Path)) -Type 'Playability' | Out-Null
+        $entries = @(Get-MediaDashRecycleBinItems | Where-Object { $_.OriginalPath -eq $issue.Path -and $_.BinPath -notin $Script:RunState.OriginalBinPaths })
+        Assert-GreaterOrEqual 1 $entries.Count 'the current playability action must preserve a recoverable original'
     }
 
     # ─── SuspiciousFileFixer — quarantines the .exe ───
@@ -118,8 +122,7 @@ function Invoke-Phase-Fixers {
         Start-MediaDashScan -Wait -TimeoutSec 300
         $issue = Get-IssueForPath -PathLike "installer.exe" -Type "MalwareRisk"
         if (-not $issue) {
-            Write-Log "    UNVERIFIABLE: no MalwareRisk issue found"
-            return
+            throw [TestAssertionFailedException]::new('required fixture issue was not detected', 'scanner-produced issue', 'none')
         }
         Approve-MediaDashIssue $issue.Id
         Start-MediaDashFix -Wait -TimeoutSec 120
@@ -131,8 +134,7 @@ function Invoke-Phase-Fixers {
         Start-MediaDashScan -Wait -TimeoutSec 300
         $issue = Get-IssueForPath -PathLike "Trickplay Test*trickplay" -Type "LargeTrickplay"
         if (-not $issue) {
-            Write-Log "    UNVERIFIABLE: no LargeTrickplay issue"
-            return
+            throw [TestAssertionFailedException]::new('required fixture issue was not detected', 'scanner-produced issue', 'none')
         }
         $tpFolder = $issue.Path
         $preSize = (Get-ChildItem -LiteralPath $tpFolder -File | Measure-Object -Property Length -Sum).Sum
@@ -153,8 +155,7 @@ function Invoke-Phase-Fixers {
         Start-MediaDashScan -Wait -TimeoutSec 300
         $issue = Get-IssueForPath -PathLike "ghost.en.srt" -Type "OrphanedDebris"
         if (-not $issue) {
-            Write-Log "    UNVERIFIABLE: no OrphanedDebris issue"
-            return
+            throw [TestAssertionFailedException]::new('required fixture issue was not detected', 'scanner-produced issue', 'none')
         }
         Approve-MediaDashIssue $issue.Id
         Start-MediaDashFix -Wait -TimeoutSec 60
@@ -164,19 +165,22 @@ function Invoke-Phase-Fixers {
     # ─── ArtworkFixer — deletes 0-byte poster ───
     Invoke-Test "ArtworkFixer removes corrupt 0-byte poster" {
         Start-MediaDashScan -Wait -TimeoutSec 300
-        $issue = Get-IssueForPath -PathLike "poster.jpg" -Type "CorruptArtwork"
+        $issue = Get-IssueForPath -PathLike $Script:RunState.ArtworkFixturePath -Type "CorruptArtwork"
         if (-not $issue) {
-            Write-Log "    UNVERIFIABLE: no CorruptArtwork issue"
-            return
+            throw [TestAssertionFailedException]::new('required fixture issue was not detected', 'scanner-produced issue', 'none')
         }
         Approve-MediaDashIssue $issue.Id
         Start-MediaDashFix -Wait -TimeoutSec 60
         # ArtworkFixer typically deletes and triggers Jellyfin refresh — verify at least the file went away
         Assert-FileMissing $issue.Path "0-byte poster should be removed"
+        Get-CurrentFixHistory -FileName 'poster.jpg' -Type 'CorruptArtwork' | Out-Null
+        Assert-Equal $Script:RunState.ArtworkVideoHash (Get-FileHash -LiteralPath $Script:RunState.ArtworkVideoPath -Algorithm SHA256).Hash 'artwork repair must preserve media bytes'
+        Assert-FileExists (Join-Path (Split-Path -Parent $Script:RunState.ArtworkVideoPath) 'poster.jpg') 'user-placed sidecar must remain'
     }
 
     # Reset DryRun ON so subsequent config tests don't accidentally mutate
     Invoke-Test "Post-fixers: DryRun restored to ON for safety" {
+        Clear-OwnedFixtureApprovals
         Set-MediaDashConfig @{ DryRun = $true }
         $cfg = Get-MediaDashConfig
         Assert-Equal $true $cfg.DryRun "DryRun back to ON"

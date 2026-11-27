@@ -13,8 +13,7 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.MediaDash.Scanners;
 
 /// <summary>
-/// Flags files that are broken or unlikely to play: probe failures, missing video streams,
-/// zero durations, and (optionally) decode errors at the start or end of the file.
+/// Flags unreadable media, missing required streams, and confirmed decode or interleave damage.
 /// </summary>
 public sealed class PlayabilityScanner : ProbingScannerBase
 {
@@ -38,16 +37,9 @@ public sealed class PlayabilityScanner : ProbingScannerBase
     /// <inheritdoc />
     public override IssueType Type => IssueType.Playability;
 
-    /// <summary>
-    /// True when the file is short enough that ffmpeg's regional start/middle/end sampling collapses;
-    /// a short (e.g. spoken-word or one-track) audio file is best sampled end-to-end.
-    /// </summary>
-    /// <param name="durationSeconds">Duration in seconds as reported by the probe.</param>
-    /// <returns>True when the whole file should be decoded rather than sampled.</returns>
-    public static bool ShouldSampleWholeFile(double durationSeconds)
-    {
-        return durationSeconds > 0 && durationSeconds < 60;
-    }
+    /// <inheritdoc />
+    /// <remarks>Each file's checks are independent ffmpeg/ffprobe runs plus per-path cache rows.</remarks>
+    protected override bool SupportsParallelFiles => true;
 
     /// <inheritdoc />
     protected override async Task<Issue?> EvaluateAsync(BaseItem item, string path, FfprobeData? probe, CancellationToken cancellationToken)
@@ -76,7 +68,7 @@ public sealed class PlayabilityScanner : ProbingScannerBase
             return new Issue
             {
                 DetailsJson = JsonSerializer.Serialize(new { reason = "missing", detail = "The library entry points to a file that no longer exists." }),
-                SuggestedFix = "The file is gone but Jellyfin still lists it. Restore the file, or run a library scan in Jellyfin to remove the dead entry.",
+                SuggestedFix = "The file is gone but Jellyfin still lists it. Approve this fix to remove the dead library entry — or restore the file first if the deletion was accidental.",
                 SizeSavings = 0
             };
         }
@@ -159,13 +151,13 @@ public sealed class PlayabilityScanner : ProbingScannerBase
 
             return new Issue
             {
-                DetailsJson = JsonSerializer.Serialize(new { reason = "book-or-comic-corrupt", detail = probeReason }),
-                SuggestedFix = "This file can't be read. Approve to try repair — if repair fails the file is removed (recycle bin unless you chose permanent delete).",
+                DetailsJson = JsonSerializer.Serialize(new { reason = "book-or-comic-corrupt", detail = probeReason, fixerAvailable = false }),
+                SuggestedFix = "This document can't be read. Document repair is unavailable; Ignore to keep it or delete it from Files.",
                 SizeSavings = bookSize
             };
         }
 
-        if (probe is null)
+        if (probe is null || FfprobeService.IsInfrastructureError(probe.Error?.Message))
         {
             // ffprobe unavailable — infrastructure problem, not a file problem.
             return null;
@@ -225,13 +217,19 @@ public sealed class PlayabilityScanner : ProbingScannerBase
             reason = "no-audio";
             detail = "The file contains no audio stream.";
         }
-        else if (!TryGetDuration(probe, out var duration) || duration <= 0)
+        else if (!Config.ThoroughPlayabilityCheck && item.GetBaseItemKind() != BaseItemKind.Photo)
         {
-            reason = "no-duration";
-            detail = "The file reports no valid duration, which usually means it is truncated or corrupt.";
+            var decodeError = await Ffprobe.CheckSampledPlaybackAsync(path, probe, cancellationToken).ConfigureAwait(false);
+            if (decodeError is not null)
+            {
+                reason = "decode-error";
+                detail = "The decoder rejected part of the video or audio during a sampled playback check.";
+                technical = decodeError;
+            }
         }
-        else if (Config.ThoroughPlayabilityCheck)
+        else if (Config.ThoroughPlayabilityCheck || item.GetBaseItemKind() == BaseItemKind.Photo)
         {
+            probe.TryGetDuration(out var duration);
             // Decode-check is the source of truth for truncation and corruption. Removed a
             // bitrate-vs-size pre-filter here (2026-09-14) — it flagged efficient x264 rips of
             // Severance / Landman / Rage / Outlander as "size-truncated" because Format.BitRate
@@ -242,7 +240,7 @@ public sealed class PlayabilityScanner : ProbingScannerBase
             // decode path so attached cover art pictures don't get selected as the "best video"
             // stream and reported as truncated-at-0s.
             var isAudioOnly = IsAudioKind(item.GetBaseItemKind());
-            var decodeError = ShouldSampleWholeFile(duration)
+            var decodeError = item.GetBaseItemKind() == BaseItemKind.Photo
                 ? await Ffprobe.DecodeCheckAsync(path, durationSeconds: 0, cancellationToken, isAudioOnly).ConfigureAwait(false)
                 : await Ffprobe.DecodeCheckAsync(path, duration, cancellationToken, isAudioOnly).ConfigureAwait(false);
             if (decodeError is not null)
@@ -255,7 +253,7 @@ public sealed class PlayabilityScanner : ProbingScannerBase
             }
             else
             {
-                var brokenAudio = await Ffprobe.FindBrokenAudioStreamAsync(path, probe, cancellationToken).ConfigureAwait(false);
+                var brokenAudio = await Ffprobe.FindBrokenAudioStreamAsync(path, probe, useCache: true, cancellationToken).ConfigureAwait(false);
                 if (brokenAudio is { } audio)
                 {
                     reason = "decode-error";
@@ -292,7 +290,7 @@ public sealed class PlayabilityScanner : ProbingScannerBase
             : JsonSerializer.Serialize(new { reason, detail, technical });
         var suggestedFix = isMismatch
             ? "The file plays but its extension doesn't match its container. Approve to rename it to a matching extension — the file is not moved and is not deleted."
-            : "This file can't be played. Approve to try repair — if repair fails the file is removed (recycle bin unless you chose permanent delete).";
+            : "Approve to try repair. If repair fails, the file is kept and returns here for you to review or delete.";
         return new Issue
         {
             DetailsJson = detailsJson,
@@ -332,13 +330,6 @@ public sealed class PlayabilityScanner : ProbingScannerBase
 
     private static bool IsAudioKind(BaseItemKind kind)
         => kind == BaseItemKind.Audio || kind == BaseItemKind.AudioBook;
-
-    private static bool TryGetDuration(FfprobeData probe, out double duration)
-    {
-        duration = 0;
-        var raw = probe.Format?.Duration ?? probe.Streams?.FirstOrDefault(s => s.Duration is not null)?.Duration;
-        return raw is not null && double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out duration);
-    }
 
     /// <summary>
     /// F-213: flags files whose extension disagrees with their actual container. The file

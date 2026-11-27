@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 using Jellyfin.Plugin.MediaDash.Configuration;
 using Jellyfin.Plugin.MediaDash.Data;
 using Jellyfin.Plugin.MediaDash.Fixers;
@@ -48,6 +50,25 @@ public class OriginalLanguageTests
         Assert.Null(LanguageHelper.ResolveLanguages(["orig"], new Video(), probe));
     }
 
+    [Theory]
+    [InlineData(IssueType.AudioLanguage)]
+    [InlineData(IssueType.SubtitleLanguage)]
+    public void FailedOriginalMetadataLookupCannotAuthorizeRemovalUsingEnglishFlag(IssueType type)
+    {
+        var probe = new FfprobeData { Streams = [Stream(1, "audio", "eng", true), Stream(2, "audio", "spa"),
+            Stream(3, "subtitle", "eng"), Stream(4, "subtitle", "spa")] };
+        Assert.Throws<InvalidOperationException>(() => TrackFixer.ComputeRemovableIndexes(probe, type, Config(), new UnavailableMetadataVideo()));
+    }
+
+    [Fact]
+    public void ExplicitLanguageSelectionDoesNotRequireOriginalMetadata()
+    {
+        var probe = new FfprobeData { Streams = [Stream(1, "audio", "eng"), Stream(2, "audio", "spa")] };
+        var config = Config();
+        config.AllowedAudioLanguages = ["spa"];
+        Assert.Equal([1], TrackFixer.ComputeRemovableIndexes(probe, IssueType.AudioLanguage, config, new UnavailableMetadataVideo()));
+    }
+
     [Fact]
     public void AllOriginalLanguagesAndEquivalentSubtitlesAreKept()
     {
@@ -87,5 +108,10 @@ public class OriginalLanguageTests
     {
         public string OriginalLanguage => "fr";
         public string GetInheritedOriginalLanguage() => "ko";
+    }
+
+    public class UnavailableMetadataVideo : Video
+    {
+        public string GetInheritedOriginalLanguage() => throw new IOException("Original-language parent lookup failed");
     }
 }

@@ -155,7 +155,7 @@
                     msg.textContent = strings.restoring;
                     var request = id
                         ? postJson('History/' + id + '/Restore')
-                        : ApiClient.ajax({
+                        : api.ajax({
                             type: 'POST',
                             url: ApiClient.getUrl('MediaDash/RecycleBin/Items/Restore'),
                             dataType: 'json',
@@ -185,7 +185,7 @@
                     if (rb) rb.disabled = true;
                     msg.style.color = '#ef4444';
                     msg.textContent = 'Deleting…';
-                    ApiClient.ajax({
+                    api.ajax({
                         type: 'POST',
                         url: ApiClient.getUrl('MediaDash/RecycleBin/Items/Delete'),
                         data: JSON.stringify({ BinPath: binPath }),

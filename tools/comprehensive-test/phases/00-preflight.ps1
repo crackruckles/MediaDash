@@ -4,9 +4,32 @@
 
 function Invoke-Phase-Preflight {
     Start-Phase "Preflight — verify test environment"
+    # These prerequisites throw at phase level, before snapshots or filesystem work.
+    Assert-SafeLiveTarget -Url $Script:RunState.JellyfinUrl
+    Connect-JellyfinAdmin
+    $hostInfo = Invoke-JfApi -Method GET -Path '/System/Info'
+    Assert-Equal ([IO.Path]::GetFullPath($Script:RunState.DataDir)) ([IO.Path]::GetFullPath($hostInfo.ProgramDataPath)) 'active Jellyfin data directory must match -DataDir'
+    $workers = @(Invoke-JfApi -Method GET -Path '/ScheduledTasks' | Where-Object Key -In @('MediaDashFix','MediaDashScan','RefreshLibrary'))
+    Assert-Equal 3 $workers.Count 'all three required task registrations must exist'
+    foreach ($worker in $workers) {
+        Assert-Equal 'Idle' $worker.State 'test server tasks must be idle'
+    }
+    Assert-Equal 0 @(Get-MediaDashIssues -Status 'Queued').Count 'test server must have no existing approvals'
+    foreach ($library in @(Get-JellyfinLibraries)) {
+        foreach ($location in $library.Locations) {
+            Assert-SafeLiveTarget -Url $Script:RunState.JellyfinUrl -AllowedFixturePaths @($Script:RunState.FixturesRoot) -FixturePath $location
+        }
+    }
+    $Script:RunState.OriginalBinPaths = @((Get-MediaDashRecycleBinItems).BinPath)
+    Save-MediaDashConfigSnapshot
+    $Script:RunState.OriginalTasks = @($workers | Where-Object Key -In @('MediaDashFix','MediaDashScan'))
+    $Script:RunState.OriginalTasks | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $Script:ResultsDir 'tasks-before.json') -Encoding utf8
+    foreach ($originalTask in $Script:RunState.OriginalTasks) {
+        Invoke-JfApi -Method POST -Path "/ScheduledTasks/$($originalTask.Id)/Triggers" -Body '[]' | Out-Null
+    }
 
     Invoke-Test "Jellyfin is reachable and returns 200 on /health" {
-        $r = Invoke-WebRequest -Uri "$($Script:RunState.JellyfinUrl)/health" -UseBasicParsing -TimeoutSec 10
+        $r = Invoke-WebRequest -Uri "$($Script:RunState.JellyfinUrl)/health" -UseBasicParsing -TimeoutSec 10 -MaximumRedirection 0 -NoProxy
         Assert-Equal 200 $r.StatusCode "expected HTTP 200 from /health"
     }
 
@@ -52,7 +75,7 @@ function Invoke-Phase-Preflight {
         Assert-True (Test-Path -LiteralPath $Script:RunState.FixturesRoot) "fixtures root should exist"
         $moviesDir = Join-Path $Script:RunState.FixturesRoot "movies"
         Assert-True (Test-Path -LiteralPath $moviesDir) "movies subdir should exist"
-        $baseFile = Join-Path $moviesDir "Big Buck Test 4K (2020)\Big Buck Test 4K (2020).mkv"
+        $baseFile = Join-Path $moviesDir "Big Buck Test 4K (2020)\Big Buck Test (2020).mkv"
         Assert-FileExists $baseFile "Big Buck Test 4K should exist (base fixture — separate folder so Jellyfin doesn't merge it with the 1080p as a single item)"
     }
 
@@ -70,8 +93,8 @@ function Invoke-Phase-Preflight {
         Assert-True (Test-Path -LiteralPath $dbDir) "plugin data dir should exist"
     }
 
-    Invoke-Test "PowerShell version is >= 5.1" {
-        Assert-GreaterOrEqual 5 $PSVersionTable.PSVersion.Major "PowerShell 5.1 or newer required"
+    Invoke-Test "PowerShell version is >= 7" {
+        Assert-GreaterOrEqual 7 $PSVersionTable.PSVersion.Major "PowerShell 7 or newer required"
     }
 
     Invoke-Test "Backup base fixtures before any modification" {

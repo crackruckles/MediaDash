@@ -1,0 +1,31 @@
+{
+  "caseId": "media-host-matrix",
+  "sourceDigest": "18cccce8ee54105a3c80edb05e03e1a84971113da6a3775da8716bf3be1b96c8",
+  "environment": "Disposable Linux, Docker and Windows Jellyfin guests with the expanded golden fixture set. MediaDash DLL SHA-256 58693ddcbec0b98b7653e1b696fedfc4714c306a324644f40f0e6465de45339d.",
+  "checks": [
+    {
+      "name": "linux",
+      "passed": true,
+      "skipped": false,
+      "observed": "40 expected findings, 28 fixes, 8 expected refusals and 4 documented scanner gaps. No missing, unexpected or redetected findings."
+    },
+    {
+      "name": "docker",
+      "passed": true,
+      "skipped": false,
+      "observed": "40 expected findings, 28 fixes, 8 expected refusals and 4 documented scanner gaps. No missing, unexpected or redetected findings."
+    },
+    {
+      "name": "windows",
+      "passed": true,
+      "skipped": false,
+      "observed": "40 expected findings, 28 fixes, 8 expected refusals and 4 documented scanner gaps. No missing, unexpected or redetected findings."
+    },
+    {
+      "name": "golden-restored",
+      "passed": true,
+      "skipped": false,
+      "observed": "The locked runner restored golden on all three guests. All guest states were verified stopped after the run."
+    }
+  ]
+}

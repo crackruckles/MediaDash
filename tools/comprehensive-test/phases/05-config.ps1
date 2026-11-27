@@ -1,4 +1,4 @@
-﻿# 05-config.ps1 — exercise every meaningful config toggle. For each setting:
+# 05-config.ps1 — exercise every meaningful config toggle. For each setting:
 #   • Set to a specific value via the Plugins config endpoint
 #   • Trigger the relevant plugin behavior
 #   • Verify the setting was honored (via /Status, /History, or file state)
@@ -12,7 +12,7 @@
 #   - AllowedAudioLanguages / AllowedSubtitleLanguages (already exercised in phases 02/04)
 #   - EnabledLibraries
 #   - FixTaskSeeded / ScheduleMigrator behavior
-#   - Per-type FixMode (Off / DetectOnly / Manual / Automatic)
+#   - Per-type FixMode (Off / Manual / Automatic)
 #   - TrickplayMinSizeMb / TrickplayWebPQuality
 #   - RecycleBinRetentionDays
 #   - ShowSystemPerformance
@@ -22,27 +22,19 @@
 function Invoke-Phase-Config {
     Start-Phase "Configuration — every settings knob honored end-to-end"
 
-    # ─── DryRun ───
-    Invoke-Test "DryRun=ON: fix run produces history rows without modifying files" {
-        Set-MediaDashConfig @{ DryRun = $true }
-        # Create a fresh detectable dupe (approve any existing dupe)
-        $issues = Get-MediaDashIssues
-        $anyDupe = @($issues | Where-Object { $_.Type -eq "Duplicate" -and $_.Status -eq "Detected" })[0]
-        if ($anyDupe) {
-            $srcPath = $anyDupe.Path
-            $preHash = if (Test-Path -LiteralPath $srcPath) { (Get-FileHash -LiteralPath $srcPath -Algorithm MD5).Hash } else { $null }
-            Approve-MediaDashIssue $anyDupe.Id
+    Invoke-Test 'DryRun=ON records a current font-cleanup preview without changing bytes' {
+        Set-MediaDashConfig @{DryRun=$true}
+        $dryIssue = @(Get-MediaDashIssues -Type 'SubtitleFonts' | Where-Object { $_.Path -like '*Ass Sub Test*' -and $_.Status -eq 'Detected' })[0]
+        Assert-True ([bool]$dryIssue) 'an owned unused-font fixture must be available'
+        Assert-True (Test-OwnedFixturePath $dryIssue.Path) 'dry-run fixture must belong to this run'
+        $beforeHash = (Get-FileHash -LiteralPath $dryIssue.Path -Algorithm SHA256).Hash
+        Approve-MediaDashIssue $dryIssue.Id
+        try {
             Start-MediaDashFix -Wait -TimeoutSec 300
-            if ($preHash -and (Test-Path -LiteralPath $srcPath)) {
-                $postHash = (Get-FileHash -LiteralPath $srcPath -Algorithm MD5).Hash
-                Assert-Equal $preHash $postHash "file should be unchanged in dry-run"
-            }
-            $history = Get-MediaDashHistory -Limit 5
-            $wasDry = @($history.Items | Where-Object { $_.WasDryRun -eq $true })
-            Assert-GreaterOrEqual 1 $wasDry.Count "history should record dry-run entries"
-        } else {
-            Write-Log "    UNVERIFIABLE: no fresh dupe to exercise dry-run against"
-        }
+            $history = Get-CurrentFixHistory -FileName ([IO.Path]::GetFileName($dryIssue.Path)) -Type 'SubtitleFonts'
+            Assert-True $history.WasDryRun 'the current history row must be a preview'
+            Assert-Equal $beforeHash (Get-FileHash -LiteralPath $dryIssue.Path -Algorithm SHA256).Hash 'dry-run keeps original bytes'
+        } finally { Clear-OwnedFixtureApprovals }
     }
 
     # ─── FixWindow (config persistence only — see note) ───
@@ -134,7 +126,7 @@ function Invoke-Phase-Config {
         Assert-Equal 1 @($scopedStats).Count "scoped stats should show only 1 library"
 
         # Reset
-        Set-MediaDashConfig @{ EnabledLibraries = @() }
+        Set-MediaDashConfig @{ EnabledLibraries = $Script:RunState.FixtureLibraryIds }
     }
 
     # ─── Per-type FixMode toggles ───

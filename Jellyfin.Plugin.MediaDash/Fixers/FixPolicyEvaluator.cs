@@ -79,13 +79,6 @@ internal static class FixPolicyEvaluator
             return PolicyDecision.Refuse(FixReason.RestoredPath);
         }
 
-        // Rule 5: DetectOnly refuses fix. Applies to every intent — a scanner-only mode has
-        // no fixer authorization at all.
-        if (mode == FixMode.DetectOnly)
-        {
-            return PolicyDecision.Refuse(FixReason.TypeDetectOnly);
-        }
-
         // Rule 6 & 7: ManualApprove requires an explicit signal.
         //   Scheduled: refuse — the auto-queue would need per-row consent that isn't automatic.
         //   Companion: refuse unless a companion issue is actually approved on the same path.

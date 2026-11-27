@@ -1,213 +1,23 @@
 using System;
-using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
-using System.IO;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.MediaDash.Data;
-using MediaBrowser.Controller.Library;
-using Microsoft.Extensions.Logging;
-
-// All user-controlled paths in this fixer come from the scanner's DetailsJson and are passed through LibraryGuard on
-// both source and target before any filesystem call. CA3003 can't follow that indirection; suppress with the guarantee named here.
-[assembly: SuppressMessage("Security", "CA3003:Review code for file path injection vulnerabilities", Scope = "type", Target = "~T:Jellyfin.Plugin.MediaDash.Fixers.MediaGrouperFixer", Justification = "Source and target paths are validated via LibraryGuard.IsInsideLibrary before any filesystem call.")]
 
 namespace Jellyfin.Plugin.MediaDash.Fixers;
 
-/// <summary>
-/// Moves a file or folder into a per-title (or per-franchise) parent folder inside the same library.
-/// Companion to <see cref="Scanners.MediaGrouperScanner"/>. Both source and target must sit inside a
-/// Jellyfin library — enforced by <see cref="LibraryGuard"/>.
-/// </summary>
+/// <summary>Executes complete approved grouping plans through the durable mover.</summary>
 public sealed class MediaGrouperFixer : IFixer
 {
-    private readonly LibraryGuard _guard;
-    private readonly ILibraryMonitor _libraryMonitor;
-    private readonly IssueStore _issues;
-    private readonly ILogger<MediaGrouperFixer> _logger;
+    private readonly MediaMoveService _moves;
 
     /// <summary>Initializes a new instance of the <see cref="MediaGrouperFixer"/> class.</summary>
-    /// <param name="guard">The library path guard.</param>
-    /// <param name="libraryMonitor">Instance of <see cref="ILibraryMonitor"/>.</param>
-    /// <param name="issues">Issue-table store (05-C.2), used to re-point sibling issues after a successful move.</param>
-    /// <param name="logger">The logger.</param>
-    public MediaGrouperFixer(LibraryGuard guard, ILibraryMonitor libraryMonitor, IssueStore issues, ILogger<MediaGrouperFixer> logger)
-    {
-        _guard = guard;
-        _libraryMonitor = libraryMonitor;
-        _issues = issues;
-        _logger = logger;
-    }
+    /// <param name="moves">Durable complete-item execution and recovery.</param>
+    public MediaGrouperFixer(MediaMoveService moves) => _moves = moves;
 
     /// <inheritdoc />
     public bool CanFix(IssueType type) => type == IssueType.Ungrouped;
 
     /// <inheritdoc />
     public Task<FixResult> FixAsync(Issue issue, IProgress<double>? progress, CancellationToken cancellationToken)
-    {
-        var config = Plugin.Instance!.Configuration;
-
-        string action = string.Empty;
-        string source = string.Empty;
-        string target = string.Empty;
-        try
-        {
-            using var details = JsonDocument.Parse(issue.DetailsJson);
-            // Phase 1: guard root + per-property shape. TryGetProperty on non-object and
-            // GetString on non-string both throw InvalidOperationException, not JsonException.
-            if (details.RootElement.ValueKind == JsonValueKind.Object)
-            {
-                if (details.RootElement.TryGetProperty("action", out var a) && a.ValueKind == JsonValueKind.String)
-                {
-                    action = a.GetString() ?? string.Empty;
-                }
-
-                if (details.RootElement.TryGetProperty("source", out var s) && s.ValueKind == JsonValueKind.String)
-                {
-                    source = s.GetString() ?? string.Empty;
-                }
-
-                if (details.RootElement.TryGetProperty("target", out var t) && t.ValueKind == JsonValueKind.String)
-                {
-                    target = t.GetString() ?? string.Empty;
-                }
-            }
-        }
-        catch (JsonException)
-        {
-            return Task.FromResult(FixResult.Refused(FixReason.SourceChanged, "The grouping target was not recorded for this move; re-scan and try again."));
-        }
-
-        if (string.IsNullOrEmpty(source) || string.IsNullOrEmpty(target) || string.IsNullOrEmpty(action))
-        {
-            return Task.FromResult(FixResult.Refused(FixReason.SourceChanged, "The grouping target was not recorded for this move; re-scan and try again."));
-        }
-
-        var isFolder = string.Equals(action, "MoveFolder", StringComparison.Ordinal);
-
-        if (isFolder ? !Directory.Exists(source) : !File.Exists(source))
-        {
-            return Task.FromResult(FixResult.Fail(FixReason.SourceMissing, "The source no longer exists; re-scan to refresh the list."));
-        }
-
-        if (!_guard.IsInsideLibrary(source))
-        {
-            return Task.FromResult(FixResult.Refused(FixReason.OutsideLibrary, "The source is outside your library folders; MediaDash will not touch it."));
-        }
-
-        var targetParent = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(target));
-        if (string.IsNullOrEmpty(targetParent))
-        {
-            return Task.FromResult(FixResult.Refused(FixReason.SourceChanged, "The target folder was not recorded for this move; re-scan and try again."));
-        }
-
-        if (!_guard.IsInsideLibrary(targetParent))
-        {
-            return Task.FromResult(FixResult.Refused(FixReason.OutsideLibrary, "The target folder '" + targetParent + "' isn't inside a Jellyfin library; move refused."));
-        }
-
-        if (isFolder ? Directory.Exists(target) : File.Exists(target))
-        {
-            var kind = isFolder ? "folder" : "file";
-            var message =
-                "Group refused — a " + kind + " named '" + Path.GetFileName(target) + "' already exists at '" + target + "', and MediaDash won't merge into or overwrite it." +
-                " To resolve, either delete or rename the existing " + kind + " (then re-scan), or Dismiss this issue if you want to keep both in place." +
-                " Source stays untouched at '" + source + "'.";
-            return Task.FromResult(FixResult.Refused(FixReason.DestinationCollision, message));
-        }
-
-        var actionText = string.Format(CultureInfo.InvariantCulture, "grouped {0} → {1}", source, target);
-
-        if (config.DryRun)
-        {
-            return Task.FromResult(FixResult.DryRun(actionText, 0));
-        }
-
-        // Capture file timestamps before the move so we can restore them if .NET falls back to
-        // cross-volume copy+delete (which resets CreationTime). Same reasoning as MediaSorterFixer;
-        // Jellyfin's Recently Added reads DateCreated, which is initially populated from CreationTime.
-        // Folder moves are refused cross-volume above, so only the file branch needs restoration.
-        DateTime srcCreatedUtc = DateTime.UtcNow, srcModifiedUtc = DateTime.UtcNow;
-        if (!isFolder)
-        {
-            try
-            {
-                var srcInfo = new FileInfo(source);
-                srcCreatedUtc = srcInfo.CreationTimeUtc;
-                srcModifiedUtc = srcInfo.LastWriteTimeUtc;
-            }
-            catch (IOException)
-            {
-                // Best-effort.
-            }
-        }
-
-        try
-        {
-            Directory.CreateDirectory(targetParent);
-
-            if (isFolder)
-            {
-                Directory.Move(source, target);
-            }
-            else
-            {
-                File.Move(source, target);
-            }
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return Task.FromResult(FixResult.Fail(
-                FixReason.AccessDenied,
-                "Jellyfin can't write to '" + targetParent + "'. Grant the user Jellyfin runs as (typically 'jellyfin' on Linux) read+write permission on that path."));
-        }
-        catch (IOException ex) when (isFolder && IsCrossVolume(ex))
-        {
-            // ponytail: Directory.Move throws IOException across volumes. Grouping within a single library root
-            // is same-volume in practice — punt with a clear message rather than implementing recursive copy+delete.
-            // Upgrade when a user hits this: swap in a recursive Copy() + Delete() path.
-            return Task.FromResult(FixResult.Refused(
-                FixReason.UnsupportedFormat,
-                "The target sits on a different drive than the source. Cross-drive folder grouping isn't supported yet — move the folder manually or align the library layout to one volume."));
-        }
-        catch (IOException ex)
-        {
-            return Task.FromResult(FixResult.Fail(FixReason.ProcessFailed, "Move failed — the operating system rejected the rename.", ex.Message));
-        }
-
-        if (!isFolder)
-        {
-            try
-            {
-                File.SetCreationTimeUtc(target, srcCreatedUtc);
-                File.SetLastWriteTimeUtc(target, srcModifiedUtc);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                // Best-effort — see MediaSorterFixer for reasoning.
-            }
-        }
-
-        _libraryMonitor.ReportFileSystemChanged(source);
-        _libraryMonitor.ReportFileSystemChanged(target);
-        // For MoveFolder this rewrites both the folder-level issue AND every issue under that folder,
-        // via the SUBSTR prefix branch in RelocateIssuePaths — no per-child bookkeeping needed here.
-        _issues.RelocateIssuePaths(source, target);
-        _logger.LogInformation("Media group: {Action}", actionText);
-        return Task.FromResult(new FixResult
-        {
-            Success = true,
-            Outcome = FixOutcome.Applied,
-            Message = actionText,
-            BytesFreed = 0
-        });
-    }
-
-    private static bool IsCrossVolume(IOException ex)
-    {
-        var code = ex.HResult & 0xFFFF;
-        // Windows ERROR_NOT_SAME_DEVICE = 17 (0x11); Linux EXDEV = 18.
-        return code == 17 || code == 18;
-    }
+        => _moves.ExecuteAsync(issue, progress, cancellationToken);
 }

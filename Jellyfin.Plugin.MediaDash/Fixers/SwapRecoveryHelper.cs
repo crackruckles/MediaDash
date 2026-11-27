@@ -90,12 +90,7 @@ internal static class SwapRecoveryHelper
             // Emit an urgent diagnostic so the user is warned in strong terms and can move the
             // file manually before the next fix cycle. The returned path still points at swapPath
             // for the caller's own diagnostic, but the escalation here is the real protection.
-            Diagnostics.Record(
-                "SwapRecovery.PreserveFailed",
-                "COULD NOT PROTECT recovery copy at '" + swapPath + "' — attempt to rename/copy to a "
-                + "recovery-marked sibling of '" + originalPath + "' failed (" + ex.Message + "). "
-                + "The next fix cycle's sidecar sweep WILL delete this file. If the original was "
-                + "disposed, this is your only remaining copy — move it out of the folder now.");
+            Diagnostics.Record("SwapRecovery.PreserveFailed", "IMPORTANT: MediaDash could not protect the backup copy at '" + swapPath + "', and the next fix run will delete it. If the original '" + originalPath + "' is gone, this is your only copy: move it somewhere safe now. Details: " + ex.Message);
             return swapPath;
         }
     }
@@ -177,12 +172,7 @@ internal static class SwapRecoveryHelper
         {
             // Total failure: neither Move nor Copy worked. Escalate loudly — the caller aborts the
             // fix and the sweep can clean up the swap next cycle because the original is still there.
-            Diagnostics.Record(
-                "SwapRecovery.PromoteFailed",
-                "Could not promote swap file '" + swapPath + "' to a recovery-marked sibling of '"
-                + originalPath + "' before disposing original (" + ex.Message + "). Fix has been aborted "
-                + "to keep your original intact — the swap file will be cleaned up on the next sweep. "
-                + "Report this diagnostic if it recurs; it may point at a permissions or storage problem.");
+            Diagnostics.Record("SwapRecovery.PromoteFailed", "A fix was stopped to keep your original '" + originalPath + "' safe: MediaDash could not set aside its new copy ('" + swapPath + "'). The new copy will be cleaned up automatically. If this keeps happening, check the folder's permissions and free space. Details: " + ex.Message);
             return false;
         }
     }

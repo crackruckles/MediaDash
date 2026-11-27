@@ -1,0 +1,25 @@
+{
+  "caseId": "media-epub",
+  "sourceDigest": "e99b757687a8a137daf5c8fb9f109642cebd19d8cc9d56441acd5e0125feb374",
+  "environment": "Owned Windows Jellyfin 10.11.11 loopback instance with installed Calibre and EPUBCheck 5.4.0. MediaDash DLL SHA-256 fa17d0d813864d1ec00d91af9625c92a36c227911fed8d7a53b09fee2bb19dc7.",
+  "checks": [
+    {
+      "name": "epubcheck-output",
+      "passed": true,
+      "skipped": false,
+      "observed": "Actual plain-text EPUB 2 and MOBI EPUB 3 MediaDash conversion outputs passed with zero warnings. SHA-256 dcfcea196c16c32720a2e09eda96ffb6c237e41b29f4eb67a1e0059301cdbef0 and 6781eaf7fae9e4daff1c9c6a57a36b22dd6e3a587b0d488f19228c27d194fbb4."
+    },
+    {
+      "name": "converted-content-retained",
+      "passed": true,
+      "skipped": false,
+      "observed": "Parsed each XHTML document and found all expected owned text in the two output books."
+    },
+    {
+      "name": "source-restored",
+      "passed": true,
+      "skipped": false,
+      "observed": "Both originals were restored via MediaDash History and matched their exact pre-conversion SHA-256 hashes."
+    }
+  ]
+}

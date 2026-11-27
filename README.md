@@ -35,6 +35,11 @@ Duplicates, broken files, oversized encodes, wrong-language tracks, misplaced fi
 
 Requires Jellyfin **10.11+** or **12.0+**. One binary covers both — the manifest advertises `targetAbi` for each host line, and the plugin bridges the `IUserManager` / `User` entity changes between 10.11 and 12.0 via reflection so the same install works everywhere.
 
+> [!TIP]
+> **Want to help test upcoming versions?** Add the beta repository instead of (or as well as) the one above:
+> `https://raw.githubusercontent.com/crackruckles/MediaDash/beta/manifest-beta.json`
+> Only maintainer-approved builds are published there. See [docs/BETA-TESTING.md](docs/BETA-TESTING.md).
+
 ## Uninstall
 
 Jellyfin's "Uninstall" button removes the files but leaves the repository URL registered, so the **Update Plugins** scheduled task will silently reinstall MediaDash on its next tick. Remove both to uninstall for real:
@@ -68,6 +73,8 @@ Step 1 is the one everyone misses. Skip it and step 2 alone appears to work — 
 | 🔤 **Subtitle fonts** | Embedded fonts inside `.ass` sidecars that no style actually references | Rewrites the sidecar without them — contents-only edit, still a valid subtitle |
 
 Every fix type runs independently: **Off · Detect only · Ask me first · Automatic**. Stale content and audio-quality checks are detect-only.
+
+When grouping TV episodes into an existing show folder, MediaDash moves each episode and its named companions into the appropriate season folder. Missing series artwork and metadata are included in the move preview. After the last episode leaves, unchanged source artwork and NFOs that already exist at the destination are recycled with the old folder; Undo restores them while that recycle entry remains available. Changed metadata, unknown files or remaining media keep the source folder in place. Existing destination files are never overwritten. Conflicting series identities or episode destinations require review. The Issues tab's ungrouped-media rescan runs only the grouping scanner.
 
 <div align="center">
 <img src="docs/issues.png" width="850" alt="Issues tab with one-click actions"/>

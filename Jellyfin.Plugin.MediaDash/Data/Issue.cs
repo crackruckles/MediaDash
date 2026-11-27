@@ -72,6 +72,49 @@ public sealed class Issue
     /// </summary>
     public bool HasBlockingWarnings => TryReadBlockingWarnings();
 
+    /// <summary>Gets a value indicating whether the scanner explicitly reports that no fix is available.</summary>
+    public bool IsReportOnly
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(DetailsJson))
+            {
+                return false;
+            }
+
+            try
+            {
+                using var document = JsonDocument.Parse(DetailsJson);
+                return document.RootElement.ValueKind == JsonValueKind.Object
+                    && document.RootElement.TryGetProperty("fixerAvailable", out var flag)
+                    && flag.ValueKind == JsonValueKind.False;
+            }
+            catch (JsonException)
+            {
+                return false;
+            }
+        }
+    }
+
+    /// <summary>Gets a value indicating whether a prior move invalidated this finding and requires a fresh scan before consent.</summary>
+    public bool RequiresRescan
+    {
+        get
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(DetailsJson);
+                return document.RootElement.ValueKind == JsonValueKind.Object
+                    && document.RootElement.TryGetProperty("requiresRescan", out var flag)
+                    && flag.ValueKind != JsonValueKind.False;
+            }
+            catch (JsonException)
+            {
+                return false;
+            }
+        }
+    }
+
     private bool TryReadBlockingWarnings()
     {
         if (string.IsNullOrWhiteSpace(DetailsJson))

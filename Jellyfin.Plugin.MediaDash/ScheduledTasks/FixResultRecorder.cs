@@ -65,31 +65,27 @@ public sealed class FixResultRecorder
         var resolvedSet = resolvedIds is ISet<long> asSet ? asSet : new HashSet<long>(resolvedIds);
 
         var historyRows = BuildHistoryRows(plan, execution, resolvedSet, fixedAtUtc);
+        var repairFailed = !result.WasDryRun && result.Reason == Fixers.FixReason.RepairFailed
+            && plan.Primary.Type == IssueType.Playability;
 
         // Dry-run gate: F-206 — a dry-run leaves the queue exactly as it found it. Every id in
         // ResolvedIssueIds still writes history above (with WasDryRun = true) but the status
         // transition slot is empty so the user can re-approve after inspecting the preview.
         IReadOnlyCollection<long> toTransition = result.WasDryRun
             ? Array.Empty<long>()
-            : resolvedIds;
+            : repairFailed ? new[] { plan.Primary.Id } : resolvedIds;
 
         IReadOnlyDictionary<long, bool> transitions;
         try
         {
-            transitions = _db.RecordFixOutcome(historyRows, toTransition, FixedFromQueued, IssueStatus.Fixed);
+            transitions = _db.RecordFixOutcome(historyRows, toTransition, FixedFromQueued, repairFailed ? IssueStatus.Detected : IssueStatus.Fixed, repairFailed ? plan.Primary : null);
         }
         catch (Exception ex)
         {
             // Fixer already committed the file mutation before we ever entered this method (see
             // VerifiedReplacementService protocol). A DB failure here means "the world changed
             // but our books say it didn't" — an operator needs to reconcile. Never auto-replay.
-            Api.Diagnostics.Record(
-                "FixResultRecorder.PersistFailed",
-                "Fix outcome persistence failed for issue " + execution.PrimaryIssueId
-                    + " on " + plan.Primary.Path
-                    + ". The file mutation (if any) has already committed; the DB record is missing. "
-                    + "Do NOT re-run the fix — it is not idempotent. Reconcile manually. "
-                    + ex.Message);
+            Api.Diagnostics.Record("FixResultRecorder.PersistFailed", "The fix for '" + plan.Primary.Path + "' (issue #" + execution.PrimaryIssueId + ") ran, but MediaDash could not save its result, so the Issues and History tabs do not show it. Do not run this fix again: check the file first, then run a scan to refresh the list. Details: " + ex.Message);
             _logger.LogError(
                 ex,
                 "Recorder persistence failed for issue {IssueId} on {Path}. Reconciliation required.",
@@ -162,6 +158,7 @@ public sealed class FixResultRecorder
             BytesFreed = result.Success && !result.WasDryRun ? result.BytesFreed : 0,
             SavedBytes = result.Success && !result.WasDryRun ? result.SavedBytes : 0,
             RecyclePath = result.RecyclePath,
+            MoveOperationId = result.MoveOperationId,
             FixedAtUtc = fixedAtUtc,
             WasDryRun = result.WasDryRun,
             Success = result.Success,

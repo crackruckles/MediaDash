@@ -13,8 +13,11 @@
     // legacy config that saved "Automatic" would leave the mode segments with no active
     // button AND auto-queue server-side on the next fix run. Coerce to ManualApprove on
     // load; save writes the sanitised value back.
+    // Also coerces pre-1.0.9 DetectOnly tombstones so the segmented control shows a live
+    // selection — Plugin.NormaliseFixModes rewrites the server copy on next save.
     ns.MediaDash.sanitizeDuplicateModeOnLoad = function sanitizeDuplicateModeOnLoad(mode) {
-        return mode === 'Automatic' ? 'ManualApprove' : mode;
+        if (mode === 'Automatic' || mode === 'DetectOnly') return 'ManualApprove';
+        return mode;
     };
 
     // Encoder select value ↔ config round-trip. Documented contract:
@@ -30,7 +33,8 @@
     ns.MediaDash.encoderValueToConfig = function encoderValueToConfig(encVal) {
         if (encVal === 'cpu') return { useHw: false, gpuIndex: null };
         if (encVal === 'auto') return { useHw: true, gpuIndex: null };
-        return { useHw: true, gpuIndex: parseInt(encVal, 10) };
+        var index = parseInt(encVal, 10);
+        return { useHw: true, gpuIndex: Number.isNaN(index) ? null : index };
     };
 
     // Parse a comma-separated string into a trimmed, lowercased, blank-stripped array.

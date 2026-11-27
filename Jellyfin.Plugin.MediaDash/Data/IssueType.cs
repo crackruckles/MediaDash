@@ -63,5 +63,8 @@ public enum IssueType
     ManualDelete = 18,
 
     /// <summary>A file whose format Jellyfin's browser client cannot render (e.g. MOBI ebook, CBR comic, HEIC image). The scanner suggests conversion to a renderable target format; the fixer runs it in Phase 2+.</summary>
-    FormatCompatibility = 19
+    FormatCompatibility = 19,
+
+    /// <summary>An explicitly previewed file-browser move or rename, recorded for complete recovery and Undo.</summary>
+    ManualMove = 20
 }

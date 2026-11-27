@@ -1,0 +1,31 @@
+{
+  "caseId": "issue-43",
+  "sourceDigest": "18cccce8ee54105a3c80edb05e03e1a84971113da6a3775da8716bf3be1b96c8",
+  "environment": "Owned Windows Jellyfin 10.11.11 and 12.0.0 instances and WSL ext4 with a private tmpfs. MediaDash DLL SHA-256 58693ddcbec0b98b7653e1b696fedfc4714c306a324644f40f0e6465de45339d.",
+  "checks": [
+    {
+      "name": "same-filesystem grouping and TV",
+      "passed": true,
+      "skipped": false,
+      "observed": "Live grouping and TV folder rename preserved complete companion payloads, playback, and user data. Undo restored exact paths and hashes, and unrelated TV content remained unchanged."
+    },
+    {
+      "name": "companion collision",
+      "passed": true,
+      "skipped": false,
+      "observed": "An occupied companion refused the exact prior approval, preserved source and destination hashes, recorded zero savings, and remained reviewable after rescan."
+    },
+    {
+      "name": "process recovery",
+      "passed": true,
+      "skipped": false,
+      "observed": "Seven Windows and seven Linux process-crash tests passed."
+    },
+    {
+      "name": "cross-filesystem refusal",
+      "passed": true,
+      "skipped": false,
+      "observed": "Three ext4-to-tmpfs scenarios exercised space, ENOSPC and denied writes. All refused before destination, journal or staging changes and preserved sources. The private mount was unmounted."
+    }
+  ]
+}

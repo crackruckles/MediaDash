@@ -1,0 +1,64 @@
+{
+  "caseId": "issue-81-progress",
+  "sourceDigest": "1d3ede642acd60d8c915b87a2aafc4cf82cd17b597f19d83cf224dc0d5c833cc",
+  "dllSha256": "8E323DA7D5757579457C3798217A750B1AF5BD5F8696B75DE23C7142D3746C9F",
+  "environment": "Windows; isolated loopback Jellyfin 10.11.11 and 12.0.0; generated fixtures; no production media",
+  "checks": [
+    {
+      "name": "1000 generated movies indexed; cold and warm AudioLanguage plus Artwork scans complete on both hosts",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "Progress requests finish responsively; duration and Jellyfin process resource metrics recorded",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "Browser progress advances within a scanner and heavy polling cadence has regression coverage",
+      "passed": true,
+      "skipped": false
+    }
+  ],
+  "report": "docs/testing/ISSUES-80-81-83-88-2026-10-27.md",
+  "runs": {
+    "v10": {
+      "version": "10.11.11",
+      "passedChecks": 164,
+      "failedAttempts": [],
+      "evidence": "artifacts/issues-80-81-83-88-live-20261027-a5a605bc/v10/final-evidence"
+    },
+    "v12": {
+      "version": "12.0.0",
+      "passedChecks": 186,
+      "failedAttempts": [
+        {
+          "test": "owned server process exited",
+          "status": "FAIL",
+          "detail": ""
+        },
+        {
+          "test": "stop exception",
+          "status": "FAIL",
+          "detail": "owned server process exited: "
+        },
+        {
+          "test": "scan_timing exception",
+          "status": "FAIL",
+          "detail": "No fresh completion for RefreshLibrary"
+        },
+        {
+          "test": "cleanup exception",
+          "status": "FAIL",
+          "detail": "[Errno 2] No such file or directory: 'C:\\\\dev\\\\mediadash\\\\artifacts\\\\issues-80-81-83-88-live-20261027-a5a605bc\\\\v12\\\\server\\\\metadata\\\\library\\\\1b\\\\1b398cc8a5656e8813b97c9902b364a6\\\\poster.png'"
+        }
+      ],
+      "evidence": "artifacts/issues-80-81-83-88-live-20261027-a5a605bc/v12/final-evidence"
+    }
+  },
+  "limitations": [
+    "Original 20 TB slowdown and Jellyfin 12.2 specific memory-pool symptom not independently reproduced",
+    "Local generated fixture measurements; no Linux/NAS/device certification",
+    "Failed harness attempts retained; whole-tree gate blocked by five other regressions and uncommitted/incomplete acceptance"
+  ]
+}

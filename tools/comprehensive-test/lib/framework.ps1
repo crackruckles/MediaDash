@@ -251,7 +251,7 @@ function Save-FailureArtifacts {
 
     # 2. Plugin DB
     try {
-        $dbPath = "$env:LOCALAPPDATA\jellyfin\data\mediadash\mediadash.db"
+        $dbPath = Join-Path $Script:RunState.DataDir 'data/mediadash/mediadash.db'
         if (Test-Path -LiteralPath $dbPath) {
             Copy-Item -LiteralPath $dbPath -Destination (Join-Path $dir "mediadash.db") -Force
             $collected += "mediadash.db"
@@ -260,7 +260,7 @@ function Save-FailureArtifacts {
 
     # 3. Plugin config XML
     try {
-        $cfgPath = "$env:LOCALAPPDATA\jellyfin\plugins\configurations\Jellyfin.Plugin.MediaDash.xml"
+        $cfgPath = Join-Path $Script:RunState.DataDir 'plugins/configurations/Jellyfin.Plugin.MediaDash.xml'
         if (Test-Path -LiteralPath $cfgPath) {
             Copy-Item -LiteralPath $cfgPath -Destination (Join-Path $dir "plugin-config.xml") -Force
             $collected += "plugin-config.xml"
@@ -270,7 +270,7 @@ function Save-FailureArtifacts {
     # 4. Plugin diagnostics (via API — records live in memory)
     try {
         if ($Script:RunState.JellyfinAuthHeader) {
-            $diag = Invoke-JfApi -Method GET -Path "/MediaDash/Diagnostics"
+            $diag = Invoke-JfApi -Method GET -Path "/MediaDash/Errors"
             $diag | ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path $dir "diagnostics.json") -Encoding utf8
             $collected += "diagnostics.json"
         }
@@ -278,7 +278,7 @@ function Save-FailureArtifacts {
 
     # 5. Jellyfin log tail — last 300 lines of the newest log
     try {
-        $logDir = "$env:LOCALAPPDATA\jellyfin\log"
+        $logDir = Join-Path $Script:RunState.DataDir 'log'
         if (Test-Path $logDir) {
             $newest = Get-ChildItem -Path $logDir -Filter "*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
             if ($newest) {
@@ -428,6 +428,16 @@ function Write-Summary {
 
 function Start-Phase { param([string]$Description) Write-Log "◆ $Description" }
 
+function Test-RecentUtcTimestamp {
+    param($Timestamp, [DateTimeOffset]$Now = [DateTimeOffset]::UtcNow, [int]$MaxAgeSec = 300)
+    if ($null -eq $Timestamp -or [string]::IsNullOrWhiteSpace([string]$Timestamp)) { return $false }
+    try {
+        $instant = [DateTimeOffset]$Timestamp
+        $age = ($Now - $instant).TotalSeconds
+        return $age -ge -30 -and $age -le $MaxAgeSec
+    } catch { return $false }
+}
+
 # ═════════════════════════════════════════════════════════════════════════════
 # Verdict — pure function that turns run state into a final PASS/FAIL/ERROR
 # decision + exit code + reason. Self-tests call this directly with a synthetic
@@ -478,6 +488,9 @@ function Get-RunVerdict {
     if ($RunState.TotalTests -eq 0) {
         return [pscustomobject]@{ Verdict = 'FAIL'; ExitCode = 1; Reason = 'No tests were recorded' }
     }
+    if ($RunState.TestsSkipped -gt 0) {
+        return [pscustomobject]@{ Verdict = 'INCOMPLETE'; ExitCode = 3; Reason = "$($RunState.TestsSkipped) test(s) skipped; coverage is incomplete" }
+    }
     return [pscustomobject]@{ Verdict = 'PASS'; ExitCode = 0; Reason = "$($RunState.TestsPassed) test(s) passed" }
 }
 
@@ -515,8 +528,11 @@ function Assert-SafeLiveTarget {
     )
     $u = $null
     try { $u = [Uri]::new($Url) } catch { throw "Refuse: '$Url' is not a well-formed URI" }
+    if ($u.Scheme -notin @('http','https') -or $u.UserInfo -or $u.Query -or $u.Fragment) {
+        throw 'Refuse: use an HTTP(S) URL without credentials, query, or fragment.'
+    }
     $loopback = @('localhost','127.0.0.1','::1')
-    if ($u.Host -notin $loopback) {
+    if ($u.DnsSafeHost -notin $loopback) {
         throw "Refuse: target host '$($u.Host)' is not loopback. This harness never mutates non-loopback."
     }
     if ($u.Port -ne 8099) {
@@ -527,10 +543,18 @@ function Assert-SafeLiveTarget {
         $ok = $false
         foreach ($allowed in $AllowedFixturePaths) {
             $rooted = [IO.Path]::GetFullPath($allowed)
-            if ($normalized.StartsWith($rooted, [StringComparison]::OrdinalIgnoreCase)) { $ok = $true; break }
+            $comparison = if ([IO.Path]::DirectorySeparatorChar -eq '\') { [StringComparison]::OrdinalIgnoreCase } else { [StringComparison]::Ordinal }
+            $prefix = $rooted.TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+            if ($normalized.Equals($rooted, $comparison) -or $normalized.StartsWith($prefix, $comparison)) { $ok = $true; break }
         }
         if (-not $ok) {
             throw "Refuse: fixture path '$FixturePath' is not inside any allowed manifest root."
+        }
+        $cursor = $normalized
+        while ($cursor) {
+            $item = Get-Item -LiteralPath $cursor -Force -ErrorAction SilentlyContinue
+            if ($item -and ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw "Refuse: fixture path contains a filesystem link: $cursor" }
+            $cursor = [IO.Path]::GetDirectoryName($cursor)
         }
     }
 }

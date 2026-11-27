@@ -1,0 +1,37 @@
+{
+  "caseId": "media-live-workflows",
+  "sourceDigest": "18cccce8ee54105a3c80edb05e03e1a84971113da6a3775da8716bf3be1b96c8",
+  "environment": "Fresh owned Windows Jellyfin 10.11.11 and 12.0.0 instances. MediaDash DLL SHA-256 58693ddcbec0b98b7653e1b696fedfc4714c306a324644f40f0e6465de45339d.",
+  "checks": [
+    {
+      "name": "formats-10.11",
+      "passed": true,
+      "skipped": false,
+      "observed": "440 checks across 89 fixtures, including expected detections, successful conversions, refusal and restore."
+    },
+    {
+      "name": "repair-10.11",
+      "passed": true,
+      "skipped": false,
+      "observed": "304 checks including retained stream inventory, full output decode, complete Jellyfin HTTP body hashes, and safe refusal."
+    },
+    {
+      "name": "formats-12",
+      "passed": true,
+      "skipped": false,
+      "observed": "440 checks across 89 fixtures, including expected detections, successful conversions, refusal and restore."
+    },
+    {
+      "name": "repair-12",
+      "passed": true,
+      "skipped": false,
+      "observed": "304 checks including retained stream inventory, full output decode, complete Jellyfin HTTP body hashes, and safe refusal."
+    },
+    {
+      "name": "source-and-recycle-restored",
+      "passed": true,
+      "skipped": false,
+      "observed": "Both owned profiles verified original and recycled hashes, exercised restore, removed temporary libraries, restored settings and queue, and stopped."
+    }
+  ]
+}

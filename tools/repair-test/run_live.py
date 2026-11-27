@@ -23,16 +23,16 @@ CASES = [
     ('healthy', 'movie.mp4', 'copy', 'healthy', None),
     ('unicode', '健全 café [2026] & $demo.mp4', 'copy', 'healthy', None),
     ('duplicate-basename', 'movie.mp4', 'tail', 'repair', 'remux'),
-    ('partial', 'partial.mp4', 'half', 'partial', 'remux'),
+    ('partial', 'partial.mp4', 'half', 'review-delete', 'remux'),
     ('bitrot', 'bitrot.mp4', 'video', 'repair', 'video'),
     ('drop-audio', 'two-audio.mp4', 'audio2first', 'repair', 'drop'),
     ('second-audio', 'second-audio.mp4', 'audio2', 'repair', 'drop'),
     ('audio-only', 'single-audio.mp4', 'audio1', 'repair', 'audio'),
     ('coerce', 'coerce.mp4', 'tail', 'repair', 'coerce'),
-    ('zero', 'zero.mp4', 'zero', 'recycle', None),
+    ('zero', 'zero.mp4', 'zero', 'review-delete', None),
     ('junk', 'junk.mp4', 'junk', 'refuse', None),
-    ('header', 'header.mp4', 'header', 'recycle', None),
-    ('disabled', 'disabled.mp4', 'tail', 'recycle', 'off'),
+    ('header', 'header.mp4', 'header', 'review-delete', None),
+    ('disabled', 'disabled.mp4', 'tail', 'refuse', 'off'),
     ('rename', 'odd [01] & $name.mkv', 'copy', 'rename', None),
     ('collision', 'collision.mkv', 'copy', 'collision', None),
 ]
@@ -67,6 +67,11 @@ def exit_code(results):
 
 def match_rows(rows, issue_id, path, after_id):
     return [r for r in rows if r['id'] > after_id and r['issue_id'] == issue_id and r['path'] == path]
+
+
+def is_delete_review(issue):
+    return (issue.get('Status') == 'Detected' and issue.get('RepairFailed') is True
+            and any(w.get('blocking', w.get('Blocking')) for w in issue.get('Warnings', [])))
 
 
 def sha(path):
@@ -229,6 +234,8 @@ class Harness:
         queued = [i for i in self.open_issues() if i.get('Status') == 'Queued']
         if queued and not self.args.hold_existing_queue:
             raise RuntimeError('Existing queued work; refusing global Fix task. Use an empty test server or --hold-existing-queue.')
+        if any(i.get('Type') == 'Stale' for i in queued):
+            raise RuntimeError('Cannot hold informational Stale approvals: the approval API cannot restore them. Use an empty test server.')
         for library in self.api('/Library/VirtualFolders'):
             for location in library.get('Locations', []):
                 existing = Path(location).resolve()
@@ -242,7 +249,7 @@ class Harness:
         for k in self.safe:
             if k.endswith('FixMode'):
                 self.safe[k] = 'Off'
-        self.safe.update(DryRun=True, EnabledLibraries=['00000000000000000000000000000000'])
+        self.safe.update(DryRun=True, AnalyticsEnabled=False, EnabledLibraries=['00000000000000000000000000000000'])
         self.configure(self.safe)
         self.held_queue = queued
         self.save('queue-before.json', queued)
@@ -305,7 +312,7 @@ class Harness:
                     ready = ready and self.decodes(path, '0:a:1')
                 fixture['ready'] = self.record(case + ' isolated audio damage', ready, blocked=not ready)
                 fixture['video_hash'] = self.video_hash(path)
-            elif outcome in ('repair', 'partial', 'recycle', 'refuse'):
+            elif outcome in ('repair', 'partial', 'recycle', 'refuse', 'review-delete'):
                 fixture['ready'] = self.record(case + ' is actually broken', not self.decodes(path))
             else:
                 fixture['ready'] = self.record(case + ' clean payload', self.decodes(path))
@@ -380,18 +387,7 @@ class Harness:
             if issue['Status'] == 'Queued':
                 self.api('/MediaDash/Issues/' + str(issue['Id']) + '/Revert', 'POST')
         self.restore_rows = []
-        for f in self.fixtures:
-            if not f['ready'] or f['outcome'] == 'healthy':
-                continue
-            try:
-                self.exercise(f, cfg)
-            except Exception:
-                self.record(f['case'] + ' execution', False, traceback.format_exc())
-                # Do not start another case if a task is still running/unknown.
-                self.idle('MediaDashFix')
-                for pending in self.issues():
-                    if pending['Status'] == 'Queued':
-                        self.api('/MediaDash/Issues/' + str(pending['Id']) + '/Revert', 'POST')
+        self.exercise_cases(cfg)
         self.run_task('RefreshLibrary', '/Library/Refresh')
         self.scan()
         allowed = {f['path'] for f in self.fixtures if f['outcome'] in ('collision', 'refuse') or not f['ready']}
@@ -417,6 +413,54 @@ class Harness:
                 self.record(f['case'] + ' restore', False, traceback.format_exc())
         leftovers = [str(p) for p in self.media.rglob('*') if p.is_file() and ('mediadash.tmp' in p.name.lower() or 'mediadash-recover-' in p.name.lower())]
         self.record('no abandoned repair/recovery files', not leftovers, leftovers)
+
+    def exercise_cases(self, cfg):
+        for f in self.fixtures:
+            if not f['ready'] or f['outcome'] == 'healthy':
+                continue
+            try:
+                self.exercise(f, cfg)
+            except Exception:
+                self.record(f['case'] + ' execution', False, traceback.format_exc())
+            finally:
+                # Recorded failures do not throw. Refusals can legitimately
+                # retain a queued row, so release owned approvals on every path.
+                self.idle('MediaDashFix')
+                for pending in self.issues():
+                    if pending['Status'] == 'Queued':
+                        self.api('/MediaDash/Issues/' + str(pending['Id']) + '/Revert', 'POST')
+
+    def review_then_delete(self, f, row):
+        source = Path(f['path'])
+        self.record(f['case'] + ' failed repair preserves original', not row['success'] and not row['recycle_path']
+                    and not row['bytes_freed'] and not row['saved_bytes'] and source.is_file() and sha(source) == f['sha256'], row['action'])
+        self.scan()
+        reviews = [i for i in self.issues() if i['Path'] == f['path']]
+        if not self.record(f['case'] + ' rescan requires fresh Delete approval', len(reviews) == 1
+                           and is_delete_review(reviews[0]), reviews):
+            return
+        review = reviews[0]
+        if any(i['Status'] == 'Queued' for i in self.open_issues()):
+            raise RuntimeError('Unexpected approval before Delete-consent negative control')
+        before = self.api('/MediaDash/Status')['Repair']
+        self.run_task('MediaDashFix', '/MediaDash/Fix')
+        self.record(f['case'] + ' unapproved Delete leaves original', source.is_file() and sha(source) == f['sha256'])
+        self.api('/MediaDash/Issues/' + str(review['Id']) + '/Approve', 'POST')
+        if {i['Id'] for i in self.open_issues() if i['Status'] == 'Queued'} != {review['Id']}:
+            raise RuntimeError('Unexpected queued work before freshly approved Delete')
+        start = self.rows('SELECT COALESCE(MAX(id),0) AS n FROM history', ())[0]['n']
+        self.run_task('MediaDashFix', '/MediaDash/Fix')
+        rows = match_rows(self.rows(), review['Id'], f['path'], start)
+        if not self.record(f['case'] + ' fresh Delete has attributable history', len(rows) == 1, rows):
+            return
+        deleted = rows[0]
+        recycled = Path(deleted['recycle_path']) if deleted['recycle_path'] else None
+        ok = bool(deleted['success'] and not source.exists() and recycled and recycled.is_file() and sha(recycled) == f['sha256'])
+        self.record(f['case'] + ' fresh Delete recycles exact original', ok, deleted['action'])
+        self.record(f['case'] + ' Delete does not claim repair savings', not deleted['saved_bytes']
+                    and self.api('/MediaDash/Status')['Repair'] == before)
+        if recycled and recycled.is_file():
+            self.restore_rows.append((deleted, f))
 
     def exercise(self, f, cfg):
         cfg = dict(cfg, DryRun=False)
@@ -454,6 +498,9 @@ class Harness:
         self.record(f['case'] + ' summary bytes delta', after['SavedBytesLifetime'] - before['SavedBytesLifetime'] == (f['size'] if repair else 0))
         self.record(f['case'] + ' recent summary count delta', after['Count30d'] - before['Count30d'] == int(repair))
         self.record(f['case'] + ' recent summary bytes delta', after['SavedBytes30d'] - before['SavedBytes30d'] == (f['size'] if repair else 0))
+        if f['outcome'] == 'review-delete':
+            self.review_then_delete(f, row)
+            return
         source = Path(f['path'])
         if row['recycle_path']:
             binpath = Path(row['recycle_path'])
@@ -524,6 +571,11 @@ class Harness:
             except Exception as error:
                 self.record('issue cleanup', False, error)
             try:
+                if self.held_queue:
+                    # Approval now enforces modes. Requeue under read-only, excluded-library isolation before restoring the user's settings.
+                    restore_config = dict(self.safe, DryRun=True, EnabledLibraries=['00000000000000000000000000000000'], FixerDisabled=[])
+                    restore_config.update({k: 'ManualApprove' for k in restore_config if k.endswith('FixMode')})
+                    self.configure(restore_config)
                 # Older builds default the unfiltered endpoint to Detected only.
                 # Query ignored rows explicitly so held approvals remain discoverable.
                 current = {i['Id']: i for i in self.open_issues() + self.api('/MediaDash/Issues?status=Dismissed')} if self.held_queue else {}

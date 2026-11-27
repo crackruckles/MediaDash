@@ -87,7 +87,7 @@ public static class SmartHealthProbe
                 // Fire-and-forget: no caller observes the exception. Surface via Diagnostics so a
                 // repeated crash (unexpected exception, not a normal Unknown result) is visible
                 // instead of the Overview silently sitting on "Checking SMART status…" forever.
-                Diagnostics.Record("SmartHealth.ProbeCrashed", "SMART probe crashed for " + driveRoot + ": " + ex.Message + ". Overview will retry after the next TTL.");
+                Diagnostics.Record("SmartHealth.ProbeCrashed", "Drive health (SMART) could not be read for " + driveRoot + ". The Overview will try again later. Details: " + ex.Message);
             }
             finally
             {
@@ -172,7 +172,7 @@ public static class SmartHealthProbe
 
                 if (SmartctlKnownFailing.TryAdd(device + ":timeout", 0))
                 {
-                    Diagnostics.Record("SmartHealth", "smartctl timed out on " + device + " — SMART health will show as Unknown until the next probe. Subsequent timeouts on this device are suppressed for the rest of the session.");
+                    Diagnostics.Record("SmartHealth", "Reading drive health (smartctl) timed out on " + device + ", so its health shows as Unknown. MediaDash will not try this drive again until Jellyfin restarts.");
                 }
 
                 return new SmartHealthResult(SmartHealth.Unknown, "smartctl took longer than 3 s.");
@@ -192,7 +192,7 @@ public static class SmartHealthProbe
         {
             if (SmartctlKnownFailing.TryAdd(device + ":io", 0))
             {
-                Diagnostics.Record("SmartHealth", "smartctl failed for " + device + ": " + ex.Message + " Subsequent IO errors on this device are suppressed for the rest of the session.");
+                Diagnostics.Record("SmartHealth", "smartctl could not read drive health for " + device + ", so its health shows as Unknown. Check that smartctl (smartmontools) is installed and that Jellyfin is allowed to run it. Further errors for this drive are hidden until Jellyfin restarts. Details: " + ex.Message);
             }
 
             return new SmartHealthResult(SmartHealth.Unknown, "smartctl error: " + ex.Message);
@@ -330,7 +330,7 @@ public static class SmartHealthProbe
                 // a counter the user already saw.
                 if (!isPermissionDenied && SmartctlKnownFailing.TryAdd(device + ":exit" + rawExit, 0))
                 {
-                    Diagnostics.Record("SmartHealth", "smartctl exit_status=" + rawExit + " on " + device + ": " + (firstMessage.Length > 0 ? firstMessage : "(no message)") + " Subsequent identical failures on this device are suppressed for the rest of the session.");
+                    Diagnostics.Record("SmartHealth", "smartctl reported a problem reading " + device + " (exit code " + rawExit + "): " + (firstMessage.Length > 0 ? firstMessage : "no further detail") + ". Its health may show as Unknown; check that smartctl (smartmontools) is up to date and supports this drive. Further identical errors for this drive are hidden until Jellyfin restarts.");
                 }
 
                 return new SmartHealthResult(SmartHealth.Unknown, hint);

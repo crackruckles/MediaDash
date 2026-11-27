@@ -49,7 +49,7 @@ public class ConfigChangeInvalidationTests
     public void ChangedFields_EnumDifference()
     {
         var a = new PluginConfiguration { AudioFixMode = FixMode.Off };
-        var b = new PluginConfiguration { AudioFixMode = FixMode.DetectOnly };
+        var b = new PluginConfiguration { AudioFixMode = FixMode.ManualApprove };
         Assert.Contains(nameof(PluginConfiguration.AudioFixMode), ConfigChangeInvalidation.ChangedFields(a, b));
     }
 

@@ -92,7 +92,12 @@ public sealed class NfoFixer : IFixer
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             _logger.LogWarning(ex, "NfoFixer: could not remove {Path}", issue.Path);
-            Api.Diagnostics.Record("NfoFixer.Delete", "Couldn't delete NFO \"" + issue.Path + "\": " + ex.Message + ". Check that Jellyfin has write access to the containing folder.");
+            if (ex.Message == MediaMoveSafety.UnsafeSourceDeletionMessage)
+            {
+                return Task.FromResult(FixResult.Fail(FixReason.RepairFailed, "Could not recycle NFO. Choose a recycle bin folder on the same mount as the source. The source was left in place.", ex.Message));
+            }
+
+            Api.Diagnostics.Record("NfoFixer.Delete", "Could not delete the damaged NFO file \"" + issue.Path + "\". Give the user Jellyfin runs as write access to its folder, or delete it by hand. Details: " + ex.Message);
             return Task.FromResult(FixResult.Fail(FixReason.AccessDenied, "Couldn't delete \"" + fileName + "\" — check that Jellyfin has write access to the containing folder.", ex.Message));
         }
     }

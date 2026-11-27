@@ -1,0 +1,268 @@
+{
+  "sourceDigest": "4045428334a7552f9d9afb435efff70ce81e5fe20308911afce7746a1e2c7e5e",
+  "purpose": "Local review inventory; does not replace the mandatory committed-source gate or certify accuracy of acceptance assertions",
+  "cases": [
+    {
+      "caseId": "issue-80",
+      "requiredAcceptance": "Loaded Jellyfin history: Issues remains responsive and returns the newest attempts.",
+      "status": "current-local",
+      "artifact": "docs/testing/reported-issues-evidence/issue-80-20261105.json",
+      "sha256": "0a11e22af430bedeb4cd00d074f369b8245fa1e02a79d3d857d1e41ce221b656",
+      "sourceDigest": "4045428334a7552f9d9afb435efff70ce81e5fe20308911afce7746a1e2c7e5e",
+      "environment": "Windows interactive account, isolated loopback Jellyfin 12.0.0, owned generated fixtures",
+      "checkCount": 4,
+      "matchesCommittedHead": false,
+      "problems": [],
+      "evidence": [
+        {
+          "path": "artifacts/push-preparation-20261105-benchmark/v12/final-evidence/history-http-timing.json",
+          "exists": true,
+          "sha256": "c4243ee433cb3946393e445aecebbd2cda6aef55485334ab420d7d33edad278a"
+        },
+        {
+          "path": "artifacts/push-preparation-20261105-benchmark/v12/final-evidence/trim.json",
+          "exists": true,
+          "sha256": "4340e0dd6bd89dabfbe4220e7683e0c3147f1b1ea9be0b3f72677eb1755b3c1a"
+        }
+      ],
+      "limitations": [
+        "One million History rows, 2,000 requested issues, and 20 HTTP requests. The reported request-service disposal error remains a separate unverified symptom."
+      ]
+    },
+    {
+      "caseId": "issue-81-83",
+      "requiredAcceptance": "Fresh install and real legacy XML upgrade/restart: scan, preview, approve, real fix, rescan and restore; unrelated settings and approvals preserved.",
+      "status": "current-local",
+      "artifact": "docs/testing/reported-issues-evidence/issue-81-83-20261105.json",
+      "sha256": "533ca5814822c845bb08493d1bf5ccf0db7cfc8fdddc821e1e392ec31b877945",
+      "sourceDigest": "4045428334a7552f9d9afb435efff70ce81e5fe20308911afce7746a1e2c7e5e",
+      "environment": "Windows interactive account, isolated loopback Jellyfin 10.11.11 and 12.0.0, owned generated media",
+      "checkCount": 9,
+      "matchesCommittedHead": false,
+      "problems": [],
+      "evidence": [
+        {
+          "path": "artifacts/push-preparation-20261105-final-live.log",
+          "exists": true,
+          "sha256": "1eac87e214a1d02a9ac3ca7b6b23d699fae2a6332c3c97ce0efda38b3a048b02"
+        },
+        {
+          "path": "artifacts/push-preparation-20261105-final-windows-gate/reported-issues.trx",
+          "exists": true,
+          "sha256": "fabb692d3f7981d37f370d2e5254fd12ddbab53837b184c3fb108884d6a1df65"
+        }
+      ],
+      "limitations": [
+        "Generated-media fixtures and an actual legacy XML upgrade on these local versions."
+      ]
+    },
+    {
+      "caseId": "issue-81-progress",
+      "requiredAcceptance": "Large-library scan: browser progress stays live, requests finish, and scan duration/resource use are measured.",
+      "status": "stale",
+      "artifact": "docs/testing/reported-issues-evidence/issue-81-progress.json",
+      "sha256": "09a58c09a2afb0c18ee7c361e40cca1f0f0dd61952995bb5b1cb82372a649343",
+      "sourceDigest": "1d3ede642acd60d8c915b87a2aafc4cf82cd17b597f19d83cf224dc0d5c833cc",
+      "environment": "Windows; isolated loopback Jellyfin 10.11.11 and 12.0.0; generated fixtures; no production media",
+      "checkCount": 3,
+      "matchesCommittedHead": false,
+      "problems": [
+        "Different source fingerprint"
+      ],
+      "evidence": [],
+      "limitations": [
+        "Original 20 TB slowdown and Jellyfin 12.2 specific memory-pool symptom not independently reproduced",
+        "Local generated fixture measurements; no Linux/NAS/device certification",
+        "Failed harness attempts retained; whole-tree gate blocked by five other regressions and uncommitted/incomplete acceptance"
+      ]
+    },
+    {
+      "caseId": "issue-86",
+      "requiredAcceptance": "Owned managed artwork and orphan metadata execute with all/selected libraries after a confirming successful host scan; changed observations, returning/disabled owners, custom roots, escapes and protected paths remain safe.",
+      "status": "current-local",
+      "artifact": "docs/testing/reported-issues-evidence/issue-86-20261105.json",
+      "sha256": "d0cc88b9bb1aab75091839a5ec0e3a3c1834e937a059c5d71316be51d4ff1b87",
+      "sourceDigest": "4045428334a7552f9d9afb435efff70ce81e5fe20308911afce7746a1e2c7e5e",
+      "environment": "Windows interactive account, isolated loopback Jellyfin 10.11.11 and 12.0.0, owned generated media",
+      "checkCount": 10,
+      "matchesCommittedHead": false,
+      "problems": [],
+      "evidence": [
+        {
+          "path": "artifacts/push-preparation-20261105-final-live.log",
+          "exists": true,
+          "sha256": "1eac87e214a1d02a9ac3ca7b6b23d699fae2a6332c3c97ce0efda38b3a048b02"
+        },
+        {
+          "path": "artifacts/push-preparation-20261105-final-windows-gate/reported-issues.trx",
+          "exists": true,
+          "sha256": "fabb692d3f7981d37f370d2e5254fd12ddbab53837b184c3fb108884d6a1df65"
+        }
+      ],
+      "limitations": [
+        "Controlled default and custom roots. Regression suite covers returning owners, path escapes and protected content."
+      ]
+    },
+    {
+      "caseId": "issue-87",
+      "requiredAcceptance": "Reporter-equivalent Rafa inventory and saved settings: Spanish original survives scan, approval, real cleanup and rescan; retained stream hashes verified.",
+      "status": "missing",
+      "problems": [
+        "No indexed acceptance record"
+      ]
+    },
+    {
+      "caseId": "issue-88",
+      "requiredAcceptance": "Jellyfin 10.11 and 12 artwork workflows: SVG, healthy replacements and infrastructure failures preserved; real corruption handled recoverably, including persistence/disposal failure.",
+      "status": "current-local",
+      "artifact": "docs/testing/reported-issues-evidence/issue-88-20261105.json",
+      "sha256": "7983480307e782de43c83db754997933245360a8e3f7c13927aeaf4d489c3cd4",
+      "sourceDigest": "4045428334a7552f9d9afb435efff70ce81e5fe20308911afce7746a1e2c7e5e",
+      "environment": "Windows interactive account, isolated loopback Jellyfin 10.11.11 and 12.0.0, owned generated media",
+      "checkCount": 9,
+      "matchesCommittedHead": false,
+      "problems": [],
+      "evidence": [
+        {
+          "path": "artifacts/push-preparation-20261105-final-live.log",
+          "exists": true,
+          "sha256": "1eac87e214a1d02a9ac3ca7b6b23d699fae2a6332c3c97ce0efda38b3a048b02"
+        },
+        {
+          "path": "artifacts/push-preparation-20261105-final-windows-gate/reported-issues.trx",
+          "exists": true,
+          "sha256": "fabb692d3f7981d37f370d2e5254fd12ddbab53837b184c3fb108884d6a1df65"
+        }
+      ],
+      "limitations": [
+        "Windows native image decoders in the two available versions. The reporter Linux and Skia configuration remains separate."
+      ]
+    },
+    {
+      "caseId": "issue-89",
+      "requiredAcceptance": "Windows service-account UNC/NAS: ReportedUncAcceptanceTests passes, then an owned real re-encode preserves source/recycle hashes and restores successfully; measured shortage still blocks.",
+      "status": "missing",
+      "problems": [
+        "No indexed acceptance record"
+      ]
+    },
+    {
+      "caseId": "issue-92",
+      "requiredAcceptance": "Reproduce both reported MKV failure classes with equivalent media/FFmpeg; repair safely, retain streams/dispositions and hashes, expose useful diagnostics and verify restoration.",
+      "status": "missing",
+      "problems": [
+        "No indexed acceptance record"
+      ]
+    },
+    {
+      "caseId": "issue-43",
+      "requiredAcceptance": "Owned loose/TV/shared-artwork/cross-volume moves: partial failures stay reviewable, restart recovery and Undo restore exact paths and hashes.",
+      "status": "missing",
+      "problems": [
+        "No indexed acceptance record"
+      ]
+    },
+    {
+      "caseId": "reddit-disappearing",
+      "requiredAcceptance": "Trace exact issue IDs through preview, no-change, refusal, failure and rescan; unchanged files never appear as completed repairs or earn savings.",
+      "status": "current-local",
+      "artifact": "docs/testing/reported-issues-evidence/reddit-disappearing-20261105.json",
+      "sha256": "8407874cb9cbca5147bd67af28f331bb1d78204e6b952563b6fecc0e61d69bb9",
+      "sourceDigest": "4045428334a7552f9d9afb435efff70ce81e5fe20308911afce7746a1e2c7e5e",
+      "environment": "Windows interactive account, isolated loopback Jellyfin 10.11.11 and 12.0.0, owned generated media",
+      "checkCount": 4,
+      "matchesCommittedHead": false,
+      "problems": [],
+      "evidence": [
+        {
+          "path": "artifacts/push-preparation-20261105-extra-live/v10/final-evidence/refused-move.json",
+          "exists": true,
+          "sha256": "8600e135c1ef702c49ff94ccc6499350e11a74b3359ef11796a4e9adcb437898"
+        },
+        {
+          "path": "artifacts/push-preparation-20261105-extra-live/v12/final-evidence/refused-move.json",
+          "exists": true,
+          "sha256": "e7aa1919c73885528efeb476b7f0d00e35566f645c7a730e9817f8698b751289"
+        }
+      ],
+      "limitations": [
+        "Controlled equivalent for the unchanged-file and disappearing-row symptom. The exact Linux Mint reporter state remains unavailable."
+      ]
+    }
+  ],
+  "freshVerification": {
+    "dotnet": {
+      "total": "2084",
+      "executed": "2084",
+      "passed": "2084",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    },
+    "dashboard": {
+      "passed": 61,
+      "failed": 0,
+      "skipped": 0
+    },
+    "gateSelfTests": {
+      "passed": 19
+    },
+    "releaseSourceGuardChecks": 5,
+    "mandatoryGatePassed": false,
+    "mandatoryGateProblems": [
+      "Acceptance evidence missing/invalid: acceptance index is not committed in HEAD",
+      "issue-80: UNVERIFIED - Loaded Jellyfin history: Issues remains responsive and returns the newest attempts.",
+      "issue-81-83: UNVERIFIED - Fresh install and real legacy XML upgrade/restart: scan, preview, approve, real fix, rescan and restore; unrelated settings and approvals preserved.",
+      "issue-81-progress: UNVERIFIED - Large-library scan: browser progress stays live, requests finish, and scan duration/resource use are measured.",
+      "issue-86: UNVERIFIED - Owned managed artwork and orphan metadata execute with all/selected libraries after a confirming successful host scan; changed observations, returning/disabled owners, custom roots, escapes and protected paths remain safe.",
+      "issue-87: UNVERIFIED - Reporter-equivalent Rafa inventory and saved settings: Spanish original survives scan, approval, real cleanup and rescan; retained stream hashes verified.",
+      "issue-88: UNVERIFIED - Jellyfin 10.11 and 12 artwork workflows: SVG, healthy replacements and infrastructure failures preserved; real corruption handled recoverably, including persistence/disposal failure.",
+      "issue-89: UNVERIFIED - Windows service-account UNC/NAS: ReportedUncAcceptanceTests passes, then an owned real re-encode preserves source/recycle hashes and restores successfully; measured shortage still blocks.",
+      "issue-92: UNVERIFIED - Reproduce both reported MKV failure classes with equivalent media/FFmpeg; repair safely, retain streams/dispositions and hashes, expose useful diagnostics and verify restoration.",
+      "issue-43: UNVERIFIED - Owned loose/TV/shared-artwork/cross-volume moves: partial failures stay reviewable, restart recovery and Undo restore exact paths and hashes.",
+      "reddit-disappearing: UNVERIFIED - Trace exact issue IDs through preview, no-change, refusal, failure and rescan; unchanged files never appear as completed repairs or earn savings."
+    ]
+  },
+  "verificationArtifacts": [
+    {
+      "path": "artifacts/push-preparation-20261105-continuation-gate/reported-issues.trx",
+      "sha256": "42d7f29a669edf9e794fa538061d50b37e27b670a665e5a91402a848f80a8997",
+      "bytes": 3030189
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-continuation-gate/dotnet.log",
+      "sha256": "c895499afba90faaafc82d7aefb19ac151b6af0a07763c2c62b27d87f899191e",
+      "bytes": 520
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-continuation-gate/ui.log",
+      "sha256": "500c85c031246f7e3147bb35b83ae04b21e2e6d4412b0647aa71727c0e428018",
+      "bytes": 17601
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-continuation-gate/gate-self-tests.log",
+      "sha256": "ac64d590dc5e0ed4d216977995bf2e61ce237332b18f320544ce58df54aba5b1",
+      "bytes": 123
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-continuation-gate/summary.json",
+      "sha256": "c64d0788f884b423660ac9d895c20be722fefbd0152fd7f3bc41c11090687149",
+      "bytes": 2199
+    },
+    {
+      "path": "artifacts/push-preparation-20261105-continuation-release-guards.log",
+      "sha256": "8e941e272f1699cb5edb03fa4641e366b6367a0528d5f5c7d772bad12b05f900",
+      "bytes": 158
+    }
+  ]
+}

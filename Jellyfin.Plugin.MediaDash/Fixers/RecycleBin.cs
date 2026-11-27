@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using Jellyfin.Plugin.MediaDash.Data;
 using MediaBrowser.Common.Configuration;
+using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.MediaDash.Fixers;
@@ -31,6 +33,9 @@ public sealed class RecycleBin
     private static readonly string[] LinuxReservedRoots = ["/etc", "/bin", "/sbin", "/usr", "/boot", "/lib", "/lib64", "/proc", "/sys", "/dev", "/root"];
 
     private readonly string _defaultRoot;
+    private readonly string _metadataRoot;
+    private readonly MountedRecycleRoots _mountedRoots;
+    private readonly ILibraryManager? _libraryManager;
     private readonly ILogger<RecycleBin> _logger;
     private readonly Lazy<bool> _legacyAdopted;
     private int _emptyingTotal;
@@ -44,9 +49,13 @@ public sealed class RecycleBin
     /// <param name="applicationPaths">Instance of the <see cref="IApplicationPaths"/> interface.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="history">History-table store (05-C.3), queried for the authoritative set of recycle paths (adoption + discovery).</param>
-    public RecycleBin(IApplicationPaths applicationPaths, ILogger<RecycleBin> logger, HistoryStore history)
+    /// <param name="libraryManager">Library locations used if the mount root is not writable.</param>
+    public RecycleBin(IApplicationPaths applicationPaths, ILogger<RecycleBin> logger, HistoryStore history, ILibraryManager? libraryManager = null)
     {
         _defaultRoot = Path.Combine(applicationPaths.DataPath, "mediadash", "recycle");
+        _metadataRoot = Path.Combine(applicationPaths.DataPath, "mediadash", "metadata-recycle");
+        _mountedRoots = new MountedRecycleRoots(Path.Combine(applicationPaths.DataPath, "mediadash", "mounted-recycle-roots"));
+        _libraryManager = libraryManager;
         _logger = logger;
         // Deferred: plugin startup shouldn't block on a filesystem walk + marker writes when the
         // recycle root sits on a slow or unavailable network share. The migration is idempotent
@@ -69,10 +78,16 @@ public sealed class RecycleBin
                 return _defaultRoot;
             }
 
+            if (IsManagedMetadataBinPath(configured) || MountedRecycleRoots.Contains(configured))
+            {
+                _logger.LogWarning("An automatically managed recycle folder cannot be configured as the media recycle bin.");
+                return _defaultRoot;
+            }
+
             if (IsSystemReservedPath(configured))
             {
                 _logger.LogWarning("Configured RecycleBinPath '{Path}' sits under an OS-reserved root; falling back to the default location.", configured);
-                Api.Diagnostics.Record("RecycleBin.ReservedPath", "Configured recycle bin path '" + configured + "' sits under an OS-reserved root and was rejected. Falling back to the plugin's default location. Update Settings → Recycle bin to a path on a data volume (a sibling of your library folder works best — moves become instant renames instead of cross-volume copies).");
+                Api.Diagnostics.Record("RecycleBin.ReservedPath", "The recycle bin folder set in Settings ('" + configured + "') is inside a system folder, so MediaDash is using its default location instead. Choose a folder on your media drive in Settings → Recycle bin; next to your library folder is best, because moves there are instant.");
                 return _defaultRoot;
             }
 
@@ -136,13 +151,74 @@ public sealed class RecycleBin
     /// <returns>The item's location inside the bin.</returns>
     public string MoveToBin(string path)
     {
+        try
+        {
+            return MoveIntoRoot(path, Root);
+        }
+        catch (IOException ex) when (ex.Message == MediaMoveSafety.UnsafeSourceDeletionMessage)
+        {
+            var localRoot = _mountedRoots.GetOrCreate(Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)), GetLibraryLocations);
+            if (localRoot is null)
+            {
+                throw;
+            }
+
+            return MoveIntoRoot(path, localRoot);
+        }
+    }
+
+    /// <summary>Checks that recycling can use a safe same-filesystem rename.</summary>
+    /// <param name="path">Source to recycle.</param>
+    /// <returns>True when a supported recycle root is available.</returns>
+    public bool CanRecycle(string path)
+    {
+        try
+        {
+            if (!MediaMoveSafety.RequiresCopyDelete(path, Root))
+            {
+                return true;
+            }
+
+            var localRoot = _mountedRoots.GetOrCreate(Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)), GetLibraryLocations);
+            return localRoot is not null && !MediaMoveSafety.RequiresCopyDelete(path, localRoot);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private IEnumerable<string> GetLibraryLocations() =>
+        _libraryManager?.GetVirtualFolders().SelectMany(folder => folder.Locations) ?? [];
+
+    internal string MoveManagedMetadataToBin(string path)
+    {
+        var root = Root;
+        try
+        {
+            return MoveIntoRoot(path, root);
+        }
+        catch (IOException ex) when (ex.Message == MediaMoveSafety.UnsafeSourceDeletionMessage
+            && !PathsEqual(root, _metadataRoot) && !LibraryGuard.HasReparsePointAncestor(Path.GetFullPath(_metadataRoot)))
+        {
+            return MoveIntoRoot(path, _metadataRoot);
+        }
+    }
+
+    [SuppressMessage(
+        "Security",
+        "CA3003:Review code for file path injection vulnerabilities",
+        Justification = "The Files endpoint checks library containment and protection before calling MoveToBin. The destination root is the validated recycle setting or the plugin-owned metadata root.")]
+    private string MoveIntoRoot(string path, string root)
+    {
+        MediaMoveSafety.RequireSameFilesystemMove(path, root);
         _ = _legacyAdopted.Value;
         // Timestamp alone collides when two files with the same basename are recycled inside the same
         // millisecond (e.g. concurrent Delete + fix run). Suffix with a short GUID so folder names stay
         // unique. ListContents sorts by folder-name descending, and the timestamp prefix still
         // controls ordering because the GUID is short and comes after.
         var folder = Path.Combine(
-            Root,
+            root,
             DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff", CultureInfo.InvariantCulture)
                 + "-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(folder);
@@ -160,47 +236,27 @@ public sealed class RecycleBin
 
         var target = Path.Combine(folder, basename);
 
-        // Cross-volume moves are copy+delete under the hood — they need the file's size to fit on the recycle
-        // bin volume. Pre-check when we can, so users get a clear "put the bin next to the media" message
-        // instead of "No space left on device".
-        if (System.IO.File.Exists(path))
+        try
         {
-            var srcDrive = FindDriveForPath(path);
-            var dstDrive = FindDriveForPath(folder);
-            if (srcDrive is not null && dstDrive is not null
-                && !string.Equals(srcDrive.RootDirectory.FullName, dstDrive.RootDirectory.FullName, StringComparison.OrdinalIgnoreCase))
-            {
-                var size = new FileInfo(path).Length;
-                const long headroom = 100L * 1024 * 1024;
-                if (dstDrive.AvailableFreeSpace < size + headroom)
-                {
-                    var freeMb = dstDrive.AvailableFreeSpace / 1024 / 1024;
-                    var neededMb = size / 1024 / 1024;
-                    throw new IOException(
-                        $"Not enough free space on the recycle bin volume ('{dstDrive.RootDirectory.FullName}' has {freeMb} MB free, need about {neededMb} MB). "
-                        + "Fix: Settings → Recycle bin → change 'Recycle bin folder' to a path on the same volume as your media (e.g. '/mnt/media/.mediadash-recycle'). Moves then become instant renames and don't use extra space.");
-                }
-            }
+            MoveAcrossVolumes(path, target, sourceIsDir: Directory.Exists(path));
         }
-
-        if (Directory.Exists(path))
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             try
             {
-                Directory.Move(path, target);
+                if (!LibraryGuard.HasReparsePointAncestor(Path.GetFullPath(folder)))
+                {
+                    File.Delete(Path.Combine(folder, OriginManifestFileName));
+                    File.Delete(Path.Combine(folder, OwnershipMarkerFileName));
+                    Directory.Delete(folder);
+                }
             }
-            catch (IOException)
+            catch (Exception cleanupError) when (cleanupError is IOException or UnauthorizedAccessException)
             {
-                // Cross-volume directory move (EXDEV) — Directory.Move can't span filesystems. Fall back
-                // to the same verified copy → rename → delete-source pattern the file path uses. Reported
-                // by users whose Jellyfin data (e.g. /var/lib/jellyfin/data/collections) sits on a
-                // different volume than the recycle bin.
-                Api.FileBrowserController.CrossDeviceMove(path, target, sourceIsDir: true);
+                _logger.LogWarning(cleanupError, "Could not clean up the unused recycle batch {Folder}.", folder);
             }
-        }
-        else
-        {
-            MoveAcrossVolumes(path, target);
+
+            throw;
         }
 
         _logger.LogInformation("Recycled {Path} -> {Target}", path, target);
@@ -346,18 +402,27 @@ public sealed class RecycleBin
     public (int FileCount, long SizeBytes) GetContents()
     {
         _ = _legacyAdopted.Value;
-        if (!Directory.Exists(Root))
-        {
-            return (0, 0);
-        }
-
         var count = 0;
         long size = 0;
         // IgnoreInaccessible so one unreadable subfolder doesn't abort the whole size scan mid-walk.
         var enumOpts = new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = true };
-        foreach (var batch in Directory.GetDirectories(Root).Where(IsOwnedBatchDirectory))
+        foreach (var batch in EnumerateOwnedBatches())
         {
-            foreach (var file in Directory.EnumerateFiles(batch, "*", enumOpts))
+            // EnumerateFiles is lazy: the directory is opened on the first MoveNext and the recursive
+            // walk can hit a removed subfolder later, both outside the per-file try below. A batch
+            // deleted by a concurrent EmptyAll / Purge / restore must count as gone, not fail the
+            // whole size scan — that 500'd GET /RecycleBin while the bin was being emptied.
+            string[] batchFiles;
+            try
+            {
+                batchFiles = Directory.GetFiles(batch, "*", enumOpts);
+            }
+            catch (DirectoryNotFoundException)
+            {
+                continue;
+            }
+
+            foreach (var file in batchFiles)
             {
                 if (PathsEqual(file, Path.Combine(batch, OwnershipMarkerFileName))
                     || PathsEqual(file, Path.Combine(batch, OriginManifestFileName)))
@@ -388,11 +453,11 @@ public sealed class RecycleBin
                 }
                 catch (IOException ex)
                 {
-                    Api.Diagnostics.Record("RecycleBin.SizeScan", "Could not stat recycled file '" + file + "': " + ex.Message + ". Total-size total will be short by one entry.");
+                    Api.Diagnostics.Record("RecycleBin.SizeScan", "The recycle bin size shown may be slightly low: MediaDash could not read the size of '" + file + "'. Details: " + ex.Message);
                 }
                 catch (UnauthorizedAccessException ex)
                 {
-                    Api.Diagnostics.Record("RecycleBin.SizeScan", "Access denied stat'ing recycled file '" + file + "': " + ex.Message + ". Total-size total will be short by one entry.");
+                    Api.Diagnostics.Record("RecycleBin.SizeScan", "The recycle bin size shown may be slightly low: Jellyfin does not have permission to read '" + file + "'. Give the user Jellyfin runs as read access to the recycle bin folder. Details: " + ex.Message);
                 }
             }
         }
@@ -409,12 +474,7 @@ public sealed class RecycleBin
     {
         _ = _legacyAdopted.Value;
         var result = new List<(string, string, long, DateTime, string?)>();
-        if (!Directory.Exists(Root))
-        {
-            return result;
-        }
-
-        foreach (var dir in Directory.GetDirectories(Root).Where(IsOwnedBatchDirectory).OrderByDescending(d => d, StringComparer.Ordinal))
+        foreach (var dir in EnumerateOwnedBatches().OrderByDescending(Path.GetFileName, StringComparer.Ordinal))
         {
             // Batch folder can vanish between GetDirectories snapshot and enumeration (concurrent
             // Purge / EmptyAll / Consolidate / external rm). ReadOriginManifest and EnumerateFiles
@@ -427,7 +487,8 @@ public sealed class RecycleBin
             try
             {
                 manifestOrigins = ReadOriginManifest(dir);
-                files = Directory.EnumerateFiles(dir);
+                // Eager, so a folder removed before the walk starts is caught here rather than in the foreach.
+                files = Directory.GetFiles(dir);
             }
             catch (DirectoryNotFoundException)
             {
@@ -465,12 +526,12 @@ public sealed class RecycleBin
                 }
                 catch (IOException ex)
                 {
-                    Api.Diagnostics.Record("RecycleBin.ListScan", "Could not read recycled file '" + file + "': " + ex.Message + ". It will not appear in the recycle bin listing.");
+                    Api.Diagnostics.Record("RecycleBin.ListScan", "'" + file + "' is in the recycle bin but could not be read, so it is not listed. Check that the user Jellyfin runs as can read the recycle bin folder. Details: " + ex.Message);
                     continue;
                 }
                 catch (UnauthorizedAccessException ex)
                 {
-                    Api.Diagnostics.Record("RecycleBin.ListScan", "Access denied on recycled file '" + file + "': " + ex.Message + ". It will not appear in the recycle bin listing.");
+                    Api.Diagnostics.Record("RecycleBin.ListScan", "'" + file + "' is in the recycle bin but Jellyfin does not have permission to read it, so it is not listed. Give the user Jellyfin runs as read access to the recycle bin folder. Details: " + ex.Message);
                     continue;
                 }
 
@@ -514,12 +575,12 @@ public sealed class RecycleBin
                 }
                 catch (IOException ex)
                 {
-                    Api.Diagnostics.Record("RecycleBin.ListScan", "Could not read recycled folder '" + subdir + "': " + ex.Message + ". It will not appear in the recycle bin listing.");
+                    Api.Diagnostics.Record("RecycleBin.ListScan", "The recycle bin folder '" + subdir + "' could not be read, so its contents are not listed. Check that the user Jellyfin runs as can read it. Details: " + ex.Message);
                     continue;
                 }
                 catch (UnauthorizedAccessException ex)
                 {
-                    Api.Diagnostics.Record("RecycleBin.ListScan", "Access denied on recycled folder '" + subdir + "': " + ex.Message + ". It will not appear in the recycle bin listing.");
+                    Api.Diagnostics.Record("RecycleBin.ListScan", "Jellyfin does not have permission to read the recycle bin folder '" + subdir + "', so its contents are not listed. Give the user Jellyfin runs as read access to it. Details: " + ex.Message);
                     continue;
                 }
 
@@ -570,11 +631,7 @@ public sealed class RecycleBin
         return size;
     }
 
-    // Appends the source path to a batch's origin manifest so restore knows where to put the file
-    // back regardless of HistoryEntry state. Missing manifest is not fatal — it degrades restore to
-    // "no origin metadata"; logs a warning so a filesystem that refuses small text writes still
-    // surfaces the failure. Instance method so it can log through _logger, but the read counterpart
-    // is static.
+    // Persist recovery provenance before moving content; a failed write must leave the source intact.
     private void AppendOriginManifest(string batchFolder, string sourcePath)
     {
         try
@@ -586,10 +643,12 @@ public sealed class RecycleBin
         catch (IOException ex)
         {
             _logger.LogWarning(ex, "Could not write recycle-bin origin manifest for '{Path}'.", sourcePath);
+            throw;
         }
         catch (UnauthorizedAccessException ex)
         {
             _logger.LogWarning(ex, "Access denied writing recycle-bin origin manifest for '{Path}'.", sourcePath);
+            throw;
         }
     }
 
@@ -770,6 +829,129 @@ public sealed class RecycleBin
     public void EmptyAll()
     {
         _ = _legacyAdopted.Value;
+        RunEmpty(() => EnumerateOwnedBatches().ToArray(), "Recycle bin emptied by user request ({Done}/{Total} batches)");
+    }
+
+    /// <summary>Counts the batch folders <see cref="EmptyAll"/> would delete (the current bin's owned batches).</summary>
+    /// <returns>Batch folder count.</returns>
+    public int CountEmptyAllBatches()
+    {
+        _ = _legacyAdopted.Value;
+        return EnumerateOwnedBatches().Count();
+    }
+
+    /// <summary>
+    /// Permanently deletes every recycle bin MediaDash has used, not only the current one: the
+    /// configured bin, the default bin, the metadata bin, bins named by history rows from an earlier
+    /// bin path, and batches written by older MediaDash versions (timestamp-only folder names). See
+    /// <see cref="PlanEmptyEverywhere"/> for what qualifies. Same progress reporting as <see cref="EmptyAll"/>.
+    /// </summary>
+    /// <param name="history">History store, the evidence for older bin locations and legacy batches.</param>
+    public void EmptyEverywhere(HistoryStore history)
+    {
+        RunEmpty(() => PlanEmptyEverywhere(history).SelectMany(location => location.Batches).ToArray(), "Every recycle bin emptied by user request ({Done}/{Total} batches)");
+    }
+
+    /// <summary>
+    /// Lists every recycle location MediaDash can prove it created, with the batches an
+    /// "empty everything" run would delete. A batch qualifies when it carries the ownership marker,
+    /// or has a MediaDash batch name (current or older timestamp-only format) AND either sits in the
+    /// plugin's own default bin or is referenced by a history row. Lookalike folders in a custom
+    /// location that no history row points at are left alone.
+    /// </summary>
+    /// <param name="history">History store.</param>
+    /// <returns>One entry per location that holds at least one qualifying batch.</returns>
+    internal IReadOnlyList<EmptyPlanLocation> PlanEmptyEverywhere(HistoryStore history)
+    {
+        _ = _legacyAdopted.Value;
+        var historyPaths = history.GetRecyclePaths();
+        var roots = new List<string> { Root, _defaultRoot, _metadataRoot };
+        roots.AddRange(_mountedRoots.List());
+        roots.AddRange(historyPaths.Select(DeriveAnyBinRoot).Where(root => root.Length > 0));
+        return BuildEmptyPlan(roots, Root, _defaultRoot, historyPaths);
+    }
+
+    /// <summary>
+    /// Pure core of <see cref="PlanEmptyEverywhere"/>, exposed for unit tests.
+    /// </summary>
+    /// <param name="roots">Candidate recycle roots (duplicates and missing folders are ignored).</param>
+    /// <param name="currentRoot">The configured recycle root.</param>
+    /// <param name="defaultRoot">The plugin's dedicated default recycle root.</param>
+    /// <param name="historyRecyclePaths">Every recycle path recorded in history.</param>
+    /// <returns>Locations with their qualifying batches.</returns>
+    internal static IReadOnlyList<EmptyPlanLocation> BuildEmptyPlan(
+        IEnumerable<string> roots,
+        string currentRoot,
+        string defaultRoot,
+        IEnumerable<string> historyRecyclePaths)
+    {
+        var comparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        var referenced = new HashSet<string>(comparer);
+        foreach (var recyclePath in historyRecyclePaths)
+        {
+            if (TryGetBatchOf(recyclePath) is { } batch)
+            {
+                referenced.Add(batch);
+            }
+        }
+
+        var seen = new HashSet<string>(comparer);
+        var plan = new List<EmptyPlanLocation>();
+        foreach (var candidate in roots)
+        {
+            string root;
+            try
+            {
+                root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(candidate));
+            }
+            catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
+            {
+                continue;
+            }
+
+            if (!seen.Add(root) || IsSystemReservedPath(root) || !Directory.Exists(root) || LibraryGuard.HasReparsePointAncestor(root))
+            {
+                continue;
+            }
+
+            string[] children;
+            try
+            {
+                children = Directory.GetDirectories(root);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                continue;
+            }
+
+            var isDefault = PathsEqual(root, defaultRoot);
+            var batches = new List<string>();
+            long size = 0;
+            foreach (var child in children)
+            {
+                var batch = Path.TrimEndingDirectorySeparator(child);
+                var qualifies = IsOwnedBatchDirectory(batch, defaultRoot)
+                    || ((IsMediaDashBatchName(batch) || IsLegacyBatchName(batch)) && (isDefault || referenced.Contains(batch)));
+                if (!qualifies || LibraryGuard.HasReparsePoints(batch))
+                {
+                    continue;
+                }
+
+                batches.Add(batch);
+                size += DirectorySizeBytes(batch);
+            }
+
+            if (batches.Count > 0)
+            {
+                plan.Add(new EmptyPlanLocation(root, batches, size, PathsEqual(root, currentRoot)));
+            }
+        }
+
+        return plan;
+    }
+
+    private void RunEmpty(Func<string[]> collectBatches, string doneMessage)
+    {
         // Atomic single-runner gate — two concurrent POSTs racing the "already running" check on the
         // controller both saw IsRunning=false and could start twice; CompareExchange makes the second
         // arrival return early without touching state.
@@ -779,15 +961,11 @@ public sealed class RecycleBin
         }
 
         _lastEmptyError = null;
-        if (!Directory.Exists(Root))
-        {
-            System.Threading.Volatile.Write(ref _emptyingGate, 0);
-            return;
-        }
-
         try
         {
-            var dirs = Directory.GetDirectories(Root).Where(IsOwnedBatchDirectory).ToArray();
+            System.Threading.Volatile.Write(ref _emptyingTotal, 0);
+            System.Threading.Volatile.Write(ref _emptyingDone, 0);
+            var dirs = collectBatches();
             System.Threading.Volatile.Write(ref _emptyingTotal, dirs.Length);
             System.Threading.Volatile.Write(ref _emptyingDone, 0);
             foreach (var dir in dirs)
@@ -799,13 +977,13 @@ public sealed class RecycleBin
                 catch (UnauthorizedAccessException ex)
                 {
                     // Record the first offender and keep going — deleting the rest still frees space.
-                    _lastEmptyError ??= "Permission denied deleting '" + dir + "'. Grant the user Jellyfin runs as read+write on the recycle bin folder. (" + ex.Message + ")";
+                    _lastEmptyError ??= "Could not empty '" + dir + "' from the recycle bin because Jellyfin does not have permission. Give the user Jellyfin runs as read and write access to the recycle bin folder, then empty it again. Details: " + ex.Message;
                     _logger.LogWarning(ex, "Permission denied deleting {Dir}", dir);
                     Api.Diagnostics.Record("RecycleBin.PermissionDenied", _lastEmptyError);
                 }
                 catch (IOException ex)
                 {
-                    _lastEmptyError ??= "Could not delete '" + dir + "': " + ex.Message + ". A file may be open in another program.";
+                    _lastEmptyError ??= "Could not empty '" + dir + "' from the recycle bin. A file in it may be open in another program; close it and empty the bin again. Details: " + ex.Message;
                     _logger.LogWarning(ex, "I/O error deleting {Dir}", dir);
                     Api.Diagnostics.Record("RecycleBin.IOError", _lastEmptyError);
                 }
@@ -813,7 +991,9 @@ public sealed class RecycleBin
                 System.Threading.Interlocked.Increment(ref _emptyingDone);
             }
 
-            _logger.LogInformation("Recycle bin emptied by user request ({Done}/{Total} batches)", _emptyingDone, _emptyingTotal);
+#pragma warning disable CA2254 // Both templates are fixed strings chosen by the two callers above.
+            _logger.LogInformation(doneMessage, _emptyingDone, _emptyingTotal);
+#pragma warning restore CA2254
         }
         finally
         {
@@ -827,14 +1007,14 @@ public sealed class RecycleBin
     /// <param name="retentionDays">Days to keep recycled files.</param>
     public void Purge(int retentionDays)
     {
-        _ = _legacyAdopted.Value;
-        if (!Directory.Exists(Root))
+        if (retentionDays <= 0)
         {
             return;
         }
 
+        _ = _legacyAdopted.Value;
         var cutoff = DateTime.UtcNow.AddDays(-retentionDays);
-        foreach (var dir in Directory.GetDirectories(Root).Where(IsOwnedBatchDirectory))
+        foreach (var dir in EnumerateOwnedBatches())
         {
             try
             {
@@ -847,12 +1027,12 @@ public sealed class RecycleBin
             catch (IOException ex)
             {
                 _logger.LogWarning(ex, "Could not purge recycle bin folder {Dir}", dir);
-                Api.Diagnostics.Record("RecycleBin.PurgeFailed", "Could not purge expired recycle bin folder '" + dir + "': " + ex.Message + ". Retention will retry it next cycle. A file may be open in another program.");
+                Api.Diagnostics.Record("RecycleBin.PurgeFailed", "An expired recycle bin folder ('" + dir + "') could not be deleted. A file in it may be open in another program; MediaDash will try again later. Details: " + ex.Message);
             }
             catch (UnauthorizedAccessException ex)
             {
                 _logger.LogWarning(ex, "Access denied purging recycle bin folder {Dir}", dir);
-                Api.Diagnostics.Record("RecycleBin.PurgeFailed", "Access denied purging expired recycle bin folder '" + dir + "': " + ex.Message + ". Grant Jellyfin's user delete permission on the recycle bin folder.");
+                Api.Diagnostics.Record("RecycleBin.PurgeFailed", "An expired recycle bin folder ('" + dir + "') could not be deleted because Jellyfin does not have permission. Give the user Jellyfin runs as delete permission on the recycle bin folder. Details: " + ex.Message);
             }
         }
     }
@@ -897,6 +1077,43 @@ public sealed class RecycleBin
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Returns whether a directory name matches the timestamp-only batch format written by older
+    /// MediaDash versions (yyyyMMdd-HHmmss-fff, no GUID suffix). Those batches carry no ownership
+    /// marker, so callers must have separate evidence (history row or default root) before deleting.
+    /// </summary>
+    /// <param name="path">A directory path or leaf name.</param>
+    /// <returns>True for a legacy batch name.</returns>
+    internal static bool IsLegacyBatchName(string path)
+    {
+        var name = Path.GetFileName(Path.TrimEndingDirectorySeparator(path));
+        return name.Length == 19 && TryParseRecycleTimestamp(name) is not null;
+    }
+
+    // <bin>/<batch>/<item> -> full path of <batch> when its name is a MediaDash batch name (either format).
+    private static string? TryGetBatchOf(string recyclePath)
+    {
+        try
+        {
+            var batch = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(recyclePath)));
+            return batch is not null && (IsMediaDashBatchName(batch) || IsLegacyBatchName(batch))
+                ? Path.TrimEndingDirectorySeparator(batch)
+                : null;
+        }
+        catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    // Like DeriveBinRoot but also accepts legacy timestamp-only batch names.
+    private static string DeriveAnyBinRoot(string recyclePath)
+    {
+        var batch = TryGetBatchOf(recyclePath);
+        var root = batch is null ? null : Path.GetDirectoryName(batch);
+        return string.IsNullOrEmpty(root) ? string.Empty : Path.TrimEndingDirectorySeparator(root);
     }
 
     /// <summary>
@@ -972,7 +1189,77 @@ public sealed class RecycleBin
         }
     }
 
+    internal bool IsOwnedRecoveryPath(string? path, string originalPath)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(path) || !(File.Exists(path) || Directory.Exists(path)))
+            {
+                return false;
+            }
+
+            var full = Path.GetFullPath(path);
+            var batch = Path.GetDirectoryName(full);
+            return batch is not null && Path.GetDirectoryName(batch) is { } parent
+                && (PathsEqual(parent, Root) || PathsEqual(parent, _metadataRoot)
+                    || (MountedRecycleRoots.Contains(parent) && _mountedRoots.List().Contains(parent, StringComparer.Ordinal)))
+                && IsOwnedBatchDirectory(batch) && !LibraryGuard.HasReparsePoints(full)
+                && PathsEqual(MatchManifestEntryToFile(ReadOriginManifest(batch), Path.GetFileName(full)) ?? string.Empty, originalPath);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return false;
+        }
+    }
+
     private bool IsOwnedBatchDirectory(string path) => IsOwnedBatchDirectory(path, _defaultRoot);
+
+    internal bool IsManagedMetadataBinPath(string? path)
+    {
+        try
+        {
+            return !string.IsNullOrWhiteSpace(path) && LibraryGuard.IsUnder(Path.GetFullPath(path), Path.GetFullPath(_metadataRoot));
+        }
+        catch (Exception ex) when (ex is IOException or ArgumentException or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    private IEnumerable<string> EnumerateOwnedBatches()
+    {
+        var root = Root;
+        if (Directory.Exists(root))
+        {
+            foreach (var batch in Directory.GetDirectories(root).Where(IsOwnedBatchDirectory))
+            {
+                yield return batch;
+            }
+        }
+
+        if (!PathsEqual(root, _metadataRoot) && Directory.Exists(_metadataRoot)
+            && !LibraryGuard.HasReparsePointAncestor(Path.GetFullPath(_metadataRoot)))
+        {
+            foreach (var batch in Directory.GetDirectories(_metadataRoot).Where(IsOwnedBatchDirectory))
+            {
+                if (!LibraryGuard.HasReparsePoints(batch))
+                {
+                    yield return batch;
+                }
+            }
+        }
+
+        foreach (var localRoot in _mountedRoots.List())
+        {
+            foreach (var batch in Directory.GetDirectories(localRoot).Where(IsOwnedBatchDirectory))
+            {
+                if (!LibraryGuard.HasReparsePoints(batch))
+                {
+                    yield return batch;
+                }
+            }
+        }
+    }
 
     /// <summary>
     /// Derives every OTHER bin root the user has historically recycled to, based on
@@ -984,7 +1271,10 @@ public sealed class RecycleBin
     /// <returns>List of foreign bin roots with file counts + sizes.</returns>
     public IReadOnlyList<(string RootPath, int BatchCount, long SizeBytes)> DiscoverOtherBinRoots(HistoryStore history)
     {
-        return DiscoverOtherBinRoots(history.GetRecyclePaths(), Root);
+        var mountedRoots = _mountedRoots.List().ToHashSet(StringComparer.Ordinal);
+        var foreignPaths = history.GetRecyclePaths().Where(path => !IsManagedMetadataBinPath(path)
+            && !mountedRoots.Contains(DeriveBinRoot(path)));
+        return DiscoverOtherBinRoots(foreignPaths, Root);
     }
 
     /// <summary>
@@ -1118,7 +1408,7 @@ public sealed class RecycleBin
     /// <summary>
     /// Pure-logic core of <see cref="ConsolidateFromRoot(string)"/>: moves every batch-shaped
     /// folder under <paramref name="sourceRoot"/> into <paramref name="targetRoot"/>. Cross-volume
-    /// safe via <see cref="Api.FileBrowserController.CrossDeviceMove(string, string, bool)"/>.
+    /// safe via <see cref="Api.FileBrowserController.CrossDeviceMove"/>.
     /// Skips a batch when the target already holds one with the same leaf. Exposed internal so
     /// unit tests can drive it against temporary directories without touching <see cref="Root"/>.
     /// </summary>
@@ -1261,16 +1551,14 @@ public sealed class RecycleBin
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
                     _logger.LogWarning(ex, "Could not auto-adopt legacy recycle batch {Batch}", candidate);
-                    Api.Diagnostics.Record(
-                        "RecycleBin.LegacyMigrationFailed",
-                        "Could not adopt legacy recycle batch '" + candidate + "': " + ex.Message + ". Create an empty '" + OwnershipMarkerFileName + "' file inside that batch to adopt it manually.");
+                    Api.Diagnostics.Record("RecycleBin.LegacyMigrationFailed", "A recycle bin folder from an older MediaDash version ('" + candidate + "') could not be taken over, so it will not be listed or emptied automatically. To fix this, create an empty file named '" + OwnershipMarkerFileName + "' inside it. Details: " + ex.Message);
                 }
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             _logger.LogWarning(ex, "Could not inspect custom recycle root {Root} for legacy batches", root);
-            Api.Diagnostics.Record("RecycleBin.LegacyMigrationFailed", "Could not inspect custom recycle root '" + root + "' for legacy batches: " + ex.Message);
+            Api.Diagnostics.Record("RecycleBin.LegacyMigrationFailed", "MediaDash could not check the recycle bin folder '" + root + "' for items left by older versions. Nothing needs doing unless old recycled items are missing from the list. Details: " + ex.Message);
         }
     }
 
@@ -1292,27 +1580,9 @@ public sealed class RecycleBin
 
     private static void MoveAcrossVolumes(string source, string target, bool sourceIsDir = false)
     {
-        // MD-012: directory-aware. File.Move doesn't move directories; Directory.Move throws
-        // IOException across volumes. Both fall back to the verified copy → rename → delete
-        // helper with the appropriate sourceIsDir flag so cross-device moves preserve directory
-        // trees (orphan-cleanup empty folders, dedup sidecar folders).
-        try
-        {
-            if (sourceIsDir)
-            {
-                Directory.Move(source, target);
-            }
-            else
-            {
-                File.Move(source, target);
-            }
-        }
-        catch (IOException)
-        {
-            // Cross-volume: verified copy → rename → delete-source. Never delete the source before the
-            // copy has been proven complete; a truncated write on the target volume would otherwise lose
-            // the user's file.
-            Api.FileBrowserController.CrossDeviceMove(source, target, sourceIsDir: sourceIsDir);
-        }
+        // File.Move may silently copy/delete across filesystems. Never use that
+        // fallback for originals or recycle payloads: retain the source on refusal.
+        MediaMoveSafety.RequireSameFilesystemMove(source, target);
+        MediaMoveSafety.RenameNoCopy(source, target, sourceIsDir);
     }
 }

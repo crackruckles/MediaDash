@@ -1,6 +1,6 @@
 # Repair harness coverage audit
 
-Audited 2026-09-27. Scope: playability repair plus shared test-framework reliability. The full organiser, duplicate, track, transcode and UI workflows still have their own comprehensive-test phases. This audit does not certify all of those workflows.
+Original audit: 2026-09-27. See [the 2026-10-20 harness review](../../docs/testing/HARNESS-REVIEW-2026-10-20.md) for current harness corrections and fresh verification limits. Scope: playability repair plus shared test-framework reliability. The full organiser, duplicate, track, transcode and UI workflows still have their own comprehensive-test phases. This audit does not certify all of those workflows.
 
 ## Live scenarios in `run_live.py`
 
@@ -9,15 +9,15 @@ Audited 2026-09-27. Scope: playability repair plus shared test-framework reliabi
 | Healthy file and Unicode/brackets/ampersand/dollar filename | Indexed, no playability issue, unchanged bytes and sidecars |
 | Duplicate basename in another directory | Only the damaged full path is repaired; healthy namesake intact |
 | Light tail truncation | Quick remux selected alone; current history, original recycled, repaired streams decode |
-| Large tail truncation | Partial-repair wording, original bytes saved, lifetime and 30-day counters increment |
+| Large tail truncation | Failed repair preserves bytes; rescan retains blocking Delete review; no deletion without fresh approval; approved Delete recycles the exact original |
 | Video packet corruption | Video re-encode selected alone, playable MKV output, stream inventory |
 | Broken first audio track with second healthy track | Drop-stream method selected alone; bad audio removed, video unchanged |
 | Broken second audio track | Scanner must detect it before the drop-stream flow can run |
 | Sole broken audio track with healthy video | Audio re-encode selected alone; video content preserved |
 | Forced container coercion | Only container-coerce enabled, correct new extension and indexed output |
-| Zero bytes, truncated header | Recycle unrecoverable original; no repair saved-byte credit |
+| Zero bytes, truncated header | Preserved after failed repair, fresh Delete consent, exact recycling/restoration; no repair saved-byte credit |
 | Unrecognisable junk | Safe refusal if probe cannot establish media validity; original intact |
-| Every repair method disabled | Recycle broken media according to selected disposal mode |
+| Every repair method disabled | Safe refusal, original preserved, no implicit deletion or repair credit |
 | Valid MP4 payload with MKV extension | Rename only, identical content, no repair credit |
 | Existing rename target | Create conflict after indexing; preserve both original and target |
 | Excluded-library broken file | No playability issue and unchanged bytes |
@@ -51,6 +51,8 @@ These tests are useful complementary evidence; fake file operations and assertio
 
 These are outstanding coverage, not implied passes:
 
+The old 55-percent tail-truncation fixture exercises failed-repair review on the current build, not successful partial salvage. A separate deterministically repairable duration-loss fixture is required to certify partial-repair wording and saved-byte aggregation live.
+
 | Priority | Gate | What would establish it |
 |---|---|---|
 | P0 | Actual ENOSPC, locked/read-only media, recycle permission denied | Constrained disposable volume and owned fixtures; source/recovery survival at every failure boundary |
@@ -66,7 +68,7 @@ These are outstanding coverage, not implied passes:
 | P1 | Linux/Docker, Jellyfin 12, different ffmpeg versions | Same owned-fixture lifecycle matrix on each supported host/version |
 | P2 | Huge files/libraries, long runs, cancellation/retry and repeated scans | Resource and persistence assertions on dedicated stress fixtures |
 
-The older `torture-malformed-rows.ps1` is not run by this matrix: it needs its own isolated-database review before being treated as a release gate. Container startup smoke tests establish plugin loading only.
+As of 2026-10-20, `torture-malformed-rows.ps1` invokes isolated production regression tests; its active-server database injection path is retired. It is not live HTTP endpoint evidence. Container startup smoke tests establish plugin loading only.
 
 ## Findings from this audit
 

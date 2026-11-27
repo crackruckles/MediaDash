@@ -80,6 +80,14 @@ public sealed class ProtectionService
     /// <returns>Whether the fix is blocked.</returns>
     public bool IsFixerBlocked(string path, IssueType type) => IsBlocked(path, type, scanners: false);
 
+    internal Func<string, IssueType, bool> CreateFixerCheck()
+    {
+        var rules = GetRules();
+        var libraries = BuildLibraryPathCache();
+        return (path, type) => MountedRecycleRoots.Contains(path)
+            || IsBlockedInternal(path, type, scanners: false, rules, libraries);
+    }
+
     /// <summary>
     /// External audit P1 #2: a tree-destructive operation (recycle-whole-folder, cover-strip
     /// sweep) must refuse when ANY descendant under <paramref name="parentPath"/> is covered by
@@ -183,7 +191,8 @@ public sealed class ProtectionService
         var rules = GetRules();
         if (rules.Count == 0)
         {
-            return issues;
+            return issues.Any(issue => MountedRecycleRoots.Contains(issue.Path))
+                ? issues.Where(issue => !MountedRecycleRoots.Contains(issue.Path)).ToArray() : issues;
         }
 
         var libraryPathMap = BuildLibraryPathCache();
@@ -222,6 +231,11 @@ public sealed class ProtectionService
             return false;
         }
 
+        if (MountedRecycleRoots.Contains(path))
+        {
+            return true;
+        }
+
         var rules = GetRules();
         if (rules.Count == 0)
         {
@@ -238,6 +252,11 @@ public sealed class ProtectionService
         IReadOnlyList<ProtectionRule> rules,
         Dictionary<string, IReadOnlyList<string>> libraryPathCache)
     {
+        if (MountedRecycleRoots.Contains(path))
+        {
+            return true;
+        }
+
         foreach (var rule in rules)
         {
             var mask = scanners ? rule.ScannersMask : rule.FixersMask;

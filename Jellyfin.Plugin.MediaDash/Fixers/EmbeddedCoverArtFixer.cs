@@ -162,11 +162,24 @@ public sealed class EmbeddedCoverArtFixer : IFixer
         {
             for (var i = 0; i < audioFiles.Count; i++)
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+
                 progress?.Report(i / (double)audioFiles.Count);
 
                 var target = audioFiles[i];
-                var stripResult = await StripEmbeddedCoverAsync(target, config.GetDisposal(IssueType.EmbeddedCoverArt), cancellationToken).ConfigureAwait(false);
+                StripResult stripResult;
+                try
+                {
+                    stripResult = await StripEmbeddedCoverAsync(target, config.GetDisposal(IssueType.EmbeddedCoverArt), cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+
                 if (stripResult.Success)
                 {
                     stripped++;
@@ -188,7 +201,7 @@ public sealed class EmbeddedCoverArtFixer : IFixer
                 else
                 {
                     strippedFailures++;
-                    Diagnostics.Record("EmbeddedCoverArt.Strip", "Could not strip cover from '" + target + "': " + stripResult.Message);
+                    Diagnostics.Record("EmbeddedCoverArt.Strip", "Could not remove the embedded cover art from '" + target + "'. MediaDash still saved the shared cover image and left this audio file exactly as it was, so it plays normally and keeps its own copy of the cover." + (IsPermissionProblem(stripResult.Message) ? " Give the user Jellyfin runs as write access to the file, then approve the fix again." : string.Empty) + " Details: " + stripResult.Message);
                 }
             }
         }
@@ -199,7 +212,7 @@ public sealed class EmbeddedCoverArtFixer : IFixer
 
         var summary = config.EmbeddedCoverStripFromAudio
             ? "wrote " + coverFilename + " and stripped covers from " + stripped + " audio file(s)"
-              + (strippedFailures > 0 ? " (" + strippedFailures + " could not be stripped and were left alone)" : string.Empty)
+              + (strippedFailures > 0 ? "; " + strippedFailures + " audio file(s) kept their embedded cover because they could not be rewritten safely and were left unchanged (see the Errors tab)" : string.Empty)
             : "wrote " + coverFilename;
 
         return new FixResult
@@ -296,6 +309,18 @@ public sealed class EmbeddedCoverArtFixer : IFixer
         }
     }
 
+    internal static bool StripDurationMatches(FfprobeData? source, FfprobeData? output)
+        => source is not null && output is not null
+            && source.TryGetDuration(out var originalDuration)
+            && output.TryGetDuration(out var outputDuration)
+            && Math.Abs(originalDuration - outputDuration) <= 2;
+
+    private static bool IsPermissionProblem(string? message)
+        => message is not null
+            && (message.Contains("denied", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("permission", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("read-only", StringComparison.OrdinalIgnoreCase));
+
     private async Task<StripResult> StripEmbeddedCoverAsync(string audioPath, DisposalMethod disposal, CancellationToken cancellationToken)
     {
         FfprobeData? probe;
@@ -313,15 +338,34 @@ public sealed class EmbeddedCoverArtFixer : IFixer
             return StripResult.SkippedNoCover();
         }
 
+        if (disposal == DisposalMethod.RecycleBin && !_replacement.CanRecycle(audioPath))
+        {
+            return StripResult.Failed("No safe recycle location is available for the original.");
+        }
+
+        var shortfall = FreeSpaceGuard.DescribeShortfall(audioPath, 2);
+        if (shortfall is not null)
+        {
+            return StripResult.Failed(shortfall);
+        }
+
         var originalSize = new FileInfo(audioPath).Length;
         var ext = Path.GetExtension(audioPath).TrimStart('.');
+        if (string.IsNullOrEmpty(TranscodeFixer.ContainerToFfmpegFormat(ext)))
+        {
+            return StripResult.Failed("Unsupported audio container: " + ext);
+        }
+
         var tempPath = TranscodeFixer.SidecarPath(audioPath, "strip", ext);
 
         // -map 0 -map -0:v drops every video / image stream while keeping audio + chapters +
         // metadata. -c copy avoids re-encoding — pure remux, byte-for-byte on audio data.
+        // Data streams are dropped too: an .m4b/.m4a stores its chapter titles in a QuickTime
+        // "text" track that the MP4 muxer refuses to copy ("Tag text incompatible with output
+        // codec"). -map_chapters 0 rebuilds that chapter track from the source chapters instead.
         // R09 (2026-09-20): tempPath tail is `.mediaDash.tmp` — pass -f explicitly matching
         // the source audio container so ffmpeg's muxer picks the right one.
-        var args = new List<string> { "-i", audioPath, "-map", "0", "-map", "-0:v", "-c", "copy", "-f", TranscodeFixer.ContainerToFfmpegFormat(ext), tempPath };
+        var args = new List<string> { "-i", audioPath, "-map", "0", "-map", "-0:v", "-map", "-0:d", "-map_chapters", "0", "-c", "copy", "-f", TranscodeFixer.ContainerToFfmpegFormat(ext), tempPath };
 
         // 03-C: capture source identity BEFORE ffmpeg runs so pre-commit recheck fires on stale.
         var audioInfo = new FileInfo(audioPath);
@@ -350,6 +394,11 @@ public sealed class EmbeddedCoverArtFixer : IFixer
             if (verifyProbe is null || verifyProbe.Error is not null || HasEmbeddedCoverStream(verifyProbe))
             {
                 return StripResult.Failed("rewritten file failed post-strip verification; original left in place.");
+            }
+
+            if (!StripDurationMatches(probe, verifyProbe))
+            {
+                return StripResult.Failed("rewritten file duration could not be verified; original left in place.");
             }
 
             var sourceAudioCount = CountAudioStreams(probe);
@@ -387,7 +436,7 @@ public sealed class EmbeddedCoverArtFixer : IFixer
                     }
 
                     var mode = currentConfig.GetFixMode(IssueType.EmbeddedCoverArt);
-                    if (mode == FixMode.Off || mode == FixMode.DetectOnly)
+                    if (mode == FixMode.Off)
                     {
                         return PolicyDecision.Refuse(FixReason.TypeDisabled);
                     }
@@ -407,8 +456,8 @@ public sealed class EmbeddedCoverArtFixer : IFixer
                 {
                     Diagnostics.Record(
                         "EmbeddedCoverArt.Swap",
-                        "Strip finished but the final rename failed for '" + audioPath + "'. The stripped file is preserved at '" + replacementResult.RecoveryPath + "' — rename it to '" + audioPath + "' manually. Do NOT delete this file; it is currently your only copy of the content.");
-                    return StripResult.Failed("recovery required — stripped copy preserved at '" + replacementResult.RecoveryPath + "'; rename manually.");
+                        replacementResult.DescribeRecovery(audioPath));
+                    return StripResult.Failed(replacementResult.DescribeRecovery(audioPath));
                 }
 
                 if (replacementResult.Reason == FixReason.SourceChanged)
@@ -419,8 +468,16 @@ public sealed class EmbeddedCoverArtFixer : IFixer
                 return StripResult.Failed("strip could not be committed: " + (replacementResult.TechnicalDetail ?? replacementResult.Reason.ToString()));
             }
 
-            var newSize = new FileInfo(audioPath).Length;
-            var freed = Math.Max(0, originalSize - newSize);
+            long freed = 0;
+            try
+            {
+                freed = Math.Max(0, originalSize - new FileInfo(audioPath).Length);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _logger.LogWarning(ex, "Could not measure stripped audio {Path}", audioPath);
+            }
+
             return StripResult.Ok(freed, audioPath, replacementResult.RecyclePath);
         }
         catch (IOException ex)

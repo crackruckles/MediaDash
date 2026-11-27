@@ -107,7 +107,7 @@ internal sealed class ScheduleMigrator : IHostedService, IDisposable
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "ScheduleMigrator failed; users on legacy DailyTrigger may need to Save Settings once to migrate.");
-            Api.Diagnostics.Record("ScheduleMigrator.Migrate", "Failed to migrate the fix-task trigger to the opportunistic interval: " + ex.Message + ". Open MediaDash → Settings → Save once to force the migration.");
+            Api.Diagnostics.Record("ScheduleMigrator.Migrate", "MediaDash could not update the fix run schedule to its new timing. Open MediaDash → Settings and click Save once to apply it. Details: " + ex.Message);
         }
     }
 }

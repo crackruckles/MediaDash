@@ -96,6 +96,11 @@
     font: 500 12.5px Figtree, sans-serif;
     border-top: 1px solid var(--md-border-inner);
 }
+@media (prefers-color-scheme: light) {
+    /* Light-mode: amber on near-white modal body is unreadable; drop to the
+       darker amber used by .mdWarnStrip + .mdProtOrphanBanner overrides. */
+    .mdModalWarn { color: #92400e; }
+}
 .mdModalFooter {
     padding: 12px 16px;
     border-top: 1px solid var(--md-border-inner);
@@ -151,6 +156,21 @@
     font: 500 14px Figtree, sans-serif;
     color: var(--md-ink);
 }
+/* Scan picker rows (Scan now → right-click / long-press). Reuses .mdOrderRow layout. */
+#MediaDashConfigPage .mdScanPickRow { cursor: pointer; margin: 0; }
+#MediaDashConfigPage .mdScanPickRow input[type="checkbox"] {
+    width: 18px; height: 18px; margin: 0 2px 0 4px;
+    accent-color: var(--md-primary);
+    cursor: pointer; flex: none;
+}
+#MediaDashConfigPage .mdScanPickRow.mdScanPickOff { opacity: .5; cursor: default; }
+#MediaDashConfigPage .mdScanPickRow.mdScanPickOff input[type="checkbox"] { cursor: default; }
+#MediaDashConfigPage .mdScanPickNote {
+    font: 500 12px Figtree, sans-serif;
+    color: var(--md-meta);
+    white-space: nowrap;
+}
+#MediaDashConfigPage .mdModalFooter button.mdActionBtn:disabled { opacity: .5; cursor: default; }
 #MediaDashConfigPage .mdIconBtn {
     width: 32px; height: 32px;
     display: inline-flex; align-items: center; justify-content: center;

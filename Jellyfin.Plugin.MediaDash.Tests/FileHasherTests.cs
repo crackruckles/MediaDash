@@ -1,7 +1,11 @@
+using System;
+using System.Diagnostics;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Plugin.MediaDash.Configuration;
 using Jellyfin.Plugin.MediaDash.Data;
 using Jellyfin.Plugin.MediaDash.Probing;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -23,7 +27,7 @@ public sealed class FileHasherTests
         {
             File.WriteAllBytes(filePath, Encoding.UTF8.GetBytes("hello world"));
             var db = new MediaDashDb(dbPath);
-            var hasher = new FileHasher(db.Probes, NullLogger<FileHasher>.Instance);
+            var hasher = new FileHasher(db.Probes, NullLogger<FileHasher>.Instance, new HashConfig(false));
 
             var hash1 = await hasher.HashAsync(filePath, CancellationToken.None);
             Assert.NotNull(hash1);
@@ -63,7 +67,7 @@ public sealed class FileHasherTests
         {
             File.WriteAllBytes(filePath, Encoding.UTF8.GetBytes("alpha"));
             var db = new MediaDashDb(dbPath);
-            var hasher = new FileHasher(db.Probes, NullLogger<FileHasher>.Instance);
+            var hasher = new FileHasher(db.Probes, NullLogger<FileHasher>.Instance, new HashConfig(false));
 
             var first = await hasher.HashAsync(filePath, CancellationToken.None);
             Assert.NotNull(first);
@@ -98,7 +102,7 @@ public sealed class FileHasherTests
         try
         {
             var db = new MediaDashDb(dbPath);
-            var hasher = new FileHasher(db.Probes, NullLogger<FileHasher>.Instance);
+            var hasher = new FileHasher(db.Probes, NullLogger<FileHasher>.Instance, new HashConfig(false));
             var result = await hasher.HashAsync(Path.Combine(Path.GetTempPath(), "definitely-does-not-exist-" + Path.GetRandomFileName()), CancellationToken.None);
             Assert.Null(result);
         }
@@ -110,5 +114,62 @@ public sealed class FileHasherTests
                 File.Delete(dbPath);
             }
         }
+    }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MultiChunkHashMatchesSha256(bool lowImpact)
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "mediadash-hash-chunks-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "media.bin");
+            var bytes = new byte[4 * 1024 * 1024 + 17];
+            new Random(72).NextBytes(bytes);
+            File.WriteAllBytes(path, bytes);
+            var db = new MediaDashDb(Path.Combine(directory, "hash.db"));
+            var hasher = new FileHasher(db.Probes, NullLogger<FileHasher>.Instance, new HashConfig(lowImpact));
+            var elapsed = Stopwatch.StartNew();
+            var actual = await hasher.HashAsync(path, CancellationToken.None);
+            Assert.Equal(Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(), actual);
+            if (lowImpact)
+            {
+                Assert.True(elapsed.Elapsed >= TimeSpan.FromMilliseconds(40), "Low-impact hashing must yield between chunks.");
+            }
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task CancellationDuringLowImpactHashDoesNotCachePartialDigest()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "mediadash-hash-cancel-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "media.bin");
+            File.WriteAllBytes(path, new byte[16 * 1024 * 1024]);
+            var db = new MediaDashDb(Path.Combine(directory, "hash.db"));
+            var hasher = new FileHasher(db.Probes, NullLogger<FileHasher>.Instance, new HashConfig(true));
+            using var stop = new CancellationTokenSource(TimeSpan.FromMilliseconds(30));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => hasher.HashAsync(path, stop.Token));
+            var file = new FileInfo(path);
+            Assert.Null(db.Probes.GetCachedHash(path, file.Length, file.LastWriteTimeUtc.Ticks));
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private sealed class HashConfig(bool lowImpact) : IPluginConfigurationProvider
+    {
+        public PluginConfiguration GetSnapshot() => new() { LowSystemImpactMode = lowImpact };
     }
 }

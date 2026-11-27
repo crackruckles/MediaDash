@@ -47,6 +47,38 @@
         return true;
     };
 
+    ns.MediaDash.movePreviewHtml = function movePreviewHtml(issue, strings, expanded, limit) {
+        if (!issue || (issue.Type !== 'Ungrouped' && issue.Type !== 'Misplaced')) return '';
+        var plan;
+        try { plan = JSON.parse(issue.DetailsJson || '{}').movePlan; } catch (_) { return ''; }
+        if (!plan || plan.version !== 1 || !Array.isArray(plan.entries)) return '';
+        var esc = ns.MediaDash.esc;
+        var paths = [];
+        function join(base, relative) {
+            if (!relative) return base;
+            return String(base || '').replace(/[\\/]$/, '') + (String(base).indexOf('\\') >= 0 ? '\\' : '/') + relative;
+        }
+        plan.entries.forEach(function (entry) {
+            if (!entry || typeof entry.source !== 'string' || typeof entry.destination !== 'string') return;
+            var inventory = Array.isArray(entry.inventory) && entry.inventory.length ? entry.inventory : [{ relativePath: '', isDirectory: entry.isDirectory }];
+            inventory.forEach(function (payload) {
+                if (!payload || typeof payload.relativePath !== 'string') return;
+                paths.push({ source: join(entry.source, payload.relativePath), target: join(entry.destination, payload.relativePath), directory: payload.isDirectory });
+            });
+        });
+        if (expanded === false) {
+            return '<details class="mdMovePreview" data-id="' + esc(issue.Id) + '"><summary>' + esc(strings.movePreviewLabel || 'Review complete move') + ' (' + paths.length + ')</summary><div class="mdMovePreviewContent"></div></details>';
+        }
+        var shown = typeof limit === 'number' ? limit : paths.length;
+        var html = paths.slice(0, shown).map(function (entry) {
+            return '<div class="fieldDescription"><strong>' + esc(entry.directory ? (strings.moveFolder || 'Folder') : (strings.moveFile || 'File')) + '</strong>' +
+                '<div class="mdHistPath">' + esc(entry.source) + ' → ' + esc(entry.target) + '</div></div>';
+        }).join('');
+        if (plan.sourceCleanup) html += '<div class="fieldDescription">' + esc(strings.moveSourceCleanup || 'After the last episode moves, recycle unchanged source metadata that already exists at the destination and remove the empty source folder.') + '<div class="mdHistPath">' + esc(plan.sourceCleanup.source) + '</div></div>';
+        if (paths.length > shown) html += '<button is="emby-button" type="button" class="raised mdMovePreviewMore">' + esc(strings.moveShowMore || 'Show more paths') + ' (' + shown + '/' + paths.length + ')</button>';
+        return html;
+    };
+
     ns.MediaDash.createIssuesTab = function createIssuesTab(deps) {
         var root = deps.root, api = deps.api, strings = deps.strings, lifetime = deps.lifetime;
         var fmt = deps.fmt, bytes = deps.bytes;
@@ -143,6 +175,11 @@
             sel.innerHTML = html;
         }
 
+        function canBulkApprove(issue) {
+            return issue.Status === 'Detected' && !issue.FixBlockedReason &&
+                !(issue.Warnings || []).some(function (w) { return w.Blocking; });
+        }
+
         function renderFiltered() {
             var el = root.querySelector('#mdIssueList');
             var approveAllBtn = root.querySelector('#mdApproveAll');
@@ -154,6 +191,7 @@
                 return issueMatchesFilters(i, typeFilter, textFilter, issueLangFilter);
             });
             lastFilteredIssues = list;
+            var approvableCount = list.filter(canBulkApprove).length;
 
             // Pagination: clamp page after filter changes, then slice.
             var totalPages = Math.max(1, Math.ceil(list.length / ISSUE_PAGE_SIZE));
@@ -167,26 +205,37 @@
             // UI-05: include failure state (success flag + attempt timestamp + list length) so a newly-arrived
             // LastAttemptMessage on an already-queued row forces a re-render, and so a filtered total-count
             // change (bulk ignore of a non-visible page) updates the Approve-all label.
-            var fingerprint = typeFilter + '|' + textFilter + '|' + issueLangFilter + '|' + issuePage + '|' + list.length + '|' +
+            var fingerprint = typeFilter + '|' + textFilter + '|' + issueLangFilter + '|' + issuePage + '|' + list.length + '|' + approvableCount + '|' +
                 pageSlice.map(function (i) {
-                    var f = i.LastAttemptSuccess === false ? ('F:' + (i.LastAttemptAtUtc || '')) : 'O';
-                    return i.Id + ':' + i.Status + ':' + f;
+                    var f = i.LastAttemptSuccess === false ? ('F:' + (i.LastAttemptAtUtc || '') + ':' + (i.LastAttemptMessage || '')) : 'O';
+                    var moveFingerprint = '';
+                    if (i.Type === 'Ungrouped' || i.Type === 'Misplaced') {
+                        try { var movePlan = JSON.parse(i.DetailsJson || '{}').movePlan; moveFingerprint = movePlan && movePlan.fingerprint || ''; } catch (_) { /* Malformed plans remain blocked by the server. */ }
+                    }
+                    return i.Id + ':' + i.Status + ':' + i.RepairFailed + ':' + (i.FixBlockedReason || '') + ':' + JSON.stringify(i.Warnings) + ':' + moveFingerprint + ':' + f;
                 }).join(',');
             if (el.getAttribute('data-fingerprint') === fingerprint) return;
             el.setAttribute('data-fingerprint', fingerprint);
 
-            if (typeFilter && list.length > 1) {
+            if (typeFilter && approvableCount > 1) {
                 var ft = strings.types[typeFilter] || {};
                 approveAllBtn.style.display = '';
-                approveAllBtn.querySelector('.mdApproveAllLabel').textContent = fmt(ft.approveAll || strings.approveAll, list.length);
+                approveAllBtn.querySelector('.mdApproveAllLabel').textContent = fmt(ft.approveAll || strings.approveAll, approvableCount);
                 root.querySelector('#mdApproveAllNote').textContent = strings.approveAllNote;
-            } else if (!typeFilter && list.length > 0) {
+            } else if (!typeFilter && approvableCount > 0) {
                 approveAllBtn.style.display = '';
-                approveAllBtn.querySelector('.mdApproveAllLabel').textContent = fmt(strings.approveAllTypes, list.length);
+                approveAllBtn.querySelector('.mdApproveAllLabel').textContent = fmt(strings.approveAllTypes, approvableCount);
                 root.querySelector('#mdApproveAllNote').textContent = strings.approveAllNote;
             } else {
                 approveAllBtn.style.display = 'none';
                 root.querySelector('#mdApproveAllNote').textContent = '';
+            }
+
+            var rescanBtn = root.querySelector('#mdRescanApproveAll');
+            var rescanCount = list.filter(needsRescan).length;
+            if (rescanBtn) {
+                rescanBtn.style.display = rescanCount > 0 ? '' : 'none';
+                rescanBtn.querySelector('.mdRescanApproveAllLabel').textContent = fmt(strings.rescanApproveAll, rescanCount);
             }
 
             if (list.length > 0) {
@@ -239,14 +288,32 @@
                 // bitmap subs that the container can't hold under a copy-only remux). The scanner marks the
                 // blocking ones; auto-queue holds them Detected and the user must consent via Approve. Hoist
                 // a "⚠ needs review" chip so the warning isn't invisible under the generic Approve copy.
+                // "Came back" badge: this path and type were marked Fixed before, yet a later scan
+                // found the same problem again. Something keeps recreating it, or the last fix
+                // closed the issue without changing anything. The tooltip carries the last fix result.
+                var cameBack = i.TimesFixedBefore > 0;
+                var recurBadge = cameBack
+                    ? '<span class="mdBadge" style="background:rgba(245,158,11,.20);color:#fbbf24;border:1px solid rgba(245,158,11,.5);" title="' +
+                        esc('This was fixed ' + (i.TimesFixedBefore === 1 ? 'once' : i.TimesFixedBefore + ' times') + ' before and came back. Something outside MediaDash may be recreating it (Sonarr / Radarr, Jellyfin metadata saving, a sync tool), or the last fix changed nothing.' +
+                            (i.LastFixedBeforeMessage ? ' Last fix' + (i.LastFixedBeforeAtUtc ? ' (' + new Date(i.LastFixedBeforeAtUtc).toLocaleString() + ')' : '') + ': ' + i.LastFixedBeforeMessage : '')) +
+                        '">⟳ came back after ' + (i.TimesFixedBefore === 1 ? 'a fix' : i.TimesFixedBefore + ' fixes') + '</span> '
+                    : '';
                 var warnings = Array.isArray(i.Warnings) ? i.Warnings : [];
                 var blockingWarnings = warnings.filter(function (w) { return w && w.Blocking; });
                 var warningBadge = blockingWarnings.length
                     ? '<span class="mdBadge" style="background:rgba(239,68,68,.25);color:#fecaca;border:1px solid rgba(239,68,68,.6);" title="Approving this fix also removes something that cannot be restored by the normal recycle-bin round-trip. Read the warning below.">⚠ needs review</span> '
                     : '';
                 var verifyBtn = '';
+                var isManagedArtwork = i.Type === 'CorruptArtwork';
+                var isMissingArtwork = false;
+                if (isManagedArtwork) {
+                    try { isMissingArtwork = JSON.parse(i.DetailsJson || '{}').reason === 'missing'; } catch (_) { /* Older findings may lack a reason. */ }
+                }
                 if (i.Type === 'Playability' && i.ItemId && i.ItemId !== '00000000-0000-0000-0000-000000000000') {
                     verifyBtn = '<button is="emby-button" type="button" class="raised mdOpenInJellyfin" data-item="' + esc(i.ItemId) + '" style="font-size:80%;"><span class="material-icons" style="font-size:1em;vertical-align:middle;margin-right:.2em;">play_arrow</span>Try to play</button>';
+                }
+                if (isManagedArtwork && i.ItemId && i.ItemId !== '00000000-0000-0000-0000-000000000000') {
+                    verifyBtn = '<button is="emby-button" type="button" class="raised mdOpenInJellyfin" data-item="' + esc(i.ItemId) + '"><span>' + esc(strings.openItemInJellyfin) + '</span></button>';
                 }
                 // Split into (buttons-only) and (hint) so the mdIssueActions column stays narrow
                 // and the hint wraps under the body — otherwise the flex column expands to fit
@@ -267,8 +334,9 @@
                         actionHint = '<span class="material-icons" style="font-size:15px;vertical-align:middle;color:var(--md-primary);">schedule</span> Queued for next fix run — click "Run fixes now" on Overview. Change your mind? Click Undo.';
                     }
                 } else {
+                    var actionLabel = isMissingArtwork ? strings.clearMissingArtwork : (i.RepairFailed ? (strings.delete || 'Delete') : (t.action || strings.approve));
                     actionButtons = verifyBtn +
-                        '<button is="emby-button" type="button" class="raised button-submit mdApprove" data-id="' + i.Id + '" style="font-size:80%;" title="' + esc(t.actionHint || '') + '"><span>' + esc(t.action || strings.approve) + '</span></button>' +
+                        '<button is="emby-button" type="button" class="raised button-submit mdApprove" data-id="' + i.Id + '" style="font-size:80%;" title="' + esc(isMissingArtwork ? strings.clearMissingArtworkHint : (i.RepairFailed ? i.SuggestedFix : (t.actionHint || ''))) + '"><span>' + esc(actionLabel) + '</span></button>' +
                         '<button is="emby-button" type="button" class="raised mdDismiss" data-id="' + i.Id + '" style="font-size:80%;"><span>' + esc(strings.dismiss) + '</span></button>';
                     // UI-02: pick the hint variant that matches the effective disposal (Recycle vs Permanent)
                     // when the scanner provides doRecycle / doPermanent copy, so Approve describes what will
@@ -279,16 +347,34 @@
                     if (disposal === 'Permanent' && t.doPermanent) effectiveHint = t.doPermanent;
                     else if (disposal === 'RecycleBin' && t.doRecycle) effectiveHint = t.doRecycle;
                     else effectiveHint = t.actionHint || strings.approveHint;
+                    if (isMissingArtwork) effectiveHint = strings.clearMissingArtworkHint;
+                    if (i.RepairFailed) effectiveHint = disposal === 'Permanent'
+                        ? 'Permanently delete the file after failed repair.'
+                        : 'Move the file to the recycle bin after failed repair.';
                     if (getDryRun()) {
                         effectiveHint = 'Dry-run: logged to History only — ' + effectiveHint;
                     }
-                    var approveLabel = esc(t.action || strings.approve);
+                    var approveLabel = esc(actionLabel);
                     var dismissLabel = esc(strings.dismiss);
                     actionHint =
                         '<strong>' + approveLabel + ':</strong> ' + esc(effectiveHint) +
                         ' · <strong>' + dismissLabel + ':</strong> ' + esc(strings.dismissHint);
                 }
                 var keeperPath = '';
+                if (!isDismissed && i.FixBlockedReason) {
+                    actionHint = esc(i.FixBlockedReason);
+                    if (!isQueued) {
+                        actionButtons = verifyBtn +
+                            (i.CanMoveAnyway
+                                ? '<button is="emby-button" type="button" class="raised mdMoveAnyway" data-id="' + i.Id + '" title="' + esc(strings.moveAnywayHint) + '"><span>' + esc(strings.moveAnyway) + '</span></button>'
+                            : i.NeedsSeason
+                                ? '<button is="emby-button" type="button" class="raised mdEnterSeason" data-id="' + i.Id + '" data-path="' + esc(i.Path) + '" title="' + esc(strings.enterSeasonHint) + '"><span>' + esc(strings.enterSeason) + '</span></button>'
+                            : i.FixRequiresRescan
+                                ? '<button is="emby-button" type="button" class="raised mdIssueRescan" data-type="' + esc(i.Type) + '"><span>' + esc(strings.scanNowLabel) + '</span></button>'
+                                : (i.Type === 'Stale' ? '' : '<button is="emby-button" type="button" class="raised mdIssueSettings"><span>' + esc(strings.fixSettings) + '</span></button>')) +
+                            '<button is="emby-button" type="button" class="raised mdDismiss" data-id="' + i.Id + '"><span>' + esc(strings.dismiss) + '</span></button>';
+                    }
+                }
                 if (i.Type === 'Duplicate' && i.DetailsJson) {
                     try { var d = JSON.parse(i.DetailsJson); keeperPath = d && d.keeperPath ? d.keeperPath : ''; } catch (e) { keeperPath = ''; }
                 }
@@ -298,6 +384,8 @@
                         '<div class="fieldDescription mdIssuePath" data-path="' + esc(i.Path) + '" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" title="Click to open this folder in the Files tab">' + esc(i.Path) + '</div>' +
                         '<div class="fieldDescription" style="margin-top:.3em;"><b style="color:#22c55e;">Better copy (kept):</b></div>' +
                         '<div class="fieldDescription mdIssuePath" data-path="' + esc(keeperPath) + '" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" title="Click to open the keeper folder in the Files tab">' + esc(keeperPath) + '</div>';
+                } else if (isManagedArtwork) {
+                    pathBlock = '<div class="fieldDescription" style="overflow-wrap:anywhere;">' + esc(i.Path) + '</div>';
                 } else {
                     pathBlock = '<div class="fieldDescription mdIssuePath" data-path="' + esc(i.Path) + '" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" title="Click to open this folder in the Files tab">' + esc(i.Path) + '</div>';
                 }
@@ -307,15 +395,17 @@
                         '<div class="mdIssueBody">' +
                             '<div class="mdIssueTitleRow">' +
                                 '<span class="mdIssueFilename">' + esc(i.FileName) + '</span>' +
-                                '<span class="mdIssueTagChip">' + esc(t.title) + '</span>' +
+                                '<span class="mdIssueTagChip">' + esc(isManagedArtwork ? (isMissingArtwork ? strings.missingArtwork : strings.corruptArtwork) : t.title) + '</span>' +
                                 statusBadge +
                                 restoredBadge +
+                                recurBadge +
                                 warningBadge +
                             '</div>' +
                             pathBlock +
-                            '<div class="mdIssueHint">' + esc(i.SuggestedFix) +
+                            '<div class="mdIssueHint">' + esc(isMissingArtwork ? strings.missingArtworkHint : i.SuggestedFix) +
                                 (i.SizeSavings > 0 ? ' <span class="mdIssueSavings">(' + esc(bytes(i.SizeSavings)) + ')</span>' : '') +
                             '</div>' +
+                            ns.MediaDash.movePreviewHtml(i, strings, false) +
                         '</div>' +
                         '<div class="mdIssueActions">' + actionButtons + '</div>' +
                     '</div>' +
@@ -344,8 +434,38 @@
         // but attach to the fresh innerHTML nodes; the previous set dies with
         // the replaced DOM, so no lifetime.own bookkeeping is needed.
         function wireRowHandlers(el) {
+            el.querySelectorAll('.mdMovePreview').forEach(function (preview) {
+                var loaded = false;
+                var shown = 100;
+                function paint() {
+                    var issue = lastIssueList.find(function (candidate) { return String(candidate.Id) === preview.getAttribute('data-id'); });
+                    var content = preview.querySelector('.mdMovePreviewContent');
+                    if (!issue || !content) return;
+                    content.innerHTML = ns.MediaDash.movePreviewHtml(issue, strings, true, shown);
+                    var more = content.querySelector('.mdMovePreviewMore');
+                    if (more) more.addEventListener('click', function () { shown += 100; paint(); });
+                }
+                preview.addEventListener('toggle', function () {
+                    if (!preview.open || loaded) return;
+                    loaded = true;
+                    paint();
+                });
+            });
+
             el.querySelectorAll('.mdApprove').forEach(function (b) {
                 b.addEventListener('click', function () { rowAction(b, 'Approve', strings.approved); });
+            });
+            el.querySelectorAll('.mdIssueSettings').forEach(function (b) {
+                b.addEventListener('click', function () { deps.showTab('settings'); });
+            });
+            el.querySelectorAll('.mdIssueRescan').forEach(function (b) {
+                b.addEventListener('click', function () { deps.rescan(b.getAttribute('data-type')); });
+            });
+            el.querySelectorAll('.mdMoveAnyway').forEach(function (b) {
+                b.addEventListener('click', function () { messageAction(b, 'Issues/' + b.getAttribute('data-id') + '/MoveAnyway'); });
+            });
+            el.querySelectorAll('.mdEnterSeason').forEach(function (b) {
+                b.addEventListener('click', function () { openSeasonDialog(b); });
             });
             el.querySelectorAll('.mdDismiss').forEach(function (b) {
                 b.addEventListener('click', function () { rowAction(b, 'Dismiss', strings.dismissed); });
@@ -377,8 +497,88 @@
             });
         }
 
+        // "Enter season number": the plugin's own modal (same look as the scan picker), not a browser prompt.
+        function openSeasonDialog(button) {
+            var dialog = root.querySelector('#mdSeasonDialog');
+            if (!dialog) return;
+            var input = dialog.querySelector('#mdSeasonInput');
+            var error = dialog.querySelector('#mdSeasonError');
+            var path = button.getAttribute('data-path') || '';
+            dialog.querySelector('#mdSeasonFile').textContent = path.split(/[\\/]/).pop();
+            input.value = '';
+            error.style.display = 'none';
+            dialog.style.display = 'flex';
+            setTimeout(function () { input.focus(); }, 0);
+            function close() {
+                dialog.style.display = '';
+                dialog.querySelector('#mdSeasonSave').onclick = null;
+                dialog.querySelector('#mdSeasonCancel').onclick = null;
+                input.onkeydown = null;
+                dialog.onclick = null;
+            }
+            function save() {
+                var entered = String(input.value || '').trim();
+                if (!/^\d{1,3}$/.test(entered)) {
+                    error.textContent = strings.enterSeasonInvalid;
+                    error.style.display = '';
+                    input.focus();
+                    return;
+                }
+                close();
+                messageAction(button, 'Issues/' + button.getAttribute('data-id') + '/Season?season=' + encodeURIComponent(String(parseInt(entered, 10))));
+            }
+            dialog.querySelector('#mdSeasonSave').onclick = save;
+            dialog.querySelector('#mdSeasonCancel').onclick = close;
+            input.onkeydown = function (e) {
+                if (e.key === 'Enter') save();
+                if (e.key === 'Escape') close();
+            };
+            dialog.onclick = function (e) { if (e.target === dialog) close(); };
+        }
+
+        // Open findings that only a fresh scan can unblock (the rows showing "Scan now").
+        function needsRescan(issue) {
+            return issue.Status === 'Detected' && issue.FixRequiresRescan === true;
+        }
+
+        // POSTs an action whose response is a sentence for the user, shows it on the row and refreshes.
+        function messageAction(button, path) {
+            var row = button.closest('[data-issue]');
+            button.disabled = true;
+            function show(text) {
+                if (row && row.querySelector('.mdRowMsg')) row.querySelector('.mdRowMsg').textContent = text;
+            }
+            function readText(r) {
+                if (!r || typeof r.text !== 'function') return Promise.resolve(typeof r === 'string' ? r : '');
+                return r.text().then(function (t) {
+                    try { var parsed = JSON.parse(t); return typeof parsed === 'string' ? parsed : t; } catch (e) { return t; }
+                });
+            }
+            post(path).then(function (r) {
+                return readText(r).then(function (text) {
+                    show(text || strings.approved);
+                    if (row) row.style.opacity = '.55';
+                    refresh(true);
+                });
+            }, function (err) {
+                button.disabled = false;
+                if (err && err.status === 404) {
+                    // A scan replaced this finding (Move anyway rescans Ungrouped media, for one):
+                    // the row's id is gone. Say so and load the current list instead of a bare 404.
+                    show(strings.issueReplaced);
+                    setTimeout(activate, 1500);
+                    return;
+                }
+                var response = err && typeof err.text === 'function' ? err : null;
+                (response ? readText(response) : Promise.resolve(deps.errorMessage(err))).then(function (text) {
+                    show(strings.issueActionFailed + ' ' + text);
+                });
+            });
+        }
+
         function rowAction(button, action, doneText) {
             var id = button.getAttribute('data-id');
+            button.disabled = true;
             post('Issues/' + id + '/' + action).then(function () {
                 var row = button.closest('[data-issue]');
                 // Keep the in-memory issue list in sync with the server. Without this the
@@ -419,6 +619,10 @@
                 // Refresh in the background so PendingFixCount reflects the approval right away — otherwise
                 // clicking "Run fixes now" immediately after approving reads the stale count and shows "nothing to fix".
                 refresh(true);
+            }, function (err) {
+                button.disabled = false;
+                button.closest('[data-issue]').querySelector('.mdRowMsg').textContent =
+                    strings.issueActionFailed + ' ' + deps.errorMessage(err);
             });
         }
 
@@ -511,13 +715,19 @@
                         return;
                     }
                     if (!window.confirm(fmt(strings.ctxConfirm || 'Ignore {0} issue(s)?', opt.ids.length))) return;
-                    bulkIssueAction(opt.ids, 'Dismiss').then(function () { activate(); refresh(true); });
+                    bulkIssueAction(opt.ids, 'Dismiss').then(function () { activate(); refresh(true); }).catch(function (err) { window.alert(errorMessage(err)); });
                 });
             });
         }
 
         function renderIssues(list) {
             lastIssueList = list || [];
+            // IssueWarning uses explicit lowercase JSON names even when the issue DTO uses PascalCase.
+            lastIssueList.forEach(function (issue) {
+                issue.Warnings = (Array.isArray(issue.Warnings) ? issue.Warnings : []).filter(Boolean).map(function (w) {
+                    return { Blocking: w.blocking === undefined ? w.Blocking : w.blocking, Message: w.message === undefined ? w.Message : w.message };
+                });
+            });
             // UI-17: openCount tracks the latest open-view fetch and is what the Issues badge
             // reads. Without this, loading the Ignored view overwrites lastIssueList with the
             // ignored rows and the badge drops to that count (or zero if nothing is ignored),
@@ -560,9 +770,25 @@
                         activate();
                         return;
                     }
+                    if (!Array.isArray(list)) throw new Error('Invalid Issues response');
+                    var errorBanner = root.querySelector('#mdIssueLoadError');
+                    if (errorBanner) errorBanner.style.display = 'none';
                     renderIssues(list);
                 })
-                .catch(function () { loading = false; });
+                .catch(function () {
+                    loading = false;
+                    if (requestedView !== showingDismissed) {
+                        activate();
+                        return;
+                    }
+                    var errorBanner = root.querySelector('#mdIssueLoadError');
+                    if (!errorBanner) return;
+                    root.querySelector('#mdIssueLoadErrorText').textContent = strings.issuesLoadFailed || "Couldn't load issues. Previously loaded results may be out of date. Retry, or check Jellyfin's logs if this continues.";
+                    var retry = root.querySelector('#mdIssueLoadRetry');
+                    retry.textContent = strings.retry || 'Retry';
+                    retry.onclick = activate;
+                    errorBanner.style.display = '';
+                });
         }
 
         function setLangFilter(l) {
@@ -610,7 +836,11 @@
             // opens the ignored view, lastIssueList holds ignored rows — using its length would
             // under-report open work. openCount is only touched by open-view fetches.
             count: function () { return showingDismissed ? openCount : lastIssueList.length; },
-            filteredIds: function () { return lastFilteredIssues.map(function (i) { return i.Id; }); },
+            rescanTypes: function () {
+                return lastFilteredIssues.filter(needsRescan).map(function (i) { return i.Type; })
+                    .filter(function (type, index, all) { return all.indexOf(type) === index; });
+            },
+            filteredIds: function (approvableOnly) { return lastFilteredIssues.filter(function (i) { return !approvableOnly || canBulkApprove(i); }).map(function (i) { return i.Id; }); },
             installContextMenu: installIssueContextMenu
         };
     };

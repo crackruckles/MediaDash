@@ -1,0 +1,25 @@
+{
+  "caseId": "issue-88",
+  "sourceDigest": "e99b757687a8a137daf5c8fb9f109642cebd19d8cc9d56441acd5e0125feb374",
+  "environment": "Owned Jellyfin 10.11.11 and 12.0.0 Windows profiles with managed artwork. MediaDash DLL SHA-256 fa17d0d813864d1ec00d91af9625c92a36c227911fed8d7a53b09fee2bb19dc7.",
+  "checks": [
+    {
+      "name": "valid and unverifiable artwork preserved",
+      "passed": true,
+      "skipped": false,
+      "observed": "Both hosts kept valid SVG, healthy replacements and locked artwork."
+    },
+    {
+      "name": "recoverable corruption",
+      "passed": true,
+      "skipped": false,
+      "observed": "Real truncated managed PNG detection, preview, approved recycle and History restoration succeeded."
+    },
+    {
+      "name": "persistence and disposal failure",
+      "passed": true,
+      "skipped": false,
+      "observed": "On both hosts induced repository write and recycle destination failures preserved source bytes, ImageInfo binding and queued approval."
+    }
+  ]
+}

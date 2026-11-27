@@ -25,6 +25,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. "$PSScriptRoot/lib/framework.ps1"
 
 if (-not $BackupRoot) {
     $BackupRoot = $FixturesRoot.TrimEnd('\','/') + "-backup"
@@ -46,6 +47,14 @@ if (-not (Test-Path -LiteralPath $manifestPath)) {
 }
 
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+if (@($manifest.files).Count -eq 0) { throw 'Fixture manifest is empty.' }
+foreach ($entry in $manifest.files) {
+    $current = Join-Path $FixturesRoot $entry.path
+    $backup = Join-Path $BackupRoot $entry.path
+    Assert-SafeLiveTarget -Url 'http://localhost:8099' -AllowedFixturePaths @($FixturesRoot) -FixturePath $current
+    Assert-SafeLiveTarget -Url 'http://localhost:8099' -AllowedFixturePaths @($BackupRoot) -FixturePath $backup
+    if ([string]$entry.sha256 -notmatch '^[a-fA-F0-9]{64}$' -or (Get-FileHash -LiteralPath $backup -Algorithm SHA256).Hash -ne $entry.sha256) { throw "Backup bytes do not match manifest: $($entry.path)" }
+}
 Write-Host "Manifest: $($manifest.files.Count) files, created $($manifest.createdAtUtc), method $($manifest.method)"
 Write-Host ""
 
@@ -99,6 +108,7 @@ foreach ($entry in $manifest.files) {
             New-Item -ItemType Directory -Force -Path $dir | Out-Null
         }
         Copy-Item -LiteralPath $backup -Destination $current -Force
+        if ((Get-FileHash -LiteralPath $current -Algorithm SHA256).Hash -ne $entry.sha256) { throw 'Restored bytes do not match manifest.' }
         Write-Host "  restored: [$status] $($entry.path)" -ForegroundColor Green
         $restored++
     } catch {

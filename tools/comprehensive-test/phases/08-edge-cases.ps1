@@ -30,7 +30,8 @@ function Invoke-Phase-EdgeCases {
         # Try to start another
         $secondScan = try {
             Invoke-JfApi -Method POST -Path "/MediaDash/Scan" -Raw
-        } catch [System.Net.WebException] {
+        } catch {
+            if (-not $_.Exception.Response) { throw }
             $_.Exception.Response
         }
         $s = Get-MediaDashStatus
@@ -55,7 +56,7 @@ function Invoke-Phase-EdgeCases {
     Invoke-Test "Fix Cancel while running stops the task" {
         # Approve everything so a fix run has work
         $issues = Get-MediaDashIssues
-        $detected = @($issues | Where-Object { $_.Status -eq "Detected" })
+        $detected = @($issues | Where-Object { $_.Status -eq "Detected" -and $_.Path.StartsWith($Script:RunState.FixturesRoot.Replace('/', '\'), [StringComparison]::OrdinalIgnoreCase) })
         foreach ($i in $detected) { Approve-MediaDashIssue $i.Id }
         Set-MediaDashConfig @{ DryRun = $true }
         Invoke-JfApi -Method POST -Path "/MediaDash/Fix" | Out-Null

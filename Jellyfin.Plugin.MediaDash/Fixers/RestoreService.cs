@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Jellyfin.Plugin.MediaDash.Data;
+using Jellyfin.Plugin.MediaDash.Probing;
 using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Logging;
 
@@ -25,6 +26,8 @@ public sealed class RestoreService
     private readonly LibraryGuard _libraryGuard;
     private readonly ILibraryMonitor _libraryMonitor;
     private readonly ILogger<RestoreService> _logger;
+    private readonly ProtectionService? _protection;
+    private readonly Action<string, string> _restore;
 
     /// <summary>Initializes a new instance of the <see cref="RestoreService"/> class.</summary>
     /// <param name="db">DB layer for restored-paths writes (MarkRestored + MarkPathRestored*); the restored_paths surface is small enough that a dedicated store isn't worth the split.</param>
@@ -34,6 +37,8 @@ public sealed class RestoreService
     /// <param name="libraryGuard">Library-scope validator (safety invariant #1).</param>
     /// <param name="libraryMonitor">Jellyfin library-change notifier.</param>
     /// <param name="logger">Logger.</param>
+    /// <param name="protection">Protection rules for managed metadata directory recovery.</param>
+    /// <param name="restore">Optional filesystem restore operation for fault-injection tests.</param>
     public RestoreService(
         MediaDashDb db,
         HistoryStore history,
@@ -41,7 +46,9 @@ public sealed class RestoreService
         RecycleBin recycleBin,
         LibraryGuard libraryGuard,
         ILibraryMonitor libraryMonitor,
-        ILogger<RestoreService> logger)
+        ILogger<RestoreService> logger,
+        ProtectionService? protection = null,
+        Action<string, string>? restore = null)
     {
         _db = db;
         _history = history;
@@ -50,6 +57,8 @@ public sealed class RestoreService
         _libraryGuard = libraryGuard;
         _libraryMonitor = libraryMonitor;
         _logger = logger;
+        _protection = protection;
+        _restore = restore ?? recycleBin.Restore;
     }
 
     // ─── History/{id}/Restore ───────────────────────────────────────────
@@ -66,7 +75,29 @@ public sealed class RestoreService
         // carry a target path outside the current library set. Without this guard, a poisoned row
         // could direct MoveAcrossVolumes to write to arbitrary paths (e.g. /etc/cron.d/) that
         // Jellyfin can reach — arbitrary file write escalation.
-        if (!_libraryGuard.IsInsideLibrary(entry.Path))
+        var artworkIssue = entry.Type == IssueType.CorruptArtwork ? _db.Issues.GetIssue(entry.IssueId) : null;
+        var managedArtwork = artworkIssue is { Type: IssueType.CorruptArtwork }
+            && string.Equals(artworkIssue.Path, entry.Path, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)
+            && _libraryGuard.IsArtworkInEnabledLocations(entry.Path, artworkIssue.ItemId, _libraryGuard.GetEnabledLibraryLocations(Plugin.Instance!.Configuration.EnabledLibraries), requireImage: false);
+        var orphanIssue = entry.Type == IssueType.OrphanedDebris ? _db.Issues.GetIssue(entry.IssueId) : null;
+        var orphanCandidate = orphanIssue is { Type: IssueType.OrphanedDebris }
+            && OrphanCleanupFixer.ReadKind(orphanIssue.DetailsJson) == Scanners.OrphanCleanupScanner.KindOrphanMetadata
+            && string.Equals(orphanIssue.Path, entry.Path, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+        PhysicalFileIdentity.Value recoveryIdentity = default;
+        if (orphanCandidate && (!Directory.Exists(entry.RecyclePath) || !_recycleBin.IsOwnedRecoveryPath(entry.RecyclePath, entry.Path)
+            || !PhysicalFileIdentity.TryRead(entry.RecyclePath!, out recoveryIdentity) || recoveryIdentity.IsReparsePoint))
+        {
+            return Conflict(FixReason.SourceChanged, "The metadata recovery source could not be verified as an owned recycle entry for this folder. It was left in place.");
+        }
+
+        var managedOrphan = orphanCandidate && _libraryGuard.IsOrphanMetadataInEnabledLocations(entry.Path, orphanIssue!.ItemId, _libraryGuard.GetEnabledLibraryLocations(Plugin.Instance!.Configuration.EnabledLibraries));
+        if (_recycleBin.IsManagedMetadataBinPath(entry.RecyclePath)
+            && (!(managedArtwork || managedOrphan) || !_recycleBin.IsOwnedRecoveryPath(entry.RecyclePath, entry.Path)))
+        {
+            return Conflict(FixReason.SourceChanged, "The managed metadata recovery source or destination could not be verified. It was left in place.");
+        }
+
+        if (!managedArtwork && !managedOrphan && !_libraryGuard.IsInsideLibrary(entry.Path))
         {
             return Conflict(FixReason.OutsideLibrary, "Refused: the target path '" + entry.Path + "' is not inside a configured Jellyfin library.");
         }
@@ -98,24 +129,56 @@ public sealed class RestoreService
             }
         }
 
+        if (MediaMoveSafety.RequiresCopyDelete(entry.RecyclePath!, initialTarget))
+        {
+            return Conflict(FixReason.DestinationCollision, "Restore requires a same-filesystem rename; current content was left in place.");
+        }
+
+        string? swappedBinPath = null;
         var operationId = _restoreOps.TryBeginRestore(entry.RecyclePath!, historyId, entry.RecyclePath!, initialTarget);
         if (operationId is null)
         {
-            return Conflict(FixReason.AlreadyHealthy, "This bin entry is already being restored (or a prior restore left it in NeedsReview — check the restore_operations table).");
+            return MoveReservationRefusal(entry.RecyclePath, entry.Path, initialTarget)
+                ?? Conflict(FixReason.AlreadyHealthy, "This bin entry is already being restored (or a prior restore left it in NeedsReview — check the restore_operations table).");
         }
 
         try
         {
+            if (managedOrphan)
+            {
+                if (!_libraryGuard.IsOrphanMetadataInEnabledLocations(entry.Path, orphanIssue!.ItemId, _libraryGuard.GetEnabledLibraryLocations(Plugin.Instance!.Configuration.EnabledLibraries))
+                    || _libraryGuard.GetEnabledLibraryLocations(Plugin.Instance!.Configuration.EnabledLibraries).Count == 0)
+                {
+                    _restoreOps.AbortRestore(operationId);
+                    return Conflict(FixReason.OutsideLibrary, "The metadata destination or its missing owner could not be verified. Recovery content remains in the recycle bin.");
+                }
+
+                if (_protection?.IsFixerBlocked(entry.Path, entry.Type) == true || _protection?.IsAnyDescendantProtected(entry.Path, entry.Type) == true)
+                {
+                    _restoreOps.AbortRestore(operationId);
+                    return Conflict(FixReason.Protected, "The metadata destination contains protected content. Recovery content remains in the recycle bin.");
+                }
+
+                if (!_recycleBin.IsOwnedRecoveryPath(entry.RecyclePath, entry.Path)
+                    || !PhysicalFileIdentity.TryRead(entry.RecyclePath!, out var currentRecovery) || currentRecovery != recoveryIdentity)
+                {
+                    _restoreOps.AbortRestore(operationId);
+                    return Conflict(FixReason.SourceChanged, "The metadata recovery source changed during verification. It was left in place.");
+                }
+            }
+
             // Force-swap the current occupant to the bin as its own restorable history row. Done
             // AFTER the claim so a concurrent force restore of the same entry couldn't race with us.
             if (pendingSwapPath is not null)
             {
                 try
                 {
-                    var swappedBinPath = _recycleBin.MoveToBin(pendingSwapPath);
+                    swappedBinPath = managedArtwork || managedOrphan
+                        ? _recycleBin.MoveManagedMetadataToBin(pendingSwapPath)
+                        : _recycleBin.MoveToBin(pendingSwapPath);
                     _history.AddHistory(new HistoryEntry
                     {
-                        IssueId = 0,
+                        IssueId = managedArtwork || managedOrphan ? entry.IssueId : 0,
                         Type = entry.Type,
                         Path = pendingSwapPath,
                         Action = "Swapped out to recycle bin so an older copy could be restored in its place.",
@@ -126,21 +189,19 @@ public sealed class RestoreService
                         Success = true
                     });
                 }
-                catch (IOException ex)
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
                 {
-                    _restoreOps.AbortRestore(operationId);
-                    return Conflict(FixReason.DestinationCollision, "Couldn't move the current file to the recycle bin before restoring: " + ex.Message);
+                    return RollBackFailedRestore(operationId, swappedBinPath, pendingSwapPath, ex);
                 }
             }
 
             try
             {
-                _recycleBin.Restore(entry.RecyclePath!, initialTarget);
+                _restore(entry.RecyclePath!, initialTarget);
             }
-            catch (IOException ex)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                _restoreOps.AbortRestore(operationId);
-                return Conflict(FixReason.DestinationCollision, ex.Message);
+                return RollBackFailedRestore(operationId, swappedBinPath, initialTarget, ex);
             }
 
             try
@@ -181,6 +242,26 @@ public sealed class RestoreService
 
     // ─── RedownloadWarnings/{historyId}/RestoreOptimized ────────────────
 
+    private RestoreOutcome RollBackFailedRestore(string operationId, string? swappedBinPath, string target, Exception failure)
+    {
+        if (swappedBinPath is not null)
+        {
+            try
+            {
+                _restore(swappedBinPath, target);
+            }
+            catch (Exception rollbackError) when (rollbackError is IOException or UnauthorizedAccessException)
+            {
+                var detail = "Restore failed and the current copy could not be put back. Recover it from " + swappedBinPath + ": " + rollbackError.Message;
+                _restoreOps.MarkRestoreNeedsReview(operationId, detail);
+                return new RestoreOutcome(false, FixReason.RecoveryRequired, target, false, detail);
+            }
+        }
+
+        _restoreOps.AbortRestore(operationId);
+        return Conflict(FixReason.DestinationCollision, failure.Message);
+    }
+
     internal RestoreOutcome RestoreOptimizedCopy(long historyId, bool force)
     {
         var entry = _history.GetHistoryEntry(historyId);
@@ -211,10 +292,17 @@ public sealed class RestoreService
 
         // Claim on the twin's bin path — the actual physical entry being restored. Two callers
         // targeting the same twin (even via different history rows) serialize here.
+        if (MediaMoveSafety.RequiresCopyDelete(twin.Value.BinPath, entry.Path))
+        {
+            return Conflict(FixReason.DestinationCollision, "Restore requires a same-filesystem rename; current content was left in place.");
+        }
+
+        string? swappedBinPath = null;
         var operationId = _restoreOps.TryBeginRestore(twin.Value.BinPath, historyId, twin.Value.BinPath, entry.Path);
         if (operationId is null)
         {
-            return Conflict(FixReason.AlreadyHealthy, "This optimized twin has already been restored (or a concurrent restore is in flight, or a prior attempt left it in NeedsReview).");
+            return MoveReservationRefusal(twin.Value.BinPath, entry.Path)
+                ?? Conflict(FixReason.AlreadyHealthy, "This optimized twin has already been restored (or a concurrent restore is in flight, or a prior attempt left it in NeedsReview).");
         }
 
         try
@@ -229,7 +317,7 @@ public sealed class RestoreService
 
                 try
                 {
-                    var swappedBinPath = _recycleBin.MoveToBin(entry.Path);
+                    swappedBinPath = _recycleBin.MoveToBin(entry.Path);
                     _history.AddHistory(new HistoryEntry
                     {
                         IssueId = 0,
@@ -243,21 +331,19 @@ public sealed class RestoreService
                         Success = true
                     });
                 }
-                catch (IOException ex)
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
                 {
-                    _restoreOps.AbortRestore(operationId);
-                    return Conflict(FixReason.DestinationCollision, "Couldn't move the current file to the recycle bin before restoring: " + ex.Message);
+                    return RollBackFailedRestore(operationId, swappedBinPath, entry.Path, ex);
                 }
             }
 
             try
             {
-                _recycleBin.Restore(twin.Value.BinPath, entry.Path);
+                _restore(twin.Value.BinPath, entry.Path);
             }
-            catch (IOException ex)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                _restoreOps.AbortRestore(operationId);
-                return Conflict(FixReason.DestinationCollision, ex.Message);
+                return RollBackFailedRestore(operationId, swappedBinPath, entry.Path, ex);
             }
 
             try
@@ -317,7 +403,23 @@ public sealed class RestoreService
             return Conflict(FixReason.SourceMissing, "This bin file has no origin manifest — MediaDash doesn't know where it came from. Restore it manually from the Files tab's Recycle bin shortcut.");
         }
 
-        if (!_libraryGuard.IsInsideLibrary(entry.OriginalPath))
+        var insideLibrary = _libraryGuard.IsInsideLibrary(entry.OriginalPath);
+        var dedicatedMetadataBin = _recycleBin.IsManagedMetadataBinPath(entry.BinPath);
+        if (dedicatedMetadataBin || !insideLibrary)
+        {
+            var historyId = _history.FindActiveManagedMetadataRecycleHistory(entry.BinPath, entry.OriginalPath);
+            if (historyId.HasValue)
+            {
+                return RestoreFromHistory(historyId.Value, force: false);
+            }
+
+            if (dedicatedMetadataBin)
+            {
+                return Conflict(FixReason.SourceMissing, "This metadata entry has no active recovery history. It was left in place.");
+            }
+        }
+
+        if (!insideLibrary)
         {
             return Conflict(FixReason.OutsideLibrary, "Refused: the origin path '" + entry.OriginalPath + "' is not inside a configured Jellyfin library.");
         }
@@ -328,7 +430,8 @@ public sealed class RestoreService
         var operationId = _restoreOps.TryBeginRestore(entry.BinPath, historyId: null, entry.BinPath, initialTarget);
         if (operationId is null)
         {
-            return Conflict(FixReason.AlreadyHealthy, "This bin entry is already being restored (or a prior restore left it in NeedsReview — check the restore_operations table).");
+            return MoveReservationRefusal(entry.BinPath, entry.OriginalPath, initialTarget)
+                ?? Conflict(FixReason.AlreadyHealthy, "This bin entry is already being restored (or a prior restore left it in NeedsReview — check the restore_operations table).");
         }
 
         try
@@ -422,6 +525,9 @@ public sealed class RestoreService
 
         return candidate;
     }
+
+    private RestoreOutcome? MoveReservationRefusal(params string?[] paths) => paths.Any(path => !string.IsNullOrEmpty(path) && _db.Moves.HasActiveConflict(path))
+        ? Conflict(FixReason.MoveNeedsReview, "This restore overlaps an unfinished move. Review the recorded move before restoring into its original, destination or recovery locations.") : null;
 
     private static RestoreOutcome NotFound(string? detail = null)
         => new(Success: false, FixReason.SourceMissing, RestoredTo: null, Suffixed: false, TechnicalDetail: detail, IsNotFound: true);

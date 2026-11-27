@@ -1,0 +1,31 @@
+{
+  "caseId": "media-host-matrix",
+  "sourceDigest": "b8df35e22b22b7379376e61101139fb03277b535ff61abe6b223fa1b2e435eb0",
+  "environment": "tools/testenv/testenv.ps1 run 20261127-133603 (scan + fix) from commit f565ec6 on three disposable Proxmox hosts rolled back to 'golden': mdtest-linux (LXC 111, golden 2026-11-18), mdtest-docker (LXC 112, jellyfin/jellyfin:10.11 container, golden 2026-11-18), mdtest-windows (Windows Server 2025 VM 113, Jellyfin 12.4 service, golden rebuilt 2026-11-27 with the current fixtures after moving it to 192.168.1.153). MediaDash 1.0.8.2 built from the working tree, DLL SHA-256 b3f5af2e5914d60eb9816bb4a1daaa5e79351806077f7cc023b47606b691f733.",
+  "checks": [
+    {
+      "name": "linux",
+      "passed": true,
+      "skipped": false,
+      "result": "scan matched 40, missing 0, unexpected 0, known gaps 3; queued 36, fixed 29, failed 0 (+7 expected failures), not attempted 0, re-detected 0; 0 MediaDash diagnostics"
+    },
+    {
+      "name": "docker",
+      "passed": true,
+      "skipped": false,
+      "result": "scan matched 40, missing 0, unexpected 0, known gaps 3; queued 36, fixed 29, failed 0 (+7 expected failures), not attempted 0, re-detected 0; 0 MediaDash diagnostics"
+    },
+    {
+      "name": "windows",
+      "passed": true,
+      "skipped": false,
+      "result": "scan matched 40, missing 0, unexpected 0, known gaps 3; queued 36, fixed 29, failed 0 (+7 expected failures), not attempted 0, re-detected 0; 0 MediaDash diagnostics"
+    },
+    {
+      "name": "golden-restored",
+      "passed": true,
+      "skipped": false,
+      "result": "each host restored to its 'golden' snapshot and stopped by testenv; Proxmox reported LXC 111, LXC 112 and VM 113 stopped afterwards"
+    }
+  ]
+}

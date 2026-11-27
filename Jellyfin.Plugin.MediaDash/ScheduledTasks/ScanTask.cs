@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -27,10 +29,13 @@ public sealed class ScanTask : IScheduledTask
     /// </summary>
     internal static readonly TimeSpan ManualScanReviewGrace = TimeSpan.FromMinutes(10);
 
+    private static readonly ConcurrentDictionary<string, Lazy<Task<bool>>> RootProbes = new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+
     private readonly ILibraryManager _libraryManager;
     private readonly IEnumerable<IScanner> _scanners;
     private readonly MediaDashDb _db;
     private readonly ISessionManager _sessionManager;
+    private readonly ITaskManager _taskManager;
     private readonly RunState _runState;
     private readonly IPluginConfigurationProvider _configProvider;
     private readonly Fixers.ProtectionService _protection;
@@ -43,6 +48,7 @@ public sealed class ScanTask : IScheduledTask
     /// <param name="scanners">All registered scanners.</param>
     /// <param name="db">The plugin database.</param>
     /// <param name="sessionManager">Instance of the <see cref="ISessionManager"/> interface.</param>
+    /// <param name="taskManager">Jellyfin's scheduled-task manager, used to detect its own library scan.</param>
     /// <param name="runState">The shared run-state holder (02-A).</param>
     /// <param name="configProvider">Configuration snapshot provider (02-A).</param>
     /// <param name="protection">Never-modify protection gate. Roadmap i-110-protected-media.</param>
@@ -52,6 +58,7 @@ public sealed class ScanTask : IScheduledTask
         IEnumerable<IScanner> scanners,
         MediaDashDb db,
         ISessionManager sessionManager,
+        ITaskManager taskManager,
         RunState runState,
         IPluginConfigurationProvider configProvider,
         Fixers.ProtectionService protection,
@@ -61,6 +68,7 @@ public sealed class ScanTask : IScheduledTask
         _scanners = scanners;
         _db = db;
         _sessionManager = sessionManager;
+        _taskManager = taskManager;
         _runState = runState;
         _configProvider = configProvider;
         _protection = protection;
@@ -86,6 +94,7 @@ public sealed class ScanTask : IScheduledTask
     /// <inheritdoc />
     public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
     {
+        var typeFilter = _runState.ConsumeNextScanTypeFilter();
         var bypassIdleCheck = _runState.ConsumeBypassIdleCheck(RunRole.Scan);
         // 02-A: capture a coherent snapshot once at run start so a config save mid-scan can't
         // flip the idle policy or Off-type filter halfway through. Later per-item checks that
@@ -99,6 +108,17 @@ public sealed class ScanTask : IScheduledTask
             return;
         }
 
+        // #72: don't double up on disk I/O with Jellyfin's own library scan. The two walk the same
+        // files (Jellyfin for thumbnails/trickplay/metadata, MediaDash for probe+hash), and on
+        // spinning disks or SMB shares the overlap makes the whole host unresponsive. Manual-run
+        // bypass respects an explicit "Scan now" click — user intent is a stronger signal.
+        if (!bypassIdleCheck && IdleCheck.IsLibraryScanRunning(_taskManager))
+        {
+            _logger.LogInformation("Skipping scheduled scan: Jellyfin's own library scan is running.");
+            progress.Report(100);
+            return;
+        }
+
         if (!_runState.TryBegin(RunRole.Scan))
         {
             _logger.LogInformation("Skipping scheduled scan: another scan is already running in this process.");
@@ -106,18 +126,52 @@ public sealed class ScanTask : IScheduledTask
             return;
         }
 
+        using var scanRecording = RunDiagnosticsRecording.Start(_db, _logger, runConfig.DiagnosticsEnabled);
+        using var diagnostics = RunDiagnostics.Start(_logger, "scan", "ScanTask");
+        // See FixTask: Jellyfin's library scan waits for MediaDash rather than the other way round.
+        using var libraryScanHold = JellyfinLibraryScanHold.Acquire(_taskManager, _logger, cancelRunning: bypassIdleCheck);
+        using var libraryScanCancellation = new LibraryScanCancellation(null, cancellationToken);
+        var outcome = "Failed";
+        string? failure = null;
         try
         {
-            await ExecuteScanBodyAsync(bypassIdleCheck, runConfig, progress, cancellationToken).ConfigureAwait(false);
+            libraryScanCancellation.Token.ThrowIfCancellationRequested();
+            await ExecuteScanBodyAsync(bypassIdleCheck, runConfig, typeFilter, diagnostics?.Observe(progress) ?? progress, libraryScanCancellation.Token).ConfigureAwait(false);
+            outcome = "Completed";
+        }
+        catch (OperationCanceledException) when (libraryScanCancellation.Token.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            outcome = "Cancelled";
+            _logger.LogInformation("Stopped automatic scan: Jellyfin's library scan started. Incomplete scanner results were not saved.");
+            progress.Report(100);
+        }
+        catch (OperationCanceledException)
+        {
+            outcome = "Cancelled";
+            throw;
+        }
+        catch (Exception error)
+        {
+            failure = error.Message;
+            throw;
         }
         finally
         {
-            _runState.Complete(RunRole.Scan);
+            try
+            {
+                diagnostics?.Finish(outcome, null, null, null, null);
+                scanRecording?.Complete(outcome, failure);
+            }
+            finally
+            {
+                _runState.Complete(RunRole.Scan);
+            }
         }
     }
 
-    private async Task ExecuteScanBodyAsync(bool bypassIdleCheck, PluginConfiguration runConfig, IProgress<double> progress, CancellationToken cancellationToken)
+    private async Task ExecuteScanBodyAsync(bool bypassIdleCheck, PluginConfiguration runConfig, IReadOnlySet<IssueType>? typeFilter, IProgress<double> progress, CancellationToken cancellationToken)
     {
+        var materialization = Stopwatch.StartNew();
         // ponytail: widened for v0.9 to include non-video kinds (music, audiobook, book, comic).
         // E2E audit E2E-04 / E2E-09: Photo added so BMP/TIFF/JPEG/PNG items already indexed by
         // Jellyfin surface to FormatCompatibilityScanner (healthy browser-incompatible images)
@@ -140,17 +194,20 @@ public sealed class ScanTask : IScheduledTask
             Recursive = true
         });
 
+        _logger.LogInformation("MediaDash scan phase {Phase}: {ElapsedMilliseconds} ms; {ItemCount} items.", "ItemMaterialization", materialization.Elapsed.TotalMilliseconds, items.Count);
+        materialization.Restart();
+
         // Jellyfin indexes sidecar theme.mp3 / themevideo.* as ordinary Audio/Video items alongside
         // the parent series/movie. They should not be checked as library content — no subs, no
         // duplicates, no "unplayable" — so drop them before the scanners see them.
         items = items.Where(i => !i.IsThemeMedia).ToList();
 
         // One-time content-aware defaults sweep: for each scanner whose content type isn't present
-        // in the user's libraries AND whose FixMode is still the untouched default (DetectOnly),
+        // in the user's libraries AND whose FixMode is still the untouched default (ManualApprove),
         // silence the scanner (Off). Stops empty scanner cycles and de-clutters the Settings UI.
         // Gated by a plugin_state key so it only ever runs once per install/upgrade — a user who
         // adds new content types later can re-enable the scanners in Settings.
-        if (_db.GetState("ContentAwareDefaultsChecked") is null)
+        if (items.Count > 0 && _db.GetState("ContentAwareDefaultsChecked") is null)
         {
             var hasVideo = items.Any(i => i.GetBaseItemKind() is BaseItemKind.Movie or BaseItemKind.Episode or BaseItemKind.MusicVideo);
             var hasAudio = items.Any(i => i.GetBaseItemKind() is BaseItemKind.Audio or BaseItemKind.AudioBook);
@@ -158,7 +215,7 @@ public sealed class ScanTask : IScheduledTask
             var silenced = new List<string>();
 
             // Audio-only defaults.
-            if (!hasAudio && scanConfig.EmbeddedCoverFixMode == Configuration.FixMode.DetectOnly)
+            if (!hasAudio && scanConfig.EmbeddedCoverFixMode == Configuration.FixMode.ManualApprove)
             {
                 scanConfig.EmbeddedCoverFixMode = Configuration.FixMode.Off;
                 silenced.Add("EmbeddedCoverArt");
@@ -171,7 +228,7 @@ public sealed class ScanTask : IScheduledTask
             {
                 void Silence(Func<Configuration.FixMode> get, Action<Configuration.FixMode> set, string label)
                 {
-                    if (get() == Configuration.FixMode.DetectOnly)
+                    if (get() == Configuration.FixMode.ManualApprove)
                     {
                         set(Configuration.FixMode.Off);
                         silenced.Add(label);
@@ -226,8 +283,8 @@ public sealed class ScanTask : IScheduledTask
                     foreach (var innerPath in inner.Locations ?? Array.Empty<string>())
                     {
                         var innerNormalised = System.IO.Path.TrimEndingDirectorySeparator(innerPath) + System.IO.Path.DirectorySeparatorChar;
-                        if (innerNormalised.StartsWith(outerNormalised, StringComparison.OrdinalIgnoreCase)
-                            && !string.Equals(innerNormalised, outerNormalised, StringComparison.OrdinalIgnoreCase))
+                        if (innerNormalised.StartsWith(outerNormalised, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)
+                            && !string.Equals(innerNormalised, outerNormalised, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
                         {
                             Api.Diagnostics.Record(
                                 "LibraryOverlap.Detected",
@@ -244,19 +301,17 @@ public sealed class ScanTask : IScheduledTask
             }
         }
 
-        var scanIsScoped = false;
         var enabledLibraries = runConfig.EnabledLibraries;
+        var enabledFolders = VirtualFolderIdentity.GetEnabledFolders(_libraryManager, enabledLibraries);
+        var scanIsScoped = enabledLibraries.Length > 0 && enabledFolders.Count != _libraryManager.GetVirtualFolders().Count;
+        var enabledLocations = enabledFolders
+            .SelectMany(folder => folder.Locations).Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath(path)) + System.IO.Path.DirectorySeparatorChar)
+            .Distinct(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal).ToList();
         if (enabledLibraries.Length > 0)
         {
-            scanIsScoped = true;
-            var idLookup = Scanners.VirtualFolderIdentity.BuildIdLookup(_libraryManager);
-            var enabledLocations = _libraryManager.GetVirtualFolders()
-                .Where(f => enabledLibraries.Contains(Scanners.VirtualFolderIdentity.GetId(f, idLookup), StringComparer.OrdinalIgnoreCase))
-                .SelectMany(f => f.Locations)
-                .Select(l => System.IO.Path.TrimEndingDirectorySeparator(l) + System.IO.Path.DirectorySeparatorChar)
-                .ToList();
             items = items.Where(i => !string.IsNullOrEmpty(i.Path)
-                && enabledLocations.Any(l => i.Path.StartsWith(l, StringComparison.OrdinalIgnoreCase)))
+                && enabledLocations.Any(root => Fixers.LibraryGuard.IsUnder(i.Path, root)))
                 .ToList();
         }
 
@@ -268,16 +323,17 @@ public sealed class ScanTask : IScheduledTask
         // any unreachable root so the scan finishes cleanly.
         // ponytail: hard-coded 5s timeout, add a config knob if users report false positives on
         // slow-but-reachable storage.
-        var unreachableRoots = await FindUnreachableRootsAsync(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
+        var unreachableRoots = await FindUnavailableRootsAsync(enabledLocations, TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
         if (unreachableRoots.Count > 0)
         {
+            scanIsScoped = true;
             var before = items.Count;
             items = items.Where(i => !string.IsNullOrEmpty(i.Path)
-                && !unreachableRoots.Any(r => i.Path.StartsWith(r, StringComparison.OrdinalIgnoreCase)))
+                && !unreachableRoots.Any(root => Fixers.LibraryGuard.IsUnder(i.Path, root)))
                 .ToList();
             foreach (var root in unreachableRoots)
             {
-                var msg = "Library folder '" + root.TrimEnd(System.IO.Path.DirectorySeparatorChar) + "' did not respond within 5s. Items under it were skipped this scan. If it's an NFS/SMB share, remount with soft,timeo=30,retrans=3 so a stalled server doesn't block Jellyfin.";
+                var msg = "The library folder '" + root.TrimEnd(System.IO.Path.DirectorySeparatorChar) + "' is missing or did not respond within 5 seconds, so it was skipped and its previous results are kept. Checks that look at whole libraries also wait until every enabled folder is available. Reconnect the drive or share, then run a scan.";
                 _logger.LogWarning("ScanTask skipping unreachable library root: {Root}", root);
                 Api.Diagnostics.Record("ScanTask.UnreachableRoot", msg);
             }
@@ -304,7 +360,6 @@ public sealed class ScanTask : IScheduledTask
         // Targeted-rescan filter (issue #64). ConfigChangeRescanner arms this via RunState so a
         // single-setting edit only re-runs the scanner(s) that read that setting, not the whole
         // library sweep. Consumed once — a scheduled sweep after the config edit runs everything.
-        var typeFilter = _runState.ConsumeNextScanTypeFilter();
         if (typeFilter is not null && typeFilter.Count > 0)
         {
             scanners = scanners
@@ -313,6 +368,7 @@ public sealed class ScanTask : IScheduledTask
             _logger.LogInformation("MediaDash scan narrowed to {Count} scanner(s) via NextRunTypeFilter: {Types}", scanners.Count, string.Join(", ", typeFilter));
         }
 
+        _logger.LogInformation("MediaDash scan phase {Phase}: {ElapsedMilliseconds} ms; {ItemCount} items.", "Preparation", materialization.Elapsed.TotalMilliseconds, items.Count);
         _logger.LogInformation("MediaDash scan starting: {ItemCount} items, {ScannerCount} scanners ({SkippedCount} skipped as Off)", items.Count, scanners.Count, _scanners.Count() - scanners.Count);
         // Publish the run counts so the dashboard can render "N / M scanners done" alongside the
         // progress bar (same shape as fix runs' "N / M items left"). Cleared to null in the finally
@@ -325,6 +381,13 @@ public sealed class ScanTask : IScheduledTask
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var scanner = scanners[i];
+                if (unreachableRoots.Count > 0 && scanner.AlwaysUnscoped)
+                {
+                    Api.Diagnostics.Record("ScanTask." + scanner.GetType().Name + ".Deferred", "The " + scanner.Type + " check was skipped because one of your enabled library folders is unavailable. Its previous results are kept. Reconnect the drive or share, then run a scan.");
+                    Plugin.ScanScannersDone = i + 1;
+                    continue;
+                }
+
                 var baseProgress = i * 100.0 / scanners.Count;
                 var slice = 100.0 / scanners.Count;
                 var scannerProgress = new Progress<double>(p => progress.Report(baseProgress + (p * slice / 100.0)));
@@ -343,22 +406,42 @@ public sealed class ScanTask : IScheduledTask
                 // else with the scanner's type + message, keep the earlier scanners' results
                 // (we don't touch the DB when we didn't get issues), and move on.
                 IReadOnlyList<Data.Issue>? issues = null;
+                var scannerTimer = Stopwatch.StartNew();
+                var scannerOutcome = "Completed";
+                int? candidateCount = null;
+                using var diagnostics = RunDiagnostics.Start(_logger, "scan", scanner.GetType().Name);
                 try
                 {
-                    issues = await scanner.ScanAsync(_protection.FilterScannable(items, scanner.Type), scannerProgress, cancellationToken).ConfigureAwait(false);
+                    var reserved = _db.Moves.CaptureReservations();
+                    var candidates = _protection.FilterScannable(items, scanner.Type)
+                        .Where(item => !reserved.Item(item.Id) && !MediaFileHelper.GetMovePayloadPaths(item).Any(reserved.Path)).ToList();
+                    candidateCount = candidates.Count;
+                    issues = await scanner.ScanAsync(candidates, diagnostics?.Observe(scannerProgress) ?? scannerProgress, cancellationToken).ConfigureAwait(false);
+                    cancellationToken.ThrowIfCancellationRequested();
                 }
                 catch (OperationCanceledException)
                 {
+                    scannerOutcome = "Cancelled";
                     throw;
                 }
                 catch (Exception ex)
                 {
+                    scannerOutcome = "Failed";
                     _logger.LogWarning(ex, "MediaDash scanner {Type} failed; continuing with remaining scanners.", scanner.Type);
-                    Api.Diagnostics.Record(
-                        "ScanTask." + scanner.GetType().Name + ".Failed",
-                        "Scanner " + scanner.GetType().Name + " (" + scanner.Type + ") threw " + ex.GetType().Name + ": " + ex.Message + ". Its prior Detected rows are left in place; the next scan will retry. Every other scanner in this run continues normally.");
+                    Api.Diagnostics.Record("ScanTask." + scanner.GetType().Name + ".Failed", "The " + scanner.Type + " check failed this scan, so its results were not updated (the previous results are still shown). The other checks ran normally, and it will try again on the next scan. Details: " + ex.GetType().Name + ": " + ex.Message);
                     Plugin.ScanScannersDone = i + 1;
                     continue;
+                }
+                finally
+                {
+                    diagnostics?.Finish(scannerOutcome, candidateCount, issues?.Count, null, null);
+                    _logger.LogInformation(
+                        "MediaDash scan phase {Phase}: {ElapsedMilliseconds} ms; {ItemCount} candidate items; {IssueCount} findings; {Outcome}.",
+                        scanner.GetType().Name,
+                        scannerTimer.Elapsed.TotalMilliseconds,
+                        items.Count,
+                        issues?.Count ?? 0,
+                        scannerOutcome);
                 }
 
                 // Feed the doomed-file set from scanners whose fix deletes the file, so later
@@ -367,17 +450,18 @@ public sealed class ScanTask : IScheduledTask
                 // both copies before the fixer deleted one.
                 if (scanner.Type is Data.IssueType.Duplicate or Data.IssueType.MalwareRisk or Data.IssueType.OrphanedDebris)
                 {
-                    foreach (var issue in issues)
+                    var emittable = _protection.FilterEmittable(issues, scanner.Type);
+                    var dismissed = _db.Issues.GetIssues(scanner.Type, IssueStatus.Dismissed).Select(issue => issue.Path);
+                    foreach (var path in ComputeDoomedPaths(emittable, dismissed))
                     {
-                        Plugin.MarkDoomed(issue.Path);
+                        Plugin.MarkDoomed(path);
                     }
                 }
 
                 // Scanners that emit non-video-file paths (orphan folders, trickplay dirs, subtitle sidecars)
                 // opt out of the scoped-delete branch — otherwise stale rows sit in the DB forever when the
                 // user has EnabledLibraries set, because scannedPaths only contains video file paths.
-                var pathsForReplace = scanner.AlwaysUnscoped ? null : scannedPaths;
-
+                var pathsForReplace = scanner.AlwaysUnscoped && !scanIsScoped ? null : scannedPaths;
                 // MD-008: group by Issue.Type and persist each group under its own type so
                 // multi-type scanners (TranscodeLogScanner) don't misclassify secondary rows as
                 // the primary type. Also replaces the primary type's rows even when the scanner
@@ -387,6 +471,7 @@ public sealed class ScanTask : IScheduledTask
                 typesToReplace.AddRange(scanner.AdditionalTypes);
 
                 var persistFailed = false;
+                var persistence = Stopwatch.StartNew();
                 foreach (var typeToReplace in typesToReplace)
                 {
                     var groupIssues = groupedByType.TryGetValue(typeToReplace, out var g) ? g : (IReadOnlyList<Data.Issue>)System.Array.Empty<Data.Issue>();
@@ -396,20 +481,44 @@ public sealed class ScanTask : IScheduledTask
                     // wiped, and no fresh rows replace them, so protection is idempotent even
                     // if it was added between the previous scan and this one.
                     groupIssues = _protection.FilterEmittable(groupIssues, typeToReplace);
+                    var replacementPaths = pathsForReplace;
+                    if (scanIsScoped)
+                    {
+                        // These findings can name containers or managed metadata outside the item
+                        // paths. Clear only observations whose media scope was actually scanned.
+                        replacementPaths = (pathsForReplace ?? []).Concat(_db.Issues.GetIssues(typeToReplace, IssueStatus.Detected)
+                            .Where(issue => IsInScannedLibrary(issue, enabledLocations, unreachableRoots)).Select(issue => issue.Path))
+                            .Concat(groupIssues.Select(issue => issue.Path)).Distinct(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal).ToList();
+                    }
+
+                    if (scanner is SuspiciousFileScanner suspicious)
+                    {
+                        replacementPaths = _db.Issues.GetIssues(typeToReplace, IssueStatus.Detected)
+                            .Where(issue => suspicious.CompletedRoots.Any(root => Fixers.LibraryGuard.IsUnder(issue.Path, root)))
+                            .Select(issue => issue.Path).Concat(groupIssues.Select(issue => issue.Path))
+                            .Distinct(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal).ToList();
+                    }
+
                     try
                     {
-                        _db.ReplaceDetectedIssues(typeToReplace, groupIssues, pathsForReplace);
+                        _db.ReplaceDetectedIssues(typeToReplace, groupIssues, replacementPaths);
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
                         _logger.LogWarning(ex, "Persisting scanner {Type} results failed; retaining prior Detected rows.", typeToReplace);
-                        Api.Diagnostics.Record(
-                            "ScanTask." + scanner.GetType().Name + ".PersistFailed",
-                            "Failed to persist scanner " + scanner.GetType().Name + " (" + typeToReplace + ") results: " + ex.GetType().Name + ": " + ex.Message + ". Prior Detected rows for this type are retained; next successful scan will refresh them.");
+                        Api.Diagnostics.Record("ScanTask." + scanner.GetType().Name + ".PersistFailed", "The " + typeToReplace + " check ran, but its results could not be saved, so the previous results are still shown. It will try again on the next scan. Details: " + ex.GetType().Name + ": " + ex.Message);
                         persistFailed = true;
                         break;
                     }
                 }
+
+                _logger.LogInformation(
+                    "MediaDash scan phase {Phase}: {ElapsedMilliseconds} ms; {Scanner}; {IssueCount} findings; {Outcome}.",
+                    "Persistence",
+                    persistence.Elapsed.TotalMilliseconds,
+                    scanner.GetType().Name,
+                    issues.Count,
+                    persistFailed ? "Failed" : "Completed");
 
                 if (persistFailed)
                 {
@@ -444,7 +553,7 @@ public sealed class ScanTask : IScheduledTask
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Redownload detection failed.");
-            Api.Diagnostics.Record("ScanTask.RedownloadDetect", "Redownload detection failed: " + ex.Message + ". Recycle-bin redownload warnings will be stale until the next successful scan.");
+            Api.Diagnostics.Record("ScanTask.RedownloadDetect", "Checking whether recycled files were downloaded again failed, so the Recycle bin's re-download warnings may be out of date until the next scan. Details: " + ex.Message);
         }
 
         // Grant the fix-task grace period ONLY when this was a user click. Scheduled scans don't
@@ -463,24 +572,47 @@ public sealed class ScanTask : IScheduledTask
         progress.Report(100);
     }
 
-    // Enumerates every library root and races a Directory.Exists() call against a timeout.
-    // Returns any root whose syscall didn't return in time (i.e. mount is hung). The probe thread
-    // is orphaned if the syscall never returns — bounded to one leaked worker per unreachable root
-    // per scan, which is finite in practice (users don't have many broken mounts at once).
-    private async Task<List<string>> FindUnreachableRootsAsync(TimeSpan timeout, CancellationToken cancellationToken)
+    internal static IEnumerable<string> ComputeDoomedPaths(IEnumerable<Issue> issues, IEnumerable<string> dismissedPaths)
     {
-        var roots = _libraryManager.GetVirtualFolders()
-            .SelectMany(f => f.Locations)
-            .Where(l => !string.IsNullOrWhiteSpace(l))
-            .Select(l => System.IO.Path.TrimEndingDirectorySeparator(l) + System.IO.Path.DirectorySeparatorChar)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var dismissed = dismissedPaths.ToHashSet(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+        return issues.Select(issue => issue.Path).Where(path => !dismissed.Contains(path));
+    }
 
+    private bool IsInScannedLibrary(Issue issue, IReadOnlyList<string> roots, IReadOnlyList<string> unavailable)
+    {
+        if (Matches(issue.Path))
+        {
+            return true;
+        }
+
+        if (issue.ItemId == Guid.Empty)
+        {
+            return false;
+        }
+
+        try
+        {
+            return Matches(_libraryManager.GetItemById(issue.ItemId)?.Path);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _logger.LogWarning(error, "Preserving finding {IssueId}: its scanned media owner could not be verified", issue.Id);
+            return false;
+        }
+
+        bool Matches(string? path) => !string.IsNullOrWhiteSpace(path) && System.IO.Path.IsPathFullyQualified(path)
+            && roots.Any(root => Fixers.LibraryGuard.IsUnder(path, root)) && !unavailable.Any(root => Fixers.LibraryGuard.IsUnder(path, root));
+    }
+
+    // Probe enabled roots only. An unfinished native stat is shared across later scans, so a
+    // permanently blocked mount cannot accumulate another blocked worker on every retry.
+    private static async Task<List<string>> FindUnavailableRootsAsync(IReadOnlyList<string> roots, TimeSpan timeout, CancellationToken cancellationToken)
+    {
         var unreachable = new List<string>();
         foreach (var root in roots)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!await ProbeReachableAsync(root, timeout, cancellationToken).ConfigureAwait(false))
+            if (!await ProbeAvailableAsync(root, timeout, cancellationToken).ConfigureAwait(false))
             {
                 unreachable.Add(root);
             }
@@ -488,6 +620,77 @@ public sealed class ScanTask : IScheduledTask
 
         return unreachable;
     }
+
+    internal static async Task<bool> ProbeAvailableAsync(string root, TimeSpan timeout, CancellationToken cancellationToken, Func<string, Task<bool>>? stat = null)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (timeout <= TimeSpan.Zero)
+        {
+            return false;
+        }
+
+        try
+        {
+            var probe = SharedRootProbe(root, stat);
+            return await probe.WaitAsync(timeout, cancellationToken).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
+        catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    private static Task<bool> SharedRootProbe(string path, Func<string, Task<bool>>? stat)
+    {
+        var root = System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath(path));
+        while (true)
+        {
+            Lazy<Task<bool>>? candidate = null;
+            candidate = new Lazy<Task<bool>>(
+                () =>
+            {
+                var work = stat?.Invoke(root) ?? Task.Run(() => System.IO.Directory.Exists(root), CancellationToken.None);
+                _ = work.ContinueWith(
+                    completed =>
+                {
+                    if (completed.IsFaulted)
+                    {
+                        _ = completed.Exception;
+                    }
+
+                    RemoveRootProbe(root, candidate!);
+                },
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
+                return work;
+            },
+                LazyThreadSafetyMode.ExecutionAndPublication);
+            var shared = RootProbes.GetOrAdd(root, candidate);
+            if (!ReferenceEquals(shared, candidate) && shared.IsValueCreated && shared.Value.IsCompleted)
+            {
+                RemoveRootProbe(root, shared);
+                continue;
+            }
+
+            try
+            {
+                return shared.Value;
+            }
+            catch
+            {
+                RemoveRootProbe(root, shared);
+                throw;
+            }
+        }
+    }
+
+    private static void RemoveRootProbe(string root, Lazy<Task<bool>> probe) =>
+        ((ICollection<KeyValuePair<string, Lazy<Task<bool>>>>)RootProbes).Remove(new(root, probe));
 
     // True if Directory.Exists returned within timeout (regardless of its bool result — a legitimately
     // missing root is a different problem the scanners already handle). False only means "syscall

@@ -1,0 +1,60 @@
+{
+  "caseId": "issue-81-83",
+  "sourceDigest": "4045428334a7552f9d9afb435efff70ce81e5fe20308911afce7746a1e2c7e5e",
+  "dllSha256": "1b1eaaac59e05928c63f857653d0ed2cd9261c4f7a7ae00f0b7fd321bf071688",
+  "environment": "Windows interactive account, isolated loopback Jellyfin 10.11.11 and 12.0.0, owned generated media",
+  "checks": [
+    {
+      "name": "preview preserves complete original hash",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "preview preserves approved row",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "legacy host upgrade preserved every configuration field",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "restart preserves approved IDs and paths",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "upgraded approval executes real fix",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "complete HTTP playback body matches fixed file",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "rescan has no unwanted-audio finding",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "force restore recovers exact original bytes",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "name": "occupied-path restore preserves original and recovered output",
+      "passed": true,
+      "skipped": false
+    }
+  ],
+  "evidence": [
+    "artifacts/push-preparation-20261105-final-live.log",
+    "artifacts/push-preparation-20261105-final-windows-gate/reported-issues.trx"
+  ],
+  "limitations": [
+    "Generated-media fixtures and an actual legacy XML upgrade on these local versions."
+  ]
+}

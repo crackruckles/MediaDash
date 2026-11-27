@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
@@ -6,9 +6,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.MediaDash.Configuration;
 using Jellyfin.Plugin.MediaDash.Data;
+using Jellyfin.Plugin.MediaDash.Probing;
 using Jellyfin.Plugin.MediaDash.Scanners;
-using MediaBrowser.Common.Configuration;
-using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.MediaDash.Fixers;
@@ -20,30 +19,26 @@ namespace Jellyfin.Plugin.MediaDash.Fixers;
 /// </summary>
 public sealed class OrphanCleanupFixer : IFixer
 {
-    private readonly IApplicationPaths _appPaths;
-    private readonly ILibraryManager _libraryManager;
     private readonly LibraryGuard _libraryGuard;
     private readonly RecycleBin _recycleBin;
     private readonly ILogger<OrphanCleanupFixer> _logger;
+    private readonly ProtectionService? _protection;
 
     /// <summary>Initializes a new instance of the <see cref="OrphanCleanupFixer"/> class.</summary>
-    /// <param name="appPaths">Jellyfin's application paths — anchors the metadata-folder safety gate.</param>
-    /// <param name="libraryManager">Used to re-verify orphan-metadata items still don't resolve.</param>
     /// <param name="libraryGuard">Confirms library-side deletions stay inside a configured library root.</param>
     /// <param name="recycleBin">Destination when the user's disposal setting is RecycleBin.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="protection">Protection rules for whole-directory cleanup.</param>
     public OrphanCleanupFixer(
-        IApplicationPaths appPaths,
-        ILibraryManager libraryManager,
         LibraryGuard libraryGuard,
         RecycleBin recycleBin,
-        ILogger<OrphanCleanupFixer> logger)
+        ILogger<OrphanCleanupFixer> logger,
+        ProtectionService? protection = null)
     {
-        _appPaths = appPaths;
-        _libraryManager = libraryManager;
         _libraryGuard = libraryGuard;
         _recycleBin = recycleBin;
         _logger = logger;
+        _protection = protection;
     }
 
     /// <inheritdoc />
@@ -52,6 +47,12 @@ public sealed class OrphanCleanupFixer : IFixer
     /// <inheritdoc />
     public Task<FixResult> FixAsync(Issue issue, IProgress<double>? progress, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_libraryGuard.IsMoveReserved(issue.Path, issue.ItemId))
+        {
+            return Task.FromResult(FixResult.Refused(FixReason.MoveNeedsReview, "This path belongs to an unfinished move. Review that move before cleaning up its files."));
+        }
+
         var kind = ReadKind(issue.DetailsJson);
         if (kind is null)
         {
@@ -69,13 +70,30 @@ public sealed class OrphanCleanupFixer : IFixer
             case OrphanCleanupScanner.KindOrphanTrickplay:
                 return Task.FromResult(RemoveOrphanTrickplay(issue));
             case OrphanCleanupScanner.KindOrphanMetadata:
-                return Task.FromResult(RemoveOrphanMetadata(issue));
+                return Task.FromResult(RemoveOrphanMetadata(issue, cancellationToken));
+            case OrphanCleanupScanner.KindGroupedLeftover:
+                return Task.FromResult(RemoveGroupedLeftover(issue, cancellationToken));
             default:
                 return Task.FromResult(FixResult.Refused(FixReason.UnsupportedFormat, "Refused: unknown orphan kind \"" + kind + "\"."));
         }
     }
 
-    private static string? ReadKind(string detailsJson)
+    // Set by the scanner for folders in a Movies or Shows library; re-verified with the same rule.
+    internal static bool ReadVideoLibrary(string detailsJson)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(detailsJson) ? "{}" : detailsJson);
+            return doc.RootElement.ValueKind == JsonValueKind.Object
+                && doc.RootElement.TryGetProperty("videoLibrary", out var value) && value.ValueKind == JsonValueKind.True;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    internal static string? ReadKind(string detailsJson)
     {
         try
         {
@@ -111,13 +129,69 @@ public sealed class OrphanCleanupFixer : IFixer
             return FixResult.Fail(FixReason.SourceMissing, "The folder no longer exists: " + issue.Path);
         }
 
-        // Re-verify at fix time — someone may have copied a video into the folder between scan and fix.
-        if (OrphanCleanupScanner_HasVideoNow(issue.Path))
+        if (OrphanCleanupScanner.IsCompanionFolder(issue.Path) || OrphanCleanupScanner.SubtreeHasMediaOrCompanions(issue.Path, ReadVideoLibrary(issue.DetailsJson)))
         {
-            return FixResult.NoChange(FixReason.NothingToRemove, "Nothing to remove any more — a video appeared inside \"" + Path.GetFileName(issue.Path) + "\" after the scan.");
+            return FixResult.NoChange(FixReason.NothingToRemove, "The folder could not be confirmed free of media or companion files. It was left in place.");
         }
 
         return DisposeOfPath(issue, isDirectory: true, verb: "empty folder");
+    }
+
+    private FixResult RemoveGroupedLeftover(Issue issue, CancellationToken cancellationToken)
+    {
+        if (!_libraryGuard.IsInsideLibrary(issue.Path))
+        {
+            return FixResult.Refused(FixReason.OutsideLibrary, "Refused: folder is not inside a configured library — " + issue.Path);
+        }
+
+        if (!Directory.Exists(issue.Path))
+        {
+            return FixResult.Fail(FixReason.SourceMissing, "The folder no longer exists: " + issue.Path);
+        }
+
+        string? master = null;
+        var untracked = false;
+        int? tvdbId = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(issue.DetailsJson);
+            if (doc.RootElement.TryGetProperty("master", out var value) && value.ValueKind == JsonValueKind.String)
+            {
+                master = value.GetString();
+            }
+
+            untracked = doc.RootElement.TryGetProperty("untracked", out var inferred) && inferred.ValueKind == JsonValueKind.True;
+            if (doc.RootElement.TryGetProperty("tvdbId", out var id) && id.ValueKind == JsonValueKind.Number && id.TryGetInt32(out var parsedId))
+            {
+                tvdbId = parsedId;
+            }
+        }
+        catch (JsonException)
+        {
+        }
+
+        if (string.IsNullOrWhiteSpace(master) || !Directory.Exists(master) || !_libraryGuard.IsInsideLibrary(master))
+        {
+            return FixResult.Refused(FixReason.SourceChanged, "Refused: the series' master folder is missing, so this folder may still be the only copy. Scan again.");
+        }
+
+        if (OrphanCleanupScanner.HasPlayableMedia(issue.Path))
+        {
+            return FixResult.NoChange(FixReason.NothingToRemove, "The folder holds media again. It was left in place.");
+        }
+
+        if (untracked && Metadata.MediaIdentityService.ReadSeriesNfoTvdbId(issue.Path) is int currentId && currentId != tvdbId)
+        {
+            return FixResult.Refused(FixReason.SourceChanged, "The folder's series identity changed after detection. Scan again; the folder was left in place.");
+        }
+
+        if (untracked && !OrphanCleanupScanner.HasOnlySeriesMetadata(issue.Path, master, cancellationToken))
+        {
+            return FixResult.NoChange(FixReason.NothingToRemove, "This folder contains files other than recognised series or episode artwork and NFO metadata. Review them in Files; the folder was left in place.");
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return DisposeOfPath(issue, isDirectory: true, verb: "leftover folder", recycleOnly: untracked, cancellationToken: cancellationToken);
     }
 
     private FixResult RemoveOrphanSubtitle(Issue issue)
@@ -160,14 +234,9 @@ public sealed class OrphanCleanupFixer : IFixer
         return DisposeOfPath(issue, isDirectory: true, verb: "orphan trickplay folder");
     }
 
-    private FixResult RemoveOrphanMetadata(Issue issue)
+    private FixResult RemoveOrphanMetadata(Issue issue, CancellationToken cancellationToken)
     {
-        // Safety gate: the metadata folder must sit under either <DataPath>/metadata/library or
-        // <DataPath>/../metadata/library (Jellyfin's InternalMetadataPath). Anywhere else and we refuse.
-        var full = Path.GetFullPath(issue.Path);
-        var candidate1 = Path.GetFullPath(Path.Combine(_appPaths.DataPath, "metadata", "library"));
-        var candidate2 = Path.GetFullPath(Path.Combine(_appPaths.DataPath, "..", "metadata", "library"));
-        if (!LibraryGuard.IsUnder(full, candidate1) && !LibraryGuard.IsUnder(full, candidate2))
+        if (!_libraryGuard.IsOrphanMetadataPath(issue.Path, issue.ItemId))
         {
             return FixResult.Refused(FixReason.OutsideLibrary, "Refused: metadata folder is not under a Jellyfin metadata root — " + issue.Path);
         }
@@ -177,19 +246,67 @@ public sealed class OrphanCleanupFixer : IFixer
             return FixResult.Fail(FixReason.SourceMissing, "The metadata folder no longer exists: " + issue.Path);
         }
 
-        // Re-verify: the item's GUID might have started resolving between scan and fix (e.g. re-import).
-        if (issue.ItemId != Guid.Empty && _libraryManager.GetItemById(issue.ItemId) is not null)
+        if (!PhysicalFileIdentity.TryRead(issue.Path, out var identity) || identity.IsReparsePoint)
         {
-            return FixResult.NoChange(FixReason.NothingToRemove, "Nothing to remove any more — the item at " + issue.ItemId + " has come back into the library.");
+            return FixResult.Deferred(FixReason.SourceChanged, "Could not verify the metadata folder identity. It was left in place.");
         }
 
-        return DisposeOfPath(issue, isDirectory: true, verb: "orphan metadata folder");
+        return DisposeOfPath(issue, isDirectory: true, verb: "orphan metadata folder", metadataIdentity: identity, cancellationToken: cancellationToken);
     }
 
-    private FixResult DisposeOfPath(Issue issue, bool isDirectory, string verb)
+    private FixResult DisposeOfPath(Issue issue, bool isDirectory, string verb, PhysicalFileIdentity.Value? metadataIdentity = null, bool recycleOnly = false, CancellationToken cancellationToken = default)
     {
         var config = Plugin.Instance!.Configuration;
-        var disposal = config.OrphanCleanupDisposal;
+        var previewOnly = config.DryRun;
+        if (metadataIdentity.HasValue)
+        {
+            var refusal = VerifyMetadataForDisposal(issue, metadataIdentity.Value, cancellationToken, out config);
+            if (refusal is not null)
+            {
+                return refusal;
+            }
+
+            previewOnly |= config.DryRun;
+            if (!previewOnly)
+            {
+                if (!OrphanMetadataObservation.IsCurrent(issue, out var observation, cancellationToken))
+                {
+                    return MetadataChanged();
+                }
+
+                // Hashing may be slow on remote storage; authorization must follow the full read.
+                refusal = VerifyMetadataForDisposal(issue, metadataIdentity.Value, cancellationToken, out config);
+                if (refusal is not null)
+                {
+                    return refusal;
+                }
+
+                previewOnly |= config.DryRun;
+                if (!observation.IsCurrent(cancellationToken))
+                {
+                    return MetadataChanged();
+                }
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+
+        if (isDirectory && !metadataIdentity.HasValue)
+        {
+            if (_libraryGuard.IsLibraryRoot(issue.Path)
+                || System.Linq.Enumerable.Any(_libraryGuard.GetEnabledLibraryLocations(null), root => LibraryGuard.IsUnder(root, issue.Path)))
+            {
+                return FixResult.Refused(FixReason.OutsideLibrary, "A library folder or its parent cannot be removed.");
+            }
+
+            if (_protection?.IsFixerBlocked(issue.Path, issue.Type) == true || _protection?.IsAnyDescendantProtected(issue.Path, issue.Type) == true)
+            {
+                return FixResult.Refused(FixReason.Protected, "The folder contains protected content. It was left in place.");
+            }
+        }
+
+        // Inferred leftovers can contain different artwork; retain a recoverable copy.
+        var disposal = recycleOnly ? DisposalMethod.RecycleBin : config.OrphanCleanupDisposal;
         var fileName = Path.GetFileName(issue.Path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         var descriptor = string.Format(
             CultureInfo.InvariantCulture,
@@ -198,7 +315,7 @@ public sealed class OrphanCleanupFixer : IFixer
             fileName,
             disposal == DisposalMethod.RecycleBin ? "moved to recycle bin" : "permanent");
 
-        if (config.DryRun)
+        if (previewOnly || config.DryRun)
         {
             return FixResult.DryRun(descriptor, issue.SizeSavings);
         }
@@ -208,7 +325,9 @@ public sealed class OrphanCleanupFixer : IFixer
             string? recyclePath = null;
             if (disposal == DisposalMethod.RecycleBin)
             {
-                recyclePath = _recycleBin.MoveToBin(issue.Path);
+                recyclePath = metadataIdentity.HasValue
+                    ? _recycleBin.MoveManagedMetadataToBin(issue.Path)
+                    : _recycleBin.MoveToBin(issue.Path);
             }
             else if (isDirectory)
             {
@@ -232,29 +351,50 @@ public sealed class OrphanCleanupFixer : IFixer
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             _logger.LogWarning(ex, "OrphanCleanupFixer: could not remove {Path}", issue.Path);
-            Api.Diagnostics.Record("OrphanCleanupFixer.Delete", "Couldn't remove orphan \"" + issue.Path + "\": " + ex.Message + ". Check that Jellyfin has write access there.");
+            if (ex.Message == MediaMoveSafety.UnsafeSourceDeletionMessage)
+            {
+                return FixResult.Fail(FixReason.RepairFailed, "Could not recycle orphan. Choose a recycle bin folder on the same mount as the source. The source was left in place.", ex.Message);
+            }
+
+            Api.Diagnostics.Record("OrphanCleanupFixer.Delete", "Could not remove the leftover \"" + issue.Path + "\". Give the user Jellyfin runs as write access there, or delete it by hand. Details: " + ex.Message);
             return FixResult.Fail(FixReason.AccessDenied, "Couldn't delete \"" + fileName + "\" — check that Jellyfin has write access to the containing folder.", ex.Message);
         }
     }
 
-    private static bool OrphanCleanupScanner_HasVideoNow(string dir)
+    private FixResult? VerifyMetadataForDisposal(Issue issue, PhysicalFileIdentity.Value identity, CancellationToken cancellationToken, out PluginConfiguration config)
     {
-        // Cheap re-check — walks the tree only until it hits any video file.
-        try
+        cancellationToken.ThrowIfCancellationRequested();
+        config = Plugin.Instance!.Configuration;
+        if (!config.DryRun && !_libraryGuard.HasConfirmingMetadataScan(issue))
         {
-            foreach (var f in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
-            {
-                if (OrphanCleanupScanner.VideoExtensions.Contains(Path.GetExtension(f)))
-                {
-                    return true;
-                }
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return true; // conservative: refuse deletion if the tree is unreadable
+            return FixResult.Deferred(FixReason.SourceChanged, "Metadata cleanup is waiting for confirmation. Run Jellyfin's Scan Media Library task after this finding was detected, then retry. The folder and approval were left in place.");
         }
 
-        return false;
+        if (!config.OrphanScanMetadata || !_libraryGuard.IsOrphanMetadataInEnabledLocations(issue.Path, issue.ItemId, _libraryGuard.GetEnabledLibraryLocations(config.EnabledLibraries))
+            || !LibraryGuard.HasOnlyManagedMetadata(issue.Path))
+        {
+            return FixResult.Deferred(FixReason.SourceChanged, "The metadata folder's scope, missing owner or cache-only contents could not be verified. It was left in place.");
+        }
+
+        config = Plugin.Instance!.Configuration;
+        var enabled = _libraryGuard.GetEnabledLibraryLocations(config.EnabledLibraries).Count > 0;
+        var policy = FixPolicyEvaluator.Evaluate(config, issue.Type, IssueStatus.Queued, FixIntent.Approved, enabled, false, false);
+        if (!config.OrphanScanMetadata || !policy.Allowed)
+        {
+            return FixResult.Deferred(FixReason.TypeDisabled, "Metadata cleanup or its enabled library scope changed. The folder was left in place.");
+        }
+
+        if (_protection?.IsFixerBlocked(issue.Path, issue.Type) == true || _protection?.IsAnyDescendantProtected(issue.Path, issue.Type) == true)
+        {
+            return FixResult.Refused(FixReason.Protected, "The metadata folder contains protected content. It was left in place.");
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return !PhysicalFileIdentity.TryRead(issue.Path, out var current) || current != identity || current.IsReparsePoint
+            ? MetadataChanged() : null;
     }
+
+    private static FixResult MetadataChanged() => FixResult.Deferred(
+        FixReason.SourceChanged,
+        "The metadata folder changed or its original observation is unavailable. Undo this approval and rescan before approving the new finding. The folder was left in place.");
 }

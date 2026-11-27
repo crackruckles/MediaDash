@@ -23,6 +23,32 @@
     border: 1px solid var(--md-border-card);
     margin: 0;
 }
+
+/* Overview banner CTAs (dry-run, post-upgrade, bin-full, stale-queue). Inline
+   markup gives each a hex accent border matching its banner tint, but the fill +
+   text inherit emby-button .raised defaults, which rendered as muted "disabled-
+   looking" chips in both themes (and became near-invisible on Light). Force a
+   theme-aware filled surface so the primary action in each banner reads as a
+   real button. Border/accent stays whatever the inline hex set. */
+#MediaDashConfigPage #mdGoDryRun,
+#MediaDashConfigPage #mdPostUpgradeRun,
+#MediaDashConfigPage #mdGoBinReview,
+#MediaDashConfigPage #mdStaleQueueClear,
+#MediaDashConfigPage #mdUpdateAvailableLink {
+    background: var(--md-neutral) !important;
+    color: var(--md-ink) !important;
+    border-radius: 999px !important;
+    padding: 0 14px !important;
+    height: 34px; min-height: 34px !important;
+    font-weight: 600 !important;
+}
+#MediaDashConfigPage #mdGoDryRun:not(:disabled):hover,
+#MediaDashConfigPage #mdPostUpgradeRun:not(:disabled):hover,
+#MediaDashConfigPage #mdGoBinReview:not(:disabled):hover,
+#MediaDashConfigPage #mdStaleQueueClear:not(:disabled):hover,
+#MediaDashConfigPage #mdUpdateAvailableLink:hover {
+    background: var(--md-neutral-hover) !important;
+}
 #MediaDashConfigPage .mdPanelAccent {
     height: 4px; background: var(--md-accent, var(--md-primary));
 }
@@ -83,6 +109,60 @@
     margin: 12px 0 14px;
     font: 700 30px/1 'IBM Plex Mono', monospace;
     letter-spacing: -.02em; color: var(--md-ink);
+}
+#MediaDashConfigPage .mdSysCell[data-kind^="disk-io-"] .mdSysValue {
+    font-size: 15px;
+    line-height: 1.35;
+}
+#MediaDashConfigPage .mdSysCell[data-kind^="disk-io-"] .mdBarTrack { display: none !important; }
+#MediaDashConfigPage .mdDiskGauge { display: block; width: 100%; max-width: 200px; margin: 0 auto; }
+#MediaDashConfigPage .mdDiskGauge path { fill: none; stroke: currentColor; stroke-width: 10; }
+#MediaDashConfigPage .mdDiskGauge .mdDiskGaugeTrack { stroke: var(--md-track); }
+#MediaDashConfigPage .mdDiskRead { color: #38bdf8; }
+#MediaDashConfigPage .mdDiskWrite { color: #fb923c; }
+#MediaDashConfigPage .mdDiskScale {
+    display: flex; justify-content: space-between; max-width: 200px; margin: 0 auto 10px;
+    font-size: 11px; color: var(--md-meta);
+}
+#MediaDashConfigPage .mdDiskLegend { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; }
+#MediaDashConfigPage .mdDiskLegend > div::before {
+    content: ''; display: inline-block; width: 8px; height: 8px;
+    margin-inline-end: 6px; border-radius: 50%; background: currentColor;
+}
+@media (prefers-color-scheme: light) {
+    #MediaDashConfigPage .mdDiskRead { color: #0369a1; }
+    #MediaDashConfigPage .mdDiskWrite { color: #c2410c; }
+}
+#MediaDashConfigPage .mdSysCell[data-kind^="disk-io-"] { position: relative; }
+#MediaDashConfigPage .mdSysInfo { margin-inline-start: auto; }
+#MediaDashConfigPage .mdSysInfo button {
+    background: transparent;
+    border: 0;
+    border-radius: 4px;
+    color: inherit;
+    cursor: help;
+    padding: 3px;
+}
+#MediaDashConfigPage .mdSysInfo [role="tooltip"] {
+    position: absolute;
+    inset-inline: 12px;
+    top: 36px;
+    z-index: 2;
+    padding: 8px 10px;
+    border: 1px solid var(--md-meta);
+    border-radius: 6px;
+    background: var(--md-inner);
+    color: var(--md-ink);
+    font: 500 13px/1.35 Figtree, sans-serif;
+    letter-spacing: normal;
+    text-transform: none;
+    opacity: 0;
+    pointer-events: none;
+}
+#MediaDashConfigPage .mdSysInfo:not([data-dismissed]):hover [role="tooltip"],
+#MediaDashConfigPage .mdSysInfo:not([data-dismissed]):focus-within [role="tooltip"] {
+    opacity: 1;
+    pointer-events: auto;
 }
 #MediaDashConfigPage .mdSysCell .mdSysHint {
     margin-top: 10px;

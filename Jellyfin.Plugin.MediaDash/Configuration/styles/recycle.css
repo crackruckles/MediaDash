@@ -166,6 +166,19 @@
 #MediaDashConfigPage .mdBinRowHelp .material-icons { font-size: 14px; }
 #MediaDashConfigPage .mdBinRetentionSoon { color: #fbbf24; font-weight: 700; }
 #MediaDashConfigPage .mdBinRetentionUrgent { color: #f87171; font-weight: 700; }
+
+/* Light-mode overrides: the chip + retention colors above are dark-mode tints
+   (light text on dark panel). On a light panel the same tints read as
+   near-invisible washed-out blobs. Pair each with a darker variant so Jellyfin's
+   Light theme is readable. Mirrors the override pattern in tabs.css + settings.css. */
+@media (prefers-color-scheme: light) {
+    #MediaDashConfigPage .mdBinReasonChip         { color: #1d4ed8; background: rgba(59,130,246,.14);  border-color: rgba(59,130,246,.45); }
+    #MediaDashConfigPage .mdBinReasonChip--manual { color: #334155; background: rgba(71,85,105,.12);   border-color: rgba(71,85,105,.4); }
+    #MediaDashConfigPage .mdBinReasonChip--orphan { color: #b45309; background: rgba(180,83,9,.12);    border-color: rgba(180,83,9,.45); }
+    #MediaDashConfigPage .mdBinRowHelp            { color: #047857; background: rgba(5,150,105,.10);   border-color: rgba(5,150,105,.35); }
+    #MediaDashConfigPage .mdBinRetentionSoon      { color: #b45309; }
+    #MediaDashConfigPage .mdBinRetentionUrgent    { color: #b91c1c; }
+}
 #MediaDashConfigPage .mdBinRowSize,
 #MediaDashConfigPage .mdBinRowDate {
     font: 500 13px 'IBM Plex Mono', monospace;
@@ -211,13 +224,29 @@
     color: var(--md-meta);
 }
 @media (max-width: 720px) {
+    /* Side-by-side `file action` crushed the file column once two action buttons
+       (Restore + Delete) landed in `auto` and the filename / fromPath / reason chips
+       had to render in whatever strip remained. Stack vertically: file gets the full
+       row, meta sits on its own row, action buttons stretch across below. */
     #MediaDashConfigPage .mdBinHeader,
     #MediaDashConfigPage .mdBinRow {
         grid-template-columns: 1fr auto;
-        grid-template-areas: "file action" "size date" "footer footer";
+        grid-template-areas:
+            "file   file"
+            "size   date"
+            "action action"
+            "footer footer";
+        row-gap: 10px;
+        padding: 14px 16px !important;
     }
     #MediaDashConfigPage .mdBinHeadDate,
     #MediaDashConfigPage .mdBinHeadActions { display: none; }
+    #MediaDashConfigPage .mdBinRowAction {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+    }
+    #MediaDashConfigPage .mdBinRowAction .emby-button { flex: 1 1 auto; }
 }
 
 

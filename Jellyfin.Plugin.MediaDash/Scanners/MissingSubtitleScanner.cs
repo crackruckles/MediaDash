@@ -40,7 +40,7 @@ public sealed class MissingSubtitleScanner : ProbingScannerBase
     protected override Task<Issue?> EvaluateAsync(BaseItem item, string path, FfprobeData? probe, CancellationToken cancellationToken)
     {
         // Only Video items can carry subtitle streams / receive downloaded subs.
-        if (item is not Video)
+        if (item is not Video || probe?.Streams is null || FfprobeService.IsInfrastructureError(probe.Error?.Message))
         {
             return Task.FromResult<Issue?>(null);
         }

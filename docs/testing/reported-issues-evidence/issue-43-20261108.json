@@ -1,0 +1,31 @@
+{
+  "caseId": "issue-43",
+  "sourceDigest": "e99b757687a8a137daf5c8fb9f109642cebd19d8cc9d56441acd5e0125feb374",
+  "environment": "Owned Windows Jellyfin 10.11.11 and 12.0.0 live profiles with candidate DLL SHA-256 fa17d0d813864d1ec00d91af9625c92a36c227911fed8d7a53b09fee2bb19dc7, Windows loopback SMB, and WSL ext4 and private tmpfs.",
+  "checks": [
+    {
+      "name": "same-filesystem grouping and TV",
+      "passed": true,
+      "skipped": false,
+      "observed": "Live grouping and folder rename moved complete media and companion bundles, including TV poster and NFO files. Undo restored all exact hashes and paths. TV playback and user data remained available and the unrelated series stayed untouched."
+    },
+    {
+      "name": "companion collision",
+      "passed": true,
+      "skipped": false,
+      "observed": "An occupied companion destination refused the exact prior approval, preserved both original and destination hashes, recorded zero savings, and remained reviewable after rescan."
+    },
+    {
+      "name": "process recovery",
+      "passed": true,
+      "skipped": false,
+      "observed": "7 Windows and 7 Linux process-crash tests passed on candidate source."
+    },
+    {
+      "name": "cross-filesystem refusal",
+      "passed": true,
+      "skipped": false,
+      "observed": "Three real ext4-to-tmpfs cases with available space, ENOSPC and denied destination write confirmed preview and stale approvals refuse before any journal, destination or staging changes. Full source inventory remained intact. Owned mounts were unmounted."
+    }
+  ]
+}
