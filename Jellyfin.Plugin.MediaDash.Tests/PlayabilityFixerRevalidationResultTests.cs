@@ -24,6 +24,29 @@ public sealed class PlayabilityFixerRevalidationResultTests
         Assert.Equal("ffprobe missing", r.Diagnostic);
     }
 
+    // testenv "Format Junk MP4 (2024).mp4": a text file named .mp4. Refusing it is expected; it is
+    // not a MediaDash or FFmpeg fault, so it must not land on the Errors tab.
+    [Fact]
+    public void NotMediaIsIndeterminateAndMarkedAsAContentProblem()
+    {
+        var r = RevalidationResult.NotMedia("not a container");
+
+        Assert.Equal(RevalidationVerdict.Indeterminate, r.Verdict);
+        Assert.True(r.ContentProblem);
+        Assert.False(RevalidationResult.Indeterminate("ffprobe missing").ContentProblem);
+    }
+
+    [Fact]
+    public void ContentProblemsRefuseWithoutRecordingAnError()
+    {
+        var src = File.ReadAllText(PlayabilityFixerSourcePath());
+        var contentBranch = src.IndexOf("case RevalidationVerdict.Indeterminate when revalidation.ContentProblem:", System.StringComparison.Ordinal);
+        var infraBranch = src.IndexOf("case RevalidationVerdict.Indeterminate:", System.StringComparison.Ordinal);
+        Assert.True(contentBranch > 0 && infraBranch > contentBranch, "The content-problem branch must come first.");
+        Assert.DoesNotContain("Diagnostics.Record", src[contentBranch..infraBranch], System.StringComparison.Ordinal);
+        Assert.Contains("RevalidationResult.NotMedia(", src, System.StringComparison.Ordinal);
+    }
+
     [Fact]
     public void BrokenCarriesProbeAndNullDiagnostic()
     {

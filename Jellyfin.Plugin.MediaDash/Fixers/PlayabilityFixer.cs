@@ -143,6 +143,10 @@ public sealed class PlayabilityFixer : IFixer
         var revalidation = await RevalidateAsync(issue, cancellationToken).ConfigureAwait(false);
         switch (revalidation.Verdict)
         {
+            case RevalidationVerdict.Indeterminate when revalidation.ContentProblem:
+                // Not media at all: the issue row already says so and how to clear it. Nothing is
+                // wrong with MediaDash or FFmpeg, so the Errors tab stays quiet.
+                return FixResult.Fail(FixReason.ProbeUnavailable, revalidation.Diagnostic ?? "This file isn't a valid media container. The file is unchanged.");
             case RevalidationVerdict.Indeterminate:
                 Api.Diagnostics.Record("PlayabilityFixer.RevalidateIndeterminate", "MediaDash did not repair '" + issue.Path + "' because checking it again just before the fix gave no clear answer. It was left unchanged and will be checked again on the next scan. Details: " + (revalidation.Diagnostic ?? "no further detail."));
                 // E2E audit E2E-06: previously every Indeterminate verdict rendered the generic
@@ -1332,7 +1336,7 @@ public sealed class PlayabilityFixer : IFixer
         // the user-facing diagnostic reflect the actual condition.
         if (probe.Error is not null && string.IsNullOrEmpty(probe.Format?.FormatName))
         {
-            return RevalidationResult.Indeterminate(
+            return RevalidationResult.NotMedia(
                 "This file isn't a valid media container — ffprobe read it but couldn't identify a format. The file is unchanged; delete it from Files or Dismiss this issue to stop reporting it.");
         }
 

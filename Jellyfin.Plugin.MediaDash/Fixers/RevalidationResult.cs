@@ -11,7 +11,8 @@ namespace Jellyfin.Plugin.MediaDash.Fixers;
 /// <param name="Verdict">The revalidation outcome.</param>
 /// <param name="Probe">The successful probe result (null when Verdict is Indeterminate).</param>
 /// <param name="Diagnostic">Human-readable explanation for Indeterminate results; null otherwise.</param>
-internal readonly record struct RevalidationResult(RevalidationVerdict Verdict, FfprobeData? Probe, string? Diagnostic)
+/// <param name="ContentProblem">True when the file itself is the reason (not media at all), so there is nothing for the user to fix in MediaDash or FFmpeg.</param>
+internal readonly record struct RevalidationResult(RevalidationVerdict Verdict, FfprobeData? Probe, string? Diagnostic, bool ContentProblem = false)
 {
     /// <summary>Successful revalidation confirming the flagged defect still holds.</summary>
     /// <param name="probe">The probe result to reuse in the repair ladder.</param>
@@ -27,4 +28,9 @@ internal readonly record struct RevalidationResult(RevalidationVerdict Verdict, 
     /// <param name="diagnostic">Human-readable reason for the indeterminate outcome.</param>
     /// <returns>An Indeterminate revalidation result.</returns>
     public static RevalidationResult Indeterminate(string diagnostic) => new(RevalidationVerdict.Indeterminate, null, diagnostic);
+
+    /// <summary>The file is not media at all: no repair is possible, and nothing is wrong with MediaDash or FFmpeg.</summary>
+    /// <param name="diagnostic">Human-readable reason shown with the issue.</param>
+    /// <returns>An Indeterminate revalidation result marked as a content problem.</returns>
+    public static RevalidationResult NotMedia(string diagnostic) => new(RevalidationVerdict.Indeterminate, null, diagnostic, ContentProblem: true);
 }
