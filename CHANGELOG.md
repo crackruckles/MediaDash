@@ -4,10 +4,11 @@ Release notes for every published version are on GitHub Releases: https://github
 
 The Jellyfin plugin catalog also shows the changelog for each version — open **Dashboard → Plugins → Catalog** in your Jellyfin server, or read `manifest.json` in this repo.
 
-## 1.0.8.2 (unreleased)
+## 1.0.8.2 (2026-11-27)
 
 ### Features and improvements
 
+- Issues that come back after being fixed are now flagged. When a scan finds a problem at the same path, and of the same type, as an earlier fix, the Overview shows a **These issues keep coming back** banner listing them with the last fix result, and the Issues tab marks each one **came back after N fixes**. It usually means something outside MediaDash (Sonarr or Radarr, Jellyfin's metadata saving, a sync tool) keeps recreating it, or the last fix closed the issue without changing anything. Dry runs and fixes you restored are not counted.
 - Issues offers **Scan & approve all** when listed issues need a fresh scan: it scans again for just those issue types and then approves every issue that comes back ready (blocked ones stay listed with their reason). Enter season number now opens a MediaDash dialog instead of a browser prompt, and an issue replaced by a newer scan reloads the list instead of failing with Not Found.
 - A move held by an earlier move that stopped part-way now offers **Move anyway** instead of Fix settings. The earlier move is finished when its video already moved and the rest is unchanged (nothing is overwritten); otherwise its hold is released with every file left where it is. Ungrouped media is then scanned again so the item gets a fresh plan.
 - An episode whose season Jellyfin could not tell now offers **Enter season number**. The number is kept for that episode, the move is planned again into that season folder, approved, and the fix run starts. The season in an episode's own filename (S04E01) is now used first, so files like that are no longer blocked.
