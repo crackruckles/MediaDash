@@ -459,6 +459,16 @@ public sealed partial class MediaMovePlanner
                 return null;
             }
 
+            // The movie already has its "Title (Year)" folder in the library, so a second copy nested
+            // elsewhere ("Duplicates/Dupe Test (2021)/") is a duplicate, not media to regroup: its move
+            // could only be refused for the occupied destination. The duplicate check offers it instead.
+            if (type == IssueType.Ungrouped && dedicated && nested && asMovie
+                && !Paths.Equals(Path.Combine(targetRoot, folderName), Path.TrimEndingDirectorySeparator(wrapper))
+                && Directory.Exists(Path.Combine(targetRoot, folderName)))
+            {
+                return null;
+            }
+
             if (dedicated && nested && type == IssueType.Ungrouped
                 && Paths.Equals(Path.Combine(targetRoot, folderName), Path.TrimEndingDirectorySeparator(wrapper)))
             {

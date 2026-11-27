@@ -355,6 +355,17 @@ public sealed class MediaMovePlanningTests : IDisposable
         Assert.Equal([Path.Combine(Movies, "Super Troopers (2001)"), Path.Combine(Movies, "Super Troopers 2 (2018)")], destinations);
     }
 
+    // testenv fixture "movies/Duplicates/Dupe Test (2021)": a second copy kept in a sub-folder while
+    // the movie already has its own folder. Its move could only be refused for the occupied
+    // destination, so it is left to the duplicate check rather than listed as a blocked move.
+    [Fact]
+    public async Task ANestedSecondCopyOfAMovieThatAlreadyHasItsFolderIsNotRegrouped()
+    {
+        Feature("Dupe Test", 2021, Path.Combine("Dupe Test (2021)", "Dupe Test (2021).mkv"));
+        Feature("Dupe Test", 2021, Path.Combine("Duplicates", "Dupe Test (2021)", "Dupe Test (2021).mkv"));
+        Assert.Empty(await Group());
+    }
+
     [Fact]
     public async Task AWrapperWithoutAYearIsReplacedByTitleAndYear()
     {
