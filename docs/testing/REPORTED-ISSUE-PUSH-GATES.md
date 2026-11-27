@@ -40,7 +40,7 @@ For 1.0.8.2, the evidence index records the decision to defer live acceptance fo
 
 On 27 November 2026 the owner approved shipping 1.0.8.2 with 11 more cases deferred: #80, #81-83, #86, #88, #43, the Reddit report, and the `media-live-workflows`, `media-fate`, `media-matroska`, `media-hevc` and `media-epub` cases. `media-host-matrix` and `media-docker-smoke` were run against the final candidate. The extra cases are accepted only while `build.yaml` says 1.0.8.2 and the deferral record carries `"version": "1.0.8.2"` (`RELEASE_DEFERRABLE_CASES` in `tools/reported_issue_gate.py`); remove that entry after the release so the next version needs full evidence again.
 
-After the release (which added the recurring-issue check and was published with the gate bypassed by the owner), `media-host-matrix` (testenv run 20261127-194923) and `media-docker-smoke` were re-run against the released source plus the Linux test fix (commit dfb6a37), and the 1.0.8.2 deferral record was re-pointed at that fingerprint.
+`media-host-matrix` (testenv run 20261127-194923) and `media-docker-smoke` were re-run against the released 1.0.8.2 source plus the Linux test fix (commit 12a834c), and the 1.0.8.2 record names that fingerprint.
 
 After running the scenario in `requirements.json` against the final candidate, obtain its code fingerprint:
 

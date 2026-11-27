@@ -1,7 +1,7 @@
 {
   "caseId": "media-docker-smoke",
   "sourceDigest": "fb7dcae3f8bd9a3520a82a5769243e12d5ddedaf710252474648a605e47afdb4",
-  "environment": "Local run of the .github/workflows/smoke.yaml steps on mdtest-docker (LXC 112) from commit dfb6a37, fresh /config per container, candidate DLL SHA-256 867b7acf548f738c148464f4a2ea3f534691198f0d467023fb126bb98e87b36d with its sidecar DLLs and deps.json; host rolled back to 'golden' and stopped afterwards.",
+  "environment": "Local run of the .github/workflows/smoke.yaml steps on mdtest-docker (LXC 112) from commit 12a834c, fresh /config per container, candidate DLL SHA-256 867b7acf548f738c148464f4a2ea3f534691198f0d467023fb126bb98e87b36d with its sidecar DLLs and deps.json; host rolled back to 'golden' and stopped afterwards.",
   "checks": [
     {
       "name": "docker-10.11",

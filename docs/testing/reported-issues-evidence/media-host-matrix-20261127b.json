@@ -1,7 +1,7 @@
 {
   "caseId": "media-host-matrix",
   "sourceDigest": "fb7dcae3f8bd9a3520a82a5769243e12d5ddedaf710252474648a605e47afdb4",
-  "environment": "tools/testenv/testenv.ps1 run 20261127-194923 (scan + fix) from commit dfb6a37 on three disposable Proxmox hosts rolled back to 'golden': mdtest-linux (LXC 111), mdtest-docker (LXC 112, jellyfin/jellyfin:10.11 container), mdtest-windows (Windows Server 2025 VM 113, Jellyfin 12.4 service). MediaDash 1.0.8.2 built from the clean working tree, DLL SHA-256 867b7acf548f738c148464f4a2ea3f534691198f0d467023fb126bb98e87b36d.",
+  "environment": "tools/testenv/testenv.ps1 run 20261127-194923 (scan + fix) from commit 12a834c on three disposable Proxmox hosts rolled back to 'golden': mdtest-linux (LXC 111), mdtest-docker (LXC 112, jellyfin/jellyfin:10.11 container), mdtest-windows (Windows Server 2025 VM 113, Jellyfin 12.4 service). MediaDash 1.0.8.2 built from the clean working tree, DLL SHA-256 867b7acf548f738c148464f4a2ea3f534691198f0d467023fb126bb98e87b36d.",
   "checks": [
     {
       "name": "linux",

@@ -3,7 +3,7 @@
   "releaseDeferral": {
     "version": "1.0.8.2",
     "sourceDigest": "fb7dcae3f8bd9a3520a82a5769243e12d5ddedaf710252474648a605e47afdb4",
-    "approvedBy": "crack (owner), 2026-11-27; re-pointed to the released 1.0.8.2 source (dfb6a37) on 2026-11-27",
+    "approvedBy": "crack (owner), 2026-11-27",
     "cases": [
       "issue-81-progress",
       "issue-87",
@@ -69,11 +69,11 @@
     },
     "media-host-matrix": {
       "artifact": "docs/testing/reported-issues-evidence/media-host-matrix-20261127b.json",
-      "sha256": "bb43a857510686953d37d20153beddc48be80152eca2b7af902b53753f38390b"
+      "sha256": "fdb26b2ccea2d9eef4953a80221febbd376914c48e717414270864a8ba7652f8"
     },
     "media-docker-smoke": {
       "artifact": "docs/testing/reported-issues-evidence/media-docker-smoke-20261127b.json",
-      "sha256": "5b20800fae1da4a53cfd9a2c41bdcbacab4f514c8e18c62443d7ed64ae90cd3a"
+      "sha256": "cfae9d7d10d76e7e87910a14bcfcceaed366563944abb3fb5d374df2a4efc94a"
     },
     "issue-43": {
       "artifact": "docs/testing/reported-issues-evidence/issue-43-20261110.json",
