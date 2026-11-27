@@ -102,17 +102,26 @@ public sealed class FixTaskTranscodeCompanionTests : IDisposable
     }
 
     [Fact]
-    public void PathMatchingIsCaseInsensitive()
+    public void PathMatchingFollowsTheHostFilesystemCase()
     {
         // Windows filesystems are case-insensitive and the scanner can emit either casing across
-        // rescans; a same-file triple across cases must still route as one.
+        // rescans, so a same-file pair across cases must route as one there. Linux and Docker
+        // filesystems are case-sensitive: differently cased paths are different files and must
+        // never be paired (pairing them would fold one file's track cleanup into another's encode).
         var transcode = NewIssue(1, IssueType.Quality, @"C:\Media\TV\Show S01E01.mkv");
         var audio = NewIssue(2, IssueType.AudioLanguage, @"c:\media\tv\show s01e01.mkv");
 
         var map = FixTask.BuildTranscodeCompanions([transcode, audio]);
 
-        Assert.Single(map);
-        Assert.Equal(audio, map[transcode.Id][0]);
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Single(map);
+            Assert.Equal(audio, map[transcode.Id][0]);
+        }
+        else
+        {
+            Assert.Empty(map);
+        }
     }
 
     [Fact]
