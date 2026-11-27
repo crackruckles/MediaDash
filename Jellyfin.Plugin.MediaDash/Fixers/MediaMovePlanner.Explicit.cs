@@ -141,7 +141,7 @@ public sealed partial class MediaMovePlanner
         var container = MediaMoveManifest.ClaimContainer(array[0].Destination, array[0].IsDirectory);
         while (array.Any(entry => !LibraryGuard.IsUnder(entry.Destination, container)))
         {
-            container = Path.GetDirectoryName(container) ?? throw new IOException("The selected destinations have no common verified parent.");
+            container = Path.GetDirectoryName(container) ?? throw new IOException("The selected destinations do not share one parent folder. Choose a single destination folder.");
         }
 
         var primary = owners.DistinctBy(owner => owner.Id).ToArray();

@@ -797,7 +797,7 @@ public class MediaDashController : ControllerBase
     {
         runState.ConsumeBypassIdleCheck(RunRole.Fix);
         runState.SetPauseReason(RunRole.Fix, "Could not start the fix task. See the Errors tab and Jellyfin log for details.");
-        Diagnostics.Record("FixTask.Start", "Could not start the fix task: " + error.Message);
+        Diagnostics.Record("FixTask.Start", "The fix run could not start. Try again; if it keeps failing, restart Jellyfin. Details: " + error.Message);
     }
 
     /// <summary>
@@ -1263,7 +1263,7 @@ public class MediaDashController : ControllerBase
                 }
                 catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
                 {
-                    Diagnostics.Record("History.LibraryLocation", "Could not resolve a library location: " + ex.Message);
+                    Diagnostics.Record("History.LibraryLocation", "MediaDash could not work out which library a History entry belongs to, so its library name is missing. Nothing else is affected. Details: " + ex.Message);
                 }
             }
         }
@@ -2140,12 +2140,12 @@ public class MediaDashController : ControllerBase
         }
         catch (UnauthorizedAccessException ex)
         {
-            Diagnostics.Record("RecycleBin.DeletePermissionDenied", "Could not delete '" + entry.BinPath + "': " + ex.Message);
+            Diagnostics.Record("RecycleBin.DeletePermissionDenied", "Could not delete '" + entry.BinPath + "' from the recycle bin because Jellyfin does not have permission. Give the user Jellyfin runs as write access to the recycle bin folder, then try again. Details: " + ex.Message);
             return StatusCode(StatusCodes.Status500InternalServerError, "Permission denied deleting the file. Check the Jellyfin user has write access to the recycle bin folder.");
         }
         catch (IOException ex)
         {
-            Diagnostics.Record("RecycleBin.DeleteIOError", "Could not delete '" + entry.BinPath + "': " + ex.Message);
+            Diagnostics.Record("RecycleBin.DeleteIOError", "Could not delete '" + entry.BinPath + "' from the recycle bin. A file inside it may be open in another program; close it and try again. Details: " + ex.Message);
             return StatusCode(StatusCodes.Status500InternalServerError, "Could not delete the file: " + ex.Message);
         }
 
@@ -2185,7 +2185,7 @@ public class MediaDashController : ControllerBase
                     // Fire-and-forget — no caller sees the exception. Surface via Diagnostics so a
                     // silently-failed empty (permission denied on a bin folder, disk gone away) isn't
                     // invisible to the user; the next Empty click retries.
-                    Diagnostics.Record("RecycleBin.EmptyAll", "Recycle-bin empty did not complete: " + ex.Message + ". The next Empty click retries.");
+                    Diagnostics.Record("RecycleBin.EmptyAll", "Emptying the recycle bin did not finish. Click Empty again to retry. Details: " + ex.Message);
                 }
             });
         }

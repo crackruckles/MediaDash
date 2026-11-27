@@ -109,7 +109,7 @@ public sealed partial class MediaMovePlanner
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 // Identity matching only refines grouping; name-based grouping still runs without it.
-                Api.Diagnostics.Record("MediaMove.Identity", "TVDb identity matching failed: " + ex.Message + ". Grouping used series names only.");
+                Api.Diagnostics.Record("MediaMove.Identity", "TVDb matching failed, so this scan grouped series by their names only. It will try again on the next scan; if this keeps happening, check that the server can reach the internet. Details: " + ex.Message);
             }
         }
 
@@ -122,7 +122,7 @@ public sealed partial class MediaMovePlanner
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                Api.Diagnostics.Record("MediaMove.Provenance", "Earlier move records could not be read: " + ex.Message + ". Episodes whose names were lost in an earlier move stay unidentified.");
+                Api.Diagnostics.Record("MediaMove.Provenance", "MediaDash could not read its earlier move records, so episodes whose names were lost in an earlier move may not be recognised this scan. Details: " + ex.Message);
             }
         }
 
@@ -158,7 +158,7 @@ public sealed partial class MediaMovePlanner
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
             {
-                Api.Diagnostics.Record("MediaMove.Plan", "The move could not be planned for '" + item.Path + "': " + ex.Message + ". The source was left untouched.");
+                Api.Diagnostics.Record("MediaMove.Plan", "MediaDash could not plan a move for '" + item.Path + "', so it was left where it is. It will try again on the next scan. Details: " + ex.Message);
             }
 
             processed++;
@@ -373,7 +373,7 @@ public sealed partial class MediaMovePlanner
                 joiningExistingSeries = true;
                 if (HasConflictingSeriesIdentity(series, seriesRoot, targetRoot, peers))
                 {
-                    blockers.Add("The proposed series folder includes conflicting provider identities. Check the series metadata before grouping these episodes.");
+                    blockers.Add("The series folder these episodes would join is identified as a different show (its TVDb, TMDb or IMDb IDs differ). Fix the show's identification in Jellyfin, then run a scan.");
                 }
 
                 if (season is null)
@@ -589,7 +589,7 @@ public sealed partial class MediaMovePlanner
         var destinationContainer = MediaMoveManifest.ClaimContainer(destination, Directory.Exists(source));
         while (entries.Any(entry => !LibraryGuard.IsUnder(entry.Destination, destinationContainer)))
         {
-            destinationContainer = Path.GetDirectoryName(destinationContainer) ?? throw new IOException("The move has no common destination container.");
+            destinationContainer = Path.GetDirectoryName(destinationContainer) ?? throw new IOException("Not moved: the files in this move would end up in different places, so it cannot be done as one move. Move them separately in the Files tab.");
         }
 
         if (item is Movie)
@@ -1039,6 +1039,9 @@ public sealed partial class MediaMovePlanner
     [GeneratedRegex(@"^\S.* \((?:19|20)\d{2}\)(?: \[(?:tmdbid|imdbid|tvdbid)[-=][^\]]+\])*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex CanonicalMovieFolder();
 
+    [GeneratedRegex(@"\s*[\(\[](?:19|20)\d{2}[\)\]]\s*$", RegexOptions.CultureInvariant)]
+    private static partial Regex TrailingYear();
+
     /// <summary>
     /// True when an episode sits where Jellyfin's TV naming spec expects it: directly inside a season
     /// folder of the series ("Season 01", "Season 1", or "Specials" for season 0). With no known
@@ -1126,14 +1129,28 @@ public sealed partial class MediaMovePlanner
     /// <returns>The folder name to use.</returns>
     internal static string CanonicalMovieFolderName(BaseItem item, string current)
     {
-        if (CanonicalMovieFolder().IsMatch(current) && Metadata.MediaIdentityService.IsCleanFolderName(current))
+        // Already "Title (Year)": keep it, even when the title holds words that look like release tags
+        // ("Format HEVC Main 10 (2024)"). Only a download-site prefix makes it a release folder.
+        if (CanonicalMovieFolder().IsMatch(current) && !Metadata.MediaIdentityService.HasDownloadPrefix(current))
         {
             return current;
         }
 
         if (!string.IsNullOrWhiteSpace(item.Name) && item.ProductionYear is int year and >= 1880 and <= 2100)
         {
-            return RenameTemplate.Scrub(item.Name + " (" + year.ToString(System.Globalization.CultureInfo.InvariantCulture) + ")");
+            var yearText = year.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+            // A deliberate name that already carries the year in brackets ("Brackets & Co [2022] $money")
+            // is the user's choice, not a release name: leave it.
+            if ((current.Contains("(" + yearText + ")", StringComparison.Ordinal) || current.Contains("[" + yearText + "]", StringComparison.Ordinal))
+                && !Metadata.MediaIdentityService.HasDownloadPrefix(current) && !Metadata.MediaIdentityService.HasReleaseMarker(current))
+            {
+                return current;
+            }
+
+            // Jellyfin's title for an unidentified folder can already end in the year; never add it twice.
+            var movieTitle = TrailingYear().Replace(item.Name, string.Empty).Trim();
+            return RenameTemplate.Scrub((movieTitle.Length > 0 ? movieTitle : item.Name) + " (" + yearText + ")");
         }
 
         var (title, parsed) = Metadata.MediaIdentityService.CleanTitle(current);

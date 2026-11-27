@@ -1060,7 +1060,7 @@ public sealed class TranscodeFixer : IFixer
             catch (Microsoft.Data.Sqlite.SqliteException error)
             {
                 warning = "The rename completed. Its durable move record remains available even though its separate History entry could not be saved.";
-                Api.Diagnostics.Record("Transcode.RenameHistory", warning + " " + error.Message);
+                Api.Diagnostics.Record("Transcode.RenameHistory", "The file was renamed after re-encoding, but the rename could not be added to the History tab. Undo is still available for the move. Details: " + error.Message);
             }
 
             return (target, warning);
@@ -1068,7 +1068,7 @@ public sealed class TranscodeFixer : IFixer
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or OperationCanceledException or Microsoft.Data.Sqlite.SqliteException or InvalidOperationException)
         {
             _logger.LogWarning(error, "Optional canonical rename stopped for {Path}; preserve recorded recovery locations", currentPath);
-            Api.Diagnostics.Record("Transcode.RenameFailed", "The re-encode completed, but the optional rename stopped. Preserve its recorded move locations for review. " + error.Message);
+            Api.Diagnostics.Record("Transcode.RenameFailed", "The re-encode finished, but renaming the file afterwards stopped part-way, so it may still have its old name. The move record lists where each file is; check those locations before changing anything. Details: " + error.Message);
             return (null, "The re-encode completed, but the optional rename stopped. Review its recorded move locations before continuing.");
         }
     }

@@ -85,13 +85,7 @@ public sealed class FixResultRecorder
             // Fixer already committed the file mutation before we ever entered this method (see
             // VerifiedReplacementService protocol). A DB failure here means "the world changed
             // but our books say it didn't" — an operator needs to reconcile. Never auto-replay.
-            Api.Diagnostics.Record(
-                "FixResultRecorder.PersistFailed",
-                "Fix outcome persistence failed for issue " + execution.PrimaryIssueId
-                    + " on " + plan.Primary.Path
-                    + ". The file mutation (if any) has already committed; the DB record is missing. "
-                    + "Do NOT re-run the fix — it is not idempotent. Reconcile manually. "
-                    + ex.Message);
+            Api.Diagnostics.Record("FixResultRecorder.PersistFailed", "The fix for '" + plan.Primary.Path + "' (issue #" + execution.PrimaryIssueId + ") ran, but MediaDash could not save its result, so the Issues and History tabs do not show it. Do not run this fix again: check the file first, then run a scan to refresh the list. Details: " + ex.Message);
             _logger.LogError(
                 ex,
                 "Recorder persistence failed for issue {IssueId} on {Path}. Reconciliation required.",

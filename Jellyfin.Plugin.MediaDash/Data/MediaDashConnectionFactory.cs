@@ -58,7 +58,7 @@ public sealed class MediaDashConnectionFactory
                 _recordingOpenFailure = true;
                 try
                 {
-                    Api.Diagnostics.Record("MediaDashDb.Open", "Could not open SQLite database: " + ex.Message + ". Something else may be holding a lock on the file (backup software, antivirus, running scan).");
+                    Api.Diagnostics.Record("MediaDashDb.Open", "MediaDash could not open its database. Another program (backup software, antivirus or a second copy of Jellyfin) may be locking mediadash.db; close it or exclude the MediaDash data folder, then restart Jellyfin. Details: " + ex.Message);
                 }
                 finally
                 {

@@ -81,7 +81,7 @@ internal sealed class RunDiagnosticsRecording : IDisposable
             // Report the damaged singleton below without failing the dashboard request.
         }
 
-        Api.Diagnostics.Record(kind == "fix" ? "Fix.Diagnostics" : "Scan.Diagnostics", "The stored " + kind + " diagnostics record is malformed. Run another diagnostic run to replace it.");
+        Api.Diagnostics.Record(kind == "fix" ? "Fix.Diagnostics" : "Scan.Diagnostics", "The saved diagnostics for the last " + kind + " run are damaged and cannot be shown. Run another " + kind + " with diagnostics on to replace them.");
         return null;
     }
 
@@ -128,7 +128,7 @@ internal sealed class RunDiagnosticsRecording : IDisposable
         catch (Exception error)
         {
             _logger.LogWarning(error, "Could not save the latest {Kind} diagnostics.", _kind);
-            Api.Diagnostics.Record(_kind == "fix" ? "Fix.Diagnostics" : "Scan.Diagnostics", "Could not save the latest " + _kind + " diagnostics: " + error.Message);
+            Api.Diagnostics.Record(_kind == "fix" ? "Fix.Diagnostics" : "Scan.Diagnostics", "Could not save the diagnostics for the latest " + _kind + " run, so the Diagnostics tab still shows the previous one. Details: " + error.Message);
         }
         finally
         {

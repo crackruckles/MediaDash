@@ -152,7 +152,7 @@ public class FileBrowserController : ControllerBase
                 // Broad catch: this is a non-critical navigation shortcut; anything Plugin.Configuration
                 // or the RecycleBin resolver throws (NRE during startup race, InvalidOperationException on
                 // partial config) must NOT 500 the entire Files/List root.
-                Diagnostics.Record("FileBrowser.List", "Could not add recycle-bin shortcut to file browser root: " + ex.Message + ".");
+                Diagnostics.Record("FileBrowser.List", "The Files tab could not show its Recycle bin shortcut. The recycle bin is still available from the Recycle bin tab. Details: " + ex.Message);
             }
 
             // Same shortcut treatment for Jellyfin's log directory so admins can grab logs for bug
@@ -179,7 +179,7 @@ public class FileBrowserController : ControllerBase
             {
                 // Same reasoning as the recycle-bin shortcut above: non-critical, catch broad so any
                 // IApplicationPaths implementation quirk doesn't 500 the root listing.
-                Diagnostics.Record("FileBrowser.List", "Could not add logs shortcut to file browser root: " + ex.Message + ".");
+                Diagnostics.Record("FileBrowser.List", "The Files tab could not show its Logs shortcut. Check that Jellyfin's log folder exists and that the user Jellyfin runs as can read it. Details: " + ex.Message);
             }
 
             return new DirectoryListing { Path = string.Empty, Parent = null, IsRoot = true, Entries = roots };
@@ -220,7 +220,7 @@ public class FileBrowserController : ControllerBase
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
                     // Skip a single unreadable entry so one bad ACL doesn't 500 the whole listing.
-                    Diagnostics.Record("FileBrowser.List", "Skipping unreadable subfolder '" + dir + "': " + ex.Message + ".");
+                    Diagnostics.Record("FileBrowser.List", "The Files tab left out the folder '" + dir + "' because it could not be read. Check that the user Jellyfin runs as can read it. Details: " + ex.Message);
                 }
             }
 
@@ -239,18 +239,18 @@ public class FileBrowserController : ControllerBase
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
-                    Diagnostics.Record("FileBrowser.List", "Skipping unreadable file '" + file + "': " + ex.Message + ".");
+                    Diagnostics.Record("FileBrowser.List", "The Files tab left out the file '" + file + "' because it could not be read. Check that the user Jellyfin runs as can read it. Details: " + ex.Message);
                 }
             }
         }
         catch (UnauthorizedAccessException ex)
         {
-            Diagnostics.Record("FileBrowser.List", "Access denied listing '" + full + "': " + ex.Message + ". Grant the Jellyfin user read access on the folder.");
+            Diagnostics.Record("FileBrowser.List", "The Files tab could not open '" + full + "' because Jellyfin does not have permission to read it. Give the user Jellyfin runs as read access to this folder. Details: " + ex.Message);
             return StatusCode(StatusCodes.Status403Forbidden, "Jellyfin lacks read access to " + full + ".");
         }
         catch (IOException ex)
         {
-            Diagnostics.Record("FileBrowser.List", "IO error listing '" + full + "': " + ex.Message + ".");
+            Diagnostics.Record("FileBrowser.List", "The Files tab could not open '" + full + "'. The drive or network share may be offline or busy; check that it is connected and try again. Details: " + ex.Message);
             return StatusCode(StatusCodes.Status500InternalServerError, "Could not list folder: " + ex.Message);
         }
 
@@ -531,7 +531,7 @@ public class FileBrowserController : ControllerBase
                 }
                 catch (Microsoft.Data.Sqlite.SqliteException error)
                 {
-                    Diagnostics.Record("MediaMove.History", "The files moved and the durable operation is available in Moves, but its History entry could not be saved: " + error.Message);
+                    Diagnostics.Record("MediaMove.History", "The files were moved and Undo is still available, but this move could not be added to the History tab. Nothing needs fixing. Details: " + error.Message);
                 }
 
                 foreach (var entry in _moves.HandlesNativeRefresh ? Array.Empty<MediaMovePlan.Entry>() : plan.Entries)
@@ -545,7 +545,7 @@ public class FileBrowserController : ControllerBase
                         catch (Exception error) when (error is not OperationCanceledException)
                         {
                             _logger.LogWarning(error, "Completed move {OperationId} could not notify Jellyfin of {Path}", result.MoveOperationId, changedPath);
-                            Diagnostics.Record("MediaMove.Refresh", "The move completed, but Jellyfin could not refresh a changed location. Run its library scan after reviewing the recorded move: " + changedPath);
+                            Diagnostics.Record("MediaMove.Refresh", "The move finished, but Jellyfin could not refresh '" + changedPath + "', so it may still show the old location. Run 'Scan Media Library' in the Jellyfin dashboard to update it.");
                         }
                     }
                 }
@@ -758,7 +758,7 @@ public class FileBrowserController : ControllerBase
         }
         catch (Microsoft.Data.Sqlite.SqliteException ex)
         {
-            Diagnostics.Record("FileBrowser.DeleteHistory", "The file was recycled to '" + binPath + "' but its history could not be saved: " + ex.Message);
+            Diagnostics.Record("FileBrowser.DeleteHistory", "The file was moved to the recycle bin ('" + binPath + "'), but it could not be added to the History tab. You can still restore it from the Recycle bin tab. Details: " + ex.Message);
         }
 
         _libraryMonitor.ReportFileSystemChanged(full);
@@ -882,7 +882,7 @@ public class FileBrowserController : ControllerBase
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
-                    Diagnostics.Record("FileBrowser.UploadCleanup", "Upload failed and the temp file at '" + tempPath + "' could not be removed: " + ex.Message + ". Delete it manually to reclaim the space.");
+                    Diagnostics.Record("FileBrowser.UploadCleanup", "An upload failed and its temporary file '" + tempPath + "' could not be removed. Delete that file by hand to free the space. Details: " + ex.Message);
                 }
             }
 

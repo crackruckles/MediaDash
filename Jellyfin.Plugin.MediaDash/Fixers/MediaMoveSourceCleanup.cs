@@ -79,7 +79,7 @@ internal static class MediaMoveSourceCleanup
 
         if (!ValidReceipt(manifest.Plan, receipt))
         {
-            throw new IOException("The recorded source metadata cleanup is invalid. Preserve its recycle-bin entry for review.");
+            throw new IOException("Undo stopped: the record of the old folder MediaDash recycled after this move is damaged. Find that folder in the Recycle bin tab and restore it by hand if you need it.");
         }
 
         var cleanup = manifest.Plan.SourceCleanup!;
@@ -97,7 +97,7 @@ internal static class MediaMoveSourceCleanup
             && identity.Volume == receipt.Inventory[0].Volume && identity.FileId == receipt.Inventory[0].FileId);
         if (entry.BinPath is null)
         {
-            throw new IOException("The recycled source metadata is unavailable. Restore it before Undo.");
+            throw new IOException("Undo stopped: the old folder MediaDash recycled after this move is no longer in the recycle bin. Restore it from the Recycle bin tab, then try Undo again.");
         }
 
         MediaMoveSnapshot.VerifyInventory(entry.BinPath, receipt.Inventory, true, cancellationToken);
@@ -129,7 +129,7 @@ internal static class MediaMoveSourceCleanup
             || roots.Any(root => string.Equals(Path.TrimEndingDirectorySeparator(root), cleanup.Source, comparison))
             || protection.IsFixerBlocked(cleanup.Source, IssueType.Ungrouped) || protection.IsAnyDescendantProtected(cleanup.Source, IssueType.Ungrouped))
         {
-            throw new IOException("The source folder is no longer eligible for metadata cleanup.");
+            throw new IOException("The old folder was kept because it is now protected or outside your enabled libraries. Delete it by hand if you no longer need it.");
         }
 
         MediaMoveSnapshot.ValidateAncestors(cleanup.Source);

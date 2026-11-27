@@ -52,6 +52,8 @@ public sealed partial class DuplicateScanner : IScanner
     private readonly FfprobeService _ffprobe;
     private readonly FileHasher _hasher;
     private readonly ILogger<DuplicateScanner> _logger;
+    private readonly MediaIdentityStore? _identities;
+    private readonly Metadata.TvdbClient? _tvdb;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DuplicateScanner"/> class.
@@ -59,8 +61,12 @@ public sealed partial class DuplicateScanner : IScanner
     /// <param name="ffprobe">The probe service, used to rank copies by quality.</param>
     /// <param name="hasher">SHA-256 hasher for Tier-0 byte-identical confirmation. Only invoked within a formed group of same-size candidates.</param>
     /// <param name="logger">The logger.</param>
-    public DuplicateScanner(FfprobeService ffprobe, FileHasher hasher, ILogger<DuplicateScanner> logger)
+    /// <param name="identities">TVDb identities recorded by the grouping scan; groups episodes by TVDb series.</param>
+    /// <param name="tvdb">TVDb client, used to read each series' episode list.</param>
+    public DuplicateScanner(FfprobeService ffprobe, FileHasher hasher, ILogger<DuplicateScanner> logger, MediaIdentityStore? identities = null, Metadata.TvdbClient? tvdb = null)
     {
+        _identities = identities;
+        _tvdb = tvdb;
         _ffprobe = ffprobe;
         _hasher = hasher;
         _logger = logger;
@@ -74,7 +80,17 @@ public sealed partial class DuplicateScanner : IScanner
     /// <inheritdoc />
     public async Task<IReadOnlyList<Issue>> ScanAsync(IReadOnlyList<BaseItem> items, IProgress<double> progress, CancellationToken cancellationToken)
     {
-        var duplicateGroups = CandidateGroups(items);
+        // TVDb identities (recorded by the grouping scan) let copies of one episode match across
+        // differently named show folders; without them the Jellyfin series id is used as before.
+        IReadOnlyDictionary<Guid, (int TvdbId, string Source)> episodeIds = new Dictionary<Guid, (int TvdbId, string Source)>();
+        IReadOnlyDictionary<Guid, (int TvdbId, string Source)> movieIds = new Dictionary<Guid, (int TvdbId, string Source)>();
+        if (_identities is not null)
+        {
+            episodeIds = _identities.GetTvdbIds("episode");
+            movieIds = _identities.GetTvdbIds("movie");
+        }
+
+        var duplicateGroups = CandidateGroups(items, item => IdentifiedKey(item, episodeIds, movieIds));
 
         // Skip groups where any copy is younger than DuplicateMinAgeDays — Jellyfin's metadata scrape hasn't
         // stabilised yet, so a fresh import can transiently look like a duplicate of itself before provider IDs
@@ -100,12 +116,14 @@ public sealed partial class DuplicateScanner : IScanner
             }
         }
 
+        var guides = await LoadEpisodeGuidesAsync(duplicateGroups.Select(group => group.Key), cancellationToken).ConfigureAwait(false);
         var issues = new List<Issue>();
         var processed = 0;
 
         foreach (var group in duplicateGroups)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var guide = SeriesTvdbId(group.Key) is int seriesId && guides.TryGetValue(seriesId, out var listed) ? listed : null;
             foreach (var editionGroup in SplitByEdition(group.Key, group.Value))
             {
                 if (editionGroup.Count < 2)
@@ -113,7 +131,7 @@ public sealed partial class DuplicateScanner : IScanner
                     continue;
                 }
 
-                issues.AddRange(await RankGroupAsync(group.Key, editionGroup, cancellationToken).ConfigureAwait(false));
+                issues.AddRange(await RankGroupAsync(group.Key, editionGroup, guide, cancellationToken).ConfigureAwait(false));
             }
 
             processed++;
@@ -226,14 +244,16 @@ public sealed partial class DuplicateScanner : IScanner
     /// Morty episode were merged as versions and so were never offered as duplicates.
     /// </remarks>
     /// <param name="items">Library items.</param>
+    /// <param name="keyOf">Group key for an item; <see cref="GetGroupKey"/> when null.</param>
     /// <returns>Groups holding more than one distinct copy.</returns>
-    internal static List<KeyValuePair<string, List<(BaseItem Item, string Path)>>> CandidateGroups(IReadOnlyList<BaseItem> items)
+    internal static List<KeyValuePair<string, List<(BaseItem Item, string Path)>>> CandidateGroups(IReadOnlyList<BaseItem> items, Func<BaseItem, string?>? keyOf = null)
     {
+        keyOf ??= GetGroupKey;
         var groups = new Dictionary<string, List<(BaseItem Item, string Path)>>(StringComparer.OrdinalIgnoreCase);
         var mergedVersionGroups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var item in items)
         {
-            var key = GetGroupKey(item);
+            var key = keyOf(item);
             if (key is null || string.IsNullOrEmpty(item.Path))
             {
                 continue;
@@ -275,6 +295,90 @@ public sealed partial class DuplicateScanner : IScanner
             .Where(g => g.Value.Select(v => v.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
             .Where(g => mergedVersionGroups.Contains(g.Key) || g.Value.Select(v => v.Item.Id).Distinct().Count() > 1)
             .ToList();
+    }
+
+    /// <summary>
+    /// The group key, using TVDb identities where the grouping scan recorded them: an episode is
+    /// keyed by its TVDb series so copies in differently named show folders meet; an unidentified
+    /// movie whose title TVDb recognised is keyed by that title and year (heuristic tier).
+    /// </summary>
+    /// <param name="item">Library item.</param>
+    /// <param name="episodes">TVDb series ids by episode item id.</param>
+    /// <param name="movies">TVDb movie ids by movie item id.</param>
+    /// <returns>The key, or null when the item cannot be grouped.</returns>
+    internal static string? IdentifiedKey(BaseItem item, IReadOnlyDictionary<Guid, (int TvdbId, string Source)> episodes, IReadOnlyDictionary<Guid, (int TvdbId, string Source)> movies)
+    {
+        var key = GetGroupKey(item);
+        if (key is null)
+        {
+            return null;
+        }
+
+        if (item is Episode episode && episodes.TryGetValue(item.Id, out var series) && series.TvdbId > 0)
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"episode:tvdb:{series.TvdbId}:s{episode.ParentIndexNumber}:e{episode.IndexNumber}");
+        }
+
+        if (item is Movie movie && key.StartsWith("movie:name:", StringComparison.Ordinal)
+            && movies.TryGetValue(item.Id, out var title) && title.TvdbId > 0 && movie.ProductionYear is int year)
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"movie:tvdbtitle:{title.TvdbId}:{year}");
+        }
+
+        return key;
+    }
+
+    internal static int? SeriesTvdbId(string groupKey)
+    {
+        const string Prefix = "episode:tvdb:";
+        if (!groupKey.StartsWith(Prefix, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var end = groupKey.IndexOf(':', Prefix.Length);
+        return end > Prefix.Length && int.TryParse(groupKey.AsSpan(Prefix.Length, end - Prefix.Length), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : null;
+    }
+
+    private async Task<Dictionary<int, IReadOnlyList<Metadata.TvdbEpisode>>> LoadEpisodeGuidesAsync(IEnumerable<string> groupKeys, CancellationToken cancellationToken)
+    {
+        var guides = new Dictionary<int, IReadOnlyList<Metadata.TvdbEpisode>>();
+        if (_identities is null)
+        {
+            return guides;
+        }
+
+        var apiKey = string.IsNullOrWhiteSpace(Config.TvdbApiKey) ? Metadata.TvdbClient.ProjectApiKey : Config.TvdbApiKey.Trim();
+        var online = _tvdb is not null;
+        foreach (var seriesId in groupKeys.Select(SeriesTvdbId).OfType<int>().Distinct())
+        {
+            if (_identities.TryGetEpisodeGuide(seriesId, TimeSpan.FromDays(7), out var cached))
+            {
+                guides[seriesId] = cached;
+                continue;
+            }
+
+            if (!online)
+            {
+                continue;
+            }
+
+            try
+            {
+                var fetched = await _tvdb!.GetEpisodesAsync(apiKey, seriesId, cancellationToken).ConfigureAwait(false);
+                _identities.SaveEpisodeGuide(seriesId, fetched);
+                guides[seriesId] = fetched;
+            }
+            catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or Metadata.TvdbAuthenticationException or JsonException
+                || (ex is TaskCanceledException && !cancellationToken.IsCancellationRequested))
+            {
+                // Episode titles only sharpen the check; without them file names still decide.
+                online = false;
+                _logger.LogWarning(ex, "DuplicateScanner: could not read TVDb episode lists; checking duplicate episodes by file names only this scan.");
+            }
+        }
+
+        return guides;
     }
 
     internal static string? GetGroupKey(BaseItem item)
@@ -574,8 +678,24 @@ public sealed partial class DuplicateScanner : IScanner
         return NormalizeName(stem);
     }
 
-    private async Task<List<Issue>> RankGroupAsync(string groupKey, List<(BaseItem Item, string Path)> group, CancellationToken cancellationToken)
+    private async Task<List<Issue>> RankGroupAsync(string groupKey, List<(BaseItem Item, string Path)> group, IReadOnlyList<Metadata.TvdbEpisode>? guide, CancellationToken cancellationToken)
     {
+        // A file whose own name says it is a different episode was filed here by mistake (Jellyfin
+        // numbering literal names, issue #3); it is not a copy of this episode, so it never competes.
+        var slot = group.Select(entry => entry.Item).OfType<Episode>().FirstOrDefault() is { ParentIndexNumber: int slotSeason, IndexNumber: int slotEpisode }
+            ? (Season: slotSeason, Episode: slotEpisode)
+            : ((int Season, int Episode)?)null;
+        var claims = new Dictionary<string, EpisodeEvidence.Claim>(StringComparer.OrdinalIgnoreCase);
+        if (slot is { } filed)
+        {
+            foreach (var (item, path) in group)
+            {
+                claims[path] = EpisodeEvidence.Read(path, guide, (item as Episode)?.SeriesName);
+            }
+
+            group = group.Where(entry => claims[entry.Path].Names(filed.Season, filed.Episode) != false).ToList();
+        }
+
         // Task-2 alias exclusion: filter symlinks / junctions / hardlinks BEFORE probing or
         // hashing. The historical behaviour (push them to the tail and still emit them as losers)
         // meant a hardlink to the real file got recycled, breaking the hardlink and leaving the
@@ -615,10 +735,7 @@ public sealed partial class DuplicateScanner : IScanner
 
         if (excludedForAlias > 0)
         {
-            Api.Diagnostics.Record(
-                "DuplicateScanner.AliasExcluded",
-                "Group '" + groupKey + "': " + excludedForAlias.ToString(CultureInfo.InvariantCulture) +
-                " candidate(s) were excluded from duplicate emission because they are symlinks, directory junctions, hardlinked copies of another candidate, or had an unreadable physical identity. Aliases are not independent files and cannot be safely 'recycled'.");
+            Api.Diagnostics.Record("DuplicateScanner.AliasExcluded", "In duplicate group '" + groupKey + "', " + excludedForAlias.ToString(CultureInfo.InvariantCulture) + " file(s) were left out because they are shortcuts (symlinks or junctions) or hard links to another copy, or MediaDash could not tell. Removing one would remove the others too, so they are never offered for recycling. Nothing needs doing.");
         }
 
         if (filtered.Count < 2)
@@ -670,9 +787,7 @@ public sealed partial class DuplicateScanner : IScanner
                 // scan; the next scan re-attempts and produces the correct ranking once the
                 // probe succeeds. Diagnostic surfaces on the Errors tab so the user can spot a
                 // chronically-flaky share instead of the group silently under-flagging forever.
-                Api.Diagnostics.Record(
-                    "DuplicateScanner.ProbeUnavailable",
-                    "Skipping duplicate ranking for group '" + groupKey + "' this scan: ffprobe returned no data for '" + path + "' (share offline, timeout, or ffprobe error). MediaDash will retry on the next scan.");
+                Api.Diagnostics.Record("DuplicateScanner.ProbeUnavailable", "Duplicate group '" + groupKey + "' was not ranked this scan because '" + path + "' could not be analysed (its share may be offline, or analysis timed out). It will be tried again on the next scan.");
                 return [];
             }
 
@@ -730,7 +845,22 @@ public sealed partial class DuplicateScanner : IScanner
             }
 
             var sameDirectoryDistinctStems = SameDirectoryDistinctStems(keeper.Path, loser.Path);
-            var (confidence, vetoed, signals) = ScorePair(keeper, loser, tier, sameDirectoryDistinctStems, hashesMatch, Config);
+            EpisodeEvidence.Verdict? episodeVerdict = null;
+            if (slot is { } filedAs && claims.TryGetValue(keeper.Path, out var keeperClaim) && claims.TryGetValue(loser.Path, out var loserClaim))
+            {
+                episodeVerdict = EpisodeEvidence.Compare(keeperClaim, loserClaim, filedAs.Season, filedAs.Episode);
+
+                // Copies from two different show folders meet only through the TVDb key; a wrongly
+                // identified folder must not pull another show's episode in. Both names must agree
+                // on the show, or both must name this episode by title.
+                if (!episodeVerdict.Veto && !episodeVerdict.Confirmed && keeper.Item is Episode keeperEpisode && loser.Item is Episode loserEpisode
+                    && keeperEpisode.SeriesId != loserEpisode.SeriesId && !EpisodeEvidence.SameShowName(keeper.Path, loser.Path))
+                {
+                    episodeVerdict = new EpisodeEvidence.Verdict(true, "differentShowFolders", false);
+                }
+            }
+
+            var (confidence, vetoed, signals) = ScorePair(keeper, loser, tier, sameDirectoryDistinctStems, hashesMatch, Config, episodeVerdict);
             if (vetoed)
             {
                 _logger.LogDebug("Duplicate pair vetoed for '{Loser}' vs keeper '{Keeper}' (groupKey {GroupKey}, tier {Tier})", loser.Path, keeper.Path, groupKey, tier);
@@ -787,6 +917,7 @@ public sealed partial class DuplicateScanner : IScanner
     /// <param name="sameDirectoryDistinctStems">True when both files sit in the same folder with different filename stems — the #3 shape of intentional distinct files sharing a bad metadata slot.</param>
     /// <param name="hashesMatch">True when caller already confirmed byte-identical (same size + same SHA-256).</param>
     /// <param name="cfg">Plugin config providing the veto thresholds.</param>
+    /// <param name="episode">For episodes: what the two filenames say (parts, episode numbers, TVDb titles).</param>
     /// <returns>Confidence in [0,1], whether the pair was vetoed (skip emission entirely), and a signals dict for DetailsJson.</returns>
     internal static (double Confidence, bool Vetoed, IReadOnlyDictionary<string, object?> Signals) ScorePair(
         Candidate keeper,
@@ -794,7 +925,8 @@ public sealed partial class DuplicateScanner : IScanner
         ConfidenceTier tier,
         bool sameDirectoryDistinctStems,
         bool hashesMatch,
-        Configuration.PluginConfiguration cfg)
+        Configuration.PluginConfiguration cfg,
+        EpisodeEvidence.Verdict? episode = null)
     {
         var jaccard = DuplicateSignals.TitleTokenJaccard(
             System.IO.Path.GetFileName(keeper.Path),
@@ -825,6 +957,16 @@ public sealed partial class DuplicateScanner : IScanner
         {
             signals["appliedTier"] = ConfidenceTier.Exact.ToString();
             return (1.0, Vetoed: false, signals);
+        }
+
+        if (episode is not null)
+        {
+            signals["episodeCheck"] = episode.Reason;
+            if (episode.Veto)
+            {
+                signals["vetoReason"] = episode.Reason;
+                return (0.0, Vetoed: true, signals);
+            }
         }
 
         // Vetoes apply to Tier 1 (Identified) and Tier 2 (Heuristic). Title-token veto is
@@ -863,6 +1005,12 @@ public sealed partial class DuplicateScanner : IScanner
             {
                 confidence -= 0.25;
             }
+        }
+
+        // Both filenames name this exact episode (by number or by its TVDb title).
+        if (episode?.Confirmed == true)
+        {
+            confidence = Math.Max(confidence, tier == ConfidenceTier.Identified ? 0.95 : 0.85);
         }
 
         confidence = Math.Clamp(confidence, 0.0, 1.0);

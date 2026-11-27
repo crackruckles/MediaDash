@@ -221,7 +221,7 @@ t="$M/tv"
 for e in 01 02; do vid "$t/Test Show (2020)/Season 01/Test Show S01E$e.mkv" 640 360 6; done
 expect "tv/Test Show (2020)/Season 01/Test Show S01E01.mkv" none "control: healthy episode"
 vid "$t/Movie In Tv (2018)/Movie In Tv (2018).mkv" 640 360 8
-expect "tv/Movie In Tv (2018)/Movie In Tv (2018).mkv" Misplaced "KNOWN GAP: default JellyfinMetadata sort source types items by library, so a movie inside TV is an Episode"
+expect "tv/Movie In Tv (2018)/Movie In Tv (2018).mkv" Misplaced "a film alone in a folder of its own Title (Year) name inside TV is recognised as a movie, though Jellyfin files it as an episode"
 
 # ---------- music ----------
 COVER="$TMP/cover.jpg"; "$FF" -y -v error -f lavfi -i "testsrc2=size=600x600:duration=1" -frames:v 1 "$COVER"

@@ -55,7 +55,7 @@ internal sealed record MediaMoveManifest
     internal static OwnedDirectory[] CaptureDestinationParents(MediaMovePlan.Entry[] entries) => entries.Select(entry => ExistingParent(entry.Destination)).Distinct(StringComparer.Ordinal)
             .Select(path => Probing.PhysicalFileIdentity.TryRead(path, out var identity) && !identity.IsReparsePoint
                 ? new OwnedDirectory(path, identity.Volume, identity.FileId)
-                : throw new IOException("The destination parent identity could not be verified.")).ToArray();
+                : throw new IOException("Not moved: the destination's parent folder changed or could not be checked. Run a scan to get an up-to-date plan, then approve it again.")).ToArray();
 
     internal static string ClaimContainer(string destination, bool directory)
     {
@@ -168,7 +168,7 @@ internal sealed record MediaMoveManifest
 
         if (string.IsNullOrEmpty(path))
         {
-            throw new IOException("The destination has no verifiable existing parent.");
+            throw new IOException("Not moved: the destination's parent folder could not be found. Check that the destination drive is connected, then run a scan.");
         }
 
         MediaMoveSnapshot.ValidateAncestors(path);

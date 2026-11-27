@@ -220,7 +220,7 @@ public sealed class TranscodeLogScanner : IScanner
         catch (UnauthorizedAccessException ex)
         {
             _logger.LogWarning(ex, "TranscodeLogScanner: log directory not readable at '{Dir}'.", logDir);
-            Api.Diagnostics.Record("TranscodeLogScanner.EnumerateLogs", "Can't read Jellyfin transcode log directory '" + logDir + "': " + ex.Message + ". The transcode-failure scanner is skipping this run.");
+            Api.Diagnostics.Record("TranscodeLogScanner.EnumerateLogs", "MediaDash could not read Jellyfin's transcode logs in '" + logDir + "', so heavy and failed transcodes were not checked this scan. Check that the user Jellyfin runs as can read its log folder. Details: " + ex.Message);
             return new List<FileInfo>();
         }
     }

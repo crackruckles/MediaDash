@@ -14,7 +14,7 @@ namespace Jellyfin.Plugin.MediaDash.Fixers;
 /// <summary>Shared volume detection and verified cross-volume movement.</summary>
 internal static class MediaMoveSafety
 {
-    internal const string UnsafeSourceDeletionMessage = "Cross-filesystem moves are unavailable because safe source deletion cannot be guaranteed while another process may write. Choose a destination on the same filesystem.";
+    internal const string UnsafeSourceDeletionMessage = "Not moved: the destination is on a different drive, and MediaDash only moves files within one drive so nothing can be lost part-way. Choose a destination on the same drive.";
 
     internal static bool RequiresCopyDelete(string source, string target) => IsCrossVolume(source, target)
         || (OperatingSystem.IsWindows() && !string.Equals(Path.GetPathRoot(source), Path.GetPathRoot(target), StringComparison.OrdinalIgnoreCase));
@@ -53,7 +53,7 @@ internal static class MediaMoveSafety
             return;
         }
 
-        throw new IOException("Could not exclusively create the approved destination directory.", new Win32Exception(Marshal.GetLastWin32Error()));
+        throw new IOException("Not moved: the destination folder could not be created (something else may have created it at the same moment). Run a scan to get an up-to-date plan, then approve it again.", new Win32Exception(Marshal.GetLastWin32Error()));
     }
 
     internal static void RenameNoCopy(string source, string target, bool directory)
@@ -80,19 +80,19 @@ internal static class MediaMoveSafety
             }
             catch (EntryPointNotFoundException error)
             {
-                throw new IOException("This filesystem cannot guarantee a rename without overwrite or implicit copying. The source was preserved.", error);
+                throw new IOException("Not moved: this drive cannot rename files without risking overwriting or copying them, so the file was left where it is. Move it by hand in your file manager instead.", error);
             }
         }
         else
         {
-            throw new IOException("A strict rename is unavailable on this platform. The source was preserved.");
+            throw new IOException("Not moved: this system cannot rename files without risking overwriting something, so the file was left where it is. Move it by hand in your file manager instead.");
         }
 
         var errorCode = Marshal.GetLastWin32Error();
         // Separate Linux bind mounts can share a device number and still reject rename with EXDEV.
         var crossFilesystem = errorCode == (OperatingSystem.IsWindows() ? 17 : 18);
         throw new IOException(
-            crossFilesystem ? UnsafeSourceDeletionMessage : "The no-overwrite rename could not complete; no copy/delete fallback was used.",
+            crossFilesystem ? UnsafeSourceDeletionMessage : "Not moved: the file could not be renamed into place without risking overwriting something, so it was left where it is. Check whether something already exists at the destination, then run a scan.",
             new Win32Exception(errorCode));
     }
 
@@ -108,7 +108,7 @@ internal static class MediaMoveSafety
             || protection.IsFixerBlocked(source, issue.Type) || protection.IsFixerBlocked(target, issue.Type)
             || !FixPolicyEvaluator.Evaluate(current, issue.Type, status.Value, FixIntent.Approved, true, false, false).Allowed)
         {
-            throw new IOException("Move stopped because approval, library scope, protection or fix policy changed. Preserve any reported recovery paths.");
+            throw new IOException("The move stopped part-way because your settings changed while it ran (approval, enabled libraries, protected folders or fix settings). Check any recovery locations listed for this move before changing those files.");
         }
     }
 

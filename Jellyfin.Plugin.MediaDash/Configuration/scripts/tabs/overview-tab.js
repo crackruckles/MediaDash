@@ -124,6 +124,11 @@
                 var recycleBadge = dr.IsRecycleBinDrive
                     ? '<span class="mdBadge" style="background:rgba(236,72,153,.16);color:#f9a8d4;font:600 11px \'IBM Plex Mono\', monospace;padding:4px 9px;border-radius:6px;">recycle bin</span>' : '';
                 var pill = smartHeaderPillHtml(dr);
+                // Network-share presentation adapted from Icabaad's PR #91.
+                var shareBadge = dr.IsNetworkShare
+                    ? '<span class="mdBadge" style="background:rgba(148,163,184,.16);color:#cbd5e1;">' + deps.esc(deps.STR.driveNetworkShare) + '</span>' : '';
+                var staleBadge = dr.SpaceReadingStale
+                    ? '<span class="mdBadge" title="' + deps.esc(deps.STR.driveSpaceStaleHint) + '">' + deps.esc(deps.STR.driveSpaceStale) + '</span>' : '';
                 var tiles = smartTilesHtml(dr);
                 var usageTitle = deps.fmt(deps.STR.driveUsed, deps.bytes(used), deps.bytes(dr.TotalBytes));
 
@@ -134,7 +139,7 @@
                     '<div class="mdDriveRow">' +
                         '<div class="mdDriveHeadMain">' +
                             '<span class="mdDriveRoot">' + deps.esc(dr.Root) + '</span>' +
-                            libraryBadge + recycleBadge +
+                            libraryBadge + recycleBadge + shareBadge + staleBadge +
                         '</div>' +
                         '<div class="mdDriveUsage" style="flex:1 1 300px;">' +
                             '<div class="mdBarTrack" title="' + deps.esc(usageTitle) + '">' +
@@ -156,6 +161,7 @@
             // pending pill so a fresh boot doesn't briefly say "SMART unknown". The pill auto-heals
             // on the next /Status poll (~3 s during scan/fix, up to ~15 s idle) once the probe lands.
             function smartHeaderPillHtml(dr) {
+                if (dr.IsNetworkShare) return '';
                 if (!dr.IsLibraryDrive && !dr.IsRecycleBinDrive) return '';
                 if (!mdSmartMonitoringEnabled) {
                     return '<span class="mdSmartPill mdSmartPill--disabled" title="SMART monitoring is off. Right-click (or long-press) to re-enable.">' +
@@ -178,6 +184,7 @@
             // Stat tile row: temperature, wear, powered-on, uncorrected errors. Each tile only renders
             // when the server-side probe actually produced a value; skipping keeps the card honest.
             function smartTilesHtml(dr) {
+                if (dr.IsNetworkShare) return '';
                 if (!dr.IsLibraryDrive && !dr.IsRecycleBinDrive) return '';
                 if (!mdSmartMonitoringEnabled) return '';
                 var tiles = [];
@@ -234,6 +241,13 @@
             }
 
 
+            function driveCardsHtml(drives) {
+                var shares = drives.filter(function (d) { return d.IsNetworkShare; });
+                var note = shares.length > 1
+                    ? '<div class="fieldDescription" style="grid-column:1 / -1;">' + deps.esc(deps.STR.driveShareOverlap) + '</div>' : '';
+                return drives.map(driveCardHtml).join('') + note;
+            }
+
             // User preference — the System Performance card can be hidden via its right-click /
             // long-press menu. Cached so we survive the async config fetch that populates it, and
             // referenced by both the renderer and the toggle. Persisted to plugin config.
@@ -268,10 +282,10 @@
                 if (!grid) {
                     drivesEl.innerHTML = '<div class="mdCard mdFade">' +
                         '<div class="mdSecHead"><span class="material-icons">storage</span>' + deps.esc(deps.STR.driveStorage) + '</div>' +
-                        '<div class="mdDriveGrid">' + drives.map(driveCardHtml).join('') + '</div></div>';
+                        '<div class="mdDriveGrid">' + driveCardsHtml(drives) + '</div></div>';
                     return;
                 }
-                grid.innerHTML = drives.map(driveCardHtml).join('');
+                grid.innerHTML = driveCardsHtml(drives);
             }
 
             // Client-side 7-day dismissal for low-space warnings, per drive root. Deliberately not
@@ -442,7 +456,7 @@
                         drivesEl.innerHTML = '<div class="mdCard mdFade">' +
                             '<div class="mdSecHead"><span class="material-icons">storage</span>' + deps.esc(deps.STR.driveStorage) + '</div>' +
                             '<div class="mdDriveGrid">' +
-                            mdDrivesLast.map(driveCardHtml).join('') +
+                            driveCardsHtml(mdDrivesLast) +
                             '</div></div>';
                     }
                 }
@@ -1167,7 +1181,7 @@
                             drivesEl.innerHTML = '<div class="mdCard mdFade">' +
                                 '<div class="mdSecHead"><span class="material-icons">storage</span>' + deps.esc(deps.STR.driveStorage) + '</div>' +
                                 '<div class="mdDriveGrid">' +
-                                mdDrivesLast.map(driveCardHtml).join('') +
+                                driveCardsHtml(mdDrivesLast) +
                                 '</div></div>';
                         }
                     }

@@ -196,7 +196,7 @@ public sealed class OrphanCleanupScanner : IScanner
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 _logger.LogWarning(ex, "OrphanCleanupScanner: {Pass} pass failed", name);
-                Api.Diagnostics.Record("OrphanCleanupScanner." + name, "The " + name + " orphan-detection pass failed: " + ex.Message + ". Any orphans in that category won't be flagged until the next scan succeeds.");
+                Api.Diagnostics.Record("OrphanCleanupScanner." + name, "The check for leftover " + name + " failed, so leftovers of that kind are not listed this scan. It will try again on the next scan. Details: " + ex.Message);
             }
 
             progress.Report((i + 1) * 100.0 / Math.Max(passes.Count, 1));
@@ -225,6 +225,59 @@ public sealed class OrphanCleanupScanner : IScanner
         {
             var videoLibrary = videoLibraryRoots?.Contains(Path.TrimEndingDirectorySeparator(Path.GetFullPath(root))) == true;
             WalkForEmpty(root, issues, isRoot: true, protection, reserved, cancellationToken, videoLibrary);
+        }
+    }
+
+    /// <summary>
+    /// Finds the leftover folders a grouping move just emptied: grouped leftovers whose master folder
+    /// holds one of <paramref name="movedTargets"/>. The fix run recycles them in the same step as the
+    /// move, so a finished grouping never leaves a second issue behind for the user to approve.
+    /// </summary>
+    /// <param name="movedTargets">Destination paths of the moves that succeeded in this fix run.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>Grouped-leftover issues for the masters those moves filled.</returns>
+    internal IReadOnlyList<Issue> DetectGroupedLeftoversFor(IReadOnlyCollection<string> movedTargets, CancellationToken cancellationToken)
+    {
+        if (movedTargets.Count == 0)
+        {
+            return [];
+        }
+
+        var config = Plugin.Instance!.Configuration;
+        var libraryLocations = VirtualFolderIdentity.GetEnabledFolders(_libraryManager, config.EnabledLibraries)
+            .SelectMany(f => f.Locations ?? Array.Empty<string>())
+            .Where(Directory.Exists)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var reservations = _moves?.CaptureReservations();
+        var reserved = reservations?.Path;
+        var issues = new List<Issue>();
+        bool Filled(string master) => movedTargets.Any(target => LibraryGuard.IsUnder(target, master));
+        if (_identities is not null)
+        {
+            DetectGroupedLeftovers(_identities.GetGroupedLeftovers().Where(candidate => Filled(candidate.MasterPath)).ToArray(), libraryLocations, issues, cancellationToken, _protection, reserved);
+        }
+
+        DetectUntrackedGroupedLeftovers(libraryLocations, issues, reserved, cancellationToken);
+        return issues.Where(issue => OrphanCleanupFixer.ReadKind(issue.DetailsJson) == KindGroupedLeftover
+            && ReadMaster(issue.DetailsJson) is { } master && Filled(master)).ToList();
+    }
+
+    private static string? ReadMaster(string? detailsJson)
+    {
+        if (string.IsNullOrEmpty(detailsJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(detailsJson);
+            return doc.RootElement.TryGetProperty("master", out var master) && master.ValueKind == JsonValueKind.String ? master.GetString() : null;
+        }
+        catch (JsonException)
+        {
+            return null;
         }
     }
 

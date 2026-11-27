@@ -298,7 +298,7 @@ public sealed class FixExecutor
         catch (FileNotFoundException ex)
         {
             _logger.LogInformation(ex, "File missing at fix time: {Path}", primary.Path);
-            Api.Diagnostics.Record("FixTask.FileMissing", primary.Path + ": " + ex.Message);
+            Api.Diagnostics.Record("FixTask.FileMissing", "Fix skipped: '" + primary.Path + "' no longer exists. It was moved or deleted after the scan; run a scan to refresh the Issues list. Details: " + ex.Message);
             return FixResult.Fail(
                 FixReason.SourceMissing,
                 "Fix skipped — the file went missing between scan and fix. Re-scan to refresh.",
@@ -307,7 +307,7 @@ public sealed class FixExecutor
         catch (DirectoryNotFoundException ex)
         {
             _logger.LogInformation(ex, "Directory missing at fix time: {Path}", primary.Path);
-            Api.Diagnostics.Record("FixTask.FileMissing", primary.Path + ": " + ex.Message);
+            Api.Diagnostics.Record("FixTask.FileMissing", "Fix skipped: the folder holding '" + primary.Path + "' no longer exists. It was moved or deleted after the scan; run a scan to refresh the Issues list. Details: " + ex.Message);
             return FixResult.Fail(
                 FixReason.SourceMissing,
                 "Fix skipped — the containing folder went missing between scan and fix. Re-scan to refresh.",
@@ -316,7 +316,7 @@ public sealed class FixExecutor
         catch (IOException ex) when (IsSharingViolation(ex))
         {
             _logger.LogWarning(ex, "File held open after retries: {Path}", primary.Path);
-            Api.Diagnostics.Record("FixTask.FileLocked", primary.Path + ": still held open after 3 retries (~7.5s). " + ex.Message);
+            Api.Diagnostics.Record("FixTask.FileLocked", "Fix skipped: '" + primary.Path + "' is open in another program (still in use after 3 tries over about 8 seconds). Close whatever is using it, such as a playing stream or a download client; the fix will run again next time. Details: " + ex.Message);
             return FixResult.Fail(
                 FixReason.FileLocked,
                 "Fix failed — file was locked by another process even after retrying. " + ex.Message,
@@ -325,7 +325,7 @@ public sealed class FixExecutor
         catch (IOException ex) when (IsDiskFull(ex))
         {
             _logger.LogWarning(ex, "Disk full while fixing {Path}", primary.Path);
-            Api.Diagnostics.Record("FixTask.DiskFull", primary.Path + ": " + ex.Message);
+            Api.Diagnostics.Record("FixTask.DiskFull", "Fix stopped: the drive ran out of space while fixing '" + primary.Path + "'. Free some space and the fix will run again next time. Details: " + ex.Message);
             return FixResult.Fail(
                 FixReason.InsufficientSpace,
                 "Fix failed — the drive ran out of space mid-fix. Free some space and it'll retry on the next run.",
@@ -334,7 +334,7 @@ public sealed class FixExecutor
         catch (IOException ex)
         {
             _logger.LogWarning(ex, "I/O error fixing {Path}", primary.Path);
-            Api.Diagnostics.Record("FixTask.IOError", primary.Path + ": " + ex.Message);
+            Api.Diagnostics.Record("FixTask.IOError", "Fix failed for '" + primary.Path + "' because of a disk or network error. Check that the drive or share is connected and healthy; the fix will run again next time. Details: " + ex.Message);
             return FixResult.Fail(
                 FixReason.Unknown,
                 "Fix failed — " + ex.Message,
@@ -343,7 +343,7 @@ public sealed class FixExecutor
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unexpected error fixing {Path}", primary.Path);
-            Api.Diagnostics.Record("FixTask", primary.Path + ": " + ex.Message);
+            Api.Diagnostics.Record("FixTask", "Fix failed for '" + primary.Path + "' because of an unexpected error. It will run again next time; if it keeps failing, please report it on GitHub with the Jellyfin log. Details: " + ex.GetType().Name + ": " + ex.Message);
             return FixResult.Fail(
                 FixReason.Unknown,
                 "Fix failed — unexpected error: " + ex.Message,

@@ -356,7 +356,7 @@ public sealed class OrphanCleanupFixer : IFixer
                 return FixResult.Fail(FixReason.RepairFailed, "Could not recycle orphan. Choose a recycle bin folder on the same mount as the source. The source was left in place.", ex.Message);
             }
 
-            Api.Diagnostics.Record("OrphanCleanupFixer.Delete", "Couldn't remove orphan \"" + issue.Path + "\": " + ex.Message + ". Check that Jellyfin has write access there.");
+            Api.Diagnostics.Record("OrphanCleanupFixer.Delete", "Could not remove the leftover \"" + issue.Path + "\". Give the user Jellyfin runs as write access there, or delete it by hand. Details: " + ex.Message);
             return FixResult.Fail(FixReason.AccessDenied, "Couldn't delete \"" + fileName + "\" — check that Jellyfin has write access to the containing folder.", ex.Message);
         }
     }

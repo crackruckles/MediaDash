@@ -597,9 +597,7 @@ public sealed class TrackFixer : IFixer
                 // freshly-remuxed video and credit its size to freed.
                 if (IsSelfReferentialSubtitle(externalFile, issue.Path))
                 {
-                    Api.Diagnostics.Record(
-                        "Track.ExternalPathCollision",
-                        "Refused to recycle '" + externalFile + "' as an external subtitle — path matches the video being fixed. Re-scan to rebuild the issue with the current scanner.");
+                    Api.Diagnostics.Record("Track.ExternalPathCollision", "MediaDash did not recycle '" + externalFile + "' as a separate subtitle file, because it is actually the video being fixed. Run a scan to refresh this issue.");
                     continue;
                 }
 

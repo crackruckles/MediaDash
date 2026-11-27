@@ -457,11 +457,11 @@ public sealed class DuplicateFixer : IFixer
             }
             catch (IOException ex)
             {
-                Api.Diagnostics.Record("DuplicateFixer.SidecarSweep", "Failed to sweep '" + f + "': " + ex.Message);
+                Api.Diagnostics.Record("DuplicateFixer.SidecarSweep", "After fixing a duplicate, MediaDash could not remove the leftover file '" + f + "'. Delete it by hand if you no longer need it. Details: " + ex.Message);
             }
             catch (UnauthorizedAccessException ex)
             {
-                Api.Diagnostics.Record("DuplicateFixer.SidecarSweep", "Access denied sweeping '" + f + "': " + ex.Message);
+                Api.Diagnostics.Record("DuplicateFixer.SidecarSweep", "After fixing a duplicate, MediaDash could not remove the leftover file '" + f + "' because Jellyfin does not have permission. Give the user Jellyfin runs as write access to that folder, or delete the file by hand. Details: " + ex.Message);
             }
         }
 
@@ -478,11 +478,11 @@ public sealed class DuplicateFixer : IFixer
         {
             // Folder wasn't empty after sweep — a race, or a hidden file we didn't enumerate.
             // Not fatal: the video is recycled, sidecars are recycled, folder just persists.
-            Api.Diagnostics.Record("DuplicateFixer.FolderPrune", "Could not remove '" + folder + "' after sweep: " + ex.Message);
+            Api.Diagnostics.Record("DuplicateFixer.FolderPrune", "After fixing a duplicate, MediaDash could not remove the now-empty folder '" + folder + "'. Delete it by hand if you like. Details: " + ex.Message);
         }
         catch (UnauthorizedAccessException ex)
         {
-            Api.Diagnostics.Record("DuplicateFixer.FolderPrune", "Access denied removing '" + folder + "': " + ex.Message);
+            Api.Diagnostics.Record("DuplicateFixer.FolderPrune", "After fixing a duplicate, MediaDash could not remove the now-empty folder '" + folder + "' because Jellyfin does not have permission. Delete it by hand if you like. Details: " + ex.Message);
         }
     }
 }

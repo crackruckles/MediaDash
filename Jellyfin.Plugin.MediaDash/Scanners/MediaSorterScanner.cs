@@ -192,6 +192,16 @@ public sealed partial class MediaSorterScanner : IScanner
     /// <returns>The canonical film name, or null.</returns>
     internal static string? FilmIdentity(Episode episode, string path, IReadOnlyList<string>? formerPaths = null)
     {
+        // A film sitting alone in a folder of its own name inside a TV library
+        // ("TV/Movie In Tv (2018)/Movie In Tv (2018).mkv"). Jellyfin makes the folder a show and the
+        // file its only episode, so the show's year always equals the film's and the check below
+        // cannot tell. No season, no episode number and no other video in the folder mark it as a film
+        // whatever its runtime.
+        if (OwnFolderFilm(episode, path) is { } ownFolder)
+        {
+            return ownFolder;
+        }
+
         if (string.IsNullOrWhiteSpace(path)
             || (episode.IndexNumber is int number && number is < 1900 or > 2100)
             || (episode.IndexNumber is null && episode.ParentIndexNumber is not null)
@@ -249,6 +259,39 @@ public sealed partial class MediaSorterScanner : IScanner
         }
 
         return null;
+    }
+
+    internal static string? OwnFolderFilm(Episode episode, string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || episode.ParentIndexNumber is not null)
+        {
+            return null;
+        }
+
+        var folder = Path.GetDirectoryName(path);
+        var folderName = Path.GetFileName(folder ?? string.Empty);
+        var match = CanonicalFolder().Match(folderName ?? string.Empty);
+        if (folder is null || !match.Success
+            || !string.Equals(Path.GetFileNameWithoutExtension(path), folderName, StringComparison.OrdinalIgnoreCase)
+            || Fixers.MoveProvenance.HasEpisodeMarker(folderName!)
+            || (episode.IndexNumber is int number && number != int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture)))
+        {
+            return null;
+        }
+
+        try
+        {
+            if (Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories).Count(file => MediaFormats.Video.Contains(Path.GetExtension(file))) != 1)
+            {
+                return null;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+
+        return Fixers.RenameTemplate.Scrub(folderName!);
     }
 
     [GeneratedRegex(@"^(?:season|series|specials)\b", RegexOptions.IgnoreCase)]

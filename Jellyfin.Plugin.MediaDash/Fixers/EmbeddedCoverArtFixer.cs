@@ -201,7 +201,7 @@ public sealed class EmbeddedCoverArtFixer : IFixer
                 else
                 {
                     strippedFailures++;
-                    Diagnostics.Record("EmbeddedCoverArt.Strip", "Could not strip cover from '" + target + "': " + stripResult.Message);
+                    Diagnostics.Record("EmbeddedCoverArt.Strip", "Could not remove the embedded cover art from '" + target + "'. MediaDash still saved the shared cover image and left this audio file exactly as it was, so it plays normally and keeps its own copy of the cover." + (IsPermissionProblem(stripResult.Message) ? " Give the user Jellyfin runs as write access to the file, then approve the fix again." : string.Empty) + " Details: " + stripResult.Message);
                 }
             }
         }
@@ -212,7 +212,7 @@ public sealed class EmbeddedCoverArtFixer : IFixer
 
         var summary = config.EmbeddedCoverStripFromAudio
             ? "wrote " + coverFilename + " and stripped covers from " + stripped + " audio file(s)"
-              + (strippedFailures > 0 ? " (" + strippedFailures + " could not be stripped and were left alone)" : string.Empty)
+              + (strippedFailures > 0 ? "; " + strippedFailures + " audio file(s) kept their embedded cover because they could not be rewritten safely and were left unchanged (see the Errors tab)" : string.Empty)
             : "wrote " + coverFilename;
 
         return new FixResult
@@ -315,6 +315,12 @@ public sealed class EmbeddedCoverArtFixer : IFixer
             && output.TryGetDuration(out var outputDuration)
             && Math.Abs(originalDuration - outputDuration) <= 2;
 
+    private static bool IsPermissionProblem(string? message)
+        => message is not null
+            && (message.Contains("denied", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("permission", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("read-only", StringComparison.OrdinalIgnoreCase));
+
     private async Task<StripResult> StripEmbeddedCoverAsync(string audioPath, DisposalMethod disposal, CancellationToken cancellationToken)
     {
         FfprobeData? probe;
@@ -354,9 +360,12 @@ public sealed class EmbeddedCoverArtFixer : IFixer
 
         // -map 0 -map -0:v drops every video / image stream while keeping audio + chapters +
         // metadata. -c copy avoids re-encoding — pure remux, byte-for-byte on audio data.
+        // Data streams are dropped too: an .m4b/.m4a stores its chapter titles in a QuickTime
+        // "text" track that the MP4 muxer refuses to copy ("Tag text incompatible with output
+        // codec"). -map_chapters 0 rebuilds that chapter track from the source chapters instead.
         // R09 (2026-09-20): tempPath tail is `.mediaDash.tmp` — pass -f explicitly matching
         // the source audio container so ffmpeg's muxer picks the right one.
-        var args = new List<string> { "-i", audioPath, "-map", "0", "-map", "-0:v", "-c", "copy", "-f", TranscodeFixer.ContainerToFfmpegFormat(ext), tempPath };
+        var args = new List<string> { "-i", audioPath, "-map", "0", "-map", "-0:v", "-map", "-0:d", "-map_chapters", "0", "-c", "copy", "-f", TranscodeFixer.ContainerToFfmpegFormat(ext), tempPath };
 
         // 03-C: capture source identity BEFORE ffmpeg runs so pre-commit recheck fires on stale.
         var audioInfo = new FileInfo(audioPath);

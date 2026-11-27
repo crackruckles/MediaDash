@@ -177,9 +177,7 @@ public sealed class FfmpegExecutor
                 // instead of a raw stderr dump on the Errors tab.
                 if (recordDiagnosticOnFailure && !IsCorruptSourceError(msg))
                 {
-                    Api.Diagnostics.Record(
-                        "Ffmpeg.Error",
-                        "ffmpeg failed" + FindInputHint(args) + ": " + TrimForDiagnostic(msg) + ". The original file was left untouched.");
+                    Api.Diagnostics.Record("Ffmpeg.Error", "ffmpeg could not process the file" + FindInputHint(args) + ". The original file was left unchanged. If this keeps happening for the same file, it may be damaged: check that it plays, or dismiss the issue. ffmpeg reported: " + TrimForDiagnostic(msg));
                 }
 
                 return msg;
@@ -192,9 +190,7 @@ public sealed class FfmpegExecutor
             var msg = TimeoutError(timeout);
             if (recordDiagnosticOnTimeout)
             {
-                Api.Diagnostics.Record(
-                    "Ffmpeg.Timeout",
-                    "ffmpeg exceeded the " + timeout + " limit" + FindInputHint(args) + " and was stopped. Larger files or slow disks may need a longer window — the track fixer already auto-retries once with a 5-hour cap.");
+                Api.Diagnostics.Record("Ffmpeg.Timeout", "ffmpeg took longer than the " + timeout + " limit" + FindInputHint(args) + " and was stopped. The original file was left unchanged. Very large files or slow disks can need longer; the track fixer already retries once with a 5-hour limit.");
             }
 
             return msg;
@@ -206,7 +202,7 @@ public sealed class FfmpegExecutor
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to run ffmpeg at {Path}", encoderPath);
-            Api.Diagnostics.Record("Ffmpeg.RunFailed", "Could not execute ffmpeg at '" + encoderPath + "': " + ex.Message + ". Every re-encode fix is blocked until this is fixed.");
+            Api.Diagnostics.Record("Ffmpeg.RunFailed", "MediaDash could not run ffmpeg at '" + encoderPath + "', so no re-encode fixes can run. Check the FFmpeg path in Jellyfin's transcoding settings and that the file exists and can be run. Details: " + ex.Message);
             return ex.Message;
         }
     }

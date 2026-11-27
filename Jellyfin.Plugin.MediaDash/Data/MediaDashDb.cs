@@ -69,8 +69,7 @@ public sealed class MediaDashDb
             // Message names the path so the user knows what to chown/chmod; Diagnostics can't persist
             // yet (DB isn't up), so the in-memory buffer holds it — if the plugin recovers and Attach
             // runs later, Diagnostics.Attach reloads from disk and the in-memory row is still there.
-            var msg = "MediaDash could not open its SQLite database at '" + dbPath + "': " + ex.Message
-                + ". Check that the Jellyfin process user owns the folder and can write to it.";
+            var msg = "MediaDash could not open its database at '" + dbPath + "'. Check that the user Jellyfin runs as owns that folder and can write to it, then restart Jellyfin. Details: " + ex.Message;
             Api.Diagnostics.Record("MediaDashDb.InitFailed", msg);
             throw new InvalidOperationException(msg, ex);
         }
@@ -225,9 +224,7 @@ public sealed class MediaDashDb
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                Api.Diagnostics.Record(
-                    "MediaDashDb.CachedirTag",
-                    "Could not write CACHEDIR.TAG at '" + tagPath + "': " + ex.Message + ". Backup tools that honour cache-directory tags won't auto-skip the MediaDash folder; the plugin itself continues normally.");
+                Api.Diagnostics.Record("MediaDashDb.CachedirTag", "MediaDash could not write the CACHEDIR.TAG marker in its data folder ('" + tagPath + "'), so backup tools that skip cache folders will back it up too. MediaDash works normally. Details: " + ex.Message);
             }
         }
 

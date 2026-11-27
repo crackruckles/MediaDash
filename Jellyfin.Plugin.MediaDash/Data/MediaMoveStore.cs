@@ -478,7 +478,7 @@ public sealed class MediaMoveStore
             if (!Guid.TryParseExact(id, "N", out _) || operation.State is not ("Prepared" or "Executing" or "Completed" or "Undoing" or "Undone" or "NeedsReview" or "Released")
                 || claims is null)
             {
-                Api.Diagnostics.Record("MediaMove.InvalidManifest", "Move operation '" + id + "' has an unreadable manifest. Its active paths remain reserved for review.");
+                Api.Diagnostics.Record("MediaMove.InvalidManifest", "The record of move '" + id + "' is damaged and cannot be read. MediaDash keeps the files it involved locked against other changes. Please report this on GitHub with the Jellyfin log so it can be repaired.");
                 return operation with { State = "NeedsReview", Detail = "This move record could not be verified. Preserve its original, destination and recovery paths for review." };
             }
 
@@ -490,7 +490,7 @@ public sealed class MediaMoveStore
         }
         catch (Exception error) when (error is InvalidCastException or FormatException or OverflowException)
         {
-            Api.Diagnostics.Record("MediaMove.InvalidRow", "Move operation '" + id + "' has an unreadable row. Conflicting changes are blocked until it is reviewed.");
+            Api.Diagnostics.Record("MediaMove.InvalidRow", "The record of move '" + id + "' is damaged and cannot be read. Other moves of the same files are blocked until it is sorted out. Please report this on GitHub with the Jellyfin log.");
             return new Operation(id, string.Empty, 0, "NeedsReview", string.Empty, string.Empty, null, "Unverifiable move record.", false);
         }
     }

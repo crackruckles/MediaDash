@@ -14,7 +14,7 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.MediaDash.Metadata;
 
 /// <summary>
-/// Minimal TVDb v4 client: login, title search and IMDb remote-id lookup. Every request passes
+/// Minimal TVDb v4 client: login, title search, IMDb remote-id lookup and episode lists. Every request passes
 /// through one gate that spaces request starts at least <see cref="DefaultMinInterval"/> apart,
 /// so the plugin stays under TVDb's 20 requests/second limit however many scans run.
 /// </summary>
@@ -131,6 +131,56 @@ public sealed class TvdbClient : IDisposable
         }
 
         return null;
+    }
+
+    /// <summary>Lists every episode of a series in TVDb's default (aired) order.</summary>
+    /// <param name="apiKey">TVDb API key.</param>
+    /// <param name="seriesId">TVDb series id.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The episodes; empty when TVDb has no such series.</returns>
+    public async Task<IReadOnlyList<TvdbEpisode>> GetEpisodesAsync(string apiKey, int seriesId, CancellationToken cancellationToken)
+    {
+        var episodes = new List<TvdbEpisode>();
+        var id = seriesId.ToString(CultureInfo.InvariantCulture);
+
+        // English titles first; a series without an English translation answers 404 there, so
+        // fall back to the titles in the original language.
+        foreach (var language in new[] { "/eng", string.Empty })
+        {
+            for (var page = 0; page < 50; page++)
+            {
+                using var doc = await GetAsync(apiKey, "series/" + id + "/episodes/default" + language + "?page=" + page.ToString(CultureInfo.InvariantCulture), cancellationToken).ConfigureAwait(false);
+                if (doc is null)
+                {
+                    break;
+                }
+
+                if (doc.RootElement.TryGetProperty("data", out var data) && data.TryGetProperty("episodes", out var list) && list.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var entry in list.EnumerateArray())
+                    {
+                        if (TryInt(entry, "seasonNumber", out var season) && TryInt(entry, "number", out var number)
+                            && entry.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String && name.GetString() is { Length: > 0 } title)
+                        {
+                            episodes.Add(new TvdbEpisode(season, number, title, TryInt(entry, "runtime", out var runtime) && runtime > 0 ? runtime : null));
+                        }
+                    }
+                }
+
+                if (!doc.RootElement.TryGetProperty("links", out var links) || !links.TryGetProperty("next", out var next)
+                    || next.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(next.GetString()))
+                {
+                    break;
+                }
+            }
+
+            if (episodes.Count > 0)
+            {
+                break;
+            }
+        }
+
+        return episodes;
     }
 
     private static bool TryInt(JsonElement element, string property, out int value)

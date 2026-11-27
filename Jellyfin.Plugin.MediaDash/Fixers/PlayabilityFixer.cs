@@ -144,7 +144,7 @@ public sealed class PlayabilityFixer : IFixer
         switch (revalidation.Verdict)
         {
             case RevalidationVerdict.Indeterminate:
-                Api.Diagnostics.Record("PlayabilityFixer.RevalidateIndeterminate", "Refused fix for " + issue.Path + ": " + (revalidation.Diagnostic ?? "revalidation returned indeterminate."));
+                Api.Diagnostics.Record("PlayabilityFixer.RevalidateIndeterminate", "MediaDash did not repair '" + issue.Path + "' because checking it again just before the fix gave no clear answer. It was left unchanged and will be checked again on the next scan. Details: " + (revalidation.Diagnostic ?? "no further detail."));
                 // E2E audit E2E-06: previously every Indeterminate verdict rendered the generic
                 // "ffprobe didn't respond" copy, which falsely blamed the FFmpeg install for files
                 // that are simply not valid media containers. The RevalidationResult diagnostic now

@@ -43,9 +43,7 @@ public sealed class SkiaSharpBridge
             }
             catch (Exception ex)
             {
-                Api.Diagnostics.Record(
-                    "SkiaSharpBridge.LoadFailed",
-                    "SkiaSharp is not available on this host: " + ex.Message + ". The Artwork scanner falls back to header-only checks; deep image validation is disabled. No action needed unless artwork issues are missed.");
+                Api.Diagnostics.Record("SkiaSharpBridge.LoadFailed", "Artwork checks are limited: the image library MediaDash uses (SkiaSharp) is not available on this server, so it only checks image headers and may miss some damaged artwork. Nothing needs to be done unless broken artwork goes unflagged. Details: " + ex.Message);
                 return;
             }
         }
@@ -53,9 +51,7 @@ public sealed class SkiaSharpBridge
         var bitmapType = skiaAssembly.GetType("SkiaSharp.SKBitmap");
         if (bitmapType is null)
         {
-            Api.Diagnostics.Record(
-                "SkiaSharpBridge.LoadFailed",
-                "SkiaSharp is loaded but the SKBitmap type could not be resolved via reflection. The Artwork scanner falls back to header-only checks. Likely a SkiaSharp version drift beyond what this plugin knows about.");
+            Api.Diagnostics.Record("SkiaSharpBridge.LoadFailed", "Artwork checks are limited: this server has a version of the image library (SkiaSharp) that MediaDash does not recognise, so it only checks image headers. Updating MediaDash may restore full checks.");
             return;
         }
 
@@ -101,12 +97,12 @@ public sealed class SkiaSharpBridge
         }
         catch (TargetInvocationException ex)
         {
-            Api.Diagnostics.Record("SkiaSharpBridge.DecodeUnavailable", "Image validation unavailable: " + (ex.InnerException?.Message ?? ex.Message));
+            Api.Diagnostics.Record("SkiaSharpBridge.DecodeUnavailable", "Full artwork checks are not available on this server, so images are only checked by their header. Details: " + (ex.InnerException?.Message ?? ex.Message));
             return new SkiaSharpDecodeResult(false, null, 0, 0);
         }
         catch (Exception ex)
         {
-            Api.Diagnostics.Record("SkiaSharpBridge.DecodeUnavailable", "Image validation unavailable: " + ex.Message);
+            Api.Diagnostics.Record("SkiaSharpBridge.DecodeUnavailable", "Full artwork checks are not available on this server, so images are only checked by their header. Details: " + ex.Message);
             return new SkiaSharpDecodeResult(false, null, 0, 0);
         }
 
@@ -124,7 +120,7 @@ public sealed class SkiaSharpBridge
         }
         catch (Exception ex)
         {
-            Api.Diagnostics.Record("SkiaSharpBridge.DecodeUnavailable", "Image validation unavailable: " + ex.Message);
+            Api.Diagnostics.Record("SkiaSharpBridge.DecodeUnavailable", "Full artwork checks are not available on this server, so images are only checked by their header. Details: " + ex.Message);
             return new SkiaSharpDecodeResult(false, null, 0, 0);
         }
     }

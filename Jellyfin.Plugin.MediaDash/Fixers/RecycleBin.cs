@@ -87,7 +87,7 @@ public sealed class RecycleBin
             if (IsSystemReservedPath(configured))
             {
                 _logger.LogWarning("Configured RecycleBinPath '{Path}' sits under an OS-reserved root; falling back to the default location.", configured);
-                Api.Diagnostics.Record("RecycleBin.ReservedPath", "Configured recycle bin path '" + configured + "' sits under an OS-reserved root and was rejected. Falling back to the plugin's default location. Update Settings → Recycle bin to a path on a data volume (a sibling of your library folder works best — moves become instant renames instead of cross-volume copies).");
+                Api.Diagnostics.Record("RecycleBin.ReservedPath", "The recycle bin folder set in Settings ('" + configured + "') is inside a system folder, so MediaDash is using its default location instead. Choose a folder on your media drive in Settings → Recycle bin; next to your library folder is best, because moves there are instant.");
                 return _defaultRoot;
             }
 
@@ -453,11 +453,11 @@ public sealed class RecycleBin
                 }
                 catch (IOException ex)
                 {
-                    Api.Diagnostics.Record("RecycleBin.SizeScan", "Could not stat recycled file '" + file + "': " + ex.Message + ". Total-size total will be short by one entry.");
+                    Api.Diagnostics.Record("RecycleBin.SizeScan", "The recycle bin size shown may be slightly low: MediaDash could not read the size of '" + file + "'. Details: " + ex.Message);
                 }
                 catch (UnauthorizedAccessException ex)
                 {
-                    Api.Diagnostics.Record("RecycleBin.SizeScan", "Access denied stat'ing recycled file '" + file + "': " + ex.Message + ". Total-size total will be short by one entry.");
+                    Api.Diagnostics.Record("RecycleBin.SizeScan", "The recycle bin size shown may be slightly low: Jellyfin does not have permission to read '" + file + "'. Give the user Jellyfin runs as read access to the recycle bin folder. Details: " + ex.Message);
                 }
             }
         }
@@ -526,12 +526,12 @@ public sealed class RecycleBin
                 }
                 catch (IOException ex)
                 {
-                    Api.Diagnostics.Record("RecycleBin.ListScan", "Could not read recycled file '" + file + "': " + ex.Message + ". It will not appear in the recycle bin listing.");
+                    Api.Diagnostics.Record("RecycleBin.ListScan", "'" + file + "' is in the recycle bin but could not be read, so it is not listed. Check that the user Jellyfin runs as can read the recycle bin folder. Details: " + ex.Message);
                     continue;
                 }
                 catch (UnauthorizedAccessException ex)
                 {
-                    Api.Diagnostics.Record("RecycleBin.ListScan", "Access denied on recycled file '" + file + "': " + ex.Message + ". It will not appear in the recycle bin listing.");
+                    Api.Diagnostics.Record("RecycleBin.ListScan", "'" + file + "' is in the recycle bin but Jellyfin does not have permission to read it, so it is not listed. Give the user Jellyfin runs as read access to the recycle bin folder. Details: " + ex.Message);
                     continue;
                 }
 
@@ -575,12 +575,12 @@ public sealed class RecycleBin
                 }
                 catch (IOException ex)
                 {
-                    Api.Diagnostics.Record("RecycleBin.ListScan", "Could not read recycled folder '" + subdir + "': " + ex.Message + ". It will not appear in the recycle bin listing.");
+                    Api.Diagnostics.Record("RecycleBin.ListScan", "The recycle bin folder '" + subdir + "' could not be read, so its contents are not listed. Check that the user Jellyfin runs as can read it. Details: " + ex.Message);
                     continue;
                 }
                 catch (UnauthorizedAccessException ex)
                 {
-                    Api.Diagnostics.Record("RecycleBin.ListScan", "Access denied on recycled folder '" + subdir + "': " + ex.Message + ". It will not appear in the recycle bin listing.");
+                    Api.Diagnostics.Record("RecycleBin.ListScan", "Jellyfin does not have permission to read the recycle bin folder '" + subdir + "', so its contents are not listed. Give the user Jellyfin runs as read access to it. Details: " + ex.Message);
                     continue;
                 }
 
@@ -977,13 +977,13 @@ public sealed class RecycleBin
                 catch (UnauthorizedAccessException ex)
                 {
                     // Record the first offender and keep going — deleting the rest still frees space.
-                    _lastEmptyError ??= "Permission denied deleting '" + dir + "'. Grant the user Jellyfin runs as read+write on the recycle bin folder. (" + ex.Message + ")";
+                    _lastEmptyError ??= "Could not empty '" + dir + "' from the recycle bin because Jellyfin does not have permission. Give the user Jellyfin runs as read and write access to the recycle bin folder, then empty it again. Details: " + ex.Message;
                     _logger.LogWarning(ex, "Permission denied deleting {Dir}", dir);
                     Api.Diagnostics.Record("RecycleBin.PermissionDenied", _lastEmptyError);
                 }
                 catch (IOException ex)
                 {
-                    _lastEmptyError ??= "Could not delete '" + dir + "': " + ex.Message + ". A file may be open in another program.";
+                    _lastEmptyError ??= "Could not empty '" + dir + "' from the recycle bin. A file in it may be open in another program; close it and empty the bin again. Details: " + ex.Message;
                     _logger.LogWarning(ex, "I/O error deleting {Dir}", dir);
                     Api.Diagnostics.Record("RecycleBin.IOError", _lastEmptyError);
                 }
@@ -1027,12 +1027,12 @@ public sealed class RecycleBin
             catch (IOException ex)
             {
                 _logger.LogWarning(ex, "Could not purge recycle bin folder {Dir}", dir);
-                Api.Diagnostics.Record("RecycleBin.PurgeFailed", "Could not purge expired recycle bin folder '" + dir + "': " + ex.Message + ". Retention will retry it next cycle. A file may be open in another program.");
+                Api.Diagnostics.Record("RecycleBin.PurgeFailed", "An expired recycle bin folder ('" + dir + "') could not be deleted. A file in it may be open in another program; MediaDash will try again later. Details: " + ex.Message);
             }
             catch (UnauthorizedAccessException ex)
             {
                 _logger.LogWarning(ex, "Access denied purging recycle bin folder {Dir}", dir);
-                Api.Diagnostics.Record("RecycleBin.PurgeFailed", "Access denied purging expired recycle bin folder '" + dir + "': " + ex.Message + ". Grant Jellyfin's user delete permission on the recycle bin folder.");
+                Api.Diagnostics.Record("RecycleBin.PurgeFailed", "An expired recycle bin folder ('" + dir + "') could not be deleted because Jellyfin does not have permission. Give the user Jellyfin runs as delete permission on the recycle bin folder. Details: " + ex.Message);
             }
         }
     }
@@ -1551,16 +1551,14 @@ public sealed class RecycleBin
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
                     _logger.LogWarning(ex, "Could not auto-adopt legacy recycle batch {Batch}", candidate);
-                    Api.Diagnostics.Record(
-                        "RecycleBin.LegacyMigrationFailed",
-                        "Could not adopt legacy recycle batch '" + candidate + "': " + ex.Message + ". Create an empty '" + OwnershipMarkerFileName + "' file inside that batch to adopt it manually.");
+                    Api.Diagnostics.Record("RecycleBin.LegacyMigrationFailed", "A recycle bin folder from an older MediaDash version ('" + candidate + "') could not be taken over, so it will not be listed or emptied automatically. To fix this, create an empty file named '" + OwnershipMarkerFileName + "' inside it. Details: " + ex.Message);
                 }
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             _logger.LogWarning(ex, "Could not inspect custom recycle root {Root} for legacy batches", root);
-            Api.Diagnostics.Record("RecycleBin.LegacyMigrationFailed", "Could not inspect custom recycle root '" + root + "' for legacy batches: " + ex.Message);
+            Api.Diagnostics.Record("RecycleBin.LegacyMigrationFailed", "MediaDash could not check the recycle bin folder '" + root + "' for items left by older versions. Nothing needs doing unless old recycled items are missing from the list. Details: " + ex.Message);
         }
     }
 

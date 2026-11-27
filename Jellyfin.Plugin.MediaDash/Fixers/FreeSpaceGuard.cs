@@ -86,21 +86,51 @@ internal static class FreeSpaceGuard
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetDiskFreeSpaceEx(string directory, out long available, out long total, out long free);
 
-    private static long GetAvailableFreeSpace(string directory)
+    /// <summary>Measures an existing directory, preserving UNC, mount and caller-quota semantics.</summary>
+    /// <param name="directory">Directory on the filesystem to measure; never reduced to its path root.</param>
+    /// <param name="availableBytes">Space available to the current account.</param>
+    /// <param name="totalBytes">Total capacity visible to the current account.</param>
+    /// <returns>False when the directory cannot be measured.</returns>
+    internal static bool TryGetDiskSpace(string directory, out long availableBytes, out long totalBytes)
+    {
+        availableBytes = 0;
+        totalBytes = 0;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(directory) || !Path.IsPathFullyQualified(directory))
+            {
+                return false;
+            }
+
+            var space = GetDiskSpace(directory);
+            availableBytes = space.Available;
+            totalBytes = space.Total;
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    private static long GetAvailableFreeSpace(string directory) => GetDiskSpace(directory).Available;
+
+    private static (long Available, long Total) GetDiskSpace(string directory)
     {
         if (!OperatingSystem.IsWindows())
         {
             // Unix DriveInfo queries the supplied path, including bind mounts and symlink targets.
-            return new DriveInfo(directory).AvailableFreeSpace;
+            var drive = new DriveInfo(directory);
+            return (drive.AvailableFreeSpace, drive.TotalSize);
         }
 
         // DriveInfo rejects UNC paths and reduces local paths to a drive letter, losing mount points.
-        if (!GetDiskFreeSpaceEx(Path.TrimEndingDirectorySeparator(directory) + Path.DirectorySeparatorChar, out var available, out _, out _))
+        if (!GetDiskFreeSpaceEx(Path.TrimEndingDirectorySeparator(directory) + Path.DirectorySeparatorChar, out var available, out var total, out _))
         {
             throw new IOException("Free-space query failed at '" + directory + "': " + new Win32Exception(Marshal.GetLastWin32Error()).Message);
         }
 
-        return available;
+        return (available, total);
     }
 
     private static string Human(long bytes)

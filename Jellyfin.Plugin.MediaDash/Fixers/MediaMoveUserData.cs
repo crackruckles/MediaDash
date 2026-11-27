@@ -111,14 +111,14 @@ public sealed class MediaMoveUserData : IHostedService
 
                     if (data is null)
                     {
-                        throw new IOException("The item's user state could not be captured before moving its files.");
+                        throw new IOException("Not moved: MediaDash could not save this item's watched status before moving it, so nothing was moved. Try again.");
                     }
 
                     var copy = JsonSerializer.Deserialize<UserItemData>(JsonSerializer.Serialize(data, MediaMovePlan.JsonOptions), MediaMovePlan.JsonOptions)!;
                     result.Add(new(binding.ItemId, userId, binding.Path, destination, copy, !HasState(copy) && (saved is null || !HasState(saved.Data)), saved?.Data));
                     if (result.Count > 65536)
                     {
-                        throw new IOException("This move contains too many user-state records. Select a smaller complete item.");
+                        throw new IOException("Not moved: this selection holds too much watched-status data to move at once. Move it in smaller parts, for example one season at a time.");
                     }
                 }
             }
@@ -127,7 +127,7 @@ public sealed class MediaMoveUserData : IHostedService
         }
         catch (Exception error) when (error is not IOException and not OperationCanceledException)
         {
-            throw new IOException("User state could not be safely captured. No media files have been moved.", error);
+            throw new IOException("Not moved: MediaDash could not safely save watched status first, so nothing was moved. Try again.", error);
         }
     }
 
@@ -188,7 +188,7 @@ public sealed class MediaMoveUserData : IHostedService
                             continue;
                         }
 
-                        var current = _bridge.Value.Read(user, target) ?? throw new IOException("The indexed item's user data is unavailable.");
+                        var current = _bridge.Value.Read(user, target) ?? throw new IOException("Not moved: MediaDash could not read this item's watched status and other user data, so it could not keep them safe during the move. Try again; if it keeps happening, restart Jellyfin.");
                         if (RestoreState(snapshot.Data, current, snapshot.TargetBaseline))
                         {
                             _bridge.Value.Save(user, target, current);
@@ -200,14 +200,14 @@ public sealed class MediaMoveUserData : IHostedService
 
                     if (changed && !_moves.SaveUserDataProgress(operation, manifest with { UserData = snapshots }))
                     {
-                        Api.Diagnostics.Record("MediaMove.UserData", "User state was preserved, but its recovery marker changed. The durable snapshot remains available for review.");
+                        Api.Diagnostics.Record("MediaMove.UserData", "Watched status and other user data for a moved item were kept, but their backup copy changed unexpectedly. Nothing was lost; the backup stays with the move record.");
                     }
                 }
             }
             catch (Exception error)
             {
                 _logger.LogWarning(error, "Move user-state restoration is pending native indexing or review");
-                Api.Diagnostics.Record("MediaMove.UserData", "A recorded move's user state could not yet be restored. Its snapshot remains in the move journal: " + error.Message);
+                Api.Diagnostics.Record("MediaMove.UserData", "Watched status and other user data for a moved item could not be put back yet. They are saved with the move record and MediaDash will try again. Details: " + error.Message);
             }
             finally
             {
@@ -288,17 +288,17 @@ public sealed class MediaMoveUserData : IHostedService
             _users = users;
             _data = data;
             _getUsers = users.GetType().GetMethod("get_Users") ?? users.GetType().GetMethod("GetUsers", Type.EmptyTypes)
-                ?? throw new IOException("The native users API is unavailable.");
+                ?? throw new IOException("Not moved: this Jellyfin version does not let MediaDash read user data, so it cannot keep watched status during a move. Updating MediaDash may fix this.");
             _read = data.GetType().GetMethods().First(method => method.Name == "GetUserData" && !method.IsGenericMethod
                 && method.GetParameters() is { Length: 2 } parameters && parameters[1].ParameterType == typeof(BaseItem) && method.ReturnType == typeof(UserItemData));
             _save = data.GetType().GetMethods().First(method => method.Name == "SaveUserData" && !method.IsGenericMethod
                 && method.GetParameters() is { Length: 5 } parameters && parameters[1].ParameterType == typeof(BaseItem) && parameters[2].ParameterType == typeof(UserItemData));
         }
 
-        internal object[] Users() => (_getUsers.Invoke(_users, null) as IEnumerable ?? throw new IOException("Native users could not be enumerated.")).Cast<object>().ToArray();
+        internal object[] Users() => (_getUsers.Invoke(_users, null) as IEnumerable ?? throw new IOException("Not moved: MediaDash could not read Jellyfin's user list, so it could not save watched status first. Try again; if it keeps happening, restart Jellyfin.")).Cast<object>().ToArray();
 
         internal static Guid Id(object user) => user.GetType().GetProperty("Id")?.GetValue(user) is Guid id && id != Guid.Empty
-            ? id : throw new IOException("A native user's identity is unavailable.");
+            ? id : throw new IOException("Not moved: MediaDash could not read one Jellyfin user's details, so it could not save their watched status first. Try again; if it keeps happening, restart Jellyfin.");
 
         internal UserItemData? Read(object user, BaseItem item) => _read.Invoke(_data, [user, item]) as UserItemData;
 

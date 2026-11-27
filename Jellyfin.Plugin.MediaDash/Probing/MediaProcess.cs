@@ -91,7 +91,7 @@ internal sealed class MediaProcess : IAsyncDisposable
         }
         catch (Win32Exception error)
         {
-            Api.Diagnostics.Record("MediaProcess.Stop", "Could not stop a MediaDash media process: " + error.Message);
+            Api.Diagnostics.Record("MediaProcess.Stop", "MediaDash could not stop one of its ffmpeg or ffprobe processes, so it may keep running in the background until it finishes. If it is slowing the server down, restart Jellyfin. Details: " + error.Message);
         }
 
         // Keep ownership and the slot until the child exits, even if cancellation
@@ -114,7 +114,7 @@ internal sealed class MediaProcess : IAsyncDisposable
         }
         catch (Exception error)
         {
-            Api.Diagnostics.Record("MediaProcess.Stop", "Could not confirm a MediaDash media process exited: " + error.Message);
+            Api.Diagnostics.Record("MediaProcess.Stop", "MediaDash could not confirm that one of its ffmpeg or ffprobe processes has stopped. The next job will wait for it. Details: " + error.Message);
             return;
         }
 

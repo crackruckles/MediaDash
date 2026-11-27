@@ -30,7 +30,7 @@ internal static class MediaMoveMetadata
         }
         catch (Exception error) when (error is EntryPointNotFoundException or DllNotFoundException)
         {
-            throw new IOException("Move refused: this host cannot verify the required filesystem metadata.", error);
+            throw new IOException("Not moved: this system cannot check file permissions and ownership, so MediaDash does not move files here. Move them by hand in your file manager instead.", error);
         }
     }
 
@@ -48,7 +48,7 @@ internal static class MediaMoveMetadata
             return JsonSerializer.Serialize(new { identity.User, identity.Group, mode = File.GetUnixFileMode(path), attributes = ExtendedAttributes(path) });
         }
 
-        throw new IOException("Move metadata cannot be verified on this platform.");
+        throw new IOException("Not moved: this system cannot check file permissions and ownership, so MediaDash does not move files here. Move them by hand in your file manager instead.");
     }
 
     internal static void Preserve(string source, string destination, bool directory)
@@ -100,7 +100,7 @@ internal static class MediaMoveMetadata
             var identity = UnixOwnership(source);
             if (ChangeOwnership(destination, identity.User, identity.Group) != 0)
             {
-                throw NativeFailure("Move refused: source ownership could not be preserved.");
+                throw NativeFailure("Not moved: the file's owner could not be kept at the destination. Jellyfin needs permission to set file ownership there, for example by running as the same user that owns your media.");
             }
 
             File.SetUnixFileMode(destination, File.GetUnixFileMode(source));
@@ -109,7 +109,7 @@ internal static class MediaMoveMetadata
                 var value = Convert.FromHexString(attribute.Value);
                 if (SetAttribute(destination, attribute.Key, value, (nuint)value.Length, 0) != 0)
                 {
-                    throw NativeFailure("Move refused: source extended attributes could not be preserved.");
+                    throw NativeFailure("Not moved: the file's extra attributes could not be copied to the destination. Check that the destination drive supports them and that Jellyfin can write there.");
                 }
             }
 
@@ -124,12 +124,12 @@ internal static class MediaMoveMetadata
         }
         else
         {
-            throw new IOException("Move metadata cannot be preserved on this platform.");
+            throw new IOException("Not moved: this system cannot copy file permissions and ownership safely, so MediaDash does not move files here. Move them by hand in your file manager instead.");
         }
 
         if (Capture(source, directory) != Capture(destination, directory))
         {
-            throw new IOException("Move refused: copied permissions, attributes or alternate streams do not match the source.");
+            throw new IOException("Not moved: after copying, the new file's permissions or attributes did not match the original, so the original was left where it was. Check the permissions on the destination folder.");
         }
     }
 
@@ -143,7 +143,7 @@ internal static class MediaMoveMetadata
                 yield break;
             }
 
-            throw NativeFailure("Move refused: alternate streams could not be enumerated.");
+            throw NativeFailure("Not moved: MediaDash could not read the file's hidden Windows data streams, so it cannot copy them safely. Check that the user Jellyfin runs as can read the file.");
         }
 
         try
@@ -158,7 +158,7 @@ internal static class MediaMoveMetadata
             while (FindNextStream(handle, out stream));
             if (Marshal.GetLastWin32Error() != 38)
             {
-                throw NativeFailure("Move refused: alternate stream enumeration was incomplete.");
+                throw NativeFailure("Not moved: MediaDash could not read all of the file's hidden Windows data streams, so it cannot copy them safely. Check that the user Jellyfin runs as can read the file.");
             }
         }
         finally
@@ -206,7 +206,7 @@ internal static class MediaMoveMetadata
         var data = new byte[256];
         if (StatExtended(-100, path, 0x100, 0x7ff, data) != 0 || (BitConverter.ToUInt32(data, 0) & 0x18) != 0x18)
         {
-            throw NativeFailure("Move refused: source ownership could not be verified.");
+            throw NativeFailure("Not moved: MediaDash could not check who owns the file. Check that the user Jellyfin runs as can read it.");
         }
 
         return (BitConverter.ToUInt32(data, 20), BitConverter.ToUInt32(data, 24));
@@ -218,7 +218,7 @@ internal static class MediaMoveMetadata
         var length = ListAttributes(path, null, 0);
         if (length < 0 || length > 16 * 1024 * 1024)
         {
-            throw NativeFailure("Move refused: extended attributes could not be enumerated.");
+            throw NativeFailure("Not moved: MediaDash could not read the file's extra attributes, so it cannot copy them safely. Check that the user Jellyfin runs as can read the file.");
         }
 
         if (length == 0)
@@ -229,7 +229,7 @@ internal static class MediaMoveMetadata
         var names = new byte[(int)length];
         if (ListAttributes(path, names, (nuint)names.Length) != length)
         {
-            throw new IOException("Move refused: source extended attributes changed while reading.");
+            throw new IOException("Not moved: the file's extra attributes changed while MediaDash was reading them; another program may be using it. Try again later.");
         }
 
         foreach (var name in Encoding.UTF8.GetString(names).Split('\0', StringSplitOptions.RemoveEmptyEntries).Order(StringComparer.Ordinal))
@@ -237,13 +237,13 @@ internal static class MediaMoveMetadata
             var size = ReadAttribute(path, name, null, 0);
             if (size < 0 || size > 16 * 1024 * 1024)
             {
-                throw NativeFailure("Move refused: an extended attribute could not be read.");
+                throw NativeFailure("Not moved: MediaDash could not read the file's extra attributes, so it cannot copy them safely. Check that the user Jellyfin runs as can read the file.");
             }
 
             var value = new byte[(int)size];
             if (ReadAttribute(path, name, value, (nuint)value.Length) != size)
             {
-                throw new IOException("Move refused: an extended attribute changed while reading.");
+                throw new IOException("Not moved: the file's extra attributes changed while MediaDash was reading them; another program may be using it. Try again later.");
             }
 
             attributes.Add(name, Convert.ToHexString(value));

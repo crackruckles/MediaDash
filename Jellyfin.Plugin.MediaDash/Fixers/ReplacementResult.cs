@@ -30,5 +30,5 @@ internal sealed record ReplacementResult(
     string? TechnicalDetail)
 {
     internal string DescribeRecovery(string originalPath)
-        => $"Replacement could not finish. Keep the verified output at '{RecoveryPath}'. Check the original path '{originalPath}' and the recycle bin before restoring. Do not overwrite an existing file.";
+        => $"MediaDash made a new, checked copy of '{originalPath}' but could not finish swapping it in. Nothing is lost: the new copy is at '{RecoveryPath}', and the original is either still in place or in the recycle bin. Check both, keep the one you want, and do not overwrite an existing file.";
 }

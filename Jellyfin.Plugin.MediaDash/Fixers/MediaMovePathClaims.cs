@@ -22,7 +22,7 @@ internal static class MediaMovePathClaims
         {
             if (!MediaMovePlan.Canonical(path))
             {
-                throw new IOException("A reservation path is not canonical.");
+                throw new IOException("Not moved: one of this move's paths is written in an unexpected form (for example through a shortcut). Run a scan to get an up-to-date plan, then approve it again.");
             }
 
             var count = claims.Count;
@@ -37,7 +37,7 @@ internal static class MediaMovePathClaims
 
                     if (!PhysicalFileIdentity.TryRead(ancestor, out identity) || identity.IsReparsePoint || identity.FileId == 0)
                     {
-                        throw new IOException("A reservation's native path identity could not be verified.");
+                        throw new IOException("Not moved: MediaDash could not confirm that one of this move's folders is the same one it checked earlier. Run a scan to get an up-to-date plan, then approve it again.");
                     }
 
                     identities.Add(ancestor, identity);
@@ -48,7 +48,7 @@ internal static class MediaMovePathClaims
 
             if (claims.Count == count)
             {
-                throw new IOException("A reservation has no readable native ancestor.");
+                throw new IOException("Not moved: one of the folders this move needs could not be read. Check that the drive is connected and that Jellyfin can read it, then run a scan.");
             }
         }
 

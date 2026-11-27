@@ -113,7 +113,7 @@ public sealed class SystemStats
             // Anything the fine-grained catches below miss (a runtime issue in the Windows-only PerformanceCounter
             // path on Linux, a permission error in /proc, an assembly-load failure) surfaces here so the Errors
             // tab has something to look at instead of the API 500ing without explanation.
-            Diagnostics.Record("SystemStats", ex.GetType().Name + ": " + ex.Message);
+            Diagnostics.Record("SystemStats", "The Overview could not read this server's system stats (CPU, memory or GPU), so some tiles are blank. It will try again on the next refresh. Details: " + ex.GetType().Name + ": " + ex.Message);
             return new SystemStats
             {
                 CpuCoreCount = Environment.ProcessorCount,
@@ -379,12 +379,12 @@ public sealed class SystemStats
         }
         catch (IOException ex)
         {
-            Diagnostics.Record("SystemStats.Linux", ex.Message);
+            Diagnostics.Record("SystemStats.Linux", "The Overview could not read CPU or memory usage from /proc, so that tile is blank. It will try again on the next refresh. Details: " + ex.Message);
             return null;
         }
         catch (UnauthorizedAccessException ex)
         {
-            Diagnostics.Record("SystemStats.Linux", ex.Message);
+            Diagnostics.Record("SystemStats.Linux", "The Overview is not allowed to read CPU or memory usage from /proc, so that tile is blank. If Jellyfin runs in a container, make sure /proc is available to it. Details: " + ex.Message);
             return null;
         }
     }
@@ -430,12 +430,12 @@ public sealed class SystemStats
         }
         catch (IOException ex)
         {
-            Diagnostics.Record("SystemStats.Linux", ex.Message);
+            Diagnostics.Record("SystemStats.Linux", "The Overview could not read CPU or memory usage from /proc, so that tile is blank. It will try again on the next refresh. Details: " + ex.Message);
             return null;
         }
         catch (UnauthorizedAccessException ex)
         {
-            Diagnostics.Record("SystemStats.Linux", ex.Message);
+            Diagnostics.Record("SystemStats.Linux", "The Overview is not allowed to read CPU or memory usage from /proc, so that tile is blank. If Jellyfin runs in a container, make sure /proc is available to it. Details: " + ex.Message);
             return null;
         }
     }
@@ -836,19 +836,19 @@ public sealed class SystemStats
         }
         catch (UnauthorizedAccessException ex)
         {
-            Diagnostics.Record("SystemStats.WindowsGPU", ex.Message);
+            Diagnostics.Record("SystemStats.WindowsGPU", "The Overview is not allowed to read GPU usage, so the GPU tile stays blank until Jellyfin restarts. Adding the user Jellyfin runs as to the Windows \'Performance Monitor Users\' group allows it. Details: " + ex.Message);
             _winGpuAvailable = false;
             return null;
         }
         catch (InvalidOperationException ex)
         {
-            Diagnostics.Record("SystemStats.WindowsGPU", ex.Message);
+            Diagnostics.Record("SystemStats.WindowsGPU", "The Overview could not read GPU usage from Windows, so the GPU tile stays blank until Jellyfin restarts. Details: " + ex.Message);
             _winGpuAvailable = false;
             return null;
         }
         catch (System.ComponentModel.Win32Exception ex)
         {
-            Diagnostics.Record("SystemStats.WindowsGPU", ex.Message);
+            Diagnostics.Record("SystemStats.WindowsGPU", "The Overview could not read GPU usage from Windows, so the GPU tile stays blank until Jellyfin restarts. Details: " + ex.Message);
             _winGpuAvailable = false;
             return null;
         }

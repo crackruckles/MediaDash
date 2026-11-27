@@ -112,7 +112,7 @@ public sealed class MediaMoveExecutionTests : IDisposable
         var plan = await _planner.BuildExplicitAsync([(source, destination)], _items, _config, CancellationToken.None);
         if (!oldApproval)
         {
-            Assert.Contains(plan.BlockingReasons, reason => reason.Contains("source deletion", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(plan.BlockingReasons, reason => reason.Contains("different drive", StringComparison.OrdinalIgnoreCase));
         }
         else
         {
@@ -120,7 +120,7 @@ public sealed class MediaMoveExecutionTests : IDisposable
             var result = await _service.ExecuteExplicitAsync(plan, plan.Fingerprint, null, CancellationToken.None);
             Assert.False(result.Success);
             Assert.Equal(FixReason.MoveNeedsReview, result.Reason);
-            Assert.Contains("source deletion", result.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("different drive", result.Message, StringComparison.OrdinalIgnoreCase);
         }
 
         Assert.Equal(0, OperationCount());
@@ -145,7 +145,7 @@ public sealed class MediaMoveExecutionTests : IDisposable
 
         var error = Assert.Throws<IOException>(() => bin.MoveToBin(source));
 
-        Assert.Contains("source deletion", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("different drive", error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("original bytes", File.ReadAllText(payload));
         Assert.False(Directory.Exists(dataRoot));
     }

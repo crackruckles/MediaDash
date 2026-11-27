@@ -96,7 +96,7 @@ public sealed class FfprobeService
         var data = Deserialize(json, path);
         if (data is not null && IsInfrastructureError(data.Error?.Message))
         {
-            Api.Diagnostics.Record("Ffprobe.ReadFailed", "Could not read '" + path + "': " + data.Error!.Message + ". The file was skipped; this is not evidence of corruption.");
+            Api.Diagnostics.Record("Ffprobe.ReadFailed", "Could not read '" + path + "' for analysis, so it was skipped this scan. This does not mean the file is damaged. Details: " + data.Error!.Message);
             return null;
         }
 
@@ -869,7 +869,7 @@ public sealed class FfprobeService
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             _logger.LogWarning("ffprobe timed out after {Timeout} on {Path}", ProbeTimeout, path);
-            Api.Diagnostics.Record("Ffprobe.Timeout", "ffprobe took more than " + ProbeTimeout.TotalSeconds + "s on " + path + " — the file is being skipped this scan. Very large files or slow storage can hit this.");
+            Api.Diagnostics.Record("Ffprobe.Timeout", "Analysing '" + path + "' took longer than " + ProbeTimeout.TotalSeconds + " seconds, so it was skipped this scan. Very large files or slow storage can cause this; it will be tried again on the next scan.");
             return null;
         }
         catch (OperationCanceledException)
@@ -879,7 +879,7 @@ public sealed class FfprobeService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to run ffprobe at {ProbePath}", probePath);
-            Api.Diagnostics.Record("Ffprobe.RunFailed", "Could not execute ffprobe at '" + probePath + "': " + ex.Message + ". Every scan that depends on file analysis (Playability, Quality, Audio/Sub language) is blocked until this is fixed.");
+            Api.Diagnostics.Record("Ffprobe.RunFailed", "MediaDash could not run ffprobe at '" + probePath + "', so file checks (Playability, Quality, audio and subtitle language) cannot run. Check the FFmpeg path in Jellyfin's transcoding settings and that ffprobe is next to it. Details: " + ex.Message);
             return null;
         }
     }

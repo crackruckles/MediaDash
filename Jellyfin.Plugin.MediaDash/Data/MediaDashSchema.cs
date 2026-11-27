@@ -50,7 +50,9 @@ internal static class MediaDashSchema
     // v15: issue #94 — invalidate strict decode verdicts and old playability consent.
     // v16: TVDb identity tables (media_identities, media_masters, tvdb_lookups). Created by
     //     CreateTables on every boot; no data migration.
-    public const int Version = 16;
+    // v17: tvdb_episode_guides — cached TVDb episode lists used to check duplicate episodes.
+    //     Created by CreateTables; no data migration.
+    public const int Version = 17;
 
     // Sentinel stored in restored_paths.type when the restore came from a manifest-only bin entry
     // (RecycleBin/Items/Restore). We don't know which IssueType triggered the original recycle in
@@ -247,6 +249,12 @@ internal static class MediaDashSchema
             CREATE TABLE IF NOT EXISTS tvdb_lookups (
                 query_key TEXT PRIMARY KEY,
                 tvdb_id INTEGER NULL,
+                fetched_utc_ticks INTEGER NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS tvdb_episode_guides (
+                series_tvdb_id INTEGER PRIMARY KEY,
+                episodes_json TEXT NOT NULL,
                 fetched_utc_ticks INTEGER NOT NULL
             );
             """;

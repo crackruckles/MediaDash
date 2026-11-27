@@ -139,6 +139,71 @@ public sealed class MediaIdentityStore
             reader.IsDBNull(10) ? null : reader.GetString(10));
     }
 
+    /// <summary>Returns the TVDb id recorded for every item of one kind that has one.</summary>
+    /// <param name="kind"><c>series</c>, <c>episode</c> or <c>movie</c>.</param>
+    /// <returns>Item id to TVDb id (the series id for episodes) and where that id came from.</returns>
+    public IReadOnlyDictionary<Guid, (int TvdbId, string Source)> GetTvdbIds(string kind)
+    {
+        var result = new Dictionary<Guid, (int TvdbId, string Source)>();
+        using var connection = _connectionFactory.Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT item_id, tvdb_id, tvdb_source FROM media_identities WHERE kind = @kind AND tvdb_id IS NOT NULL";
+        cmd.Parameters.AddWithValue("@kind", kind);
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            if (Guid.TryParseExact(reader.GetString(0), "N", out var itemId))
+            {
+                result[itemId] = (reader.GetInt32(1), reader.GetString(2));
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>Reads a cached TVDb episode list.</summary>
+    /// <param name="seriesTvdbId">TVDb series id.</param>
+    /// <param name="maxAge">How old a cached list may be.</param>
+    /// <param name="episodes">The cached episodes.</param>
+    /// <returns>True when a fresh enough list is cached.</returns>
+    public bool TryGetEpisodeGuide(int seriesTvdbId, TimeSpan maxAge, out IReadOnlyList<Metadata.TvdbEpisode> episodes)
+    {
+        episodes = [];
+        using var connection = _connectionFactory.Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT episodes_json, fetched_utc_ticks FROM tvdb_episode_guides WHERE series_tvdb_id = @id";
+        cmd.Parameters.AddWithValue("@id", seriesTvdbId);
+        using var reader = cmd.ExecuteReader();
+        if (!reader.Read() || DateTime.UtcNow - new DateTime(reader.GetInt64(1), DateTimeKind.Utc) >= maxAge)
+        {
+            return false;
+        }
+
+        try
+        {
+            episodes = System.Text.Json.JsonSerializer.Deserialize<List<Metadata.TvdbEpisode>>(reader.GetString(0)) ?? [];
+            return true;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Caches a TVDb episode list.</summary>
+    /// <param name="seriesTvdbId">TVDb series id.</param>
+    /// <param name="episodes">The episodes TVDb listed.</param>
+    public void SaveEpisodeGuide(int seriesTvdbId, IReadOnlyList<Metadata.TvdbEpisode> episodes)
+    {
+        using var connection = _connectionFactory.Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "INSERT OR REPLACE INTO tvdb_episode_guides (series_tvdb_id, episodes_json, fetched_utc_ticks) VALUES (@id, @json, @now)";
+        cmd.Parameters.AddWithValue("@id", seriesTvdbId);
+        cmd.Parameters.AddWithValue("@json", System.Text.Json.JsonSerializer.Serialize(episodes));
+        cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.Ticks);
+        cmd.ExecuteNonQuery();
+    }
+
     /// <summary>Returns the recorded master folder for a TVDb title.</summary>
     /// <param name="kind">Title kind (series or movie).</param>
     /// <param name="tvdbId">TVDb id.</param>

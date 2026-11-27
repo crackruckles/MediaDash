@@ -333,7 +333,7 @@ public sealed class ScanTask : IScheduledTask
                 .ToList();
             foreach (var root in unreachableRoots)
             {
-                var msg = "Library folder '" + root.TrimEnd(System.IO.Path.DirectorySeparatorChar) + "' is missing or did not respond within 5s. Its prior findings are preserved. Whole-library filesystem scans are deferred until enabled folders are available.";
+                var msg = "The library folder '" + root.TrimEnd(System.IO.Path.DirectorySeparatorChar) + "' is missing or did not respond within 5 seconds, so it was skipped and its previous results are kept. Checks that look at whole libraries also wait until every enabled folder is available. Reconnect the drive or share, then run a scan.";
                 _logger.LogWarning("ScanTask skipping unreachable library root: {Root}", root);
                 Api.Diagnostics.Record("ScanTask.UnreachableRoot", msg);
             }
@@ -383,7 +383,7 @@ public sealed class ScanTask : IScheduledTask
                 var scanner = scanners[i];
                 if (unreachableRoots.Count > 0 && scanner.AlwaysUnscoped)
                 {
-                    Api.Diagnostics.Record("ScanTask." + scanner.GetType().Name + ".Deferred", "This filesystem scan was deferred because an enabled library folder is unavailable. Its prior findings are preserved.");
+                    Api.Diagnostics.Record("ScanTask." + scanner.GetType().Name + ".Deferred", "The " + scanner.Type + " check was skipped because one of your enabled library folders is unavailable. Its previous results are kept. Reconnect the drive or share, then run a scan.");
                     Plugin.ScanScannersDone = i + 1;
                     continue;
                 }
@@ -428,9 +428,7 @@ public sealed class ScanTask : IScheduledTask
                 {
                     scannerOutcome = "Failed";
                     _logger.LogWarning(ex, "MediaDash scanner {Type} failed; continuing with remaining scanners.", scanner.Type);
-                    Api.Diagnostics.Record(
-                        "ScanTask." + scanner.GetType().Name + ".Failed",
-                        "Scanner " + scanner.GetType().Name + " (" + scanner.Type + ") threw " + ex.GetType().Name + ": " + ex.Message + ". Its prior Detected rows are left in place; the next scan will retry. Every other scanner in this run continues normally.");
+                    Api.Diagnostics.Record("ScanTask." + scanner.GetType().Name + ".Failed", "The " + scanner.Type + " check failed this scan, so its results were not updated (the previous results are still shown). The other checks ran normally, and it will try again on the next scan. Details: " + ex.GetType().Name + ": " + ex.Message);
                     Plugin.ScanScannersDone = i + 1;
                     continue;
                 }
@@ -508,9 +506,7 @@ public sealed class ScanTask : IScheduledTask
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
                         _logger.LogWarning(ex, "Persisting scanner {Type} results failed; retaining prior Detected rows.", typeToReplace);
-                        Api.Diagnostics.Record(
-                            "ScanTask." + scanner.GetType().Name + ".PersistFailed",
-                            "Failed to persist scanner " + scanner.GetType().Name + " (" + typeToReplace + ") results: " + ex.GetType().Name + ": " + ex.Message + ". Prior Detected rows for this type are retained; next successful scan will refresh them.");
+                        Api.Diagnostics.Record("ScanTask." + scanner.GetType().Name + ".PersistFailed", "The " + typeToReplace + " check ran, but its results could not be saved, so the previous results are still shown. It will try again on the next scan. Details: " + ex.GetType().Name + ": " + ex.Message);
                         persistFailed = true;
                         break;
                     }
@@ -557,7 +553,7 @@ public sealed class ScanTask : IScheduledTask
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Redownload detection failed.");
-            Api.Diagnostics.Record("ScanTask.RedownloadDetect", "Redownload detection failed: " + ex.Message + ". Recycle-bin redownload warnings will be stale until the next successful scan.");
+            Api.Diagnostics.Record("ScanTask.RedownloadDetect", "Checking whether recycled files were downloaded again failed, so the Recycle bin's re-download warnings may be out of date until the next scan. Details: " + ex.Message);
         }
 
         // Grant the fix-task grace period ONLY when this was a user click. Scheduled scans don't

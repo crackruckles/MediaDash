@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using System.Security.Cryptography;
+using System.Threading;
+using Jellyfin.Plugin.MediaDash.Api;
 using Jellyfin.Plugin.MediaDash.Fixers;
 using Xunit;
 
@@ -10,6 +12,28 @@ namespace Jellyfin.Plugin.MediaDash.Tests;
 [Trait("Category", "ReportedIssueExternal")]
 public sealed class ReportedUncAcceptanceTests
 {
+    [Fact]
+    public void Issue91_RealUncCapacityReachesTheOverviewRows()
+    {
+        Assert.True(OperatingSystem.IsWindows(), "#91 acceptance requires Windows and an actual UNC share.");
+        var path = Environment.GetEnvironmentVariable("MEDIADASH_TEST_UNC_ROOT");
+        Assert.False(string.IsNullOrWhiteSpace(path), "Set MEDIADASH_TEST_UNC_ROOT to an owned UNC test directory.");
+        var root = Assert.Single(UncLibraryRoots.From(new[] { path! }));
+        Assert.True(FreeSpaceGuard.TryGetDiskSpace(root, out _, out var total), "The configured share root must be measurable by this account.");
+        var probe = new UncVolumeProbe(share => FreeSpaceGuard.TryGetDiskSpace(share, out var free, out var size)
+            ? new(true, free, size) : default, TimeSpan.FromSeconds(30));
+        var paths = new[] { path!, path!.ToUpperInvariant() };
+        Assert.True(SpinWait.SpinUntil(() => StatusQueryService.GetUncLibraryDrives(paths, probe, false, 90).Count == 1, 10000));
+        var row = Assert.Single(StatusQueryService.GetUncLibraryDrives(paths, probe, false, 90));
+        Assert.Equal(root, row.Root);
+        Assert.True(row.IsLibraryDrive);
+        Assert.True(row.IsNetworkShare);
+        Assert.False(row.SpaceReadingStale);
+        Assert.Equal(total, row.TotalBytes);
+        Assert.InRange(row.FreeBytes, 0, total);
+        Assert.Null(row.LowSpaceWarning);
+    }
+
     [Fact]
     public void Issue89_BothSpaceGuardsMeasureAnExistingUncFileAndPreserveItsBytes()
     {

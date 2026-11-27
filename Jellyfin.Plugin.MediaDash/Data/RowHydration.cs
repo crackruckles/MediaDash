@@ -22,11 +22,7 @@ internal static class RowHydration
             return true;
         }
 
-        Api.Diagnostics.Record(
-            "MediaDashDb.MalformedEnum",
-            "Skipped " + table + " row id=" + rowId.ToString(CultureInfo.InvariantCulture)
-                + ": type value " + raw.ToString(CultureInfo.InvariantCulture) + " is not a defined IssueType. Delete the row from SQLite to clean up (DELETE FROM "
-                + table + " WHERE id = " + rowId.ToString(CultureInfo.InvariantCulture) + ";).");
+        Api.Diagnostics.Record("MediaDashDb.MalformedEnum", "MediaDash skipped a damaged entry (#" + rowId.ToString(CultureInfo.InvariantCulture) + ") in its " + table + " list: it has an unknown issue type (" + raw.ToString(CultureInfo.InvariantCulture) + ")." + " It is ignored and does no harm. To remove it, run this against mediadash.db while Jellyfin is stopped: DELETE FROM " + table + " WHERE id = " + rowId.ToString(CultureInfo.InvariantCulture) + ";");
         type = default;
         return false;
     }
@@ -40,11 +36,7 @@ internal static class RowHydration
             return true;
         }
 
-        Api.Diagnostics.Record(
-            "MediaDashDb.MalformedEnum",
-            "Skipped " + table + " row id=" + rowId.ToString(CultureInfo.InvariantCulture)
-                + ": status value " + raw.ToString(CultureInfo.InvariantCulture) + " is not a defined IssueStatus. Delete the row from SQLite to clean up (DELETE FROM "
-                + table + " WHERE id = " + rowId.ToString(CultureInfo.InvariantCulture) + ";).");
+        Api.Diagnostics.Record("MediaDashDb.MalformedEnum", "MediaDash skipped a damaged entry (#" + rowId.ToString(CultureInfo.InvariantCulture) + ") in its " + table + " list: it has an unknown status (" + raw.ToString(CultureInfo.InvariantCulture) + ")." + " It is ignored and does no harm. To remove it, run this against mediadash.db while Jellyfin is stopped: DELETE FROM " + table + " WHERE id = " + rowId.ToString(CultureInfo.InvariantCulture) + ";");
         status = default;
         return false;
     }
@@ -61,12 +53,7 @@ internal static class RowHydration
     {
         if (ticks < DateTime.MinValue.Ticks || ticks > DateTime.MaxValue.Ticks)
         {
-            Api.Diagnostics.Record(
-                "MediaDashDb.MalformedTicks",
-                "Clamped out-of-range timestamp on " + table + " row id="
-                    + rowId.ToString(CultureInfo.InvariantCulture) + " (ticks="
-                    + ticks.ToString(CultureInfo.InvariantCulture) + "). Delete the row from SQLite to clean up (DELETE FROM "
-                    + table + " WHERE id = " + rowId.ToString(CultureInfo.InvariantCulture) + ";).");
+            Api.Diagnostics.Record("MediaDashDb.MalformedTicks", "An entry (#" + rowId.ToString(CultureInfo.InvariantCulture) + ") in MediaDash's " + table + " list had an impossible date, so it is shown with the nearest valid date instead." + " It is ignored and does no harm. To remove it, run this against mediadash.db while Jellyfin is stopped: DELETE FROM " + table + " WHERE id = " + rowId.ToString(CultureInfo.InvariantCulture) + ";");
             return ticks < DateTime.MinValue.Ticks ? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc)
                                                    : DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc);
         }

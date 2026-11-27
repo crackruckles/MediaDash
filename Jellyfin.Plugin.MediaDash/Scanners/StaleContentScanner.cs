@@ -92,7 +92,7 @@ public sealed class StaleContentScanner : IScanner
         }
         catch (Exception ex) when (ex is MissingMethodException or TargetInvocationException or InvalidOperationException)
         {
-            Api.Diagnostics.Record("StaleScanner.UserApi", ex.GetType().Name + ": " + ex.Message);
+            Api.Diagnostics.Record("StaleScanner.UserApi", "The stale content check could not read Jellyfin's user list on this Jellyfin version, so it was skipped this scan. Updating MediaDash may fix this. Details: " + ex.GetType().Name + ": " + ex.Message);
             _logger.LogWarning(ex, "StaleContentScanner: could not enumerate users on this Jellyfin version; scanner disabled for this run");
             progress.Report(100);
             return Task.FromResult<IReadOnlyList<Issue>>([]);

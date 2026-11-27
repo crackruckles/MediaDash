@@ -156,7 +156,7 @@ public sealed class FixLibraryRefresher
         catch (Exception error)
         {
             _logger.LogWarning(error, "Changed items still need native indexing; run Jellyfin's library scan to complete it.");
-            Api.Diagnostics.Record("Fix.NativeIndex", "Changed items still need native indexing. Run Jellyfin's library scan to complete it: " + error.Message);
+            Api.Diagnostics.Record("Fix.NativeIndex", "Some fixed files have not been picked up by Jellyfin yet. Run 'Scan Media Library' in the Jellyfin dashboard. Details: " + error.Message);
         }
     }
 

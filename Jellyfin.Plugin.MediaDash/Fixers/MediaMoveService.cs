@@ -74,7 +74,7 @@ public sealed class MediaMoveService
             var finalScopes = MediaMovePlanner.CaptureSourceScopes(entries, previous.Plan.IsGenericSelection, previous.Plan.KeepsSharedDirectories);
             if (finalScopes.Length != previous.FinalScopes.Length || finalScopes.Any(scope => !previous.FinalScopes.Contains(scope)))
             {
-                throw new IOException("The moved item's companions changed after completion. Scan and review the current files before Undo.");
+                throw new IOException("Undo stopped: subtitles, artwork or other files next to the moved item changed after the move. Run a scan and check the files before undoing.");
             }
 
             if (previous.RecycledSource is not null)
@@ -89,17 +89,17 @@ public sealed class MediaMoveService
                     undoDirectories = NativeMoveWatchScope.Begin(_monitor, previous.CreatedDirectories.Select(directory => directory.Path).Append(previous.RecycledSource.Source));
                 }
 
-                MediaMoveSourceCleanup.Restore(previous, _recycleBin ?? throw new IOException("The recycle bin is unavailable."), _guard, _protection, Plugin.Instance!.Configuration.DryRun, cancellationToken);
+                MediaMoveSourceCleanup.Restore(previous, _recycleBin ?? throw new IOException("The recycle bin folder is not available, so MediaDash cannot safely set aside the leftover files. Check the recycle bin location in Settings."), _guard, _protection, Plugin.Instance!.Configuration.DryRun, cancellationToken);
             }
 
             var container = MediaMoveManifest.ClaimContainer(entries[0].Destination, entries[0].IsDirectory);
             while (entries.Any(entry => !LibraryGuard.IsUnder(entry.Destination, container)))
             {
-                container = Path.GetDirectoryName(container) ?? throw new IOException("The original locations have no common verified move container.");
+                container = Path.GetDirectoryName(container) ?? throw new IOException("Undo stopped: the files' original locations could not be checked. Make sure the original drive is connected, then try again.");
             }
 
             var primary = previous.Plan.Entries.FirstOrDefault(entry => LibraryGuard.IsUnder(previous.Plan.ItemPath, entry.Source))
-                ?? throw new IOException("The original item's source binding could not be verified.");
+                ?? throw new IOException("Undo stopped: MediaDash could not confirm that this is still the same item it moved. Run a scan and check the item before undoing.");
             var plan = new MediaMovePlan
             {
                 Type = previous.Plan.Type, ItemId = previous.Plan.ItemId,
@@ -138,7 +138,7 @@ public sealed class MediaMoveService
                     || (currentManifest is null ? current.State != "Completed" || !current.CleanupComplete
                         : current.State != "Undoing" || current.OwnerToken != reverse?.OwnerToken))
                 {
-                    throw new IOException("Move Undo ownership changed. Preserve the recorded locations for review.");
+                    throw new IOException("Undo's record changed while it was running. Check the locations listed for this move before changing those files.");
                 }
             },
                 cancellationToken,
@@ -161,7 +161,7 @@ public sealed class MediaMoveService
             CleanupUndoDirectories(previous, cancellationToken);
             if (reverse is null || !_db.CompleteMoveUndo(original.Id, reverse.Id, reverse.OwnerToken))
             {
-                throw new IOException("The files were restored but Undo bookkeeping did not finish. Preserve the recorded locations for review.");
+                throw new IOException("Undo put the files back, but could not finish updating its records. The files are fine; check the move history before undoing again.");
             }
 
             result.Message = "Undid the complete recorded move and restored its original locations.";
@@ -260,7 +260,7 @@ public sealed class MediaMoveService
 
         try
         {
-            var operationId = result.MoveOperationId ?? throw new InvalidOperationException("A completed move has no native-indexing journal identity.");
+            var operationId = result.MoveOperationId ?? throw new InvalidOperationException("This move's record is incomplete, so MediaDash cannot check whether Jellyfin has picked up the moved files. Run 'Scan Media Library' in the Jellyfin dashboard.");
             var itemPaths = plan.ItemBindings.Select(binding => binding.Path);
             if (plan.ItemId != Guid.Empty)
             {
@@ -299,7 +299,7 @@ public sealed class MediaMoveService
                 var found = _library.FindByPath(destination, null);
                 if (found is null || _library.GetItemById(found.Id) is not { } item || !string.Equals(item.Path, destination, comparison))
                 {
-                    throw new InvalidOperationException("Jellyfin has not indexed a moved catalog item at its destination.");
+                    throw new InvalidOperationException("Jellyfin has not picked up the moved item at its new location yet. Run 'Scan Media Library' in the Jellyfin dashboard, then try again.");
                 }
             }
 
@@ -339,7 +339,7 @@ public sealed class MediaMoveService
                 result.Message += explanation;
             }
 
-            Api.Diagnostics.Record("Move.NativeIndex", "The files moved, but native indexing remains pending for operation " + result.MoveOperationId + ": " + error.Message);
+            Api.Diagnostics.Record("Move.NativeIndex", "The files were moved, but Jellyfin has not picked them up at their new location yet. Run 'Scan Media Library' in the Jellyfin dashboard. Details: " + error.Message);
         }
     }
 
@@ -380,7 +380,7 @@ public sealed class MediaMoveService
 
             Checkpoint?.Invoke("BeforePrepare", -1);
             cancellationToken.ThrowIfCancellationRequested();
-            operation = acquire() ?? throw new MoveRefusal(FixReason.MoveNeedsReview, "Another operation or a previous move attempt reserves this item. Review the recorded move or restore before continuing.");
+            operation = acquire() ?? throw new MoveRefusal(FixReason.MoveNeedsReview, "Not moved: another move or restore is still working on this item, or an earlier attempt did not finish. Wait for it to finish, or check it in the move history, then try again.");
             manifest = MediaMoveManifest.TryRead(operation.ManifestJson, operation.Id)!;
             manifest = manifest with { UserData = _userData?.Capture(plan, priorUserData) ?? [] };
             Save("Executing");
@@ -574,7 +574,7 @@ public sealed class MediaMoveService
                 : _db.Moves.Update(operation!.Id, operation.OwnerToken, state, next, manifest!.Serialize(), detail);
             if (!saved)
             {
-                throw new IOException("Move ownership or its durable journal changed. Preserve the recorded paths for review.");
+                throw new IOException("This move's record changed while it was running (another MediaDash task may have touched it). Check the locations listed for this move before changing those files.");
             }
 
             state = next;
@@ -598,7 +598,7 @@ public sealed class MediaMoveService
 
             if (!LibraryGuard.IsUnder(path, plan.DestinationContainer))
             {
-                throw new IOException("The approved destination's parent no longer exists. Re-scan before moving.");
+                throw new IOException("Not moved: the destination folder no longer exists. Run a scan to get an up-to-date plan, then approve it again.");
             }
 
             EnsureParents(Path.GetDirectoryName(path)!);
@@ -608,7 +608,7 @@ public sealed class MediaMoveService
             MediaMoveSafety.CreateDirectoryNoMerge(path);
             if (!PhysicalFileIdentity.TryRead(path, out var identity) || identity.IsReparsePoint)
             {
-                throw new IOException("The new destination directory could not be verified.");
+                throw new IOException("Not moved: MediaDash could not check the new destination folder after creating it. Check the destination drive, then run a scan.");
             }
 
             manifest = manifest with { CreatedDirectories = [.. manifest.CreatedDirectories[..^1], new(path, identity.Volume, identity.FileId)] };
@@ -623,7 +623,7 @@ public sealed class MediaMoveService
                 if (!PhysicalFileIdentity.TryRead(directory.Path, out var identity) || identity.IsReparsePoint
                     || identity.Volume != directory.Volume || identity.FileId != directory.FileId)
                 {
-                    throw new IOException("A recorded destination directory changed. Preserve the recorded paths for review.");
+                    throw new IOException("Undo stopped: a folder this move created has changed since. Check the locations listed for this move before changing those files.");
                 }
             }
         }
@@ -643,7 +643,7 @@ public sealed class MediaMoveService
                     || string.IsNullOrWhiteSpace(member.Path) || !Path.IsPathFullyQualified(member.Path)
                     || !string.Equals(Path.TrimEndingDirectorySeparator(MediaMovePlanner.NormalizeMovedBinding(member.Path, manifest is null ? null : plan)), binding.Path, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
                 {
-                    throw new IOException("A known member of this item or family changed after preview. Scan again and review the complete move.");
+                    throw new IOException("Not moved: a related file (another version, part or episode) changed after this move was planned. Run a scan to get an up-to-date plan, then approve it again.");
                 }
             }
         }
@@ -652,13 +652,13 @@ public sealed class MediaMoveService
                 || !FixPolicyEvaluator.Evaluate(config, issue.Type, current.Status, FixIntent.Approved, true, false, false).Allowed))
             || (!allowPreview && config.DryRun) || MediaMovePlanner.PolicyStamp(config, issue.Type) != plan.PolicyStamp)
         {
-            throw new IOException("The approval or move policy changed. Re-scan and approve the current item.");
+            throw new IOException("Not moved: your settings for this kind of fix changed after it was approved. Run a scan to get an up-to-date plan, then approve it again.");
         }
 
         var owner = undo || (explicitMove && plan.ItemId == Guid.Empty) ? null : ReadCatalogItem(plan.ItemId);
         if ((!undo && requireOwner && owner is null && (!explicitMove || plan.ItemId != Guid.Empty)) || (owner is not null && MediaMovePlanner.Identity(owner, manifest is null ? null : plan) != plan.Identity))
         {
-            throw new IOException("The Jellyfin item identity changed. Re-scan and approve the current item.");
+            throw new IOException("Not moved: Jellyfin's details for this item changed after it was approved (it may have been re-identified). Run a scan to get an up-to-date plan, then approve it again.");
         }
 
         if (!undo && plan.Type == IssueType.Ungrouped && !plan.Entries[0].IsDirectory
@@ -671,7 +671,7 @@ public sealed class MediaMoveService
                 Path.GetDirectoryName(seriesRoot)!,
                 _library.GetItemList(new InternalItemsQuery { Recursive = true, IsVirtualItem = false, IncludeItemTypes = [Jellyfin.Data.Enums.BaseItemKind.Series] })))
             {
-                throw new MoveRefusal(FixReason.MoveNeedsReview, "The proposed series folder includes conflicting provider identities. Scan again and check the series metadata before grouping these episodes.");
+                throw new MoveRefusal(FixReason.MoveNeedsReview, "Not moved: the series folder these episodes would join is identified as a different show (its TVDb, TMDb or IMDb IDs differ). Fix the show's identification in Jellyfin, then run a scan.");
             }
         }
 
@@ -681,19 +681,19 @@ public sealed class MediaMoveService
             && (requireOwner || !plan.Entries.Any(entry => LibraryGuard.IsUnder(plan.ItemPath, entry.Source)
                 && string.Equals(owner.Path, Path.GetFullPath(Path.Combine(entry.Destination, Path.GetRelativePath(entry.Source, plan.ItemPath))), comparison)))))
         {
-            throw new IOException("The Jellyfin item's source path changed. Re-scan and approve the current item.");
+            throw new IOException("Not moved: the item is no longer where it was when you approved the move. Run a scan to get an up-to-date plan, then approve it again.");
         }
 
         if (!undo && checkScope && !explicitMove && owner is MediaBrowser.Controller.Entities.Movies.Movie
             && MediaMovePlanner.HasForeignMovieDestination(plan.DestinationContainer, plan.Entries, manifest))
         {
-            throw new MoveRefusal(FixReason.MoveNeedsReview, "The destination movie folder contains content outside this approved move. Review its complete contents instead of merging automatically.");
+            throw new MoveRefusal(FixReason.MoveNeedsReview, "Not moved: the destination movie folder already holds other files, so MediaDash will not merge into it automatically. Check that folder, and move the files by hand in the Files tab if you want them together.");
         }
 
         var roots = _guard.GetEnabledLibraryLocations(config.EnabledLibraries);
         if (plan.DestinationParents is not { Length: > 0 })
         {
-            throw new IOException("The approved destination identity is missing. Re-scan before moving.");
+            throw new IOException("Not moved: this plan is missing details about its destination folder. Run a scan to get an up-to-date plan, then approve it again.");
         }
 
         foreach (var parent in plan.DestinationParents)
@@ -702,7 +702,7 @@ public sealed class MediaMoveService
             if (!PhysicalFileIdentity.TryRead(parent.Path, out var identity) || identity.IsReparsePoint
                 || identity.Volume != parent.Volume || identity.FileId != parent.FileId)
             {
-                throw new IOException("The approved destination parent changed. Re-scan before moving.");
+                throw new IOException("Not moved: the destination folder changed after this move was approved. Run a scan to get an up-to-date plan, then approve it again.");
             }
         }
 
@@ -712,13 +712,13 @@ public sealed class MediaMoveService
             {
                 if (!_guard.IsInsideLibrary(path) || !LibraryGuard.IsInEnabledLocations(path, roots))
                 {
-                    throw new MoveRefusal(FixReason.OutsideLibrary, "The move no longer fits currently enabled libraries. Preserve all recorded paths for review.");
+                    throw new MoveRefusal(FixReason.OutsideLibrary, "Not moved: part of this move is now outside your enabled libraries. Re-enable that library in Settings → Libraries if you want it moved.");
                 }
 
                 var protectionType = explicitMove ? IssueType.ManualDelete : issue.Type;
                 if (_protection.IsFixerBlocked(path, protectionType) || _protection.IsAnyDescendantProtected(path, protectionType))
                 {
-                    throw new MoveRefusal(FixReason.Protected, "The move includes a protected path. Preserve all recorded paths for review.");
+                    throw new MoveRefusal(FixReason.Protected, "Not moved: part of this move is in a folder you have protected from changes. Remove that protection in Settings if you want it moved.");
                 }
             }
         }
@@ -730,7 +730,7 @@ public sealed class MediaMoveService
                 var scope = plan.SourceScopes.FirstOrDefault(candidate => string.Equals(candidate.Path, parent, comparison));
                 if (scope is null || !_guard.IsInsideLibrary(parent) || !roots.Any(root => LibraryGuard.IsUnder(parent, root)))
                 {
-                    throw new IOException("The approved companion ownership scope could not be verified. Re-scan before moving.");
+                    throw new IOException("Not moved: MediaDash could not confirm which subtitles and artwork belong with this item. Run a scan to get an up-to-date plan, then approve it again.");
                 }
 
                 var restoredNames = new System.Collections.Generic.List<string>();
@@ -767,7 +767,7 @@ public sealed class MediaMoveService
                 var actual = MediaMovePlanner.ReadSourceNames(parent, plan.Entries, plan.IsGenericSelection, plan.KeepsSharedDirectories).Where(name => !ignored.Contains(name)).Concat(restoredNames);
                 if (MediaMovePlanner.SourceScopeFingerprint(actual) != scope.Fingerprint)
                 {
-                    throw new IOException("The item or its companions changed after approval. Re-scan and preview the complete item before moving.");
+                    throw new IOException(MediaMoveSnapshot.ChangedSinceApproval("files next to it in '" + Path.GetFileName(parent) + "' (subtitles, artwork, .nfo or other episodes) were added, removed or renamed"));
                 }
             }
         }
@@ -886,7 +886,7 @@ public sealed class MediaMoveService
     {
         if (File.Exists(path) || Directory.Exists(path))
         {
-            throw new MoveRefusal(FixReason.DestinationCollision, "A file or folder already exists at '" + path + "'. Nothing will be overwritten or merged.");
+            throw new MoveRefusal(FixReason.DestinationCollision, "Not moved: something already exists at '" + path + "', and MediaDash never overwrites or merges files. Rename or move the existing item, then run a scan.");
         }
     }
 
@@ -915,14 +915,14 @@ public sealed class MediaMoveService
                 || _protection.IsFixerBlocked(directory.Path, previous.Plan.Type == IssueType.ManualMove ? IssueType.ManualDelete : previous.Plan.Type)
                 || _protection.IsAnyDescendantProtected(directory.Path, previous.Plan.Type == IssueType.ManualMove ? IssueType.ManualDelete : previous.Plan.Type))
             {
-                throw new IOException("An Undo folder is no longer enabled or is protected. Preserve its recorded paths for review.");
+                throw new IOException("Undo stopped: one of the folders involved is now protected or outside your enabled libraries. Re-enable it in Settings, or put the files back by hand using the locations listed for this move.");
             }
 
             MediaMoveSnapshot.ValidateAncestors(directory.Path);
             if (!PhysicalFileIdentity.TryRead(directory.Path, out var identity) || identity.IsReparsePoint
                 || identity.Volume != directory.Volume || identity.FileId != directory.FileId)
             {
-                throw new IOException("A folder created by the original move changed. Undo preserved it for review.");
+                throw new IOException("Undo left a folder in place because its contents changed after the move. Check it and delete it by hand if you no longer need it.");
             }
         }
     }
@@ -936,7 +936,7 @@ public sealed class MediaMoveService
         catch (InvalidOperationException error)
         {
             _logger.LogWarning(error, "The native catalog could not revalidate move item {ItemId}", id);
-            throw new MoveRefusal(FixReason.MoveNeedsReview, "Jellyfin's current item metadata could not be read. Run its library scan and review the recorded move before continuing.");
+            throw new MoveRefusal(FixReason.MoveNeedsReview, "MediaDash could not read Jellyfin's details for this item. Run 'Scan Media Library' in the Jellyfin dashboard, check the move, then try again.");
         }
     }
 

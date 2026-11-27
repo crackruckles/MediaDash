@@ -71,6 +71,7 @@ public sealed class FixTask : IScheduledTask
     private readonly FixExecutor _executor;
     private readonly FixResultRecorder _recorder;
     private readonly FixLibraryRefresher? _libraryRefresher;
+    private readonly Scanners.OrphanCleanupScanner? _leftoverScanner;
     private readonly ILogger<FixTask> _logger;
 
     /// <summary>
@@ -89,6 +90,7 @@ public sealed class FixTask : IScheduledTask
     /// <param name="logger">The logger.</param>
     /// <param name="db">Plugin database for retained run diagnostics.</param>
     /// <param name="libraryRefresher">Queues one full refresh per affected library after the run.</param>
+    /// <param name="scanners">Registered scanners; the orphan scanner finds folders a grouping move just emptied.</param>
     public FixTask(
         IssueStore issues,
         RecycleBin recycleBin,
@@ -102,9 +104,11 @@ public sealed class FixTask : IScheduledTask
         FixResultRecorder recorder,
         ILogger<FixTask> logger,
         MediaDashDb db,
-        FixLibraryRefresher? libraryRefresher = null)
+        FixLibraryRefresher? libraryRefresher = null,
+        IEnumerable<Scanners.IScanner>? scanners = null)
     {
         _issues = issues;
+        _leftoverScanner = scanners?.OfType<Scanners.OrphanCleanupScanner>().FirstOrDefault();
         _db = db;
         _recycleBin = recycleBin;
         _sessionManager = sessionManager;
@@ -527,7 +531,7 @@ public sealed class FixTask : IScheduledTask
             queue,
             FixerRank,
             GetFileSizeOrZero,
-            OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+            OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal).ToList();
 
         var transcodePlanCount = plans.Count(p => p.Kind == PlannedFixKind.TranscodeWithTracks);
         var transcodeCompanionCount = plans
@@ -580,10 +584,31 @@ public sealed class FixTask : IScheduledTask
                 offCount + " approved issue(s) will not run because their type is set to 'Off' in Settings. The other " + queue.Count + " will run.");
         }
 
+        // Grouping moves leave the old release folder behind once its last episode has moved. Recycle
+        // those leftovers in this same run, after every move has finished, so a completed grouping does
+        // not surface a second issue the user has to approve (the user already approved the grouping).
+        var movedTargets = new List<string>();
+        var leftoversAdded = false;
+
         try
         {
-            for (var i = 0; i < plans.Count; i++)
+            for (var i = 0; ; i++)
             {
+                if (i >= plans.Count)
+                {
+                    if (leftoversAdded)
+                    {
+                        break;
+                    }
+
+                    leftoversAdded = true;
+                    plans.AddRange(GroupingLeftoverPlans(movedTargets, cancellationToken));
+                    if (i >= plans.Count)
+                    {
+                        break;
+                    }
+                }
+
                 cancellationToken.ThrowIfCancellationRequested();
                 // Finish the current replacement safely, then defer the remaining queue.
                 libraryScanCancellationToken.ThrowIfCancellationRequested();
@@ -741,6 +766,10 @@ public sealed class FixTask : IScheduledTask
                 if (execution.Result.Success && !execution.Result.WasDryRun)
                 {
                     succeeded++;
+                    if (primary.Type is IssueType.Ungrouped or IssueType.Misplaced && ReadMoveTarget(primary.DetailsJson) is { } movedTarget)
+                    {
+                        movedTargets.Add(movedTarget);
+                    }
                 }
                 else if (!execution.Result.Success)
                 {
@@ -861,6 +890,77 @@ public sealed class FixTask : IScheduledTask
         await _analytics.ReportMonthToDateAsync(cancellationToken).ConfigureAwait(false);
 
         progress.Report(100);
+    }
+
+    private List<PlannedFix> GroupingLeftoverPlans(List<string> movedTargets, CancellationToken cancellationToken)
+    {
+        var config = _configProvider.GetSnapshot();
+        if (movedTargets.Count == 0 || _leftoverScanner is null || config.DryRun
+            || !FixPolicyEvaluator.Evaluate(config, IssueType.OrphanedDebris, IssueStatus.Queued, FixIntent.Approved, withinEnabledLibrary: true, autoQueueRestoredBlocked: false, hasApprovedCompanionOnPath: false).Allowed)
+        {
+            return [];
+        }
+
+        try
+        {
+            var found = _leftoverScanner.DetectGroupedLeftoversFor(movedTargets, cancellationToken);
+            if (found.Count == 0)
+            {
+                return [];
+            }
+
+            var comparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+            var paths = found.Select(issue => issue.Path).ToHashSet(comparer);
+            // Same insert path as a scan: a leftover the user dismissed stays dismissed.
+            _issues.ReplaceDetectedIssues(IssueType.OrphanedDebris, found, paths);
+            var queued = new List<Issue>();
+            foreach (var row in _issues.GetIssues(IssueType.OrphanedDebris, IssueStatus.Detected)
+                .Where(row => paths.Contains(row.Path) && OrphanCleanupFixer.ReadKind(row.DetailsJson) == Scanners.OrphanCleanupScanner.KindGroupedLeftover))
+            {
+                if (_issues.TryTransitionIssueStatus(row.Id, [IssueStatus.Detected], IssueStatus.Queued) == StatusTransitionResult.Applied)
+                {
+                    row.Status = IssueStatus.Queued;
+                    queued.Add(row);
+                }
+            }
+
+            if (queued.Count > 0)
+            {
+                _logger.LogInformation("Recycling {Count} folder(s) left empty by this run's grouping moves.", queued.Count);
+            }
+
+            return FixPlanBuilder.Build(queued, FixerRank, GetFileSizeOrZero, comparer).ToList();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "Could not check for folders left by grouping moves; the next scan lists them instead.");
+            return [];
+        }
+    }
+
+    internal static string? ReadMoveTarget(string? detailsJson)
+    {
+        if (string.IsNullOrEmpty(detailsJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(detailsJson);
+            foreach (var name in new[] { "target", "targetPath" })
+            {
+                if (doc.RootElement.TryGetProperty(name, out var value) && value.ValueKind == System.Text.Json.JsonValueKind.String && !string.IsNullOrEmpty(value.GetString()))
+                {
+                    return value.GetString();
+                }
+            }
+        }
+        catch (System.Text.Json.JsonException)
+        {
+        }
+
+        return null;
     }
 
     // 04-C: RunFixWithSharingRetryAsync + MarkFixed + IsSharingViolation + IsDiskFull moved into

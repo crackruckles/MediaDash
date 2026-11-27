@@ -75,7 +75,7 @@ internal sealed class NativeMoveWatchScope : IDisposable
             }
             catch (Exception error)
             {
-                Api.Diagnostics.Record("Move.NativeWatcher", "Jellyfin could not finish watcher coordination for " + path + ": " + error.Message);
+                Api.Diagnostics.Record("Move.NativeWatcher", "Jellyfin may not have noticed the changes in '" + path + "' after a move. If it still shows the old location, run 'Scan Media Library' in the Jellyfin dashboard. Details: " + error.Message);
             }
         }
     }

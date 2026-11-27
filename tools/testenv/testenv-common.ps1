@@ -53,7 +53,7 @@ $script:Targets = [ordered]@{
     docker  = @{ Ssh = 'mdtest-docker';  Ip = '192.168.1.151'; Vmid = 112; Kind = 'lxc';  Os = 'linux';   Url = $Jf.JF_DOCKER_URL;  Key = $Jf.JF_DOCKER_API_KEY
                  PluginDir = '/srv/jellyfin/config/plugins'; DataDir = '/srv/jellyfin/config'; LogDir = '/srv/jellyfin/config/log'
                  MediaRoot = '/srv/media'; JfMediaRoot = '/media' }
-    windows = @{ Ssh = 'mdtest-windows'; Ip = '192.168.1.152'; Vmid = 113; Kind = 'qemu'; Os = 'windows'; Url = $Jf.JF_WINDOWS_URL; Key = $Jf.JF_WINDOWS_API_KEY
+    windows = @{ Ssh = 'mdtest-windows'; Ip = '192.168.1.153'; Vmid = 113; Kind = 'qemu'; Os = 'windows'; Url = $Jf.JF_WINDOWS_URL; Key = $Jf.JF_WINDOWS_API_KEY
                  PluginDir = 'C:\ProgramData\Jellyfin\Server\plugins'; DataDir = 'C:\ProgramData\Jellyfin\Server'; LogDir = 'C:\ProgramData\Jellyfin\Server\log'
                  MediaRoot = 'C:\mdtest\media'; JfMediaRoot = 'C:\mdtest\media' }
 }

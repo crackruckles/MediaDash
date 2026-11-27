@@ -254,6 +254,12 @@ public sealed partial class MediaIdentityService
 
     // A folder fit to be every copy's master: a plain title, optionally with a year or region tag,
     // never a release name ("Show S02E04 1080p WEB-…") or a site-prefixed download folder.
+    // A download-site or release-group prefix ("www.site.org - …", "[Group] …").
+    internal static bool HasDownloadPrefix(string folderName) => LeadingSite().IsMatch(folderName) || LeadingTags().IsMatch(folderName);
+
+    // Release tags such as SxxEyy, 1080p, WEB-DL or HEVC anywhere in the name.
+    internal static bool HasReleaseMarker(string folderName) => ReleaseMarker().IsMatch(folderName);
+
     internal static bool IsCleanFolderName(string folderName)
         => !ReleaseMarker().IsMatch(folderName) && !LeadingSite().IsMatch(folderName) && !LeadingTags().IsMatch(folderName);
 

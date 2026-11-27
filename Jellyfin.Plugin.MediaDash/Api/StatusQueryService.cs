@@ -24,6 +24,11 @@ namespace Jellyfin.Plugin.MediaDash.Api;
 /// </remarks>
 public sealed class StatusQueryService
 {
+    private static readonly UncVolumeProbe ShareProbe = new(
+        root => Fixers.FreeSpaceGuard.TryGetDiskSpace(root, out var free, out var total)
+            ? new UncVolumeProbe.Reading(true, free, total) : default,
+        TimeSpan.FromSeconds(30));
+
     private readonly MediaDashDb _db;
     private readonly IssueStore _issues;
     private readonly HistoryStore _history;
@@ -74,8 +79,10 @@ public sealed class StatusQueryService
         // returns "/" for every Linux path, which would collapse every library folder to root
         // and never match any mount point (leaving all drives unmarked as library drives on Linux,
         // which suppressed the SMART probe for every library drive there).
-        var libraryRoots = _libraryManager.GetVirtualFolders()
+        var libraryLocations = _libraryManager.GetVirtualFolders()
             .SelectMany(f => f.Locations)
+            .ToArray();
+        var libraryRoots = libraryLocations
             .Select(l => Fixers.RecycleBin.FindDriveForPath(l))
             .Where(d => d is not null)
             .Select(d => Path.TrimEndingDirectorySeparator(d!.RootDirectory.FullName))
@@ -129,11 +136,11 @@ public sealed class StatusQueryService
             }
             catch (IOException ex)
             {
-                Diagnostics.Record("SystemStats.DriveStat", "Could not read drive '" + drive.Name + "' for the Overview: " + ex.Message + ". Its free-space total will be missing until the next scan.");
+                Diagnostics.Record("SystemStats.DriveStat", "The Overview could not read drive '" + drive.Name + "', so its free space is not shown. It will try again on the next refresh. Details: " + ex.Message);
             }
             catch (UnauthorizedAccessException ex)
             {
-                Diagnostics.Record("SystemStats.DriveStat", "Access denied reading drive '" + drive.Name + "' for the Overview: " + ex.Message + ". Grant Jellyfin's user read permission on the drive root to include it.");
+                Diagnostics.Record("SystemStats.DriveStat", "The Overview could not read drive '" + drive.Name + "' because Jellyfin does not have permission. Give the user Jellyfin runs as read access to the drive's top folder to include it. Details: " + ex.Message);
             }
         }
 
@@ -165,7 +172,20 @@ public sealed class StatusQueryService
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
             {
-                Diagnostics.Record("SystemStats.DriveStat", "Could not read library drive '" + root + "': " + ex.Message);
+                Diagnostics.Record("SystemStats.DriveStat", "The Overview could not read the drive holding '" + root + "', so its free space is not shown. Check that the drive or network share is connected. Details: " + ex.Message);
+            }
+        }
+
+        // Windows UNC shares never resolve through DriveInfo.GetDrives(). Keep their original paths
+        // and use the background cache; no network filesystem calls run on this request thread.
+        if (OperatingSystem.IsWindows())
+        {
+            var storageConfig = Plugin.Instance!.Configuration;
+            foreach (var share in GetUncLibraryDrives(libraryLocations, ShareProbe, storageConfig.LibraryDriveLowSpaceWarningEnabled, storageConfig.LibraryDriveWarnThresholdPercent))
+            {
+                drives.Add(share);
+                freeDisk += share.FreeBytes;
+                totalDisk += share.TotalBytes;
             }
         }
 
@@ -311,6 +331,34 @@ public sealed class StatusQueryService
             CurrentOperationProgress = fixSnapshot.CurrentOperationProgress,
             FixPauseReason = fixSnapshot.PauseReason
         };
+    }
+
+    // Adapted from PR #91. Distinct shares remain separate: equal capacities/free bytes are not
+    // evidence of volume identity. The Overview explains that share totals can overlap.
+    internal static IReadOnlyList<DriveUsage> GetUncLibraryDrives(IEnumerable<string> libraryLocations, UncVolumeProbe probe, bool warningsEnabled, int thresholdPercent)
+    {
+        var result = new List<DriveUsage>();
+        foreach (var root in UncLibraryRoots.From(libraryLocations))
+        {
+            if (!probe.TryGet(root, out var reading, out var stale))
+            {
+                continue;
+            }
+
+            result.Add(new DriveUsage
+            {
+                Root = root,
+                FreeBytes = reading.FreeBytes,
+                TotalBytes = reading.TotalBytes,
+                IsLibraryDrive = true,
+                IsNetworkShare = true,
+                SpaceReadingStale = stale,
+                LowSpaceWarning = warningsEnabled
+                    ? ComputeLowSpaceWarning(reading.FreeBytes, reading.TotalBytes, string.Empty, thresholdPercent) : null
+            });
+        }
+
+        return result;
     }
 
     private (int FileCount, long SizeBytes) SafeGetBinContents()

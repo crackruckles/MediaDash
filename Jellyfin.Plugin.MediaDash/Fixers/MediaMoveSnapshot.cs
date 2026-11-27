@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -66,7 +67,7 @@ internal sealed class MediaMoveSnapshot
         {
             if ((File.Exists(ancestor) || Directory.Exists(ancestor)) && (File.GetAttributes(ancestor) & FileAttributes.ReparsePoint) != 0)
             {
-                throw new IOException("Move refused: the payload has a linked ancestor.");
+                throw new IOException("Not moved: one of the folders above this item is a shortcut (a symlink or junction), which MediaDash does not move through. Move it by hand in the Files tab.");
             }
         }
     }
@@ -76,7 +77,7 @@ internal sealed class MediaMoveSnapshot
         var current = Capture(path, allowDeleteHandle: false, _hashContent, null, cancellationToken);
         if (_entries.Count != current._entries.Count)
         {
-            throw new IOException("Move refused: the payload inventory changed at '" + path + "'.");
+            throw new IOException("Stopped: files were added to or removed from '" + path + "' after MediaDash checked it. Nothing was changed. Run a scan and try again.");
         }
 
         foreach (var (relative, expected) in _entries)
@@ -89,7 +90,7 @@ internal sealed class MediaMoveSnapshot
                 || (!actual.IsDirectory && actual.Modified != expected.Modified)
                 || (sameIdentity && actual.Identity != expected.Identity))
             {
-                throw new IOException("Move refused: payload or identity changed at '" + Path.Combine(path, relative) + "'.");
+                throw new IOException("Stopped: '" + Path.Combine(path, relative) + "' changed after MediaDash checked it (another program may be writing to it). Nothing was changed. Run a scan and try again.");
             }
         }
     }
@@ -129,9 +130,68 @@ internal sealed class MediaMoveSnapshot
                 || (!entry.IsDirectory && entry.LastWriteUtcTicks != expected[index].LastWriteUtcTicks)
                 || (sameIdentity && (entry.Volume != expected[index].Volume || entry.FileId != expected[index].FileId))).Any())
         {
-            throw new IOException("Move refused: the approved payload changed at '" + path + "'. Re-scan and approve the new plan.");
+            throw new IOException(ChangedSinceApproval(DescribeChange(path, expected, current, sameIdentity)));
         }
     }
+
+    // User-facing refusal: what changed, that nothing moved, the usual causes and what to do.
+    internal static string ChangedSinceApproval(string change)
+        => "Not moved: " + change + " after this move was approved, so MediaDash no longer knows it is moving the same file you approved. "
+            + "Nothing was moved or changed. This usually means another tool rewrote it (a re-encode script, a download replacing it with a better copy, "
+            + "another MediaDash fix, or Jellyfin saving new metadata). Run a scan to get an up-to-date plan, then approve it again.";
+
+    // Names the first difference between the approved inventory and what is on disk now.
+    internal static string DescribeChange(string root, MediaMovePlan.Payload[] expected, MediaMovePlan.Payload[] current, bool sameIdentity)
+    {
+        var now = current.GroupBy(entry => entry.RelativePath, StringComparer.Ordinal).ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+        string Name(string relative) => "'" + (string.IsNullOrEmpty(relative) ? Path.GetFileName(Path.TrimEndingDirectorySeparator(root)) : relative) + "'";
+        foreach (var approved in expected)
+        {
+            if (!now.TryGetValue(approved.RelativePath, out var actual))
+            {
+                return Name(approved.RelativePath) + " was removed or renamed";
+            }
+
+            if (actual.IsDirectory != approved.IsDirectory)
+            {
+                return Name(approved.RelativePath) + " changed between a file and a folder";
+            }
+
+            if (!actual.IsDirectory && actual.Length != approved.Length)
+            {
+                return Name(approved.RelativePath) + " was rewritten (its size changed from " + Size(approved.Length) + " to " + Size(actual.Length) + ")";
+            }
+
+            if (actual.Sha256 != approved.Sha256)
+            {
+                return Name(approved.RelativePath) + " has different contents";
+            }
+
+            if (sameIdentity && (actual.Volume != approved.Volume || actual.FileId != approved.FileId))
+            {
+                return Name(approved.RelativePath) + " was replaced by a new copy of the file";
+            }
+
+            if (!actual.IsDirectory && actual.LastWriteUtcTicks != approved.LastWriteUtcTicks)
+            {
+                return Name(approved.RelativePath) + " was modified (last changed " + When(actual.LastWriteUtcTicks) + ")";
+            }
+
+            if (actual.Metadata != approved.Metadata)
+            {
+                return "the permissions or ownership of " + Name(approved.RelativePath) + " changed";
+            }
+        }
+
+        var added = current.FirstOrDefault(entry => !expected.Any(approved => string.Equals(approved.RelativePath, entry.RelativePath, StringComparison.Ordinal)));
+        return added is not null ? "a new file " + Name(added.RelativePath) + " appeared in " + Name(string.Empty) : Name(string.Empty) + " changed";
+    }
+
+    private static string Size(long bytes) => bytes >= 1L << 30
+        ? (bytes / (double)(1L << 30)).ToString("0.00", CultureInfo.InvariantCulture) + " GB"
+        : (bytes / (double)(1L << 20)).ToString("0.0", CultureInfo.InvariantCulture) + " MB";
+
+    private static string When(long utcTicks) => new DateTime(utcTicks, DateTimeKind.Utc).ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
 
     internal void DeleteCaptured(string path, CancellationToken cancellationToken, Action? beforeDelete = null)
     {
@@ -145,7 +205,7 @@ internal sealed class MediaMoveSnapshot
             {
                 if (Capture(file, allowDeleteHandle: OperatingSystem.IsWindows(), _hashContent, null, cancellationToken)._entries[string.Empty] != expected)
                 {
-                    throw new IOException("Move recovery changed; preserve '" + file + "' for review.");
+                    throw new IOException("A temporary recovery copy ('" + file + "') changed unexpectedly, so MediaDash left it in place. Check it before deleting it.");
                 }
             }
 
@@ -170,7 +230,7 @@ internal sealed class MediaMoveSnapshot
             {
                 if (!PhysicalFileIdentity.TryRead(directory, out var identity) || identity != expected.Identity || identity.IsReparsePoint)
                 {
-                    throw new IOException("Move recovery directory changed; preserve '" + directory + "' for review.");
+                    throw new IOException("A temporary recovery folder ('" + directory + "') changed unexpectedly, so MediaDash left it in place. Check it before deleting it.");
                 }
             }
 
@@ -191,7 +251,7 @@ internal sealed class MediaMoveSnapshot
         cancellationToken.ThrowIfCancellationRequested();
         if (!PhysicalFileIdentity.TryRead(path, out var identity) || identity.IsReparsePoint)
         {
-            throw new IOException("Move refused: the physical identity could not be verified at '" + path + "'.");
+            throw new IOException("Not moved: MediaDash could not check that '" + path + "' is the same file it checked before. Make sure the drive is connected, then run a scan.");
         }
 
         var isDirectory = Directory.Exists(path);
@@ -218,7 +278,7 @@ internal sealed class MediaMoveSnapshot
                 _entries.Add(relative, new Entry(false, length, modified, identity, string.Empty, MediaMoveMetadata.Capture(path, false, allowDeleteHandle)));
                 if (!PhysicalFileIdentity.TryRead(path, out var unchanged) || unchanged != identity || unchanged.IsReparsePoint)
                 {
-                    throw new IOException("Move refused: the physical identity changed at '" + path + "'.");
+                    throw new IOException("Not moved: '" + path + "' was replaced by a different file or folder after MediaDash checked it. Run a scan to get an up-to-date plan, then approve it again.");
                 }
 
                 return;
@@ -244,7 +304,7 @@ internal sealed class MediaMoveSnapshot
             info.Refresh();
             if (info.Length != length || info.LastWriteTimeUtc != modified)
             {
-                throw new IOException("Move refused: the source changed while reading '" + path + "'.");
+                throw new IOException("Not moved: '" + path + "' changed while MediaDash was checking it (it may still be downloading or being written). Try again once it has finished.");
             }
 
             _entries.Add(relative, new Entry(false, length, modified, identity, Convert.ToHexString(hash.GetHashAndReset()), MediaMoveMetadata.Capture(path, false, allowDeleteHandle)));
@@ -252,7 +312,7 @@ internal sealed class MediaMoveSnapshot
 
         if (!PhysicalFileIdentity.TryRead(path, out var after) || after != identity || after.IsReparsePoint)
         {
-            throw new IOException("Move refused: the physical identity changed at '" + path + "'.");
+            throw new IOException("Not moved: '" + path + "' was replaced by a different file or folder after MediaDash checked it. Run a scan to get an up-to-date plan, then approve it again.");
         }
     }
 

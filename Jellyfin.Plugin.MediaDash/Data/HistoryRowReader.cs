@@ -31,7 +31,7 @@ internal static class HistoryRowReader
         var moveId = Guid.TryParseExact(rawMoveId, "N", out _) ? rawMoveId : null;
         if (!reader.IsDBNull(13) && moveId is null)
         {
-            Api.Diagnostics.Record("MediaMove.InvalidHistoryLink", "History row " + historyId + " has an invalid move-operation reference. The row remains visible without an Undo action.");
+            Api.Diagnostics.Record("MediaMove.InvalidHistoryLink", "History entry #" + historyId + " has a damaged link to its move record, so it is shown without an Undo button. The files themselves are not affected.");
         }
 
         entry = new HistoryEntry

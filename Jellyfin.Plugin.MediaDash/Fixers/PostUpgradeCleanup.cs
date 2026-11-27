@@ -117,7 +117,7 @@ public sealed class PostUpgradeCleanup
                     }
                     catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                     {
-                        var msg = $"{name}: {ex.Message}";
+                        var msg = "After the update, MediaDash could not remove the old trickplay folder '" + name + "'. Delete it by hand to free the space. Details: " + ex.Message;
                         errors.Add(msg);
                         _logger.LogWarning(ex, "PostUpgradeCleanup: could not remove {Path}", dir);
                         Api.Diagnostics.Record("PostUpgradeCleanup.DeleteFailed", msg);
@@ -127,7 +127,7 @@ public sealed class PostUpgradeCleanup
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 errors.Add(trickplayRoot + ": " + ex.Message);
-                Api.Diagnostics.Record("PostUpgradeCleanup.WalkFailed", errors[^1]);
+                Api.Diagnostics.Record("PostUpgradeCleanup.WalkFailed", "After the update, MediaDash could not look through '" + trickplayRoot + "' for old trickplay folders. Check that the user Jellyfin runs as can read it. Details: " + ex.Message);
             }
         }
 

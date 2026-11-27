@@ -67,7 +67,7 @@ internal static class MediaMoveRecoveryDeletion
                     basic = new BasicInfo { Attributes = originalAttributes };
                     if (!SetBasic(handle, 0, ref basic, 40))
                     {
-                        throw new IOException("Move recovery deletion failed and its read-only attribute could not be restored.", error);
+                        throw new IOException("MediaDash could not remove a temporary recovery copy, or set it back to read-only. If the move worked, delete the copy by hand; the move record lists where it is.", error);
                     }
                 }
 
