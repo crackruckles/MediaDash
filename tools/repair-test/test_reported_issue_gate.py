@@ -55,6 +55,23 @@ class ReportedIssueGateTests(unittest.TestCase):
         deferral.update(sourceDigest=self.digest, cases=["media-docker-smoke"])
         self.assertTrue(any("unsupported" in error for error in self.evidence_problems(deferral)))
 
+    def test_release_scoped_deferral_needs_the_matching_build_version(self):
+        self.record["checks"][0]["passed"] = False
+        self.required = [{"id": "issue-80", "tests": ["T"], "acceptance": "loaded history"}]
+        deferral = {"version": "1.0.8.2", "sourceDigest": self.digest, "cases": ["issue-80"]}
+        # No build.yaml: only the standing deferrable cases are allowed.
+        self.assertTrue(any("unsupported" in error for error in self.evidence_problems(deferral)))
+        (self.root / "build.yaml").write_text('version: "1.0.8.3"\n', encoding="utf-8")
+        self.assertTrue(any("unsupported" in error for error in self.evidence_problems(deferral)))
+        (self.root / "build.yaml").write_text('version: "1.0.8.2"\n', encoding="utf-8")
+        deferred = []
+        self.assertEqual([], self.evidence_problems(deferral, deferred))
+        self.assertEqual(["issue-80"], deferred)
+        deferral["version"] = "1.0.8.1"
+        self.assertTrue(any("unsupported" in error for error in self.evidence_problems(deferral)))
+        deferral.update(version="1.0.8.2", cases=["media-docker-smoke"])
+        self.assertTrue(any("unsupported" in error for error in self.evidence_problems(deferral)))
+
     def test_media_acceptance_requires_each_named_check(self):
         self.required[0]["requiredChecks"] = ["full-decode", "source-restored"]
         self.record["checks"] = [{"name": "full-decode", "passed": True}]

@@ -81,6 +81,35 @@ def load_requirements(root):
     return reports, media
 
 
+# Report cases whose live acceptance may be deferred for any release, on the exact tested source.
+DEFERRABLE_CASES = frozenset(("issue-81-progress", "issue-87", "issue-89", "issue-92"))
+
+# One-off owner decision (2026-11-27): 1.0.8.2 ships with these cases deferred as well. They apply
+# only while build.yaml says 1.0.8.2 and the deferral record names that version; any other release
+# is back to DEFERRABLE_CASES alone. Remove this entry once 1.0.8.2 is published.
+RELEASE_DEFERRABLE_CASES = {
+    "1.0.8.2": frozenset((
+        "issue-80", "issue-81-83", "issue-86", "issue-88", "issue-43", "reddit-disappearing",
+        "media-live-workflows", "media-fate", "media-matroska", "media-hevc", "media-epub",
+    )),
+}
+
+
+def release_version(root):
+    try:
+        match = re.search(r'^version:\s*"?([0-9.]+)"?\s*$', (root / "build.yaml").read_text(encoding="utf-8"), re.MULTILINE)
+    except OSError:
+        return None
+    return match.group(1) if match else None
+
+
+def deferrable_cases(root, deferral):
+    version = release_version(root)
+    if version is not None and deferral.get("version") == version:
+        return DEFERRABLE_CASES | RELEASE_DEFERRABLE_CASES.get(version, frozenset())
+    return DEFERRABLE_CASES
+
+
 def check_acceptance(root, evidence_path, digest, requirements, deferred=None):
     try:
         raw_index = evidence_path.read_bytes()
@@ -98,8 +127,9 @@ def check_acceptance(root, evidence_path, digest, requirements, deferred=None):
         deferred_ids = set()
         if deferral.get("sourceDigest") == digest:
             ids = deferral.get("cases")
+            allowed = deferrable_cases(root, deferral)
             if (not isinstance(ids, list) or not ids or
-                    any(case_id not in ("issue-81-progress", "issue-87", "issue-89", "issue-92") for case_id in ids)):
+                    any(case_id not in allowed for case_id in ids)):
                 raise ValueError("release deferral includes unsupported cases")
             deferred_ids = set(ids)
             if deferred is not None:
